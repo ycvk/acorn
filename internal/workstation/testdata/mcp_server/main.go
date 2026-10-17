@@ -1,8 +1,9 @@
 // Command mcp_server is a stdio MCP server for tests of skill packages'
 // servers. It needs FIXTURE_TOKEN, serves an echo tool for every name in
 // tools.txt in its working directory, and tools that report its working
-// directory, its process id and the token, and one that breaks its stdio
-// session while the process lives on.
+// directory, its process id and the token. Two more print to stdout: lines
+// that are not JSON-RPC messages, and a message no client can decode, after
+// which the process lives on.
 package main
 
 import (
@@ -55,11 +56,16 @@ func main() {
 	mcp.AddTool(server, &mcp.Tool{Name: "token", Description: "The token."}, func(context.Context, *mcp.CallToolRequest, noArgs) (*mcp.CallToolResult, any, error) {
 		return text(token), nil, nil
 	})
-	var hang atomic.Bool
-	mcp.AddTool(server, &mcp.Tool{Name: "garble", Description: "Write a line that is not JSON to stdout and keep running after stdin closes."}, func(context.Context, *mcp.CallToolRequest, noArgs) (*mcp.CallToolResult, any, error) {
-		hang.Store(true)
+	mcp.AddTool(server, &mcp.Tool{Name: "chatter", Description: "Print lines that are not JSON-RPC messages to stdout, then answer."}, func(context.Context, *mcp.CallToolRequest, noArgs) (*mcp.CallToolResult, any, error) {
 		fmt.Println("added 32 packages in 2s")
-		return text("garbled"), nil, nil
+		fmt.Println(`{"level":"info","msg":"not a message"}`)
+		return text("chattered"), nil, nil
+	})
+	var hang atomic.Bool
+	mcp.AddTool(server, &mcp.Tool{Name: "break", Description: "Print a JSON-RPC message no client can decode and keep running after stdin closes."}, func(context.Context, *mcp.CallToolRequest, noArgs) (*mcp.CallToolResult, any, error) {
+		hang.Store(true)
+		fmt.Println(`{"jsonrpc":"2.0"}`)
+		return text("broken"), nil, nil
 	})
 	fmt.Fprintln(os.Stderr, "serving", strings.Join(strings.Fields(string(names)), ","))
 	err = server.Run(context.Background(), &mcp.StdioTransport{})

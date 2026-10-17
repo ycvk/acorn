@@ -267,7 +267,7 @@
   - `internal/wire/thread_files_e2e_test.go`
 - **伴随进程常驻**：`acorn workstation serve --keep` 的每个伴随进程在独立进程组里运行，退出后按退避重启，serve 停止时连同其子进程一起结束；日志按名字加前缀并去掉终端颜色码。
   - `internal/workstation/supervisor_test.go`
-- **包的 MCP 服务器由工作机守护**：`PUT /v1/mcp` 给出应运行的包（名字、包哈希、密钥环境变量），工作机停止其余服务器，包哈希或环境变了的重启，新的启动，最多等 90 秒报告每个服务器能否服务。服务器与伴随进程用同一个 supervisor：以包目录为工作目录、独立进程组、退避重启，stderr 以 `mcp:<name>` 为前缀写入日志；包目录的哈希必须与请求一致。工作机以 MCP 客户端经 stdio 连接服务器，把它的工具挂在 `/v1/mcp/<name>` 的 streamable HTTP 上，经 bearer token 鉴权，会话跨重启保留；进程退出或 stdio 会话断开都算一次失败，停掉进程后退避重启，重启进行中的请求等它结束再报告；不再运行的服务器的地址返回 404。serve 停止时这些服务器一起结束。
+- **包的 MCP 服务器由工作机守护**：`PUT /v1/mcp` 给出应运行的包（名字、包哈希、密钥环境变量），工作机停止其余服务器，包哈希或环境变了的重启，新的启动，最多等 90 秒报告每个服务器能否服务。服务器与伴随进程用同一个 supervisor：以包目录为工作目录、独立进程组、退避重启，stderr 以 `mcp:<name>` 为前缀写入日志；包目录的哈希必须与请求一致。工作机以 MCP 客户端经 stdio 连接服务器，把它的工具挂在 `/v1/mcp/<name>` 的 streamable HTTP 上，经 bearer token 鉴权，会话跨重启保留；服务器 stdout 里不是 JSON-RPC 消息的行以 `stray stdout:` 记进 `mcp:<name>` 日志并跳过，会话照常；进程退出或 stdio 会话仍然断开（管道关闭、客户端解不开的消息、超长的行）都算一次失败，停掉进程后退避重启，重启进行中的请求等它结束再报告；不再运行的服务器的地址返回 404。serve 停止时这些服务器一起结束。
   - `internal/workstation/mcp_test.go`
 - **页面渲染隔离**：`web_rendered` 追踪经工作机 `/v1/render` 渲染，每次用临时配置目录启动一次性浏览器，只接受 http(s)；backend 先按共享 URL policy 校验目标。
   - `internal/workstation/render_test.go`

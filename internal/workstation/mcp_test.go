@@ -1,6 +1,7 @@
 package workstation
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -121,7 +122,7 @@ func TestPackageMCPServersRunFromTheirPackageWithTheirSecrets(t *testing.T) {
 		t.Fatalf("run = %v, %v", failed, err)
 	}
 	session := h.connect(t, "fixture")
-	if got := toolNames(t, session); !slices.Equal(got, []string{"cwd", "echo", "garble", "pid", "token"}) {
+	if got := toolNames(t, session); !slices.Equal(got, []string{"break", "chatter", "cwd", "echo", "pid", "token"}) {
 		t.Fatalf("tools = %v", got)
 	}
 	if got := callText(t, session, "echo", map[string]string{"text": "hi"}); got != "echo: hi" {
@@ -285,6 +286,64 @@ func assertExited(t *testing.T, pid string) {
 	}
 }
 
+func TestStrayStdoutLinesAreLoggedAndSkipped(t *testing.T) {
+	binary := buildMCPFixture(t)
+	h := newMCPHarness(t)
+	ctx := t.Context()
+	if err := h.client.PutSkillPackage(ctx, "fixture", "hash-1", "---\nname: fixture\n---\nx\n", fixturePackage(binary, "echo\n")); err != nil {
+		t.Fatal(err)
+	}
+	if failed, err := h.client.RunMCPServers(ctx, []skills.MCPServerRun{{Name: "fixture", Hash: "hash-1", Env: map[string]string{"FIXTURE_TOKEN": "t"}}}); err != nil || len(failed) != 0 {
+		t.Fatalf("run = %v, %v", failed, err)
+	}
+	session := h.connect(t, "fixture")
+	first := callText(t, session, "pid", nil)
+	if got := callText(t, session, "chatter", nil); got != "chattered" {
+		t.Fatalf("chatter = %q", got)
+	}
+	if again := callText(t, session, "pid", nil); again != first {
+		t.Fatalf("stray output restarted the server: %s then %s", first, again)
+	}
+	for _, want := range []string{
+		"[mcp:fixture] stray stdout: added 32 packages in 2s",
+		`[mcp:fixture] stray stdout: {"level":"info","msg":"not a message"}`,
+	} {
+		if !strings.Contains(h.out.String(), want) {
+			t.Fatalf("log lacks %q: %q", want, h.out.String())
+		}
+	}
+	if strings.Contains(h.out.String(), "exited") {
+		t.Fatalf("the server exited: %q", h.out.String())
+	}
+}
+
+func TestRPCLinesPassOnlyJSONRPCMessages(t *testing.T) {
+	input := "added 3 packages\n\n" +
+		`{"jsonrpc":"2.0","id":1,"result":{}}` + "\n" +
+		`[{"jsonrpc":"2.0","method":"a"},{"jsonrpc":"2.0","method":"b"}]` + "\n" +
+		`[{"jsonrpc":"2.0","method":"a"},{"method":"b"}]` + "\n" +
+		"[]\nnull\n42\n" + `{"jsonrpc":"2.0",` + "\n" +
+		strings.Repeat("x", 2000) + "\n" +
+		`{"jsonrpc":"2.0","method":"last"}`
+	var stray []string
+	r := newRPCLines(io.NopCloser(strings.NewReader(input)), func(line string) { stray = append(stray, line) })
+	got, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"jsonrpc":"2.0","id":1,"result":{}}` + "\n" + `[{"jsonrpc":"2.0","method":"a"},{"jsonrpc":"2.0","method":"b"}]` + "\n" + `{"jsonrpc":"2.0","method":"last"}`
+	if string(got) != want {
+		t.Fatalf("passed = %q", got)
+	}
+	if len(stray) != 7 || stray[0] != "added 3 packages" || stray[5] != `{"jsonrpc":"2.0",` || stray[6] != strings.Repeat("x", 1024)+"… (976 more bytes)" {
+		t.Fatalf("stray = %q", stray)
+	}
+	long := newRPCLines(io.NopCloser(strings.NewReader(strings.Repeat("y", maxStdoutLine+1))), func(string) {})
+	if _, err := io.ReadAll(long); err == nil || !strings.Contains(err.Error(), "longer than") {
+		t.Fatalf("an endless line err = %v", err)
+	}
+}
+
 func TestAPackageServerWhoseSessionBreaksIsRestarted(t *testing.T) {
 	binary := buildMCPFixture(t)
 	h := newMCPHarness(t)
@@ -298,8 +357,8 @@ func TestAPackageServerWhoseSessionBreaksIsRestarted(t *testing.T) {
 	}
 	session := h.connect(t, "fixture")
 	first := callText(t, session, "pid", nil)
-	// The garbled line breaks the stdio session; the process stays up.
-	_, _ = session.CallTool(ctx, &mcp.CallToolParams{Name: "garble"})
+	// The undecodable message breaks the stdio session; the process stays up.
+	_, _ = session.CallTool(ctx, &mcp.CallToolParams{Name: "break"})
 	assertExited(t, first)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
