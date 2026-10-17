@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -244,4 +245,93 @@ func TestMemoryConsolidationCannotRestoreStrippedEvidence(t *testing.T) {
 	if err != nil || read.Record.Revision != 2 || len(read.Record.Evidence) != 1 {
 		t.Fatalf("record after rejected restore=%+v %v", read.Record, err)
 	}
+}
+
+// Forgetting a fact excludes only the words it cites. A run that read the
+// message before the forget read those words, so what it derives, before or
+// after, is excluded with them. A run that reads the message afterwards sees
+// it without them: what it derives stays readable, a summary covering the
+// message reads back, and a later forget leaves both alone.
+func TestMemoryFragmentExclusionSparesLaterDerivedSources(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if _, err := s.CreateSession(ctx, "thread_1", "memory"); err != nil {
+		t.Fatal(err)
+	}
+	for i, run := range []string{"run_1", "run_2"} {
+		if err := s.CreateRun(ctx, core.RunCreateParams{RunID: run, SessionID: "thread_1", TurnIndex: i + 1, Input: "聊聊"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	said, err := s.AppendSessionMessage(ctx, "thread_1", 1, "user", "我不吃香菜。我喜欢游泳。", "run_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := s.LoadMemorySource(ctx, fmt.Sprintf("message:%d", said.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := memoryFact(owner, "owner 不吃香菜")
+	change.Draft.Evidence[0].Quote = "我不吃香菜"
+	records, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{change}, Now: memoryTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveMemorySnapshotRefs(ctx, "before", "run_1", []string{owner.ID}, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	echoed, err := s.AppendSessionMessage(ctx, "thread_1", 1, "assistant", "记住了，你不吃香菜", "run_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记香菜偏好")
+	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	late, err := s.AppendEvent(ctx, "run_1", "tool.call.succeeded", map[string]any{"tool_name": "shell", "output": "已记下：不吃香菜"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{fmt.Sprintf("message:%d", echoed.ID), fmt.Sprintf("event:%d", late.Sequence)} {
+		if _, err := s.LoadThreadSource(ctx, id); !errors.Is(err, core.ErrMemoryExcluded) {
+			t.Fatalf("source %s of the run that read the forgotten words: %v", id, err)
+		}
+	}
+
+	if err := s.SaveMemorySnapshotRefs(ctx, "after", "run_2", []string{owner.ID}, nil, exclusion.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	reply, err := s.AppendSessionMessage(ctx, "thread_1", 2, "assistant", "游泳很好", "run_2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.AppendEvent(ctx, "run_2", "tool.call.succeeded", map[string]any{"tool_name": "shell", "output": "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	derived := []string{fmt.Sprintf("message:%d", reply.ID), fmt.Sprintf("event:%d", result.Sequence)}
+	summary := core.ThreadSummary{SessionID: "thread_1", ThroughMessageID: reply.ID, Content: "owner 喜欢游泳", SourceIDs: append([]string{owner.ID}, derived[0]), Epoch: exclusion.Epoch, UpdatedAt: memoryTestNow.Add(2 * time.Hour)}
+	if err := s.SaveThreadSummary(ctx, summary); err != nil {
+		t.Fatal(err)
+	}
+	readable := func(stage string) {
+		t.Helper()
+		for _, id := range derived {
+			if _, err := s.LoadMemorySource(ctx, id); err != nil {
+				t.Fatalf("%s: source %s derived from the remaining words: %v", stage, id, err)
+			}
+		}
+		if got, err := s.LoadThreadSummary(ctx, "thread_1"); err != nil || got == nil {
+			t.Fatalf("%s: summary=%+v err=%v", stage, got, err)
+		}
+	}
+	readable("after the forget")
+
+	tea := seedMemorySource(t, s, "owner:tea", "owner", "我早上喝茶")
+	again := seedMemorySource(t, s, "owner:forget-tea", "owner", "忘记喝茶")
+	if _, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{tea.ID}, RequestSourceID: again.ID, Reason: "owner request", Now: memoryTestNow.Add(3 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	readable("after an unrelated forget")
 }
