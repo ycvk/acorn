@@ -46,6 +46,12 @@ sealed interface KnowledgeContent {
     data class Items(val notes: List<KnowledgeNoteSummary>) : KnowledgeContent
 }
 
+/** The list once the note at [path] is deleted. */
+fun withoutNote(load: KnowledgeLoad, path: String): KnowledgeLoad = when (load) {
+    is KnowledgeLoad.Loaded -> KnowledgeLoad.Loaded(load.notes.filterNot { it.path == path })
+    else -> load
+}
+
 fun knowledgeContent(load: KnowledgeLoad, query: String): KnowledgeContent = when (load) {
     KnowledgeLoad.Loading -> KnowledgeContent.Loading
     is KnowledgeLoad.Failed -> KnowledgeContent.Failed(load.message)
@@ -110,7 +116,7 @@ class KnowledgeViewModel @Inject constructor(
         }
     }
 
-    /** Deletes a note, refreshes the list, then calls [onDeleted]; a failure stays on the note. */
+    /** Deletes a note, drops it from the list, then calls [onDeleted]; a failure is kept in [deleteError]. */
     fun deleteNote(path: String, onDeleted: () -> Unit) {
         val profile = profile() ?: run {
             _deleteError.value = "还没有连接服务器"
@@ -119,7 +125,7 @@ class KnowledgeViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { repository.delete(profile, path) }
-                load(_query.value)
+                _load.value = withoutNote(_load.value, path)
                 onDeleted()
             } catch (e: Exception) {
                 _deleteError.value = userMessage(e)

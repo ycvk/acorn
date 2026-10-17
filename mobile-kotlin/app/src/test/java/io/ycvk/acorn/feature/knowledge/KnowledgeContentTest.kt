@@ -28,6 +28,13 @@ class KnowledgeContentTest {
     }
 
     @Test
+    fun `a deleted note leaves the list it was in`() {
+        val other = note.copy(path = "inbox/rust.md", title = "Rust")
+        assertEquals(KnowledgeLoad.Loaded(listOf(other)), withoutNote(KnowledgeLoad.Loaded(listOf(note, other)), "inbox/tokio.md"))
+        assertEquals(KnowledgeLoad.Loading, withoutNote(KnowledgeLoad.Loading, "inbox/tokio.md"))
+    }
+
+    @Test
     fun `note body splits around attachment embeds`() {
         assertEquals(
             listOf(
