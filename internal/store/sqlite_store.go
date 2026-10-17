@@ -29,9 +29,14 @@ var (
 )
 
 type Store struct {
+	dir       string
 	lock      *os.File
 	exclusive bool
-	db        *sql.DB
+	// process names this store's process in run_processes; processLock is its
+	// lock file in processesDir.
+	process     string
+	processLock *os.File
+	db          *sql.DB
 	// read serves memory recall and candidate reads. WAL lets these readers run
 	// beside the single serialized writer connection in db.
 	read        *sql.DB
@@ -71,6 +76,16 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 			_ = lock.Close()
 		}
 	}()
+	process, processLock, err := holdProcessLock(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !success {
+			_ = os.Remove(processLockPath(dir, process))
+			_ = processLock.Close()
+		}
+	}()
 	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -88,7 +103,7 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create thread files dir: %w", err)
 	}
-	store := &Store{lock: lock, exclusive: exclusive, db: db, artifactDir: artifactDir, filesDir: filesDir}
+	store := &Store{dir: dir, lock: lock, exclusive: exclusive, process: process, processLock: processLock, db: db, artifactDir: artifactDir, filesDir: filesDir}
 	artifactSvc, err := NewArtifactService(artifactDir, store)
 	if err != nil {
 		_ = db.Close()
@@ -117,7 +132,7 @@ func (s *Store) Close() error {
 	if s == nil || s.db == nil {
 		return nil
 	}
-	return errors.Join(s.read.Close(), s.db.Close(), s.lock.Close())
+	return errors.Join(s.read.Close(), s.db.Close(), s.releaseProcessLock(), s.lock.Close())
 }
 
 const readConnections = 4

@@ -154,7 +154,7 @@ func TestFailedToolCallProjectsAsFailed(t *testing.T) {
 	failed := newFailedToolCalls()
 	iter := newToolErrorTestRunner(t, model, failed).Run(context.Background(), []adk.AgenticMessage{schema.UserAgenticMessage("go")})
 	store := &eventLogStore{}
-	state, err := (&Executor{store: store}).collectRunState(context.Background(), "run_tools", iter, nil, &ActiveRunner{ChatModel: model, FailedCalls: failed})
+	state, err := (&Executor{store: store}).collectRunState(context.Background(), context.Background(), "run_tools", iter, nil, &ActiveRunner{ChatModel: model, FailedCalls: failed})
 	if err != nil || state.failure != nil {
 		t.Fatalf("collect: err=%v failure=%v", err, state.failure)
 	}

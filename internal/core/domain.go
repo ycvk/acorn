@@ -13,6 +13,9 @@ var (
 	ErrRunNotActive      = errors.New("run not active")
 	ErrRunNotInterrupted = errors.New("run not interrupted")
 	ErrExecutionNotReady = errors.New("execution not ready")
+	// ErrShuttingDown refuses a run that would start while Acorn stops, and is
+	// the failure of a run that Acorn stopped.
+	ErrShuttingDown = errors.New("acorn is shutting down")
 )
 var (
 	ErrRunNotFound              = errors.New("run not found")

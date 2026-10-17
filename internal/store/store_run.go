@@ -12,20 +12,26 @@ import (
 )
 
 // CreateRun implements core.RunRepo. It creates a run record with status
-// "running" and an empty finished_at (filled on completion). Binding of user
-// messages is handled separately via BindLatestUserMessageRunID /
-// BindUserMessageRunIDByID.
+// "running", executed by this store's process, and an empty finished_at
+// (filled on completion). Binding of user messages is handled separately via
+// BindLatestUserMessageRunID / BindUserMessageRunIDByID.
 func (s *Store) CreateRun(ctx context.Context, params core.RunCreateParams) error {
 	now := formatTimestamp(time.Now())
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
-		params.RunID,
-		params.SessionID,
-		params.TurnIndex,
-		string(core.RunStatusRunning),
-		params.Input,
-		now,
-	)
+	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
+			params.RunID,
+			params.SessionID,
+			params.TurnIndex,
+			string(core.RunStatusRunning),
+			params.Input,
+			now,
+		); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO run_processes(run_id, process) VALUES(?, ?)`, params.RunID, s.process)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("create run: %w", err)
 	}
@@ -58,18 +64,29 @@ func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any
 
 // FinishRun implements core.RunRepo.
 func (s *Store) FinishRun(ctx context.Context, runID string, status core.RunStatus, output, errText string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET status = ?, output_text = ?, error_text = ?, finished_at = ? WHERE run_id = ?`,
-		string(status),
-		output,
-		errText,
-		formatTimestamp(time.Now()),
-		runID,
-	)
+	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE runs SET status = ?, output_text = ?, error_text = ?, finished_at = ? WHERE run_id = ?`,
+			string(status),
+			output,
+			errText,
+			formatTimestamp(time.Now()),
+			runID,
+		); err != nil {
+			return err
+		}
+		return stopRunProcess(ctx, tx, runID)
+	})
 	if err != nil {
 		return fmt.Errorf("finish run: %w", err)
 	}
 	return nil
+}
+
+// stopRunProcess drops the process of a run that is no longer running.
+func stopRunProcess(ctx context.Context, tx *sql.Tx, runID string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM run_processes WHERE run_id = ?`, runID)
+	return err
 }
 
 // UpdateRunOutput implements core.RunRepo.
@@ -87,39 +104,50 @@ func (s *Store) UpdateRunOutput(ctx context.Context, runID, output string) error
 
 // MarkInterrupted implements core.RunRepo.
 func (s *Store) MarkInterrupted(ctx context.Context, runID, output string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET status = ?, output_text = ?, finished_at = ? WHERE run_id = ?`,
-		string(core.RunStatusInterrupted),
-		output,
-		formatTimestamp(time.Now()),
-		runID,
-	)
+	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE runs SET status = ?, output_text = ?, finished_at = ? WHERE run_id = ?`,
+			string(core.RunStatusInterrupted),
+			output,
+			formatTimestamp(time.Now()),
+			runID,
+		); err != nil {
+			return err
+		}
+		return stopRunProcess(ctx, tx, runID)
+	})
 	if err != nil {
 		return fmt.Errorf("mark interrupted: %w", err)
 	}
 	return nil
 }
 
-// ResumeInterruptedRun moves an interrupted run back to running. The
-// conditional update is the claim that lets exactly one resumer continue it.
+// ResumeInterruptedRun moves an interrupted run back to running, executed by
+// this store's process. The conditional update is the claim that lets exactly
+// one resumer continue it.
 func (s *Store) ResumeInterruptedRun(ctx context.Context, runID string) error {
-	result, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET status = ?, finished_at = '' WHERE run_id = ? AND status = ?`,
-		string(core.RunStatusRunning),
-		runID,
-		string(core.RunStatusInterrupted),
-	)
-	if err != nil {
-		return fmt.Errorf("resume interrupted run: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("resume interrupted run rows affected: %w", err)
-	}
-	if affected != 1 {
-		return fmt.Errorf("%w: %s", core.ErrRunNotInterrupted, runID)
-	}
-	return nil
+	return s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx,
+			`UPDATE runs SET status = ?, finished_at = '' WHERE run_id = ? AND status = ?`,
+			string(core.RunStatusRunning),
+			runID,
+			string(core.RunStatusInterrupted),
+		)
+		if err != nil {
+			return fmt.Errorf("resume interrupted run: %w", err)
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("resume interrupted run rows affected: %w", err)
+		}
+		if affected != 1 {
+			return fmt.Errorf("%w: %s", core.ErrRunNotInterrupted, runID)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO run_processes(run_id, process) VALUES(?, ?) ON CONFLICT(run_id) DO UPDATE SET process = excluded.process`, runID, s.process); err != nil {
+			return fmt.Errorf("resume interrupted run: %w", err)
+		}
+		return nil
+	})
 }
 
 // ListInterruptedRuns returns every interrupted run, oldest first.

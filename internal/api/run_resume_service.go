@@ -151,8 +151,13 @@ func (s *RunResumeService) resumeClaimed(ctx context.Context, runID string) {
 }
 
 // failRun records a resume failure on a run that the executor did not get to
-// finish, so the run does not stay interrupted with no visible error.
+// finish, so the run does not stay interrupted with no visible error. A
+// resume refused while Acorn stops left the run interrupted, and the next
+// start resumes it.
 func (s *RunResumeService) failRun(ctx context.Context, runID string, cause error) {
+	if errors.Is(cause, core.ErrShuttingDown) {
+		return
+	}
 	run, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		s.reportError(ctx, runID, errors.Join(cause, err))

@@ -18,7 +18,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 11
+const schemaVersion = 12
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -32,6 +32,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	requeueBudgetFailedMemoryJobs,
 	addThreadFiles,
 	inheritFragmentExclusionsByEpoch,
+	addRunProcesses,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push

@@ -78,9 +78,16 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRe
 	return req, nil
 }
 
+// ExecuteMessages registers the run before it records anything, so a run
+// refused while Acorn stops leaves no trace.
 func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*Result, error) {
 	runID := resolveRunID(req)
-	req, err := e.prepareExecuteRequest(ctx, req)
+	runCtxBase, cleanup, err := e.newManagedRunContext(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	req, err = e.prepareExecuteRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -95,11 +102,6 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 			return nil, e.failSetupOrErr(ctx, runID, err, sink)
 		}
 	}
-	runCtxBase, cleanup, err := e.newManagedRunContext(ctx, runID)
-	if err != nil {
-		return nil, e.failSetupOrErr(ctx, runID, err, sink)
-	}
-	defer cleanup()
 	if err := e.emitRunStarted(ctx, runID, req.Input, sink); err != nil {
 		return nil, err
 	}
@@ -110,7 +112,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 	}
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
 	iter := active.Runner.Run(execCtx, active.Memory.messages(), adk.WithCheckPointID(runID))
-	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active)
+	return e.consume(ctx, runCtxBase, runID, req.SessionID, req.Input, iter, sink, active)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -148,15 +150,18 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 	if err != nil {
 		return nil, nil, err
 	}
-	runTimeout := time.Duration(e.runRuntime.Config().Runtime.RunTimeoutSeconds) * time.Second
-	var runCtxBase context.Context
-	var cancel context.CancelFunc
-	if runTimeout > 0 {
-		runCtxBase, cancel = context.WithTimeout(ctx, runTimeout)
-	} else {
-		runCtxBase, cancel = context.WithCancel(ctx)
+	runCtxBase, stop := context.WithCancelCause(ctx)
+	cancel := func() { stop(nil) }
+	if runTimeout := time.Duration(e.runRuntime.Config().Runtime.RunTimeoutSeconds) * time.Second; runTimeout > 0 {
+		var cancelTimeout context.CancelFunc
+		runCtxBase, cancelTimeout = context.WithTimeout(runCtxBase, runTimeout)
+		cancel = func() { cancelTimeout(); stop(nil) }
 	}
-	unregister := e.controller.Register(runID, cancel)
+	unregister, err := e.controller.Register(runID, stop)
+	if err != nil {
+		cancel()
+		return nil, nil, err
+	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -173,19 +178,21 @@ func buildExecutionContext(runCtxBase context.Context, runID, sessionID string) 
 	return core.WithSessionID(core.WithRunID(runCtxBase, runID), sessionID)
 }
 
+// ResumeWithTargets registers the run before it claims it, so a resume
+// refused while Acorn stops leaves the run interrupted for the next start.
 func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*Result, error) {
 	run, err := e.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
+	runCtxBase, cleanup, err := e.newManagedRunContext(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
 	if err := e.store.ResumeInterruptedRun(ctx, runID); err != nil {
 		return nil, err
 	}
-	runCtxBase, cleanup, err := e.newManagedRunContext(ctx, runID)
-	if err != nil {
-		return nil, e.failSetupOrErr(ctx, runID, err, sink)
-	}
-	defer cleanup()
 	if err := e.emitRunResumeRequested(ctx, runID, targets, sink); err != nil {
 		return nil, err
 	}
@@ -217,7 +224,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	if err != nil {
 		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
-	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, sink, active)
+	result, err := e.consume(ctx, runCtxBase, runID, run.SessionID, run.Input, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
@@ -234,15 +241,17 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
-	state, err := e.collectRunState(ctx, runID, iter, sink, active)
+// consume records the run's events and its end. ctx carries the writes; runCtx
+// is the run's own context, whose cancellation cause explains a stopped run.
+func (e *Executor) consume(ctx, runCtx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
+	state, err := e.collectRunState(ctx, runCtx, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
 	return e.finishCollectedRun(ctx, runID, sessionID, input, state, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
+func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
 	state := RunState{}
 	projector := newAgentEventProjector(runID, active.ChatModel, active.FailedCalls)
 	emit := func(item core.StreamItem) error {
@@ -258,7 +267,7 @@ func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.
 		if !ok {
 			break
 		}
-		if err := projector.project(event, emit); err != nil {
+		if err := projector.project(withStopCause(runCtx, event), emit); err != nil {
 			return RunState{}, err
 		}
 	}
@@ -270,6 +279,21 @@ func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.
 		}
 	}
 	return state, nil
+}
+
+// withStopCause gives the error of a run cancelled with a cause, such as
+// core.ErrShuttingDown, as that cause in place of the bare context error.
+func withStopCause(runCtx context.Context, event *adk.TypedAgentEvent[*schema.AgenticMessage]) *adk.TypedAgentEvent[*schema.AgenticMessage] {
+	if event.Err == nil || runCtx.Err() == nil {
+		return event
+	}
+	cause := context.Cause(runCtx)
+	if errors.Is(cause, runCtx.Err()) {
+		return event
+	}
+	stopped := *event
+	stopped.Err = cause
+	return &stopped
 }
 
 func (s *RunState) applyStreamItem(item core.StreamItem) {

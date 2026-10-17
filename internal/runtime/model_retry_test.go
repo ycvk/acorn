@@ -94,7 +94,7 @@ func collectRetryRun(t *testing.T, model *flakyStreamModel) (RunState, *eventLog
 	runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true})
 	store := &eventLogStore{}
 	iter := runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("hi")})
-	state, err := (&Executor{store: store}).collectRunState(ctx, "run_retry", iter, nil, &ActiveRunner{ChatModel: model, FailedCalls: newFailedToolCalls()})
+	state, err := (&Executor{store: store}).collectRunState(ctx, ctx, "run_retry", iter, nil, &ActiveRunner{ChatModel: model, FailedCalls: newFailedToolCalls()})
 	if err != nil {
 		t.Fatalf("collect: %v", err)
 	}

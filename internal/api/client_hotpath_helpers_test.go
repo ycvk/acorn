@@ -55,7 +55,9 @@ func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunServ
 		panic(err)
 	}
 	controller := runtime.NewRunController()
-	controller.Register(clientHotPathRunID(stub), func() {})
+	if _, err := controller.Register(clientHotPathRunID(stub), func(error) {}); err != nil {
+		panic(err)
+	}
 	runs := NewRunService(store, threads, stub.executeRun, controller)
 	events := NewEventService(store, store)
 	return threads, runs, events

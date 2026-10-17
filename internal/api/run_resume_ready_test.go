@@ -220,3 +220,30 @@ func TestResumeFailureMarksRunFailed(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+// TestResumeRefusedWhileStoppingLeavesRunInterrupted covers a resume refused
+// because Acorn stops: the run is not failed, so the next start resumes it.
+func TestResumeRefusedWhileStoppingLeavesRunInterrupted(t *testing.T) {
+	store := newResumeReadyStore(core.RunStatusInterrupted)
+	store.events[0].Payload = map[string]any{"interrupt": map[string]any{"contexts": []map[string]any{{"id": "i1", "is_root_cause": true}}}}
+	recorder := newResumeRecorder()
+	recorder.result = nil
+	recorder.err = core.ErrShuttingDown
+	service := NewRunResumeService(store).WithResume(recorder.resume)
+	if err := service.ResumeIfReady(context.Background(), "run_1"); err != nil {
+		t.Fatalf("resume if ready: %v", err)
+	}
+	recorder.waitTargets(t)
+	deadline := time.Now().Add(5 * time.Second)
+	for !service.claim("run_1") {
+		if time.Now().After(deadline) {
+			t.Fatal("the refused resume never released the run")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.finished) != 0 || len(store.events) != 1 || store.run.Status != core.RunStatusInterrupted {
+		t.Fatalf("run = %s finished %v events %d, want interrupted and untouched", store.run.Status, store.finished, len(store.events))
+	}
+}

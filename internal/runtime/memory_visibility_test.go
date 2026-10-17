@@ -95,8 +95,11 @@ func TestCheckpointExclusionVersionFencesRestoreAndSave(t *testing.T) {
 
 func TestForgetBarrierWaitsForAffectedRunToExit(t *testing.T) {
 	controller := NewRunController()
-	ctx, cancel := context.WithCancel(context.Background())
-	cleanup := controller.Register("old", cancel)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cleanup, err := controller.Register("old", cancel)
+	if err != nil {
+		t.Fatal(err)
+	}
 	done := make(chan error, 1)
 	go func() {
 		done <- controller.ForgetBarrier(context.Background(), core.MemoryExclusion{RunIDs: []string{"old", "caller"}}, "caller")

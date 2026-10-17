@@ -38,6 +38,11 @@
 - **审批绑定具体调用并可跨重启恢复**：规则或审查要求审批的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行完，被拦截的调用等决策后再执行。`approval.require` 与 `approval.block` 不允许命中 `ask_operator`。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
   - `internal/runtime/approval_test.go`
   - `internal/store/store_checkpoint_test.go`
+- **run 不会一直停在 running**：Acorn 停止时，`Container.Close` 拒绝新的 run 与续跑，以 `core.ErrShuttingDown` 取消在跑的 run，至多等 10 秒让它们写下 `run.failed` 与 failed 状态，再关闭 store；run 在登记到 `RunController` 之后才建 run 或认领续跑，被拒绝的续跑留在 interrupted，下次启动照常续跑。`serve` 等 HTTP 请求结束后再停 worker、run 与 store。每个打开的 store 持有 `{storage_dir}/processes/` 下以其进程命名的加锁文件，`run_processes` 记下执行每个 running run 的进程；容器启动时，进程已停止（锁文件缺失或未被持有）的 running run 以 `run.failed` 记为 failed 并删除 checkpoint，它的线程重新可删，仍在运行的 Acorn 进程的 run 不受影响。
+  - `internal/runtime/run_control_test.go`
+  - `internal/store/store_run_process_test.go`
+  - `internal/api/run_resume_ready_test.go`
+  - `internal/wire/run_shutdown_e2e_test.go`
 
 - **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
   - `internal/core/decision_card_test.go`

@@ -138,11 +138,27 @@ func (c *Container) WakeScheduler() *wake.Scheduler {
 // wakeInterval is how often the wake scheduler looks for due commitments.
 const wakeInterval = 30 * time.Second
 
+// runStopTimeout bounds how long Close waits for the runs it cancels to
+// record their end before the store closes. A run still going then is failed
+// by the next start.
+const runStopTimeout = 10 * time.Second
+
+// abandonedRunError is the failure of a run whose process stopped before the
+// run ended.
+const abandonedRunError = "Acorn stopped before this run finished"
+
+// Close stops the runs this container executes, then closes the runner
+// factory and the store.
 func (c *Container) Close() error {
 	if c == nil {
 		return nil
 	}
 	var errs []error
+	stopCtx, cancel := context.WithTimeout(context.Background(), runStopTimeout)
+	if err := c.runController.Stop(stopCtx); err != nil {
+		errs = append(errs, err)
+	}
+	cancel()
 	if c.runnerFactory != nil {
 		if err := c.runnerFactory.Close(); err != nil {
 			errs = append(errs, err)
@@ -170,6 +186,14 @@ func buildContainer(ctx context.Context, cfg *config.Config, options buildOption
 			_ = store.Close()
 		}
 	}()
+
+	abandoned, err := store.FailAbandonedRuns(ctx, abandonedRunError)
+	if err != nil {
+		return nil, err
+	}
+	if len(abandoned) > 0 {
+		slog.Warn("failed runs whose Acorn process stopped before they ended", "runs", abandoned)
+	}
 
 	deps, err := buildContainerRuntimeDeps(ctx, cfg, store, options)
 	if err != nil {

@@ -65,7 +65,11 @@ func runServe(ctx context.Context, args []string) error {
 		MaxHeaderBytes:    1 << 20,
 	}
 
+	// Requests finish before the deferred close stops the workers and runs and
+	// closes the store.
+	drained := make(chan struct{})
 	go func() {
+		defer close(drained)
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -82,6 +86,8 @@ func runServe(ctx context.Context, args []string) error {
 	fmt.Println(executionReadinessBanner(cfg.ValidateExecutionReady()))
 	fmt.Printf("Acorn Web 服务监听于 http://%s\n", addr)
 	err = server.ListenAndServe()
+	cancel()
+	<-drained
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
