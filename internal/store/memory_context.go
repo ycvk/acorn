@@ -150,12 +150,14 @@ func (s *Store) SaveThreadSummary(ctx context.Context, summary core.ThreadSummar
 	})
 }
 
+// LoadThreadSummary reads a summary that no exclusion reaches: a summary read
+// its sources without the fragments excluded before it was written.
 func (s *Store) LoadThreadSummary(ctx context.Context, sessionID string) (*core.ThreadSummary, error) {
 	var out core.ThreadSummary
 	var sourceJSON, updated string
 	err := s.db.QueryRowContext(ctx, `SELECT t.session_id,t.through_message_id,t.epoch,t.content,
  (SELECT json_group_array(s.source_id) FROM (SELECT source_id FROM thread_summary_sources WHERE session_id=t.session_id ORDER BY rowid) s),t.updated_at
- FROM thread_summaries t WHERE t.session_id=? AND NOT EXISTS(SELECT 1 FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id WHERE s.session_id=t.session_id)`, sessionID).Scan(&out.SessionID, &out.ThroughMessageID, &out.Epoch, &out.Content, &sourceJSON, &updated)
+ FROM thread_summaries t WHERE t.session_id=? AND NOT EXISTS(SELECT 1 FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id WHERE s.session_id=t.session_id AND (x.quote='' OR x.epoch>t.epoch))`, sessionID).Scan(&out.SessionID, &out.ThroughMessageID, &out.Epoch, &out.Content, &sourceJSON, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

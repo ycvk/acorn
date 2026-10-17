@@ -166,15 +166,7 @@ CREATE TABLE IF NOT EXISTS memory_vector_sketches (
 );
 `
 
-const memorySourceTriggers = `
-CREATE TRIGGER IF NOT EXISTS memory_source_link_ai AFTER INSERT ON memory_source_links BEGIN
- INSERT OR IGNORE INTO memory_exclusions(epoch,source_id,quote,request_source_id,reason,created_at)
- SELECT x.epoch,new.source_id,'',x.request_source_id,'derived from an excluded source',x.created_at
- FROM memory_exclusions x WHERE x.source_id=new.parent_id ORDER BY x.epoch DESC LIMIT 1;
- UPDATE memory_jobs SET state='done',error='owner excluded source',lease_until=''
- WHERE object_id=new.source_id AND EXISTS(SELECT 1 FROM memory_exclusions WHERE source_id=new.source_id AND quote='');
-END;
-` + memoryWatchTrigger + `
+const memorySourceTriggers = memorySourceLinkTrigger + memoryWatchTrigger + `
 
 CREATE TRIGGER IF NOT EXISTS memory_message_ai AFTER INSERT ON session_messages BEGIN
  INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,run_id,recorded_at)
@@ -218,6 +210,23 @@ func (s *Store) memoryTransaction(ctx context.Context, fn func(*sql.Tx) error) (
 	}
 	return nil
 }
+
+// memorySourceLinkTrigger excludes a source derived from an excluded parent:
+// always for a whole exclusion, and for a fragment only when the source's run
+// read the parent before the fragment was excluded. A run that read it later
+// saw it without the fragment. forgetMemory excludes the sources derived
+// before it ran. The v11 migration recreates it from this definition.
+const memorySourceLinkTrigger = `
+CREATE TRIGGER IF NOT EXISTS memory_source_link_ai AFTER INSERT ON memory_source_links BEGIN
+ INSERT OR IGNORE INTO memory_exclusions(epoch,source_id,quote,request_source_id,reason,created_at)
+ SELECT x.epoch,new.source_id,'',x.request_source_id,'derived from an excluded source',x.created_at
+ FROM memory_exclusions x WHERE x.source_id=new.parent_id AND (x.quote='' OR EXISTS(SELECT 1 FROM memory_sources s
+ JOIN context_snapshot_refs r ON r.run_id=s.run_id AND r.source_id=new.parent_id WHERE s.id=new.source_id AND s.run_id<>'' AND r.epoch<x.epoch))
+ ORDER BY x.epoch DESC LIMIT 1;
+ UPDATE memory_jobs SET state='done',error='owner excluded source',lease_until=''
+ WHERE object_id=new.source_id AND EXISTS(SELECT 1 FROM memory_exclusions WHERE source_id=new.source_id AND quote='');
+END;
+`
 
 // memoryWatchTrigger and memoryEventTrigger register watch items and tool
 // results as sources without queueing extraction; only owner messages are
