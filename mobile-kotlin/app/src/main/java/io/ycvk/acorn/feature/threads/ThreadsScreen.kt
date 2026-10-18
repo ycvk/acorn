@@ -167,7 +167,8 @@ private fun ThreadList(
                             onDelete = { onDelete(thread) },
                         )
                     }
-                    Hairline(inset = ScreenPadding + 28.dp)
+                    // A group's last line runs full width, so the next group's band starts on a whole edge.
+                    Hairline(inset = if (thread.id == items.last().id) 0.dp else ScreenPadding + 28.dp)
                 }
             }
         }

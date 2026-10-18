@@ -79,14 +79,14 @@ private fun SkillList(items: List<SkillSummary>, onOpenSkill: (String) -> Unit) 
             item { ListSection("在用", count = inUse.size) }
             items(inUse, key = { "use:" + it.name }) { skill ->
                 SkillRow(skill, now, onClick = { onOpenSkill(skill.name) })
-                Hairline(inset = ScreenPadding)
+                Hairline(inset = if (skill.name == inUse.last().name) 0.dp else ScreenPadding)
             }
         }
         if (retired.isNotEmpty()) {
             item { ListSection("已停用", count = retired.size) }
             items(retired, key = { "retired:" + it.name }) { skill ->
                 SkillRow(skill, now, onClick = { onOpenSkill(skill.name) })
-                Hairline(inset = ScreenPadding)
+                Hairline(inset = if (skill.name == retired.last().name) 0.dp else ScreenPadding)
             }
         }
     }

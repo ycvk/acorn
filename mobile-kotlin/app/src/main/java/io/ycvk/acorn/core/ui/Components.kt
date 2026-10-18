@@ -190,16 +190,22 @@ fun IconAction(
     }
 }
 
-/** A small label above a bordered group, as in settings. */
+/** A small label above a bordered group or a card, as in settings and on 今天, with an optional count. */
 @Composable
-fun SectionLabel(text: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
+fun SectionLabel(text: String, modifier: Modifier = Modifier, count: Int? = null, trailing: @Composable RowScope.() -> Unit = {}) {
+    val colors = AcornTheme.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(start = ScreenPadding + 2.dp, end = ScreenPadding, top = 24.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, style = AcornTheme.type.eyebrow, color = AcornTheme.colors.inkSoft, modifier = Modifier.weight(1f))
+        Text(text, style = AcornTheme.type.eyebrow, color = colors.inkSoft, modifier = Modifier.weight(1f, fill = false))
+        count?.let {
+            Spacer(Modifier.width(8.dp))
+            Text("$it", style = AcornTheme.type.caption, color = colors.inkFaint)
+        }
+        Spacer(Modifier.weight(1f))
         trailing()
     }
 }

@@ -60,11 +60,11 @@ import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.ListRow
-import io.ycvk.acorn.core.ui.ListSection
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.PageHeader
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Status
 import io.ycvk.acorn.core.ui.StatusGlyph
@@ -149,7 +149,7 @@ fun NowScreen(
                     }
                 }
                 if (pending.isNotEmpty()) {
-                    item(key = "pending:label") { ListSection("等你确认", count = pending.size) }
+                    item(key = "pending:label") { SectionLabel("等你确认", count = pending.size) }
                     items(pending, key = { "pending:${it.actionId}" }) { action ->
                         ApprovalCard(
                             action = action,
@@ -243,12 +243,12 @@ private fun LazyListScope.nowSections(
     }
 
     if (briefing != null) {
-        item(key = "briefing:label") { ListSection(if (briefing.date == today) "今日简报" else "最近的简报") }
+        item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
         item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onBriefingClick(briefing.threadId) }) }
     }
 
     if (now.commitments.isNotEmpty()) {
-        item(key = "commitments:label") { ListSection("接下来", count = now.commitments.size) }
+        item(key = "commitments:label") { SectionLabel("接下来", count = now.commitments.size) }
         items(now.commitments, key = { "commitment:${it.id}" }) { commitment ->
             Column(Modifier.animateItem()) {
                 CommitmentRow(commitment, wakeTime(commitment.wakeAt, today, zone), onCancel = { onCancel(commitment) })
@@ -258,7 +258,7 @@ private fun LazyListScope.nowSections(
     }
 
     if (now.concerns.isNotEmpty()) {
-        item(key = "concerns:label") { ListSection("正在跟进", count = now.concerns.size) }
+        item(key = "concerns:label") { SectionLabel("正在跟进", count = now.concerns.size) }
         items(now.concerns, key = { "concern:${it.id}" }) { concern ->
             Column(Modifier.animateItem()) {
                 ConcernRow(concern)
@@ -268,7 +268,7 @@ private fun LazyListScope.nowSections(
     }
 
     if (now.watches.isNotEmpty()) {
-        item(key = "watches:label") { ListSection("追踪", count = now.watches.size) }
+        item(key = "watches:label") { SectionLabel("追踪", count = now.watches.size) }
         items(now.watches, key = { "watch:${it.id}" }) { watch ->
             Column(Modifier.animateItem()) {
                 WatchRow(watch, onPause = { onPause(watch.id) }, onResume = { onResume(watch.id) })
