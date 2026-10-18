@@ -3,6 +3,8 @@ package wake
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,13 +23,138 @@ func oldThought(t *testing.T, h *harness) {
 	if _, err = h.data.CommitMemory(ctx, core.MemoryMutation{Now: h.now, Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "thought", Content: "review my idea", Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: source.Content, Relation: "supports"}}}, Reason: "open question"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = h.data.SaveConcern(ctx, core.MemoryConcern{Title: "review my idea", State: "active", Reason: "owner asked", SourceID: source.ID, ReviewAt: h.now, UpdatedAt: h.now}, 0); err != nil {
+	if _, err := h.data.CreateSession(ctx, "thread_idea", "idea"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.data.SaveConcern(ctx, core.MemoryConcern{Title: "review my idea", State: "active", Reason: "owner asked", SourceID: source.ID, ThreadID: "thread_idea", ReviewAt: h.now, UpdatedAt: h.now}, 0); err != nil {
 		t.Fatal(err)
 	}
 
 }
 
-func TestNightAndWanderShareThreadAndClaimSlots(t *testing.T) {
+// concernIn creates a concern in a new conversation, last revised at.
+func (h *harness) concernIn(t *testing.T, thread, title string, at time.Time) core.MemoryConcern {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := h.data.CreateSession(ctx, thread, title); err != nil {
+		t.Fatal(err)
+	}
+	return h.reviseConcern(t, core.MemoryConcern{Title: title, State: "active", Reason: "owner asked", ThreadID: thread}, "owner asked", at)
+}
+
+// reviseConcern saves c's next revision with reason, at time at.
+func (h *harness) reviseConcern(t *testing.T, c core.MemoryConcern, reason string, at time.Time) core.MemoryConcern {
+	t.Helper()
+	ctx := context.Background()
+	id := fmt.Sprintf("%s-%d", c.ThreadID, c.Revision)
+	source, err := h.data.RegisterMemorySource(ctx, core.MemorySource{ID: id, Kind: "fixture", ObjectID: id, Version: "1", Speaker: "owner", Body: reason, RecordedAt: at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := c
+	next.Reason, next.SourceID, next.UpdatedAt = reason, source.ID, at
+	saved, err := h.data.SaveConcern(ctx, next, c.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return saved
+}
+
+// wanderAt moves the clock to an owner-local time of 2026-10-05 plus days
+// and ticks.
+func (h *harness) wanderAt(t *testing.T, days, hour int) {
+	t.Helper()
+	h.now = time.Date(2026, 10, 5+days, hour-8, 0, 0, 0, time.UTC)
+	if err := h.sched.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWanderTakesTheConcernRevisedLongestAgoInItsConversation(t *testing.T) {
+	h := newHarness(t, 20)
+	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour}
+	a := h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-2*time.Hour))
+	b := h.concernIn(t, "thread_b", "跟进 B 项目", h.now.Add(-time.Hour))
+	h.wanderAt(t, 0, 10)
+	if len(h.runs.starts) != 1 || !strings.HasPrefix(h.runs.starts[0], "thread_a|idle thought 2026-10-05 10:00|[wander 2026-10-05 10:00] Advance concern "+a.ID+" rev 1 [active]: 跟进 A 项目. Latest reason: owner asked") {
+		t.Fatalf("first slot = %v", h.runs.starts)
+	}
+	if want := []string{a.SourceID}; !slices.Equal(h.runs.sources[0], want) {
+		t.Fatalf("sources = %v, want %v", h.runs.sources[0], want)
+	}
+	a = h.reviseConcern(t, a, "看过 v1.4 的发布说明", h.now)
+	h.wanderAt(t, 0, 15)
+	if len(h.runs.starts) != 2 || !strings.HasPrefix(h.runs.starts[1], "thread_b|idle thought 2026-10-05 15:00|[wander 2026-10-05 15:00] Advance concern "+b.ID) {
+		t.Fatalf("second slot = %v", h.runs.starts)
+	}
+	h.reviseConcern(t, b, "B 还没有新版本", h.now)
+	h.wanderAt(t, 1, 10)
+	if len(h.runs.starts) != 3 || !strings.HasPrefix(h.runs.starts[2], "thread_a|idle thought 2026-10-06 10:00|[wander 2026-10-06 10:00] Advance concern "+a.ID+" rev 2 [active]: 跟进 A 项目. Latest reason: 看过 v1.4 的发布说明") {
+		t.Fatalf("next day = %v", h.runs.starts)
+	}
+	if routine, err := h.data.LatestRoutineRun(context.Background(), "wander"); err != nil || routine.ThreadID != "thread_a" {
+		t.Fatalf("wander routine = %+v, %v", routine, err)
+	}
+}
+
+func TestWanderSkipsAConcernWhoseConversationIsBusy(t *testing.T) {
+	h := newHarness(t, 20)
+	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour, 20 * time.Hour}
+	ctx := context.Background()
+	h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-2*time.Hour))
+	b := h.concernIn(t, "thread_b", "跟进 B 项目", h.now.Add(-time.Hour))
+	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_a", SessionID: "thread_a", TurnIndex: 1, Input: "帮我看看 A"}); err != nil {
+		t.Fatal(err)
+	}
+	h.wanderAt(t, 0, 10)
+	if len(h.runs.starts) != 1 || !strings.HasPrefix(h.runs.starts[0], "thread_b|") {
+		t.Fatalf("a running conversation was not skipped: %v", h.runs.starts)
+	}
+	h.reviseConcern(t, b, "B 等待回复", h.now)
+	if err := h.data.MarkInterrupted(ctx, "run_a", ""); err != nil {
+		t.Fatal(err)
+	}
+	h.wanderAt(t, 0, 15)
+	if len(h.runs.starts) != 2 || !strings.HasPrefix(h.runs.starts[1], "thread_b|") {
+		t.Fatalf("a conversation waiting for approval was not skipped: %v", h.runs.starts)
+	}
+	if err := h.data.FinishRun(ctx, "run_a", core.RunStatusSucceeded, "好了", ""); err != nil {
+		t.Fatal(err)
+	}
+	h.wanderAt(t, 0, 20)
+	if len(h.runs.starts) != 3 || !strings.HasPrefix(h.runs.starts[2], "thread_a|") {
+		t.Fatalf("a finished conversation was skipped: %v", h.runs.starts)
+	}
+}
+
+func TestWanderLeavesConcernsOfADeletedConversation(t *testing.T) {
+	h := newHarness(t, 20)
+	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour}
+	h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-time.Hour))
+	if err := h.data.DeleteThread(context.Background(), "thread_a"); err != nil {
+		t.Fatal(err)
+	}
+	h.wanderAt(t, 0, 10)
+	if len(h.runs.starts) != 0 {
+		t.Fatalf("a concern of a deleted conversation was advanced: %v", h.runs.starts)
+	}
+}
+
+func TestWanderReleasesItsSlotWhenTheConversationIsGone(t *testing.T) {
+	h := newHarness(t, 20)
+	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour}
+	h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-time.Hour))
+	h.runs.fail = core.ErrSessionNotFound
+	h.now = time.Date(2026, 10, 5, 2, 0, 0, 0, time.UTC)
+	if err := h.sched.Tick(context.Background()); !errors.Is(err, core.ErrSessionNotFound) {
+		t.Fatalf("tick error = %v", err)
+	}
+	if err := h.data.ClaimRoutine(context.Background(), "wander", "2026-10-05 10:00", h.now); err != nil {
+		t.Fatalf("slot kept after the run could not start: %v", err)
+	}
+}
+
+func TestNightRunsInThoughtsAndWanderInTheConcernsConversation(t *testing.T) {
 	h := newHarness(t, 20)
 	h.sched.cfg.Thinking = Thinking{Night: Briefing{Enabled: true, At: 3 * time.Hour}, Wander: []time.Duration{10 * time.Hour, 15 * time.Hour}}
 	oldThought(t, h)
@@ -46,9 +173,13 @@ func TestNightAndWanderShareThreadAndClaimSlots(t *testing.T) {
 	if len(h.runs.starts) != 3 || !strings.Contains(h.runs.starts[1], "[wander 2026-10-05 10:00]") || !strings.Contains(h.runs.starts[2], "[wander 2026-10-05 15:00]") {
 		t.Fatalf("wander=%v", h.runs.starts)
 	}
-	for _, start := range h.runs.starts {
-		if !strings.HasPrefix(start, "thread_thoughts|") {
-			t.Fatalf("thread=%s", start)
+	for i, start := range h.runs.starts {
+		thread := "thread_idea|"
+		if i == 0 {
+			thread = "thread_thoughts|"
+		}
+		if !strings.HasPrefix(start, thread) {
+			t.Fatalf("start %d thread=%s", i, start)
 		}
 	}
 	if len(h.store.wakes) != 3 {

@@ -16,6 +16,9 @@ type Thinking struct {
 }
 
 type routineInput struct {
+	// thread is the conversation the run belongs in; empty runs it in the
+	// routine's own thread.
+	thread     string
 	sources    []string
 	wake       string
 	input      string
@@ -43,7 +46,7 @@ func (s *Scheduler) runRoutines(ctx context.Context, now time.Time) error {
 			continue
 		}
 		slot := fmt.Sprintf("%s %02d:%02d", day, int(at/time.Hour), int(at%time.Hour/time.Minute))
-		errs = append(errs, s.runRoutine(ctx, "wander", slot, "Thoughts", true, now, func() (routineInput, error) {
+		errs = append(errs, s.runRoutine(ctx, "wander", slot, "", true, now, func() (routineInput, error) {
 			return s.wanderInput(ctx, slot, now)
 		}))
 	}
@@ -52,6 +55,8 @@ func (s *Scheduler) runRoutines(ctx context.Context, now time.Time) error {
 
 // A slot is kept after a run starts, including when later bookkeeping fails.
 // Preparation/start failures release it; budget skips and empty inputs keep it.
+// A run without a prepared thread goes to the routine's latest thread, created
+// with title when missing.
 func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, autonomous bool, now time.Time, prepare func() (routineInput, error)) (err error) {
 	if err := s.cfg.Routines.ClaimRoutine(ctx, name, slot, now); err != nil {
 		if errors.Is(err, core.ErrRoutineTaken) {
@@ -85,15 +90,16 @@ func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, au
 		keep = true
 		return nil
 	}
-	names := []string{"briefing"}
-	if autonomous {
-		names = []string{"night", "wander"}
+	wake := core.ScheduledWake{Reason: prepared.wake, Autonomous: autonomous, Standalone: prepared.standalone, SourceIDs: prepared.sources}
+	thread, runID := prepared.thread, ""
+	if thread != "" {
+		runID, err = s.cfg.Runs.StartThreadRun(ctx, thread, prepared.input, wake)
+	} else {
+		if thread, err = s.cfg.Routines.LatestRoutineThread(ctx, name); err != nil {
+			return err
+		}
+		thread, runID, err = s.cfg.Runs.StartRoutineRun(ctx, thread, title, prepared.input, wake)
 	}
-	thread, err := s.cfg.Routines.LatestRoutineThread(ctx, names...)
-	if err != nil {
-		return err
-	}
-	thread, runID, err := s.cfg.Runs.StartRoutineRun(ctx, thread, title, prepared.input, core.ScheduledWake{Reason: prepared.wake, Autonomous: autonomous, Standalone: prepared.standalone, SourceIDs: prepared.sources})
 	if err != nil {
 		return fmt.Errorf("start %s run: %w", name, err)
 	}

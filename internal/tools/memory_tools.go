@@ -16,7 +16,7 @@ type MemoryService interface {
 	Correct(context.Context, string, memory.CorrectInput) (core.MemoryRecord, error)
 	Forget(context.Context, string, core.MemoryForget) (core.MemoryForgotten, error)
 	Read(context.Context, memory.ReadInput) (memory.ReadPage, error)
-	Concern(context.Context, string, memory.ConcernInput) ([]core.MemoryConcern, error)
+	Concern(context.Context, string, string, memory.ConcernInput) ([]core.MemoryConcern, error)
 }
 
 type PresenceToolDeps struct {
@@ -72,6 +72,6 @@ func buildMemoryForgetTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 
 func buildConcernTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 	return inferProgressTool("concern", "Track a continuing goal or open issue. List before creating a related concern; update with its revision, reason, source and complete title/record links. Resolve when supported by owner confirmation or observed results.", func(ctx context.Context, in memory.ConcernInput, _ ToolProgressEmitter) ([]core.MemoryConcern, error) {
-		return deps.Memory.Concern(ctx, deps.Context.CurrentRunID(ctx), in)
+		return deps.Memory.Concern(ctx, deps.Context.CurrentRunID(ctx), deps.Context.CurrentSessionID(ctx), in)
 	})
 }

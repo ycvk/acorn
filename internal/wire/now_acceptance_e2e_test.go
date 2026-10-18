@@ -48,8 +48,11 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 	}
 	kept := ownerSource(t, c, "goal", "我要准备 Go 面试")
 	forgotten := ownerSource(t, c, "trip", "我想去京都")
+	if _, err := c.store.CreateSession(ctx, "thread_goals", "goals"); err != nil {
+		t.Fatalf("create thread: %v", err)
+	}
 	for title, source := range map[string]core.MemorySource{"准备 Go 面试": kept, "京都旅行": forgotten} {
-		if _, err := c.store.SaveConcern(ctx, core.MemoryConcern{Title: title, State: "active", Reason: "owner goal", SourceID: source.ID, CreatedAt: start, UpdatedAt: start}, 0); err != nil {
+		if _, err := c.store.SaveConcern(ctx, core.MemoryConcern{Title: title, State: "active", Reason: "owner goal", SourceID: source.ID, ThreadID: "thread_goals", CreatedAt: start, UpdatedAt: start}, 0); err != nil {
 			t.Fatalf("save concern: %v", err)
 		}
 	}

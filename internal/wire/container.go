@@ -327,7 +327,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	return container, nil
 }
 
-// wakeRunStarter starts commitment wake runs through the run service.
+// wakeRunStarter starts the scheduler's runs through the run service.
 type wakeRunStarter struct {
 	runs  *api.RunService
 	store core.SessionStore
@@ -373,6 +373,14 @@ func (w *wakeRunStarter) StartRoutineRun(ctx context.Context, threadID, title, i
 		return "", "", err
 	}
 	return threadID, run.ID, nil
+}
+
+func (w *wakeRunStarter) StartThreadRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
+	run, err := w.runs.CreateScheduledRun(ctx, threadID, input, wake)
+	if err != nil {
+		return "", err
+	}
+	return run.ID, nil
 }
 
 // RunOnceResult is the terminal outcome of an owner-local smoke run.

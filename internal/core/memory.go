@@ -200,12 +200,15 @@ type MemoryExcludedFragment struct {
 	Quote    string
 }
 
+// MemoryConcern is a continuing matter. ThreadID is the conversation it was
+// created in, fixed for all its revisions.
 type MemoryConcern struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
 	State     string    `json:"state"`
 	Reason    string    `json:"reason"`
 	SourceID  string    `json:"source_id"`
+	ThreadID  string    `json:"thread_id"`
 	RecordIDs []string  `json:"record_ids"`
 	Revision  int64     `json:"revision"`
 	ReviewAt  time.Time `json:"review_at,omitempty"`
@@ -244,6 +247,8 @@ type MemoryStore interface {
 	// note at a path.
 	KnowledgeMemorySourceIDs(context.Context, string) ([]string, error)
 	SaveConcern(context.Context, MemoryConcern, int64) (MemoryConcern, error)
+	// ListConcerns leaves out concerns whose source or linked records were
+	// forgotten and those created in a deleted conversation.
 	ListConcerns(context.Context, bool) ([]MemoryConcern, error)
 	ClaimMemoryJob(context.Context, time.Time, time.Duration, string) (*MemoryJob, error)
 	ReadyMemoryJobs(context.Context, time.Time, string, int) ([]MemoryJob, error)

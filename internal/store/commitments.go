@@ -25,7 +25,7 @@ func (s *Store) AddCommitment(ctx context.Context, c core.Commitment) (core.Comm
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		if c.ConcernID != "" {
 			var n int
-			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_concerns c WHERE id=? AND state IN ('active','waiting') AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=c.source_id)`, c.ConcernID).Scan(&n); err != nil {
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_concerns c WHERE id=? AND state IN ('active','waiting') AND EXISTS(SELECT 1 FROM sessions t WHERE t.session_id=c.thread_id) AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=c.source_id)`, c.ConcernID).Scan(&n); err != nil {
 				return err
 			}
 			if n != 1 {

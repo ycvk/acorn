@@ -13,6 +13,31 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
+// addConcernThreads (15 to 16) records the conversation each concern was
+// created in: the conversation of its first revision's source, or of that
+// source's run. A concern whose conversation is gone is no longer listed.
+func addConcernThreads(ctx context.Context, tx *sql.Tx) error {
+	columns := "id, title, state, reason, source_id, revision, review_at, created_at, updated_at"
+	for _, statement := range []string{
+		`CREATE TEMP TABLE memory_concerns_v15 AS SELECT ` + columns + ` FROM memory_concerns`,
+		`DROP TABLE memory_concerns`,
+		memoryConcernsTable,
+		`INSERT INTO memory_concerns(` + columns + `, thread_id) SELECT ` + columns + `,
+		 COALESCE((SELECT COALESCE(NULLIF(s.session_id, ''), (SELECT r.session_id FROM runs r WHERE r.run_id = s.run_id), '')
+		  FROM memory_concern_revisions v JOIN memory_sources s ON s.id = v.source_id WHERE v.concern_id = c.id AND v.revision = 1), '')
+		 FROM memory_concerns_v15 c`,
+		`DROP TABLE memory_concerns_v15`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SaveConcern writes a concern's next revision. A new concern belongs to
+// concern.ThreadID, which must exist; a revision keeps the stored thread and
+// fails with core.ErrMemoryExcluded once that conversation was deleted.
 func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, expected int64) (core.MemoryConcern, error) {
 	if strings.TrimSpace(concern.Title) == "" || strings.TrimSpace(concern.Reason) == "" || concern.SourceID == "" || concern.UpdatedAt.IsZero() {
 		return core.MemoryConcern{}, errors.New("concern requires title, reason, source_id and updated_at")
@@ -29,8 +54,8 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			concern.ID = memoryID("concern", concern.Title, concern.SourceID)
 		}
 		var revision int64
-		var created string
-		err := tx.QueryRowContext(ctx, `SELECT revision,created_at FROM memory_concerns WHERE id=?`, concern.ID).Scan(&revision, &created)
+		var created, thread string
+		err := tx.QueryRowContext(ctx, `SELECT revision,created_at,thread_id FROM memory_concerns WHERE id=?`, concern.ID).Scan(&revision, &created, &thread)
 		switch {
 		case err == nil:
 			if expected != revision {
@@ -40,14 +65,28 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 				return err
 			}
 			concern.Revision = revision + 1
+			concern.ThreadID = thread
 		case errors.Is(err, sql.ErrNoRows):
 			if expected != 0 {
 				return core.ErrMemoryConflict
+			}
+			if concern.ThreadID == "" {
+				return errors.New("new concern requires thread_id")
 			}
 			concern.CreatedAt = concern.UpdatedAt
 			concern.Revision = 1
 		default:
 			return err
+		}
+		var open int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id=?`, concern.ThreadID).Scan(&open); err != nil {
+			return err
+		}
+		switch {
+		case open == 0 && concern.Revision == 1:
+			return fmt.Errorf("%w: concern thread_id %s", core.ErrSessionNotFound, concern.ThreadID)
+		case open == 0:
+			return fmt.Errorf("%w: concern %s belongs to a deleted conversation", core.ErrMemoryExcluded, concern.ID)
 		}
 		for _, id := range concern.RecordIDs {
 			if _, err := loadMemoryRecord(ctx, tx, id); err != nil {
@@ -55,7 +94,7 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			}
 		}
 		reviewAt, updatedAt := formatZeroableTimestamp(concern.ReviewAt), formatTimestamp(concern.UpdatedAt)
-		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concerns(id,title,state,reason,source_id,revision,review_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,state=excluded.state,reason=excluded.reason,source_id=excluded.source_id,revision=excluded.revision,review_at=excluded.review_at,updated_at=excluded.updated_at`, concern.ID, concern.Title, concern.State, concern.Reason, concern.SourceID, concern.Revision, reviewAt, formatTimestamp(concern.CreatedAt), updatedAt); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concerns(id,title,state,reason,source_id,revision,review_at,created_at,updated_at,thread_id) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,state=excluded.state,reason=excluded.reason,source_id=excluded.source_id,revision=excluded.revision,review_at=excluded.review_at,updated_at=excluded.updated_at`, concern.ID, concern.Title, concern.State, concern.Reason, concern.SourceID, concern.Revision, reviewAt, formatTimestamp(concern.CreatedAt), updatedAt, concern.ThreadID); err != nil {
 			return err
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concern_revisions(concern_id,revision,title,state,reason,source_id,review_at,at) VALUES(?,?,?,?,?,?,?,?)`, concern.ID, concern.Revision, concern.Title, concern.State, concern.Reason, concern.SourceID, reviewAt, updatedAt); err != nil {
@@ -74,10 +113,13 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 	return concern, nil
 }
 
+// ListConcerns leaves out concerns whose source or linked records were
+// forgotten and those created in a conversation the owner deleted.
 func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.MemoryConcern, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.state,c.reason,c.source_id,c.revision,c.review_at,c.created_at,c.updated_at,
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.state,c.reason,c.source_id,c.revision,c.review_at,c.created_at,c.updated_at,c.thread_id,
  (SELECT json_group_array(l.record_id) FROM (SELECT record_id FROM memory_concern_records WHERE concern_id=c.id AND revision=c.revision ORDER BY rowid) l)
  FROM memory_concerns c WHERE (?=0 OR c.state IN ('active','waiting'))
+ AND EXISTS(SELECT 1 FROM sessions t WHERE t.session_id=c.thread_id)
  AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=c.source_id)
  AND NOT EXISTS(SELECT 1 FROM memory_concern_records l JOIN memory_records r ON r.id=l.record_id WHERE l.concern_id=c.id AND l.revision=c.revision AND r.excluded=1)
  ORDER BY c.id`, activeOnly)
@@ -88,7 +130,7 @@ func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.Memor
 	err = scanRows(rows, func(scan func(...any) error) error {
 		var c core.MemoryConcern
 		var reviewAt, created, updated, records string
-		if err := scan(&c.ID, &c.Title, &c.State, &c.Reason, &c.SourceID, &c.Revision, &reviewAt, &created, &updated, &records); err != nil {
+		if err := scan(&c.ID, &c.Title, &c.State, &c.Reason, &c.SourceID, &c.Revision, &reviewAt, &created, &updated, &c.ThreadID, &records); err != nil {
 			return err
 		}
 		var err error

@@ -154,7 +154,10 @@ func TestMemoryConcernUsesRevisionAndVisibleEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "准备 Go 面试", State: "active", Reason: "owner goal", SourceID: source.ID, CreatedAt: memoryTestNow, UpdatedAt: memoryTestNow}, 0)
+	if _, err := s.CreateSession(ctx, "thread_goal", "goal"); err != nil {
+		t.Fatal(err)
+	}
+	c, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "准备 Go 面试", State: "active", Reason: "owner goal", SourceID: source.ID, ThreadID: "thread_goal", CreatedAt: memoryTestNow, UpdatedAt: memoryTestNow}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +175,7 @@ func TestMemoryConcernUsesRevisionAndVisibleEvidence(t *testing.T) {
 	if err != nil || len(listed) != 1 {
 		t.Fatalf("concerns=%+v err=%v", listed, err)
 	}
-	if got := listed[0]; got.Reason != next.Reason || got.State != "waiting" || !slices.Equal(got.RecordIDs, next.RecordIDs) || !got.ReviewAt.Equal(next.ReviewAt) || !got.CreatedAt.Equal(memoryTestNow) || !got.UpdatedAt.Equal(next.UpdatedAt) {
+	if got := listed[0]; got.Reason != next.Reason || got.State != "waiting" || got.ThreadID != "thread_goal" || !slices.Equal(got.RecordIDs, next.RecordIDs) || !got.ReviewAt.Equal(next.ReviewAt) || !got.CreatedAt.Equal(memoryTestNow) || !got.UpdatedAt.Equal(next.UpdatedAt) {
 		t.Fatalf("listed concern = %+v", got)
 	}
 	if _, err := s.SaveConcern(ctx, next, c.Revision); !errors.Is(err, core.ErrMemoryConflict) {
@@ -184,6 +187,104 @@ func TestMemoryConcernUsesRevisionAndVisibleEvidence(t *testing.T) {
 	}
 	if got, err := s.ListConcerns(ctx, true); err != nil || len(got) != 0 {
 		t.Fatalf("concerns=%+v err=%v", got, err)
+	}
+}
+
+func TestConcernBelongsToTheConversationItWasCreatedIn(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	for _, id := range []string{"thread_a", "thread_b"} {
+		if _, err := s.CreateSession(ctx, id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	source := seedMemorySource(t, s, "owner:release", "owner", "帮我跟进 A 项目的发布")
+	if _, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "跟进 A 项目", State: "active", Reason: "owner goal", SourceID: source.ID, UpdatedAt: memoryTestNow}, 0); err == nil {
+		t.Fatal("a concern without a conversation was saved")
+	}
+	if _, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "跟进 A 项目", State: "active", Reason: "owner goal", SourceID: source.ID, ThreadID: "thread_gone", UpdatedAt: memoryTestNow}, 0); !errors.Is(err, core.ErrSessionNotFound) {
+		t.Fatalf("concern in a missing conversation: %v", err)
+	}
+	c, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "跟进 A 项目", State: "active", Reason: "owner goal", SourceID: source.ID, ThreadID: "thread_a", UpdatedAt: memoryTestNow}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress := seedMemorySource(t, s, "night:progress", "assistant", "A 项目发布了 v1.5")
+	next := c
+	next.Reason, next.SourceID, next.ThreadID, next.UpdatedAt = "v1.5 已发布", progress.ID, "thread_b", memoryTestNow.Add(time.Hour)
+	if c, err = s.SaveConcern(ctx, next, c.Revision); err != nil || c.ThreadID != "thread_a" {
+		t.Fatalf("revision moved the concern: %+v %v", c, err)
+	}
+	if _, err := s.AddCommitment(ctx, core.Commitment{Content: "明天看发布说明", SessionID: "thread_a", ConcernID: c.ID, WakeAt: memoryTestNow.Add(24 * time.Hour), CreatedAt: memoryTestNow}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteThread(ctx, "thread_a"); err != nil {
+		t.Fatal(err)
+	}
+	for _, active := range []bool{true, false} {
+		if listed, err := s.ListConcerns(ctx, active); err != nil || len(listed) != 0 {
+			t.Fatalf("concerns of a deleted conversation (active=%t) = %+v, %v", active, listed, err)
+		}
+	}
+	next = c
+	next.Reason, next.UpdatedAt = "继续跟进", memoryTestNow.Add(2*time.Hour)
+	if _, err := s.SaveConcern(ctx, next, c.Revision); !errors.Is(err, core.ErrMemoryExcluded) {
+		t.Fatalf("revising a concern of a deleted conversation: %v", err)
+	}
+	if _, err := s.AddCommitment(ctx, core.Commitment{Content: "再看一次", SessionID: "thread_b", ConcernID: c.ID, WakeAt: memoryTestNow.Add(48 * time.Hour), CreatedAt: memoryTestNow}); !errors.Is(err, core.ErrMemoryNotFound) {
+		t.Fatalf("commitment linked to a concern of a deleted conversation: %v", err)
+	}
+}
+
+// A v15 database has no conversation on its concerns. The upgrade takes it
+// from the first revision's source, or from that source's run; a concern whose
+// conversation is gone is no longer listed.
+func TestSchemaSixteenRecordsConcernThreads(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	at := "2026-10-01T00:00:00.000000000Z"
+	if _, err := raw.Exec(readLayout(t, 15)+`PRAGMA user_version = 15;
+INSERT INTO memory_state (id, epoch) VALUES (1, 0);
+INSERT INTO sessions (session_id, title, created_at, updated_at) VALUES ('thread_a', 'a', ?1, ?1), ('thread_b', 'b', ?1, ?1), ('thread_thoughts', 'Thoughts', ?1, ?1);
+INSERT INTO runs (run_id, session_id, status, input_text, created_at) VALUES ('run_b', 'thread_b', 'succeeded', '整理笔记', ?1);
+INSERT INTO memory_sources (id, kind, object_id, version, speaker, session_id, run_id, recorded_at) VALUES
+ ('message:1', 'message', '1', '1', 'owner', 'thread_a', '', ?1),
+ ('message:2', 'message', '2', '1', 'assistant', 'thread_thoughts', '', ?1),
+ ('knowledge:n@1', 'knowledge', 'n.md', '1', 'assistant', '', 'run_b', ?1),
+ ('message:9', 'message', '9', '1', 'owner', 'thread_gone', '', ?1);
+INSERT INTO memory_concerns (id, title, state, reason, source_id, revision, created_at, updated_at) VALUES
+ ('concern:a', 'A', 'active', 'progress', 'message:2', 2, ?1, ?1),
+ ('concern:b', 'B', 'active', 'goal', 'knowledge:n@1', 1, ?1, ?1),
+ ('concern:gone', 'gone', 'active', 'goal', 'message:9', 1, ?1, ?1);
+INSERT INTO memory_concern_revisions (concern_id, revision, title, state, reason, source_id, at) VALUES
+ ('concern:a', 1, 'A', 'active', 'goal', 'message:1', ?1),
+ ('concern:a', 2, 'A', 'active', 'progress', 'message:2', ?1),
+ ('concern:b', 1, 'B', 'active', 'goal', 'knowledge:n@1', ?1),
+ ('concern:gone', 1, 'gone', 'active', 'goal', 'message:9', ?1);`, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	listed, err := s.ListConcerns(context.Background(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	threads := map[string]string{}
+	for _, c := range listed {
+		threads[c.ID] = c.ThreadID
+	}
+	if len(threads) != 2 || threads["concern:a"] != "thread_a" || threads["concern:b"] != "thread_b" {
+		t.Fatalf("concern threads = %v", threads)
+	}
+	var gone string
+	if err := s.db.QueryRow(`SELECT thread_id FROM memory_concerns WHERE id='concern:gone'`).Scan(&gone); err != nil || gone != "thread_gone" {
+		t.Fatalf("concern of a deleted conversation: thread %q, %v", gone, err)
 	}
 }
 

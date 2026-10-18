@@ -167,7 +167,9 @@ type ConcernInput struct {
 	ReviewAt  string   `json:"review_at,omitempty"`
 }
 
-func (e *Engine) Concern(ctx context.Context, runID string, in ConcernInput) ([]core.MemoryConcern, error) {
+// Concern lists or revises concerns from the run runID in threadID; a new
+// concern belongs to threadID.
+func (e *Engine) Concern(ctx context.Context, runID, threadID string, in ConcernInput) ([]core.MemoryConcern, error) {
 	if in.Action == "list" {
 		return e.cfg.Store.ListConcerns(ctx, false)
 	}
@@ -187,6 +189,7 @@ func (e *Engine) Concern(ctx context.Context, runID string, in ConcernInput) ([]
 			return nil, errors.New("new concern must omit id and revision")
 		}
 		concern.State = "active"
+		concern.ThreadID = threadID
 	}
 	if in.ReviewAt != "" {
 		concern.ReviewAt, err = time.Parse(time.RFC3339, in.ReviewAt)

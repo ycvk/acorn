@@ -54,13 +54,20 @@ func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if gate != nil {
 		<-gate
 	}
-	if index >= len(f.replies) {
+	f.mu.Lock()
+	reply, scripted := "", index < len(f.replies)
+	if scripted {
+		reply = f.replies[index]
+	}
+	f.mu.Unlock()
+	if !scripted {
 		http.Error(w, fmt.Sprintf("no scripted reply for request %d", index), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
-	reply := f.replies[index]
-	if strings.Contains(reply, "__notify_source__") {
+	// __input_source__ stands for the run's input message, __notify_source__
+	// for its notify_owner result.
+	if strings.Contains(reply, "__notify_source__") || strings.Contains(reply, "__input_source__") {
 		for _, msg := range requestMessages(request) {
 			if msg["role"] != "system" {
 				continue
@@ -80,13 +87,23 @@ func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			for _, source := range memoryContext.Current {
-				if source.Tool == "notify_owner" {
+				switch source.Tool {
+				case "notify_owner":
 					reply = strings.ReplaceAll(reply, "__notify_source__", source.ID)
+				case "":
+					reply = strings.ReplaceAll(reply, "__input_source__", source.ID)
 				}
 			}
 		}
 	}
 	_, _ = io.WriteString(w, reply)
+}
+
+// add scripts replies for the requests after those already scripted.
+func (f *fakeOpenAI) add(replies ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replies = append(f.replies, replies...)
 }
 
 func (f *fakeOpenAI) request(i int) map[string]any {

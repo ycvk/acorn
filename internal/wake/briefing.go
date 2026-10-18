@@ -31,9 +31,11 @@ type KnowledgeReader interface {
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
 }
 
-// RunReader reads a routine's run for its output.
+// RunReader reads a routine's run for its output and a thread's latest run.
 type RunReader interface {
 	LoadRun(ctx context.Context, runID string) (*core.RunRecord, error)
+	// LoadLatestRunForSession is nil for a thread without runs.
+	LoadLatestRunForSession(ctx context.Context, sessionID string) (*core.RunRecord, error)
 }
 
 // briefingMaterial collects what a briefing has to say. A section with

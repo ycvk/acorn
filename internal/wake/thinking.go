@@ -3,6 +3,7 @@ package wake
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -79,16 +80,27 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (
 	return routineInput{sources: sources, wake: "night reflection " + day, input: b.String(), skip: n == 0}, nil
 }
 
+// wanderInput advances the due concern revised longest ago, in the
+// conversation it was created in. A concern whose conversation is busy with a
+// running run or one waiting for the owner is left for a later slot.
 func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time) (routineInput, error) {
 	concerns, err := s.cfg.Memory.ListConcerns(ctx, true)
 	if err != nil {
 		return routineInput{}, err
 	}
+	slices.SortStableFunc(concerns, func(a, b core.MemoryConcern) int { return a.UpdatedAt.Compare(b.UpdatedAt) })
 	for _, c := range concerns {
 		if c.ReviewAt.After(now) {
 			continue
 		}
-		return routineInput{sources: []string{c.SourceID}, wake: "idle thought " + slot, input: fmt.Sprintf("[wander %s] Advance concern %s rev %d [%s]: %s. Inspect prior attempts and evidence with recall; capture a sourced thought, useful progress, or a concrete next appointment. A lack of owner response remains unknown feedback.", slot, c.ID, c.Revision, c.State, c.Title)}, nil
+		latest, err := s.cfg.RunRecords.LoadLatestRunForSession(ctx, c.ThreadID)
+		if err != nil {
+			return routineInput{}, err
+		}
+		if latest != nil && (latest.Status == core.RunStatusRunning || latest.Status == core.RunStatusInterrupted) {
+			continue
+		}
+		return routineInput{thread: c.ThreadID, sources: []string{c.SourceID}, wake: "idle thought " + slot, input: fmt.Sprintf("[wander %s] Advance concern %s rev %d [%s]: %s. Latest reason: %s\nThis is the conversation the concern was raised in; continue from the progress made here before. Inspect evidence with recall; capture a sourced thought, useful progress, or a concrete next appointment, and record what this advance did with concern. A lack of owner response remains unknown feedback.", slot, c.ID, c.Revision, c.State, c.Title, c.Reason)}, nil
 	}
 	return routineInput{skip: true}, nil
 }

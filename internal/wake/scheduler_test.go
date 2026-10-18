@@ -72,6 +72,18 @@ func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, input str
 	return threadID, fmt.Sprintf("run_%d", len(r.starts)), nil
 }
 
+func (r *fakeRuns) StartThreadRun(_ context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.fail != nil {
+		return "", r.fail
+	}
+	r.starts = append(r.starts, threadID+"|"+wake.Reason+"|"+input)
+	r.standalone = append(r.standalone, wake.Standalone)
+	r.sources = append(r.sources, wake.SourceIDs)
+	return fmt.Sprintf("run_%d", len(r.starts)), nil
+}
+
 func (r *fakeRuns) StartWakeRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -176,6 +188,22 @@ func TestTickWakesDueCommitmentOnce(t *testing.T) {
 	}
 	if len(h.store.events) != 1 || h.store.events[0] != "run_1:wake.fired" {
 		t.Fatalf("events = %v", h.store.events)
+	}
+}
+
+func TestCommitmentWakeCarriesItsConcern(t *testing.T) {
+	h := newHarness(t, 20)
+	concern := h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-time.Hour))
+	concern = h.reviseConcern(t, concern, "等 v1.5 发布", h.now.Add(-time.Minute))
+	if _, err := h.data.AddCommitment(context.Background(), core.Commitment{Content: "看 v1.5 发布了没有", SessionID: "thread_a", ConcernID: concern.ID, WakeAt: h.now.Add(-time.Minute), CreatedAt: h.now.Add(-72 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.sched.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	want := "thread_a|commitment #1: 看 v1.5 发布了没有|[commitment #1, made 2026-10-02 09:00] 看 v1.5 发布了没有\nConcern " + concern.ID + " rev 2 [active]: 跟进 A 项目. Latest reason: 等 v1.5 发布"
+	if len(h.runs.starts) != 1 || h.runs.starts[0] != want {
+		t.Fatalf("starts = %q, want %q", h.runs.starts, want)
 	}
 }
 
