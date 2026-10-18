@@ -201,10 +201,12 @@ type MemoryExcludedFragment struct {
 }
 
 // MemoryConcern is a continuing matter. ThreadID is the conversation it was
-// created in, fixed for all its revisions.
+// created in, fixed for all its revisions. Outcome is what it hands the owner
+// when done, empty for a matter that is only followed.
 type MemoryConcern struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
+	Outcome   string    `json:"outcome,omitempty"`
 	State     string    `json:"state"`
 	Reason    string    `json:"reason"`
 	SourceID  string    `json:"source_id"`

@@ -161,6 +161,7 @@ type ConcernInput struct {
 	ID        string   `json:"id,omitempty"`
 	Revision  int64    `json:"revision,omitempty"`
 	Title     string   `json:"title,omitempty"`
+	Outcome   string   `json:"outcome,omitempty" jsonschema_description:"What you hand the owner when the matter is done: its form and how to tell it is done, such as a Markdown file listing the breaking changes from v1.4 to v1.7 with upgrade steps. Only for a matter the owner asked you to make something for. Omit to keep the current outcome."`
 	Reason    string   `json:"reason,omitempty"`
 	SourceID  string   `json:"source_id,omitempty"`
 	RecordIDs []string `json:"record_ids,omitempty"`
@@ -180,10 +181,7 @@ func (e *Engine) Concern(ctx context.Context, runID, threadID string, in Concern
 	if source.RunID != runID || runID == "" {
 		return nil, errors.New("concern update requires a source from the current run")
 	}
-	if in.Action == "resolved" && source.Speaker != "owner" && source.Speaker != "tool" {
-		return nil, errors.New("resolving a concern requires owner confirmation or execution evidence")
-	}
-	concern := core.MemoryConcern{ID: in.ID, Title: in.Title, State: in.Action, Reason: in.Reason, SourceID: in.SourceID, RecordIDs: in.RecordIDs, UpdatedAt: e.cfg.Clock()}
+	concern := core.MemoryConcern{ID: in.ID, Title: in.Title, Outcome: in.Outcome, State: in.Action, Reason: in.Reason, SourceID: in.SourceID, RecordIDs: in.RecordIDs, UpdatedAt: e.cfg.Clock()}
 	if in.Action == "create" {
 		if in.ID != "" || in.Revision != 0 {
 			return nil, errors.New("new concern must omit id and revision")

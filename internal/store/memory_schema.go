@@ -58,12 +58,7 @@ CREATE TABLE IF NOT EXISTS memory_mentions (
  record_id TEXT NOT NULL REFERENCES memory_records(id), entity_id INTEGER NOT NULL REFERENCES memory_entities(id),
  PRIMARY KEY(record_id,entity_id)
 );
-` + memoryConcernsTable + `
-CREATE TABLE IF NOT EXISTS memory_concern_revisions (
- concern_id TEXT NOT NULL REFERENCES memory_concerns(id), revision INTEGER NOT NULL,
- title TEXT NOT NULL, state TEXT NOT NULL, reason TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES memory_sources(id),
- review_at TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, PRIMARY KEY(concern_id,revision)
-);
+` + memoryConcernsTable + memoryConcernRevisionsTable + `
 -- A concern revision's linked records; rowid keeps their order.
 CREATE TABLE IF NOT EXISTS memory_concern_records (
  concern_id TEXT NOT NULL, revision INTEGER NOT NULL, record_id TEXT NOT NULL REFERENCES memory_records(id),
@@ -182,13 +177,20 @@ END;
 `
 
 // memoryConcernsTable holds each concern's current revision; thread_id is the
-// conversation the concern was created in.
+// conversation the concern was created in, outcome what it delivers when done.
 const memoryConcernsTable = `
 CREATE TABLE IF NOT EXISTS memory_concerns (
  id TEXT PRIMARY KEY, title TEXT NOT NULL, state TEXT NOT NULL, reason TEXT NOT NULL,
  source_id TEXT NOT NULL REFERENCES memory_sources(id), revision INTEGER NOT NULL,
  review_at TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
- thread_id TEXT NOT NULL
+ thread_id TEXT NOT NULL, outcome TEXT NOT NULL DEFAULT ''
+);`
+
+const memoryConcernRevisionsTable = `
+CREATE TABLE IF NOT EXISTS memory_concern_revisions (
+ concern_id TEXT NOT NULL REFERENCES memory_concerns(id), revision INTEGER NOT NULL,
+ title TEXT NOT NULL, state TEXT NOT NULL, reason TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES memory_sources(id),
+ review_at TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, outcome TEXT NOT NULL DEFAULT '', PRIMARY KEY(concern_id,revision)
 );`
 
 // memorySQL keeps transaction-scoped operations on the same connection.

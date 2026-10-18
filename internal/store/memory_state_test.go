@@ -236,6 +236,105 @@ func TestConcernBelongsToTheConversationItWasCreatedIn(t *testing.T) {
 	}
 }
 
+// An outcome stays with every revision until the owner changes it, and only
+// the owner's confirmation resolves a concern that has one; a concern without
+// an outcome is resolved by the owner or by a tool result.
+func TestConcernWithAnOutcomeIsResolvedOnlyByTheOwner(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if _, err := s.CreateSession(ctx, "thread_doc", "doc"); err != nil {
+		t.Fatal(err)
+	}
+	asked := seedMemorySource(t, s, "owner:ask", "owner", "把 X 近几个版本的变化整理成一份 Markdown")
+	c, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "整理 X 的版本变化", Outcome: "一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更", State: "active", Reason: "owner 交代", SourceID: asked.ID, ThreadID: "thread_doc", UpdatedAt: memoryTestNow}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revise := func(c core.MemoryConcern, state, reason string, source core.MemorySource, at time.Duration) (core.MemoryConcern, error) {
+		next := c
+		next.Outcome, next.State, next.Reason, next.SourceID, next.UpdatedAt = "", state, reason, source.ID, memoryTestNow.Add(at)
+		return s.SaveConcern(ctx, next, c.Revision)
+	}
+	sent := seedMemorySource(t, s, "tool:send", "tool", "sent changes.md")
+	if c, err = revise(c, "waiting", "changes.md 已发在对话里", sent, time.Hour); err != nil || c.Outcome != "一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更" {
+		t.Fatalf("revision without an outcome = %+v, %v", c, err)
+	}
+	for _, source := range []core.MemorySource{sent, seedMemorySource(t, s, "assistant:done", "assistant", "做完了")} {
+		if _, err := revise(c, "resolved", "已交付", source, 2*time.Hour); err == nil || !strings.Contains(err.Error(), "only by the owner's confirmation") {
+			t.Fatalf("%s resolved a concern with an outcome: %v", source.Speaker, err)
+		}
+	}
+	changed := seedMemorySource(t, s, "owner:change", "owner", "再加上 v1.8")
+	next := c
+	next.Outcome, next.State, next.Reason, next.SourceID, next.UpdatedAt = "一份 Markdown，列出 v1.4 到 v1.8 的不兼容变更", "active", "owner 要加上 v1.8", changed.ID, memoryTestNow.Add(3*time.Hour)
+	if c, err = s.SaveConcern(ctx, next, c.Revision); err != nil {
+		t.Fatal(err)
+	}
+	confirmed := seedMemorySource(t, s, "owner:ok", "owner", "看过了，可以")
+	if c, err = revise(c, "resolved", "owner 确认了成品", confirmed, 4*time.Hour); err != nil || c.State != "resolved" || c.Revision != 4 {
+		t.Fatalf("owner confirmation = %+v, %v", c, err)
+	}
+	rows, err := s.db.Query(`SELECT outcome FROM memory_concern_revisions WHERE concern_id=? ORDER BY revision`, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outcomes, err := memoryStringRows(rows)
+	if err != nil || !slices.Equal(outcomes, []string{"一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更", "一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更", "一份 Markdown，列出 v1.4 到 v1.8 的不兼容变更", "一份 Markdown，列出 v1.4 到 v1.8 的不兼容变更"}) {
+		t.Fatalf("revision outcomes = %q, %v", outcomes, err)
+	}
+
+	followed, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "等快递", State: "active", Reason: "owner 在等快递", SourceID: asked.ID, ThreadID: "thread_doc", UpdatedAt: memoryTestNow}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := revise(followed, "resolved", "快递到了", seedMemorySource(t, s, "assistant:arrived", "assistant", "快递应该到了"), time.Hour); err == nil || !strings.Contains(err.Error(), "requires owner confirmation or execution evidence") {
+		t.Fatalf("the agent's own words resolved a concern: %v", err)
+	}
+	if followed, err = revise(followed, "resolved", "物流显示已签收", seedMemorySource(t, s, "tool:track", "tool", "已签收"), time.Hour); err != nil || followed.State != "resolved" || followed.Outcome != "" {
+		t.Fatalf("a tool result resolving a concern without an outcome = %+v, %v", followed, err)
+	}
+}
+
+// A v16 database has no outcomes; its concerns, revisions and linked records
+// survive the upgrade without one.
+func TestSchemaSeventeenKeepsConcernsWithoutAnOutcome(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	at := "2026-10-01T00:00:00.000000000Z"
+	if _, err := raw.Exec(readLayout(t, 16)+`PRAGMA user_version = 16;
+INSERT INTO memory_state (id, epoch) VALUES (1, 0);
+INSERT INTO sessions (session_id, title, created_at, updated_at) VALUES ('thread_a', 'a', ?1, ?1);
+INSERT INTO memory_sources (id, kind, object_id, version, speaker, session_id, run_id, recorded_at) VALUES ('message:1', 'message', '1', '1', 'owner', 'thread_a', '', ?1);
+INSERT INTO memory_records (id, kind, content, scope, state, basis, revision, recorded_at, updated_at, valid_from) VALUES ('m_fact', 'fact', 'owner 在跟进 A', 'owner', 'active', 'stated', 1, ?1, ?1, ?1);
+INSERT INTO memory_concerns (id, title, state, reason, source_id, revision, review_at, created_at, updated_at, thread_id) VALUES
+ ('concern:a', 'A', 'waiting', 'progress', 'message:1', 2, ?1, ?1, ?1, 'thread_a');
+INSERT INTO memory_concern_revisions (concern_id, revision, title, state, reason, source_id, at) VALUES
+ ('concern:a', 1, 'A', 'active', 'goal', 'message:1', ?1),
+ ('concern:a', 2, 'A', 'waiting', 'progress', 'message:1', ?1);
+INSERT INTO memory_concern_records (concern_id, revision, record_id) VALUES ('concern:a', 2, 'm_fact');`, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	listed, err := s.ListConcerns(context.Background(), true)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("concerns = %+v, %v", listed, err)
+	}
+	if c := listed[0]; c.ID != "concern:a" || c.State != "waiting" || c.Revision != 2 || c.ThreadID != "thread_a" || c.Outcome != "" || !slices.Equal(c.RecordIDs, []string{"m_fact"}) {
+		t.Fatalf("upgraded concern = %+v", c)
+	}
+	var revisions int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM memory_concern_revisions WHERE concern_id='concern:a' AND outcome=''`).Scan(&revisions); err != nil || revisions != 2 {
+		t.Fatalf("upgraded revisions = %d, %v", revisions, err)
+	}
+}
+
 // A v15 database has no conversation on its concerns. The upgrade takes it
 // from the first revision's source, or from that source's run; a concern whose
 // conversation is gone is no longer listed.
