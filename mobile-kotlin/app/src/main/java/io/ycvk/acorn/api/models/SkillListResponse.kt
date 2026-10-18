@@ -32,17 +32,13 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param items 
- * @param total 
  */
 
 
 data class SkillListResponse (
 
     @Json(name = "items")
-    val items: kotlin.collections.List<SkillSummary>,
-
-    @Json(name = "total")
-    val total: kotlin.Int
+    val items: kotlin.collections.List<SkillSummary>
 
 ) {
 

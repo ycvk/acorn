@@ -45,7 +45,7 @@ seed pack 编进二进制，作为内置技能。启动时缺少的内置技能�
 
 ### owner 的入口
 
-owner 在服务器上用 `acorn skills import <目录或 zip>` 安装技能包，这是 owner 本人的操作，不经审批。App 的技能页显示每个技能的当前内容、附带文件、revision 历史和每次修改出自哪个 run，owner 可以回滚到任一 revision、直接编辑、新建或从 zip 安装技能。
+owner 在服务器上用 `acorn skills import <目录或 zip>` 安装技能包，这是 owner 本人的操作，不经审批。App 的技能页列出全部技能，已停用的和当前 revision 解析不了的也在内，显示每个技能的当前内容、附带文件、revision 历史、每次修改出自哪个 run，以及后端算好的两个 revision 之间的差异。owner 在这里回滚到任一 revision、停用和恢复技能，每次都基于读到的当前 revision 写一个作者为 owner 的新 revision，同样不经审批。编辑、新建和从 zip 安装由 agent 经 `skill_write` 与 `skill_import` 完成，owner 在对话里交代即可。带清单的包在技能页上显示清单内容、运行状态与密钥是否已设置，owner 在这里设置密钥（ADR 0010）。
 
 ### 内置技能
 
@@ -61,14 +61,14 @@ owner 在服务器上用 `acorn skills import <目录或 zip>` 安装技能包�
 |---|---|---|
 | S1 | 技能进 SQLite、内置 seed、`skill_write` 与 `skill_retire`、默认审批、夜思整理技能；删除 `skills.dir` | 让 agent 完成一件多步骤的事后记下流程，手机收到含技能全文的审批，批准后在新对话里交代同类任务，agent 加载并照着做 |
 | S2 | Agent Skills 格式、技能包与工作机同步、`skill_import` 与 `acorn skills import`、`browser-skill` 与 `skill-creator` 内置；已有技能迁移到新格式 | 把一个带脚本的公开技能包交给 agent 导入，批准后在新对话里交代对应任务，agent 读取包里的参考文档并在工作机上运行脚本完成 |
-| S3 | App 技能页：内容、附带文件、历史、差异、回滚、编辑、新建与从 zip 安装 | owner 在 App 回滚 agent 的一次修改，下一次 run 用回滚后的内容 |
+| S3 | App 技能页：全部技能与本次能否列出、内容、附带文件、历史、后端算好的差异、回滚、停用与恢复；包的清单、运行状态与密钥设置。编辑、新建与 zip 安装由 agent 经 `skill_write`/`skill_import` 完成 | owner 在 App 回滚 agent 的一次修改，下一次 run 用回滚后的内容；owner 在 App 给包设上密钥后，下一次 run 列出这个包的工具 |
 
 ## 代价
 
 - 技能质量取决于 agent 写得好不好，会出现重复和过时；靠审批、夜思整理和 owner 的回滚兜住，没有自动的对错保证。
 - 每个技能的描述都列在 `skill` 工具里，技能变多会挤占上下文；描述要短，重复的技能要合并。
 - 内置技能和代码的输入格式有耦合（比如简报的 `[briefing` 输入）。release 改了内置技能时会盖过 agent 对它的修改，修改只留在历史里，需要 agent 或 owner 重新取舍。
-- 技能不是记忆来源，遗忘请求不会顺带改动技能；技能里出现了不该留的内容，由 owner 在 App 里编辑或停用。
+- 技能不是记忆来源，遗忘请求不会顺带改动技能；技能里出现了不该留的内容，由 owner 在 App 里回滚或停用，或者让 agent 改写。
 - 默认审批让每次写技能都要 owner 批一次；放开审批后，持久化注入的风险由 owner 自己承担。
 - 导入的技能带着在工作机上运行的脚本，工作机里的登录状态对这些脚本同样可见；导入前的审批是 owner 判断来源可信的地方。
 - 带文件的技能依赖工作机，每次 run 前多一次同步检查；包体积和文件数有上限。

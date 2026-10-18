@@ -151,6 +151,77 @@ func scanSkills(rows *sql.Rows) ([]core.Skill, error) {
 	return skills, nil
 }
 
+// SkillRevisions lists every revision of a skill with the files it carries,
+// newest first.
+func (s *Store) SkillRevisions(ctx context.Context, id string) ([]core.SkillRevision, error) {
+	revisions, err := querySkillRevisions(ctx, s.db, id, ``)
+	if err != nil {
+		return nil, fmt.Errorf("list skill %s revisions: %w", id, err)
+	}
+	if len(revisions) == 0 {
+		return nil, fmt.Errorf("%w: %s", core.ErrSkillNotFound, id)
+	}
+	return revisions, nil
+}
+
+// SkillRevision reads one revision of a skill with the files it carries.
+func (s *Store) SkillRevision(ctx context.Context, id string, revision int64) (core.SkillRevision, error) {
+	revisions, err := querySkillRevisions(ctx, s.db, id, ` AND revision = ?`, revision)
+	if err != nil {
+		return core.SkillRevision{}, fmt.Errorf("read skill %s revision %d: %w", id, revision, err)
+	}
+	if len(revisions) == 0 {
+		return core.SkillRevision{}, fmt.Errorf("%w: %s has no revision %d", core.ErrSkillNotFound, id, revision)
+	}
+	return revisions[0], nil
+}
+
+// querySkillRevisions reads the revisions of a skill, newest first, with
+// their files; where narrows the revisions.
+func querySkillRevisions(ctx context.Context, q memorySQL, id, where string, args ...any) ([]core.SkillRevision, error) {
+	args = append([]any{id}, args...)
+	rows, err := q.QueryContext(ctx, `SELECT revision, markdown, retired, author, run_id, at FROM skill_revisions WHERE id = ?`+where+` ORDER BY revision DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	revisions := []core.SkillRevision{}
+	index := map[int64]int{}
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		r := core.SkillRevision{ID: id}
+		var author, at string
+		if err := scan(&r.Revision, &r.Markdown, &r.Retired, &author, &r.RunID, &at); err != nil {
+			return err
+		}
+		r.Author = core.SkillAuthor(author)
+		var err error
+		if r.At, err = parseTimestamp(fixedTimestampLayout, at, "skill_revisions.at"); err != nil {
+			return err
+		}
+		index[r.Revision] = len(revisions)
+		revisions = append(revisions, r)
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("scan skill revisions: %w", err)
+	}
+	rows, err = q.QueryContext(ctx, `SELECT revision, path, size, sha256 FROM skill_files WHERE id = ?`+where+` ORDER BY revision, path`, args...)
+	if err != nil {
+		return nil, err
+	}
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var revision int64
+		var info core.SkillFileInfo
+		if err := scan(&revision, &info.Path, &info.Size, &info.SHA256); err != nil {
+			return err
+		}
+		i := index[revision]
+		revisions[i].Files = append(revisions[i].Files, info)
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("scan skill revision files: %w", err)
+	}
+	return revisions, nil
+}
+
 // SkillFiles reads the files of one revision of a skill, by path.
 func (s *Store) SkillFiles(ctx context.Context, id string, revision int64) ([]core.SkillFile, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT path, content FROM skill_files WHERE id = ? AND revision = ? ORDER BY path`, id, revision)
@@ -301,6 +372,22 @@ func (s *Store) SetSkillSecret(ctx context.Context, skill, name, value string, a
 	})
 	if err != nil {
 		return fmt.Errorf("set secret %s of skill %s: %w", name, skill, err)
+	}
+	return nil
+}
+
+// DeleteSkillSecret removes the value of one secret of a skill; a secret
+// without a value stays without one.
+func (s *Store) DeleteSkillSecret(ctx context.Context, skill, name string) error {
+	if skill == "" || name == "" {
+		return errors.New("delete skill secret: skill and name are required")
+	}
+	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `DELETE FROM skill_secrets WHERE skill = ? AND name = ?`, skill, name)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("delete secret %s of skill %s: %w", name, skill, err)
 	}
 	return nil
 }

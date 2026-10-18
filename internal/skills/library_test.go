@@ -17,6 +17,7 @@ import (
 
 type storedRevision struct {
 	skill core.Skill
+	runID string
 	files []core.SkillFile
 }
 
@@ -52,7 +53,7 @@ func (m *memorySkillStore) WriteSkill(_ context.Context, w core.SkillWrite) (cor
 		sum := sha256.Sum256(f.Content)
 		next.Files = append(next.Files, core.SkillFileInfo{Path: f.Path, Size: int64(len(f.Content)), SHA256: hex.EncodeToString(sum[:])})
 	}
-	m.revisions[w.ID] = append(m.revisions[w.ID], storedRevision{skill: next, files: slices.Clone(w.Files)})
+	m.revisions[w.ID] = append(m.revisions[w.ID], storedRevision{skill: next, runID: w.RunID, files: slices.Clone(w.Files)})
 	m.writes = append(m.writes, w)
 	return next, nil
 }
@@ -73,6 +74,31 @@ func (m *memorySkillStore) Skills(context.Context) ([]core.Skill, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
+}
+
+func (m *memorySkillStore) SkillRevisions(_ context.Context, id string) ([]core.SkillRevision, error) {
+	revs := m.revisions[id]
+	if len(revs) == 0 {
+		return nil, fmt.Errorf("%w: %s", core.ErrSkillNotFound, id)
+	}
+	out := make([]core.SkillRevision, 0, len(revs))
+	for i := len(revs) - 1; i >= 0; i-- {
+		out = append(out, revs[i].revision())
+	}
+	return out, nil
+}
+
+func (m *memorySkillStore) SkillRevision(_ context.Context, id string, revision int64) (core.SkillRevision, error) {
+	for _, rev := range m.revisions[id] {
+		if rev.skill.Revision == revision {
+			return rev.revision(), nil
+		}
+	}
+	return core.SkillRevision{}, fmt.Errorf("%w: %s has no revision %d", core.ErrSkillNotFound, id, revision)
+}
+
+func (r storedRevision) revision() core.SkillRevision {
+	return core.SkillRevision{ID: r.skill.ID, Revision: r.skill.Revision, Markdown: r.skill.Markdown, Retired: r.skill.Retired, Author: r.skill.Author, RunID: r.runID, At: r.skill.UpdatedAt, Files: slices.Clone(r.skill.Files)}
 }
 
 func (m *memorySkillStore) SkillFiles(_ context.Context, id string, revision int64) ([]core.SkillFile, error) {
@@ -105,6 +131,11 @@ func (m *memorySkillStore) SetSkillSecret(_ context.Context, skill, name, value 
 		m.secrets[skill] = map[string]string{}
 	}
 	m.secrets[skill][name] = value
+	return nil
+}
+
+func (m *memorySkillStore) DeleteSkillSecret(_ context.Context, skill, name string) error {
+	delete(m.secrets[skill], name)
 	return nil
 }
 

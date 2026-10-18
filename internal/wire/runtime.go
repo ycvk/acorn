@@ -35,7 +35,8 @@ type containerRuntimeDeps struct {
 	vault        *knowledge.Vault
 	watchChecker *watch.Checker
 	// triggers is nil without a workstation.
-	triggers *skills.TriggerRunner
+	triggers      *skills.TriggerRunner
+	packageStatus *skills.Status
 }
 
 // buildNotifier returns the push sender, or nil and the reason push is off.
@@ -133,12 +134,17 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	var skillPackages skills.PackageHost
 	var skillServers runtime.SkillServerHost
 	var triggers *skills.TriggerRunner
+	var serverReporter skills.ServerReporter
 	if workstationClient != nil {
 		skillDeps.Packages, skillDeps.PackagesDisabledReason = workstationClient, ""
-		skillPackages, skillServers = workstationClient, workstationClient
+		skillPackages, skillServers, serverReporter = workstationClient, workstationClient, workstationClient
 		if triggers, err = skills.NewTriggerRunner(skillLibrary, workstationClient, cfg.Workstation.CommandTimeoutSeconds, cfg.Workstation.MaxOutputBytes); err != nil {
 			return nil, err
 		}
+	}
+	packageStatus, err := skills.NewStatus(skillLibrary, db, serverReporter)
+	if err != nil {
+		return nil, err
 	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
@@ -244,6 +250,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		vault:                 vault,
 		watchChecker:          watchChecker,
 		triggers:              triggers,
+		packageStatus:         packageStatus,
 	}, nil
 }
 

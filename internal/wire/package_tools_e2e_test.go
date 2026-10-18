@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
@@ -35,7 +37,7 @@ func requestToolNames(request map[string]any) []string {
 
 // TestPackageToolsComeWithTheirSkill installs a package whose MCP server
 // needs a secret: the skill and its tools stay out of runs until the owner
-// sets the secret, then a call to the package's tool waits for approval and
+// sets the secret from the App, then a call to the package's tool waits for approval and
 // runs on the workstation, and retiring the skill takes the tools away and
 // stops the server. The secret's value never reaches the model or the
 // approval.
@@ -77,7 +79,7 @@ func TestPackageToolsComeWithTheirSkill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := c.PackageToolsStatus(ctx)
+	status, err := c.PackageStatus().Servers(ctx)
 	if err != nil || len(status) != 1 || status[0].State != "missing_secrets" || !slices.Equal(status[0].MissingSecrets, []string{"FIXTURE_TOKEN"}) {
 		t.Fatalf("doctor before the secret = %+v, %v", status, err)
 	}
@@ -99,8 +101,19 @@ func TestPackageToolsComeWithTheirSkill(t *testing.T) {
 		t.Fatalf("a skill missing its secret reached the model: %v", requestToolNames(provider.request(0)))
 	}
 
-	if err := c.Skills().SetSecret(ctx, "fixture", "FIXTURE_TOKEN", packageSecret); err != nil {
-		t.Fatal(err)
+	// The owner sets the secret from the App: the response names the
+	// secrets that are set and never holds a value.
+	phone := newPairedClient(t, c)
+	var page api.SkillEnvelope
+	phone.do(t, httptest.NewRequest(http.MethodGet, "/v1/skills/fixture", nil), http.StatusOK, &page)
+	if pkg := page.Item.Package; pkg == nil || pkg.MCP == nil || pkg.MCP.State != "missing_secrets" || len(pkg.Secrets) != 1 || pkg.Secrets[0].Set || page.Item.Eligible {
+		t.Fatalf("skill page before the secret = %+v", page.Item)
+	}
+	setSecret := httptest.NewRequest(http.MethodPut, "/v1/skills/fixture/secrets/FIXTURE_TOKEN", strings.NewReader(`{"value":"`+packageSecret+`"}`))
+	var secrets api.SkillSecretListResponse
+	phone.do(t, setSecret, http.StatusOK, &secrets)
+	if len(secrets.Secrets) != 1 || secrets.Secrets[0].Name != "FIXTURE_TOKEN" || !secrets.Secrets[0].Set {
+		t.Fatalf("secrets after setting one = %+v", secrets)
 	}
 	second, err := c.runs.CreateRun(ctx, thread.ID, "", "再试一次", nil)
 	if err != nil {
@@ -129,8 +142,21 @@ func TestPackageToolsComeWithTheirSkill(t *testing.T) {
 	if content, ok := toolMessageFor(provider.request(2), "call_echo"); !ok || !strings.Contains(content, "echo: 你好") {
 		t.Fatalf("tool result = %q", content)
 	}
-	if status, err := c.PackageToolsStatus(ctx); err != nil || status[0].State != "ready" {
+	if status, err := c.PackageStatus().Servers(ctx); err != nil || status[0].State != "ready" {
 		t.Fatalf("doctor while it serves = %+v, %v", status, err)
+	}
+	for _, path := range []string{"/v1/skills", "/v1/skills/fixture", "/v1/skills/fixture/revisions", "/v1/skills/fixture/revisions/1"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+phone.token)
+		phone.handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), packageSecret) {
+			t.Fatalf("GET %s = %d, holds the secret: %v", path, rec.Code, strings.Contains(rec.Body.String(), packageSecret))
+		}
+	}
+	phone.do(t, httptest.NewRequest(http.MethodGet, "/v1/skills/fixture", nil), http.StatusOK, &page)
+	if pkg := page.Item.Package; pkg.MCP.State != "ready" || !pkg.Secrets[0].Set || !page.Item.Eligible {
+		t.Fatalf("skill page while it serves = %+v", page.Item)
 	}
 
 	if _, err := c.skillLibrary.Retire(ctx, "fixture", skill.Revision, ""); err != nil {

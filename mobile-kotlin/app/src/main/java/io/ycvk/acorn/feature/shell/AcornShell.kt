@@ -74,6 +74,10 @@ import io.ycvk.acorn.feature.persona.PersonaRevisionScreen
 import io.ycvk.acorn.feature.persona.PersonaScreen
 import io.ycvk.acorn.feature.persona.PersonaViewModel
 import io.ycvk.acorn.feature.settings.SettingsScreen
+import io.ycvk.acorn.feature.skills.SkillRevisionScreen
+import io.ycvk.acorn.feature.skills.SkillScreen
+import io.ycvk.acorn.feature.skills.SkillsScreen
+import io.ycvk.acorn.feature.skills.SkillsViewModel
 import io.ycvk.acorn.feature.threads.ThreadsScreen
 
 @Composable
@@ -102,6 +106,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
     val memoryViewModel: MemoryViewModel = hiltViewModel()
     val personaViewModel: PersonaViewModel = hiltViewModel()
+    val skillsViewModel: SkillsViewModel = hiltViewModel()
 
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -174,13 +179,36 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                     onOpenThread = { shellViewModel.open(Page.Chat(it)) },
                     onOpenNote = { shellViewModel.open(Page.Note(it)) },
                 )
-                Page.Settings -> SettingsScreen(onBack = shellViewModel::back, onOpenPersona = { shellViewModel.open(Page.Persona) })
+                Page.Settings -> SettingsScreen(
+                    onBack = shellViewModel::back,
+                    onOpenPersona = { shellViewModel.open(Page.Persona) },
+                    onOpenSkills = { shellViewModel.open(Page.Skills) },
+                )
                 Page.Persona -> PersonaScreen(
                     viewModel = personaViewModel,
                     onBack = shellViewModel::back,
                     onOpenRevision = { shellViewModel.open(Page.PersonaRevision(it)) },
                 )
                 is Page.PersonaRevision -> PersonaRevisionScreen(revision = page.revision, viewModel = personaViewModel, onBack = shellViewModel::back)
+                Page.Skills -> SkillsScreen(
+                    viewModel = skillsViewModel,
+                    onBack = shellViewModel::back,
+                    onOpenSkill = { shellViewModel.open(Page.Skill(it)) },
+                )
+                is Page.Skill -> SkillScreen(
+                    name = page.name,
+                    viewModel = skillsViewModel,
+                    onBack = shellViewModel::back,
+                    onOpenRevision = { shellViewModel.open(Page.SkillRevision(page.name, it)) },
+                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                )
+                is Page.SkillRevision -> SkillRevisionScreen(
+                    name = page.name,
+                    revision = page.revision,
+                    viewModel = skillsViewModel,
+                    onBack = shellViewModel::back,
+                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                )
                 is Page.Browser -> BrowserScreen(openUrl = page.openUrl, onBack = shellViewModel::back)
             }
         }

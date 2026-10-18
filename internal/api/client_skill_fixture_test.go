@@ -1,15 +1,15 @@
 package api
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type testSkillFixture struct {
@@ -18,45 +18,67 @@ type testSkillFixture struct {
 	instruction string
 }
 
-type staticSkillLibrary struct{ scan skills.ScanResult }
-
-func (s staticSkillLibrary) Scan(context.Context) (*skills.ScanResult, error) {
-	scan := s.scan
-	return &scan, nil
+// skillTestEnv is a skill service over a real store, its library and the
+// store itself, for writes the service does not make.
+type skillTestEnv struct {
+	db      *store.Store
+	library *skills.Library
+	service *SkillService
 }
 
-func (s staticSkillLibrary) Import(context.Context, []core.SkillFile, bool) (core.Skill, error) {
-	return core.Skill{}, errors.New("static skill library does not import")
+func newSkillTestEnv(t *testing.T) skillTestEnv {
+	t.Helper()
+	db, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	now := time.Date(2026, 10, 18, 9, 0, 0, 0, time.UTC)
+	library, err := skills.NewLibrary(db, func() time.Time { return now }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := skills.NewStatus(library, db, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.DefaultConfig()
+	cfg.Runtime.StorageDir = t.TempDir()
+	cfg.Workstation.URL = "http://workstation.test:8780"
+	service, err := NewSkillService(cfg, library, status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return skillTestEnv{db: db, library: library, service: service}
 }
 
-func (s staticSkillLibrary) SetSecret(context.Context, string, string, string) error {
-	return errors.New("static skill library keeps no secrets")
+// importSkill installs a package as the owner does with acorn skills import.
+func (e skillTestEnv) importSkill(t *testing.T, files ...core.SkillFile) core.Skill {
+	t.Helper()
+	skill, err := e.library.Import(t.Context(), files, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return skill
+}
+
+func skillMarkdown(name, description, instruction string) string {
+	return fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\n%s\n", name, description, instruction)
 }
 
 func newTestSkillService(t *testing.T, fixtures ...testSkillFixture) *SkillService {
 	t.Helper()
-
-	cfg := config.DefaultConfig()
-	cfg.Runtime.StorageDir = t.TempDir()
-
-	var scan skills.ScanResult
-	for i, fixture := range fixtures {
-		name := strings.TrimSpace(fixture.name)
-		if name == "" {
-			t.Fatal("test skill name is required")
-		}
+	env := newSkillTestEnv(t)
+	for _, fixture := range fixtures {
 		instruction := strings.TrimSpace(fixture.instruction)
 		if instruction == "" {
 			instruction = "Use repo inspection."
 		}
-		markdown := fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\n%s\n", name, strings.TrimSpace(fixture.description), instruction)
-		spec, err := skills.Parse(markdown)
-		if err != nil {
-			t.Fatalf("parse test skill %s: %v", name, err)
-		}
-		spec.Revision, spec.Markdown = int64(i+1), markdown
-		scan.Skills = append(scan.Skills, spec)
+		env.importSkill(t, core.SkillFile{Path: skills.SkillFileName, Content: []byte(skillMarkdown(fixture.name, fixture.description, instruction))})
 	}
-
-	return NewSkillService(cfg, staticSkillLibrary{scan: scan})
+	return env.service
 }

@@ -103,17 +103,6 @@ func parseLimit(raw string) (int, error) {
 	return value, nil
 }
 
-func parseOffset(raw string) (int, error) {
-	if strings.TrimSpace(raw) == "" {
-		return 0, nil
-	}
-	value, err := strconv.Atoi(raw)
-	if err != nil || value < 0 {
-		return 0, fmt.Errorf("offset must be a non-negative integer")
-	}
-	return value, nil
-}
-
 func parseClientAfterSeq(raw string) (int64, error) {
 	if strings.TrimSpace(raw) == "" {
 		return 0, nil

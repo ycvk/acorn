@@ -20,6 +20,7 @@ var clientProjectionBoundaryFiles = []string{
 	"internal/api/dto_run.go",
 	"internal/api/dto_pending.go",
 	"internal/api/dto_system.go",
+	"internal/api/dto_skills.go",
 	"internal/api/converter.go",
 	"internal/api/server.go",
 }

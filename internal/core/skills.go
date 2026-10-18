@@ -14,6 +14,10 @@ var (
 	// ErrSkillPackageNotStaged means no package with that hash waits for
 	// import.
 	ErrSkillPackageNotStaged = errors.New("skill package not staged")
+	// ErrSkillInvalid means the owner's change does not fit the skill: its
+	// content does not pass the checks every write passes, the skill is not
+	// in the state the change needs, or its package declares no such secret.
+	ErrSkillInvalid = errors.New("invalid skill change")
 )
 
 // SkillAuthor says who wrote a skill revision.
@@ -55,6 +59,20 @@ type Skill struct {
 	UpdatedAt  time.Time
 }
 
+// SkillRevision is one stored revision of a skill: its SKILL.md, whether it
+// took the skill out of use, who wrote it and in which run, and the files it
+// carries.
+type SkillRevision struct {
+	ID       string
+	Revision int64
+	Markdown string
+	Retired  bool
+	Author   SkillAuthor
+	RunID    string
+	At       time.Time
+	Files    []SkillFileInfo
+}
+
 // SkillWrite stores a new revision of a skill with its whole file set.
 // BaseRevision must equal the stored revision, zero for a skill that does not
 // exist yet. A non-empty SeedSHA256 replaces the recorded built-in hash.
@@ -86,6 +104,10 @@ type SkillStore interface {
 	Skill(ctx context.Context, id string) (Skill, error)
 	// Skills lists every skill, retired ones included, by id.
 	Skills(ctx context.Context) ([]Skill, error)
+	// SkillRevisions lists every revision of a skill, newest first.
+	SkillRevisions(ctx context.Context, id string) ([]SkillRevision, error)
+	// SkillRevision reads one revision of a skill.
+	SkillRevision(ctx context.Context, id string, revision int64) (SkillRevision, error)
 	// SkillFiles reads the files of one revision of a skill.
 	SkillFiles(ctx context.Context, id string, revision int64) ([]SkillFile, error)
 	// SkillFile reads one file of one revision of a skill.
@@ -101,5 +123,6 @@ type SkillStore interface {
 	// SkillSecrets reads them by name. Values only go to the package's own
 	// processes.
 	SetSkillSecret(ctx context.Context, skill, name, value string, at time.Time) error
+	DeleteSkillSecret(ctx context.Context, skill, name string) error
 	SkillSecrets(ctx context.Context, skill string) (map[string]string, error)
 }

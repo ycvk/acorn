@@ -176,8 +176,8 @@ func TestSecretsMustBeDeclaredByTheSkillsServer(t *testing.T) {
 	if _, err := library.Write(ctx, WriteRequest{Markdown: ordersSkill}); err != nil {
 		t.Fatal(err)
 	}
-	if err := library.SetSecret(ctx, "shop-orders", "FETCH_TOKEN", "v"); err == nil {
-		t.Fatal("set a secret of a skill without a server")
+	if err := library.SetSecret(ctx, "shop-orders", "FETCH_TOKEN", "v"); !errors.Is(err, core.ErrSkillInvalid) {
+		t.Fatalf("set a secret of a skill without a package: err = %v", err)
 	}
 	if _, err := library.Write(ctx, WriteRequest{Markdown: fetchSkill, Put: map[string]string{ManifestFileName: fetchManifest}}); err != nil {
 		t.Fatal(err)
@@ -185,14 +185,26 @@ func TestSecretsMustBeDeclaredByTheSkillsServer(t *testing.T) {
 	if err := library.SetSecret(ctx, "fetch", "OTHER", "v"); err == nil || !strings.Contains(err.Error(), "FETCH_TOKEN") {
 		t.Fatalf("undeclared secret err = %v", err)
 	}
-	if err := library.SetSecret(ctx, "fetch", "FETCH_TOKEN", ""); err == nil {
-		t.Fatal("set an empty secret")
+	if err := library.SetSecret(ctx, "fetch", "FETCH_TOKEN", ""); !errors.Is(err, core.ErrSkillInvalid) {
+		t.Fatalf("set an empty secret: err = %v", err)
+	}
+	if err := library.SetSecret(ctx, "fetch", "FETCH_TOKEN", strings.Repeat("x", MaxSecretBytes+1)); !errors.Is(err, core.ErrSkillInvalid) {
+		t.Fatalf("set a secret over the limit: err = %v", err)
 	}
 	if err := library.SetSecret(ctx, "fetch", "FETCH_TOKEN", "s3cret"); err != nil {
 		t.Fatal(err)
 	}
 	if store.secrets["fetch"]["FETCH_TOKEN"] != "s3cret" {
 		t.Fatalf("secrets = %v", store.secrets)
+	}
+	if err := library.ClearSecret(ctx, "fetch", "OTHER"); !errors.Is(err, core.ErrSkillInvalid) {
+		t.Fatalf("clear an undeclared secret: err = %v", err)
+	}
+	if err := library.ClearSecret(ctx, "fetch", "FETCH_TOKEN"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.secrets["fetch"]["FETCH_TOKEN"]; ok {
+		t.Fatalf("secrets after clearing = %v", store.secrets)
 	}
 }
 

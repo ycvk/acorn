@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
 )
 
@@ -205,11 +206,12 @@ func TestRenderDoctorWorkstation(t *testing.T) {
 }
 
 func TestRenderDoctorPackageToolsSaysWhyAServerDoesNotServe(t *testing.T) {
-	got := renderDoctorPackageTools([]wire.PackageToolStatus{
+	got := renderDoctorPackageTools([]skills.ServerReport{
 		{Skill: "fetch", Command: "uvx mcp-server-fetch", State: "ready"},
 		{Skill: "github", Command: "npx github-mcp", State: "missing_secrets", MissingSecrets: []string{"GITHUB_TOKEN"}},
 		{Skill: "broken", Command: "./server", State: "failed", Error: "exit status 1"},
 		{Skill: "idle", Command: "uvx idle", State: "stopped"},
+		{Skill: "remote", Command: "uvx remote", State: "off"},
 	})
 	mustContainAll(t, got, []string{
 		"Package tools",
@@ -217,13 +219,14 @@ func TestRenderDoctorPackageToolsSaysWhyAServerDoesNotServe(t *testing.T) {
 		"- github (npx github-mcp): missing secrets GITHUB_TOKEN; set each with acorn skills secret set github NAME",
 		"- broken (./server): failed: exit status 1",
 		"- idle (uvx idle): not running; it starts with the next run that uses the skill",
+		"- remote (uvx remote): off (workstation.url is not configured)",
 	})
 }
 
 func TestRenderDoctorPackageTriggersSaysWhenEachFires(t *testing.T) {
 	loc := time.FixedZone("CST", 8*3600)
 	next := time.Date(2026, 10, 17, 2, 30, 0, 0, time.UTC)
-	got := renderDoctorPackageTriggers([]wire.PackageTriggerStatus{
+	got := renderDoctorPackageTriggers([]skills.TriggerReport{
 		{Trigger: "price-watch/price", Schedule: "*/30 * * * *", Deliver: "immediate", Run: "scripts/check.sh", State: "scheduled", NextAt: next},
 		{Trigger: "price-watch/feed", Schedule: "0 * * * *", Deliver: "digest", Run: "scripts/feed.sh", State: "failing", NextAt: next, Failures: 5, LastError: "the command exited with status 1"},
 		{Trigger: "issues/weekly", Schedule: "0 9 * * 1", Deliver: "digest", Run: "scripts/weekly.py", State: "missing_secrets", MissingSecrets: []string{"GITHUB_TOKEN"}},

@@ -13,6 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
 )
 
@@ -114,11 +115,11 @@ func runDoctor(ctx context.Context, args []string) error {
 			return fmt.Errorf("memory status: %w", err)
 		}
 		workstation := container.WorkstationStatus(ctx)
-		packageTools, err := container.PackageToolsStatus(ctx)
+		packageTools, err := container.PackageStatus().Servers(ctx)
 		if err != nil {
 			return fmt.Errorf("package tools: %w", err)
 		}
-		packageTriggers, err := container.PackageTriggersStatus(ctx)
+		packageTriggers, err := container.PackageStatus().Triggers(ctx)
 		if err != nil {
 			return fmt.Errorf("package triggers: %w", err)
 		}
@@ -129,8 +130,8 @@ func runDoctor(ctx context.Context, args []string) error {
 				Thinking        wire.ThinkingStatus         `json:"thinking"`
 				Memory          core.MemoryProcessingStatus `json:"memory"`
 				Workstation     wire.WorkstationStatus      `json:"workstation"`
-				PackageTools    []wire.PackageToolStatus    `json:"package_tools"`
-				PackageTriggers []wire.PackageTriggerStatus `json:"package_triggers"`
+				PackageTools    []skills.ServerReport       `json:"package_tools"`
+				PackageTriggers []skills.TriggerReport      `json:"package_triggers"`
 				Review          wire.ReviewStatus           `json:"review"`
 			}{snapshot, thinking, memoryStatus, workstation, packageTools, packageTriggers, reviewStatus})
 		}

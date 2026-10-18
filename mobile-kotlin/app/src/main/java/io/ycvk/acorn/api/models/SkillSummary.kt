@@ -23,6 +23,7 @@
 
 package io.ycvk.acorn.api.models
 
+import io.ycvk.acorn.api.models.SkillAuthor
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -31,11 +32,16 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param name 
- * @param description 
- * @param eligible 
- * @param requiresTools 
+ * @param revision 
+ * @param author 
+ * @param updatedAt 
+ * @param retired 
+ * @param eligible Whether the next run lists the skill.
  * @param fileCount Number of files the skill carries besides its SKILL.md.
- * @param disabledReasons 
+ * @param hasManifest Whether the package carries acorn-package.yaml.
+ * @param description Absent when SKILL.md does not parse.
+ * @param disabledReasons Why a skill in use is not listed, such as `missing_secrets:NAME` or `files_need_workstation`.
+ * @param problem Why the current revision's SKILL.md or manifest does not parse.
  */
 
 
@@ -44,21 +50,41 @@ data class SkillSummary (
     @Json(name = "name")
     val name: kotlin.String,
 
-    @Json(name = "description")
-    val description: kotlin.String,
+    @Json(name = "revision")
+    val revision: kotlin.Long,
 
+    @Json(name = "author")
+    val author: SkillAuthor,
+
+    @Json(name = "updated_at")
+    val updatedAt: java.time.OffsetDateTime,
+
+    @Json(name = "retired")
+    val retired: kotlin.Boolean,
+
+    /* Whether the next run lists the skill. */
     @Json(name = "eligible")
     val eligible: kotlin.Boolean,
 
-    @Json(name = "requires_tools")
-    val requiresTools: kotlin.collections.List<kotlin.String>? = null,
-
     /* Number of files the skill carries besides its SKILL.md. */
     @Json(name = "file_count")
-    val fileCount: kotlin.Int? = null,
+    val fileCount: kotlin.Int,
 
+    /* Whether the package carries acorn-package.yaml. */
+    @Json(name = "has_manifest")
+    val hasManifest: kotlin.Boolean,
+
+    /* Absent when SKILL.md does not parse. */
+    @Json(name = "description")
+    val description: kotlin.String? = null,
+
+    /* Why a skill in use is not listed, such as `missing_secrets:NAME` or `files_need_workstation`. */
     @Json(name = "disabled_reasons")
-    val disabledReasons: kotlin.collections.List<kotlin.String>? = null
+    val disabledReasons: kotlin.collections.List<kotlin.String>? = null,
+
+    /* Why the current revision's SKILL.md or manifest does not parse. */
+    @Json(name = "problem")
+    val problem: kotlin.String? = null
 
 ) {
 

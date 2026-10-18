@@ -54,6 +54,7 @@ import io.ycvk.acorn.core.ui.TopBar
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenPersona: () -> Unit,
+    onOpenSkills: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val status by viewModel.systemStatus.collectAsStateWithLifecycle()
@@ -88,6 +89,8 @@ fun SettingsScreen(
 
             SettingsGroup("Acorn") {
                 SettingRow("人格", "它是谁、怎么说话", onClick = onOpenPersona)
+                Hairline(inset = 16.dp)
+                SettingRow("技能", "它会做的事和技能包", onClick = onOpenSkills)
             }
 
             SettingsGroup("推送通知") {

@@ -157,13 +157,15 @@
 - **包清单只声明 MCP 服务器、触发器与密钥**：包根目录的 `acorn-package.yaml` 是一个 YAML 文档，以 KnownFields 严格解析，至少声明 `mcp` 或一个触发器：`mcp` 的 `command` 必填，可带 `args`；`triggers` 每项要求 name（技能名格式，包内不重复）、可解析的 cron `schedule`、`run` 与 `deliver`（immediate 或 digest），没有 webhook 字段；包级 `secrets` 是互不相同的大写环境变量名；`skill_write`、`skill_inspect`、`skill_import` 与 `acorn skills import` 写入前校验，解析失败的写入不落库。声明了 MCP 服务器的包名与 `mcp.providers` 的工具命名空间相同时写入、暂存与导入都失败；在用技能与后来配置的 provider 同名时容器启动失败，停用的技能不算。
   - `internal/skills/manifest_test.go`
   - `internal/wire/package_tools_e2e_test.go`
-- **包的工具只在技能在用的 run 里**：每次 run 在包同步之后让工作机恰好运行在用且密钥齐全的技能的 MCP 服务器，其余停止；backend 为每个起来的服务器连接 `/v1/mcp/<name>`，工具名 `mcp__<name>__<tool>`、类别 integration，run 结束时连接关闭，照常经审批规则与审查。资格判断时技能对自己 `mcp__<name>__` 工具的要求留到连上之后检查；包声明的密钥缺任一个时，不论有没有 MCP 服务器，该技能本次都不列出；缺密钥（`missing_secrets`）、服务器起不来（`mcp_server_failed`）、连不上（`mcp_connect_failed`）、工作机不可用（`mcp_unavailable`）或缺自己要求的工具时，该技能与它的工具本次不列出，run 照常进行。`acorn doctor` 的 Package tools 列出每个服务器的状态、失败原因与缺的密钥，不启停服务器。
+- **包的工具只在技能在用的 run 里**：每次 run 在包同步之后让工作机恰好运行在用且密钥齐全的技能的 MCP 服务器，其余停止；backend 为每个起来的服务器连接 `/v1/mcp/<name>`，工具名 `mcp__<name>__<tool>`、类别 integration，run 结束时连接关闭，照常经审批规则与审查。资格判断时技能对自己 `mcp__<name>__` 工具的要求留到连上之后检查；包声明的密钥缺任一个时，不论有没有 MCP 服务器，该技能本次都不列出；缺密钥（`missing_secrets`）、服务器起不来（`mcp_server_failed`）、连不上（`mcp_connect_failed`）、工作机不可用（`mcp_unavailable`）或缺自己要求的工具时，该技能与它的工具本次不列出，run 照常进行。`acorn doctor` 与 App 的技能页读同一个 `skills.Status`：每个服务器的状态、失败原因与缺的密钥，每个触发器的状态；读状态不启停服务器，问工作机至多等 10 秒，没回应时状态为 unknown。
   - `internal/skills/manifest_test.go`
   - `internal/runtime/skill_tools_test.go`
   - `internal/wire/package_tools_e2e_test.go`
   - `internal/cli/doctor_output_test.go`
-- **包的密钥只交给包的进程**：密钥存在 SQLite 的 `skill_secrets`，只经 `acorn skills secret set <skill> <NAME>` 从标准输入写入，名字必须是技能当前清单声明的密钥；值只随运行请求交给工作机，作为环境变量传给该包的 MCP 进程与触发器命令，不进入技能快照、模型输入、审批详情、API 响应与日志；密钥随数据库备份与恢复。
+  - `internal/api/handlers_skills_test.go`
+- **包的密钥只交给包的进程**：密钥存在 SQLite 的 `skill_secrets`，经 `acorn skills secret set <skill> <NAME>` 从标准输入或 App 的 `PUT /v1/skills/{name}/secrets/{secret}` 写入，经 App 的 `DELETE` 清除；两条路径规则相同：名字必须是技能当前清单声明的密钥，值非空且不超过 64 KiB。密钥只写不读，API 只返回声明的密钥哪些已设置。值只随运行请求交给工作机，作为环境变量传给该包的 MCP 进程与触发器命令，不进入技能快照、模型输入、审批详情、API 响应与日志；密钥随数据库备份与恢复。
   - `internal/store/store_skills_test.go`
+  - `internal/api/handlers_skills_test.go`
   - `internal/skills/manifest_test.go`
   - `internal/workstation/mcp_test.go`
   - `internal/wire/package_tools_e2e_test.go`
@@ -176,6 +178,10 @@
   - `internal/tools/web_skill_eligibility_test.go`
 - **内置技能随二进制发布**：`internal/skills/seed` 编进二进制；启动时缺少的内置技能写入 revision 1，内容与上次 release 写入的哈希不同时在当前 revision 之上写新 revision 并保留停用状态，相同则不写。
   - `internal/skills/library_test.go`
+- **owner 的改动基于读到的 revision**：App 的回滚把选中 revision 的 `SKILL.md` 与附带文件写成在用的新 revision，恢复把停用技能的当前内容写成在用的新 revision，停用写一个停用 revision；作者都是 owner，不经审批。三者都带 base revision，不等于当前 revision 时以 `ErrSkillConflict` 失败（409 `skill_changed`），什么也不写；回滚与恢复的内容经过与其他写入相同的检查（frontmatter、附带文件、清单、MCP 服务器与 provider 重名），状态不对（停用已停用的、恢复在用的）或检查不过以 `ErrSkillInvalid` 拒绝（400 `skill_change_invalid`）。下一次 run 用写入后的内容。
+  - `internal/skills/owner_test.go`
+  - `internal/api/handlers_skills_test.go`
+  - `internal/wire/skills_owner_e2e_test.go`
 - **夜思回顾技能**：夜思输入列出上次夜思以来 agent 写过或加载过的技能及其 revision；release 写入的 revision 不列出。
   - `internal/wake/thinking_test.go`
 
@@ -183,8 +189,9 @@
 
 - **Remote client 必须设备认证**：除 `/healthz` 和 `POST /v1/devices:pair` 外，`/v1` 只接受 valid device bearer token；missing/malformed/unknown 返回 `unauthenticated`，revoked 返回 `device_revoked`。
   - `internal/store/store_schema_test.go`
-- **OpenAPI 是 wire contract**：remote client DTO 只投影 core domain 类型；改 wire shape 须同步 `docs/openapi.yaml` + generated mobile client。投影逻辑在 `internal/api` 的 `projection.go`/`projection_helpers.go` 中，不导入 `internal/runtime`。`thread_service.go`/`event_service.go` 合法导入 `internal/core`，不在 projection boundary 列表中。
+- **OpenAPI 是 wire contract**：remote client DTO 只投影 core domain 类型；改 wire shape 须同步 `docs/openapi.yaml` + generated mobile client。投影逻辑在 `internal/api` 的 `projection.go`/`projection_helpers.go` 与 `dto_*.go` 中，不导入 `internal/runtime`。`thread_service.go`/`event_service.go` 合法导入 `internal/core`，不在 projection boundary 列表中。客户端生成器按 YAML 1.1 读文档，枚举值里会被读成布尔的词（如 `off`）必须加引号。
   - `tests/architecture/client_projection_boundary_test.go`
+  - `internal/api/openapi_test.go`
 - **Pending action 对客户端可达**：action ID 由 `core.NewActionID()` 生成，只含 `[a-z0-9_]`，能直接放进 `/v1/pending-actions/{action_id}:decide`。每种 pending action kind 都以 `<kind>.pending` / `<kind>.decided` 进入 live RunEvent，且 live 事件集合与 OpenAPI `RunEvent` discriminator 一致。
   - `internal/core/core_test.go`
   - `internal/api/openapi_test.go`
@@ -192,6 +199,10 @@
 - **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（已遗忘来源不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
   - `internal/api/now_test.go`
   - `internal/wire/now_acceptance_e2e_test.go`
+- **技能页只读后端事实**：`GET /v1/skills` 列出全部技能，已停用的也在内，带当前 revision、作者、更新时间、是否带清单、下一次 run 能否列出与原因（静态工具资格加缺的密钥）；当前 revision 的 `SKILL.md` 或清单解析不了的技能带 `problem`，列表与详情照常返回。详情给出当前 revision 的 `SKILL.md`、附带文件（不超过 64 KiB 的 UTF-8 文本带内容）与写入它的 run，有清单时给出清单内容、运行状态与密钥是否已设置；修订历史给出每个 revision 的作者、run、时间、是否停用与包哈希，任一 revision 可读。两个 revision 的差异由后端逐文件按行算好：`SKILL.md` 在前，其余按路径，相同的文件省略，文本文件是带 3 行上下文的 hunk，非文本只标出变化；App 只渲染。
+  - `internal/api/handlers_skills_test.go`
+  - `internal/skills/diff_test.go`
+  - `internal/skills/owner_test.go`
 - **对话文件随消息往返**：`POST /v1/threads/{id}/files` 边接收边写入 `{storage_dir}/files/<file_id>`（临时文件改名后才登记），超过 `files.max_upload_mib` 以 `payload_too_large`（413）拒绝，名字只保留最后一段、去掉控制字符；媒体类型对图片、音视频与 PDF 按内容判断，其他按扩展名。`CreateRunRequest.file_ids` 只接受本对话里尚未随消息发送的 owner 文件，至多 10 个，否则整个请求按无效请求拒绝；有文件时消息可以没有正文。线程消息把 owner 文件列在它随行的 user 消息上，把 agent 文件列在其 run 的 assistant 消息上；`GET /v1/threads/{id}/files/{file_id}` 只返回该对话的文件。
   - `internal/store/thread_files_test.go`
   - `internal/core/thread_file_test.go`

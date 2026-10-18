@@ -125,9 +125,6 @@ func runSkillsImport(ctx context.Context, args []string) error {
 	})
 }
 
-// maxSecretBytes bounds a secret's value.
-const maxSecretBytes = 64 << 10
-
 // runSkillsSecret sets a secret a skill's MCP server declares. The value is
 // read from standard input, without echo from a terminal, and never printed.
 func runSkillsSecret(ctx context.Context, args []string) error {
@@ -148,7 +145,7 @@ func runSkillsSecret(ctx context.Context, args []string) error {
 		return err
 	}
 	return withContainer(ctx, *configPath, func(container *wire.Container) error {
-		if err := container.Skills().SetSecret(ctx, skill, name, value); err != nil {
+		if _, err := container.Skills().SetSecret(ctx, skill, name, value); err != nil {
 			return err
 		}
 		fmt.Printf("Set %s for %s; its MCP server gets it from the next run on.\n", name, skill)
@@ -168,7 +165,7 @@ func readSecret(in *os.File, name string) (string, error) {
 		}
 		return secretValue(value)
 	}
-	value, err := io.ReadAll(io.LimitReader(in, maxSecretBytes+1))
+	value, err := io.ReadAll(io.LimitReader(in, skills.MaxSecretBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("read %s from standard input: %w", name, err)
 	}
@@ -176,8 +173,8 @@ func readSecret(in *os.File, name string) (string, error) {
 }
 
 func secretValue(value []byte) (string, error) {
-	if len(value) > maxSecretBytes {
-		return "", fmt.Errorf("the value is longer than %d bytes", maxSecretBytes)
+	if len(value) > skills.MaxSecretBytes {
+		return "", fmt.Errorf("the value is longer than %d bytes", skills.MaxSecretBytes)
 	}
 	text := strings.TrimSuffix(strings.TrimSuffix(string(value), "\n"), "\r")
 	if text == "" {
