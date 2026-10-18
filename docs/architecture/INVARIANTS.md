@@ -221,7 +221,7 @@
 
 ## 约定、唤醒与追踪
 
-- **约定发生只认领一次，执行前绑定来源**：约定规则与 occurrence 独立。条件认领后，Executor 在模型调用前绑定执行 run；周期沿同一规则排下一次。五分钟未绑定的认领可恢复，迟到启动受状态校验拦截。完成约定必须引用 owner 确认或成功执行结果。关联了关切的约定醒来时，输入在约定内容之后附上关切的标题、状态与最新理由。
+- **约定发生只认领一次，执行前绑定来源**：约定规则与 occurrence 独立。条件认领后，Executor 在模型调用前绑定执行 run；周期沿同一规则排下一次。五分钟未绑定的认领可恢复，迟到启动受状态校验拦截。完成约定必须引用 owner 确认或成功执行结果。关联了关切的约定醒来时，输入在约定内容之后附上关切的标题、状态、outcome 与最新理由。
   - `internal/store/commitment_contract_test.go`
   - `internal/wake/scheduler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
@@ -271,8 +271,11 @@
 
 - **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思在 Thoughts 线程运行。
   - `internal/wake/thinking_test.go`
-- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件，所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。
+- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件，所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录。
   - `internal/wake/thinking_test.go`
+  - `internal/wire/concern_acceptance_e2e_test.go`
+- **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome 时沿用当前的。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
+  - `internal/store/memory_state_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
 - **原始通知只有一个写入入口**：鉴权设备身份与服务器 received_at 由 API 决定;批次全量校验后事务写入,按 (device,key,posted_at) 去重,不修改调用方输入。
   - `internal/api/phone_notification_service_test.go`

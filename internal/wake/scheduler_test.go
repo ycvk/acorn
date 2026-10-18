@@ -194,6 +194,7 @@ func TestTickWakesDueCommitmentOnce(t *testing.T) {
 func TestCommitmentWakeCarriesItsConcern(t *testing.T) {
 	h := newHarness(t, 20)
 	concern := h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-time.Hour))
+	concern.Outcome = "一份 Markdown，列出 v1.5 的不兼容变更"
 	concern = h.reviseConcern(t, concern, "等 v1.5 发布", h.now.Add(-time.Minute))
 	if _, err := h.data.AddCommitment(context.Background(), core.Commitment{Content: "看 v1.5 发布了没有", SessionID: "thread_a", ConcernID: concern.ID, WakeAt: h.now.Add(-time.Minute), CreatedAt: h.now.Add(-72 * time.Hour)}); err != nil {
 		t.Fatal(err)
@@ -201,7 +202,7 @@ func TestCommitmentWakeCarriesItsConcern(t *testing.T) {
 	if err := h.sched.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := "thread_a|commitment #1: 看 v1.5 发布了没有|[commitment #1, made 2026-10-02 09:00] 看 v1.5 发布了没有\nConcern " + concern.ID + " rev 2 [active]: 跟进 A 项目. Latest reason: 等 v1.5 发布"
+	want := "thread_a|commitment #1: 看 v1.5 发布了没有|[commitment #1, made 2026-10-02 09:00] 看 v1.5 发布了没有\nConcern " + concern.ID + " rev 2 [active]: 跟进 A 项目\nOutcome: 一份 Markdown，列出 v1.5 的不兼容变更\nLatest reason: 等 v1.5 发布"
 	if len(h.runs.starts) != 1 || h.runs.starts[0] != want {
 		t.Fatalf("starts = %q, want %q", h.runs.starts, want)
 	}

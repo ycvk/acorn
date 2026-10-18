@@ -82,7 +82,9 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (
 
 // wanderInput advances the due concern revised longest ago, in the
 // conversation it was created in. A concern whose conversation is busy with a
-// running run or one waiting for the owner is left for a later slot.
+// running run or one waiting for the owner is left for a later slot. A
+// concern with an outcome is worked on in its directory on the workstation
+// and delivered in its conversation.
 func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time) (routineInput, error) {
 	concerns, err := s.cfg.Memory.ListConcerns(ctx, true)
 	if err != nil {
@@ -100,9 +102,33 @@ func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time)
 		if latest != nil && (latest.Status == core.RunStatusRunning || latest.Status == core.RunStatusInterrupted) {
 			continue
 		}
-		return routineInput{thread: c.ThreadID, sources: []string{c.SourceID}, wake: "idle thought " + slot, input: fmt.Sprintf("[wander %s] Advance concern %s rev %d [%s]: %s. Latest reason: %s\nThis is the conversation the concern was raised in; continue from the progress made here before. Inspect evidence with recall; capture a sourced thought, useful progress, or a concrete next appointment, and record what this advance did with concern. A lack of owner response remains unknown feedback.", slot, c.ID, c.Revision, c.State, c.Title, c.Reason)}, nil
+		review := "not set"
+		if !c.ReviewAt.IsZero() {
+			review = c.ReviewAt.In(s.cfg.Location).Format("2006-01-02 15:04")
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "[wander %s] Advance concern %s\nReview at: %s\n", slot, concernText(c), review)
+		if c.Outcome != "" {
+			fmt.Fprintf(&b, "Work directory: ~/work/%s/ on your workstation\nThis is the conversation the concern was raised in; continue from the progress made here before. Do the next concrete step toward the outcome, then record with concern what this advance did, what is left and when to review. Once the outcome is reached, deliver it in this conversation, notify the owner once and set the concern to waiting; only the owner's confirmation resolves it.", c.ID)
+		} else {
+			b.WriteString("This is the conversation the concern was raised in; continue from the progress made here before. Inspect evidence with recall; capture a sourced thought, useful progress, or a concrete next appointment, and record what this advance did with concern.")
+		}
+		b.WriteString(" A lack of owner response remains unknown feedback.")
+		return routineInput{thread: c.ThreadID, sources: []string{c.SourceID}, wake: "idle thought " + slot, input: b.String()}, nil
 	}
 	return routineInput{skip: true}, nil
+}
+
+// concernText names a concern by id, revision, state and title, followed by
+// its outcome when it has one and its latest reason, each on its own line.
+func concernText(c core.MemoryConcern) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s rev %d [%s]: %s", c.ID, c.Revision, c.State, c.Title)
+	if c.Outcome != "" {
+		fmt.Fprintf(&b, "\nOutcome: %s", c.Outcome)
+	}
+	fmt.Fprintf(&b, "\nLatest reason: %s", c.Reason)
+	return b.String()
 }
 
 func previewText(text string, limit int) string {

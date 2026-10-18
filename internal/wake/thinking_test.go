@@ -76,7 +76,7 @@ func TestWanderTakesTheConcernRevisedLongestAgoInItsConversation(t *testing.T) {
 	a := h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-2*time.Hour))
 	b := h.concernIn(t, "thread_b", "跟进 B 项目", h.now.Add(-time.Hour))
 	h.wanderAt(t, 0, 10)
-	if len(h.runs.starts) != 1 || !strings.HasPrefix(h.runs.starts[0], "thread_a|idle thought 2026-10-05 10:00|[wander 2026-10-05 10:00] Advance concern "+a.ID+" rev 1 [active]: 跟进 A 项目. Latest reason: owner asked") {
+	if len(h.runs.starts) != 1 || !strings.HasPrefix(h.runs.starts[0], "thread_a|idle thought 2026-10-05 10:00|[wander 2026-10-05 10:00] Advance concern "+a.ID+" rev 1 [active]: 跟进 A 项目\nLatest reason: owner asked") {
 		t.Fatalf("first slot = %v", h.runs.starts)
 	}
 	if want := []string{a.SourceID}; !slices.Equal(h.runs.sources[0], want) {
@@ -89,11 +89,34 @@ func TestWanderTakesTheConcernRevisedLongestAgoInItsConversation(t *testing.T) {
 	}
 	h.reviseConcern(t, b, "B 还没有新版本", h.now)
 	h.wanderAt(t, 1, 10)
-	if len(h.runs.starts) != 3 || !strings.HasPrefix(h.runs.starts[2], "thread_a|idle thought 2026-10-06 10:00|[wander 2026-10-06 10:00] Advance concern "+a.ID+" rev 2 [active]: 跟进 A 项目. Latest reason: 看过 v1.4 的发布说明") {
+	if len(h.runs.starts) != 3 || !strings.HasPrefix(h.runs.starts[2], "thread_a|idle thought 2026-10-06 10:00|[wander 2026-10-06 10:00] Advance concern "+a.ID+" rev 2 [active]: 跟进 A 项目\nLatest reason: 看过 v1.4 的发布说明") {
 		t.Fatalf("next day = %v", h.runs.starts)
 	}
 	if routine, err := h.data.LatestRoutineRun(context.Background(), "wander"); err != nil || routine.ThreadID != "thread_a" {
 		t.Fatalf("wander routine = %+v, %v", routine, err)
+	}
+}
+
+// A concern with an outcome is advanced with its outcome, review time and work
+// directory; one without an outcome gets neither line.
+func TestWanderWorksTowardAConcernsOutcome(t *testing.T) {
+	h := newHarness(t, 20)
+	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour}
+	a := h.concernIn(t, "thread_a", "整理 A 项目的版本变化", h.now.Add(-2*time.Hour))
+	a.Outcome = "一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更和升级步骤"
+	a.ReviewAt = time.Date(2026, 10, 5, 1, 30, 0, 0, time.UTC)
+	a = h.reviseConcern(t, a, "列完了 v1.4 的变更", h.now.Add(-2*time.Hour))
+	b := h.concernIn(t, "thread_b", "跟进 B 项目", h.now.Add(-time.Hour))
+	h.wanderAt(t, 0, 10)
+	want := "thread_a|idle thought 2026-10-05 10:00|[wander 2026-10-05 10:00] Advance concern " + a.ID + " rev 2 [active]: 整理 A 项目的版本变化\nOutcome: 一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更和升级步骤\nLatest reason: 列完了 v1.4 的变更\nReview at: 2026-10-05 09:30\nWork directory: ~/work/" + a.ID + "/ on your workstation\n"
+	if len(h.runs.starts) != 1 || !strings.HasPrefix(h.runs.starts[0], want) || !strings.Contains(h.runs.starts[0], "deliver it in this conversation, notify the owner once and set the concern to waiting; only the owner's confirmation resolves it") {
+		t.Fatalf("slot of a concern with an outcome = %q", h.runs.starts)
+	}
+	a.ReviewAt = h.now.Add(48 * time.Hour)
+	h.reviseConcern(t, a, "列完了 v1.5 的变更", h.now)
+	h.wanderAt(t, 0, 15)
+	if len(h.runs.starts) != 2 || !strings.Contains(h.runs.starts[1], "Advance concern "+b.ID+" rev 1 [active]: 跟进 B 项目\nLatest reason: owner asked\nReview at: not set\nThis is the conversation") || strings.Contains(h.runs.starts[1], "Work directory") {
+		t.Fatalf("slot of a concern without an outcome = %q", h.runs.starts)
 	}
 }
 

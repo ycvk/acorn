@@ -233,7 +233,7 @@ func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Tim
 	input := fmt.Sprintf("[commitment #%d, made %s] %s",
 		item.ID, item.CreatedAt.In(s.cfg.Location).Format("2006-01-02 15:04"), item.Content)
 	if concern != nil {
-		input += fmt.Sprintf("\nConcern %s rev %d [%s]: %s. Latest reason: %s", concern.ID, concern.Revision, concern.State, concern.Title, concern.Reason)
+		input += "\nConcern " + concernText(*concern)
 	}
 	runID, err := s.cfg.Runs.StartWakeRun(ctx, item.SessionID, input, core.ScheduledWake{Reason: wake, Autonomous: true, Commitment: &core.CommitmentWake{Occurrence: occurrence, Next: next}})
 	if err != nil {
