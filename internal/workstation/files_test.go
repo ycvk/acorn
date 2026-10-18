@@ -65,3 +65,36 @@ func TestUploadsArePutListedAndDeleted(t *testing.T) {
 		t.Fatalf("uploads after delete = %v, %v", ids, err)
 	}
 }
+
+func TestWorkDirsAreListedAndDeleted(t *testing.T) {
+	client, home := newTestClient(t)
+	if ids, err := client.WorkDirs(t.Context()); err != nil || len(ids) != 0 {
+		t.Fatalf("work dirs without a work directory = %v, %v", ids, err)
+	}
+	const gone, kept = "m_0123456789abcdef0123456789abcdef", "m_fedcba9876543210fedcba9876543210"
+	for _, dir := range []string{gone + "/drafts", kept, "scratch"} {
+		if err := os.MkdirAll(filepath.Join(home, "work", dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(home, "work", gone, "drafts", "changes.md"), []byte("# v1.4"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ids, err := client.WorkDirs(t.Context()); err != nil || !slices.Equal(ids, []string{gone, kept}) {
+		t.Fatalf("work dirs = %v, %v", ids, err)
+	}
+	for _, bad := range []string{"..", "scratch", "m_0123"} {
+		if err := client.DeleteWorkDir(t.Context(), bad); err == nil {
+			t.Fatalf("delete %q must fail", bad)
+		}
+	}
+	if err := client.DeleteWorkDir(t.Context(), gone); err != nil {
+		t.Fatal(err)
+	}
+	if ids, err := client.WorkDirs(t.Context()); err != nil || !slices.Equal(ids, []string{kept}) {
+		t.Fatalf("work dirs after delete = %v, %v", ids, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "work", "scratch")); err != nil {
+		t.Fatalf("scratch after delete: %v", err)
+	}
+}

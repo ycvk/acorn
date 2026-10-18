@@ -296,6 +296,84 @@ func TestWanderDeliversAnOutcomeThatOnlyTheOwnerResolves(t *testing.T) {
 	}
 }
 
+// Deleting a conversation forgets the concerns raised in it, and the next run
+// removes their work directories from the workstation; the directories of
+// other concerns and the rest of ~/work stay.
+func TestDeletedConversationTakesItsConcernWorkOffTheWorkstation(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	ws, err := workstation.NewServer(workstation.ServerConfig{Home: home, Token: fileTestToken, Supervisor: workstation.NewSupervisor(io.Discard)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsServer := httptest.NewServer(ws.Handler())
+	defer wsServer.Close()
+	provider := &fakeOpenAI{}
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	cfg := writeTestConfig(t, server.URL, fmt.Sprintf("workstation:\n  url: %s\n  token: %s\n", wsServer.URL, fileTestToken))
+	c, err := NewContainer(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	client := newPairedClient(t, c)
+
+	threads, concerns, latest := map[string]string{}, map[string]string{}, map[string]string{}
+	for _, matter := range []struct{ key, title string }{{"a", "整理 A 的版本变化"}, {"b", "整理 B 的版本变化"}} {
+		thread, err := c.threads.CreateThread(ctx, matter.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider.add(
+			toolCallChunk("create_"+matter.key, "concern", map[string]string{"action": "create", "title": matter.title, "outcome": "一份 Markdown", "reason": "owner 交代整理成文档", "source_id": "__input_source__"}),
+			textReply("好的，我来整理。"),
+		)
+		if _, err := c.runs.CreateRun(ctx, thread.ID, "", "帮我"+matter.title, nil); err != nil {
+			t.Fatal(err)
+		}
+		threads[matter.key], latest[matter.key] = thread.ID, waitNewRun(t, c, thread.ID, "").RunID
+	}
+	listed, err := c.store.ListConcerns(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range listed {
+		for key, thread := range threads {
+			if item.ThreadID == thread {
+				concerns[key] = item.ID
+			}
+		}
+	}
+	if len(concerns) != 2 {
+		t.Fatalf("concerns = %+v", listed)
+	}
+	work := func(parts ...string) string { return filepath.Join(append([]string{home, "work"}, parts...)...) }
+	for _, dir := range []string{concerns["a"], concerns["b"], "scratch"} {
+		if err := os.MkdirAll(work(dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(work(dir, "changes.md"), []byte("# "+dir), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	client.do(t, httptest.NewRequest(http.MethodDelete, "/v1/threads/"+threads["b"], nil), http.StatusNoContent, nil)
+	provider.add(textReply("在。"))
+	if _, err := c.runs.CreateRun(ctx, threads["a"], "", "在吗", nil); err != nil {
+		t.Fatal(err)
+	}
+	waitNewRun(t, c, threads["a"], latest["a"])
+	if _, err := os.Stat(work(concerns["b"])); !os.IsNotExist(err) {
+		t.Fatalf("work directory of the deleted conversation's concern: %v", err)
+	}
+	for _, dir := range []string{concerns["a"], "scratch"} {
+		if got, err := os.ReadFile(work(dir, "changes.md")); err != nil || string(got) != "# "+dir {
+			t.Fatalf("work file in %s after the delete = %q, %v", dir, got, err)
+		}
+	}
+}
+
 // requestText joins the text of every message in a model request.
 func requestText(request map[string]any) string {
 	var b strings.Builder

@@ -83,8 +83,9 @@ type RuntimeDeps struct {
 	Commitments        core.CommitmentStore
 	Attachments        core.AttachmentReader
 	Files              core.ThreadFiles
-	// Uploads is nil when no workstation is configured.
+	// Uploads and Work are nil when no workstation is configured.
 	Uploads     UploadHost
+	Work        WorkHost
 	Workstation tools.WorkstationToolsConfig
 	Reviewer    ActionReviewer
 	Clock       func() time.Time

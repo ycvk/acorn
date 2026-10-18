@@ -180,8 +180,9 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 
 	workstationTools := buildWorkstationTools(cfg, workstationClient, db, ctxBridge)
 	var uploads runtime.UploadHost
+	var work runtime.WorkHost
 	if workstationClient != nil {
-		uploads = workstationClient
+		uploads, work = workstationClient, workstationClient
 	}
 	reviewer, err := buildReviewer(cfg)
 	if err != nil {
@@ -195,6 +196,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Attachments:           vault,
 		Files:                 db,
 		Uploads:               uploads,
+		Work:                  work,
 		Persona:               db,
 		Owner:                 db,
 		Skills:                skillLibrary,

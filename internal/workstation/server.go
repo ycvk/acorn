@@ -83,6 +83,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/uploads", s.authorized(s.uploads))
 	mux.HandleFunc("PUT /v1/uploads/{id}", s.authorized(s.putUpload))
 	mux.HandleFunc("DELETE /v1/uploads/{id}", s.authorized(s.deleteUpload))
+	mux.HandleFunc("GET /v1/work", s.authorized(s.workDirs))
+	mux.HandleFunc("DELETE /v1/work/{id}", s.authorized(s.deleteWorkDir))
 	mux.HandleFunc("GET /v1/skills", s.authorized(s.skillPackages))
 	mux.HandleFunc("PUT /v1/skills/{name}", s.authorized(s.putSkillPackage))
 	mux.HandleFunc("DELETE /v1/skills/{name}", s.authorized(s.deleteSkillPackage))

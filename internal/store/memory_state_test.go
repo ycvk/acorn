@@ -218,13 +218,23 @@ func TestConcernBelongsToTheConversationItWasCreatedIn(t *testing.T) {
 	if _, err := s.AddCommitment(ctx, core.Commitment{Content: "明天看发布说明", SessionID: "thread_a", ConcernID: c.ID, WakeAt: memoryTestNow.Add(24 * time.Hour), CreatedAt: memoryTestNow}); err != nil {
 		t.Fatal(err)
 	}
+	other, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "跟进 B 项目", State: "active", Reason: "owner goal", SourceID: progress.ID, ThreadID: "thread_b", UpdatedAt: memoryTestNow}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ids, err := s.DeletedThreadConcernIDs(ctx); err != nil || len(ids) != 0 {
+		t.Fatalf("concerns of deleted conversations before the delete = %v, %v", ids, err)
+	}
 	if err := s.DeleteThread(ctx, "thread_a"); err != nil {
 		t.Fatal(err)
 	}
 	for _, active := range []bool{true, false} {
-		if listed, err := s.ListConcerns(ctx, active); err != nil || len(listed) != 0 {
-			t.Fatalf("concerns of a deleted conversation (active=%t) = %+v, %v", active, listed, err)
+		if listed, err := s.ListConcerns(ctx, active); err != nil || len(listed) != 1 || listed[0].ID != other.ID {
+			t.Fatalf("concerns after deleting a conversation (active=%t) = %+v, %v", active, listed, err)
 		}
+	}
+	if ids, err := s.DeletedThreadConcernIDs(ctx); err != nil || !slices.Equal(ids, []string{c.ID}) {
+		t.Fatalf("concerns of deleted conversations = %v, %v, want %s", ids, err, c.ID)
 	}
 	next = c
 	next.Reason, next.UpdatedAt = "继续跟进", memoryTestNow.Add(2*time.Hour)
