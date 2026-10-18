@@ -106,6 +106,33 @@ func TestSkillRevisionsKeepTheirFiles(t *testing.T) {
 	if err != nil || len(current) != 1 || string(current[0].Content) != "print(2)" {
 		t.Fatalf("revision 2 files = %+v, %v", current, err)
 	}
+	if _, err := s.WriteSkill(ctx, core.SkillWrite{ID: "pdf", Markdown: "v2", Retired: true, Author: core.SkillAuthorOwner, At: day.Add(time.Hour), BaseRevision: 2,
+		Files: []core.SkillFile{{Path: "scripts/fill.py", Content: []byte("print(2)")}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.WriteSkill(ctx, core.SkillWrite{ID: "other", Markdown: "x", Author: core.SkillAuthorOwner, At: day}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := s.SkillRevisions(ctx, "pdf")
+	if err != nil || len(history) != 3 {
+		t.Fatalf("history = %+v, %v", history, err)
+	}
+	if h := history[0]; h.Revision != 3 || !h.Retired || h.Author != core.SkillAuthorOwner || !h.At.Equal(day.Add(time.Hour)) || h.Markdown != "v2" || len(h.Files) != 1 {
+		t.Fatalf("newest revision = %+v", h)
+	}
+	if h := history[2]; h.Revision != 1 || h.Retired || h.Author != core.SkillAuthorOwner || h.Markdown != "v1" || len(h.Files) != 2 || h.Files[0].Path != "references/forms.md" {
+		t.Fatalf("first revision = %+v", h)
+	}
+	second, err := s.SkillRevision(ctx, "pdf", 2)
+	if err != nil || second.Author != core.SkillAuthorAgent || second.Markdown != "v2" || len(second.Files) != 1 || second.Files[0].SHA256 != got.Files[0].SHA256 {
+		t.Fatalf("revision 2 = %+v, %v", second, err)
+	}
+	if _, err := s.SkillRevision(ctx, "pdf", 4); !errors.Is(err, core.ErrSkillNotFound) {
+		t.Fatalf("revision 4 err = %v", err)
+	}
+	if _, err := s.SkillRevisions(ctx, "missing"); !errors.Is(err, core.ErrSkillNotFound) {
+		t.Fatalf("history of a missing skill err = %v", err)
+	}
 }
 
 func TestStagedSkillPackagesAreReadByHashAndExpire(t *testing.T) {
@@ -196,6 +223,14 @@ func TestSkillSecretsAreSetPerSkillAndReplaced(t *testing.T) {
 	}
 	if none, err := s.SkillSecrets(ctx, "pdf"); err != nil || len(none) != 0 {
 		t.Fatalf("secrets of another skill = %v, %v", none, err)
+	}
+	for range 2 {
+		if err := s.DeleteSkillSecret(ctx, "github", "GITHUB_TOKEN"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if cleared, err := s.SkillSecrets(ctx, "github"); err != nil || len(cleared) != 0 {
+		t.Fatalf("secrets after clearing = %v, %v", cleared, err)
 	}
 	manifest, err := s.SkillFile(ctx, "github", 1, "acorn-package.yaml")
 	if err != nil || string(manifest) != "mcp:\n  command: uvx\n" {

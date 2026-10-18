@@ -814,26 +814,37 @@ paths:
   /v1/skills:
     get:
       tags: [skills]
-      summary: List the skills in use
+      summary: List every skill
+      description: |
+        Every stored skill, retired ones included, with its current revision.
+        `eligible` says whether the next run lists the skill: it is in use, its
+        SKILL.md and manifest parse, it has the tools it requires and its
+        package's secrets have values. A skill whose current revision does not
+        parse carries `problem` instead of failing the list.
       operationId: clientListSkills
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
       responses:
         '200':
-          description: Skill list
+          description: Skill list, by name
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SkillListResponse'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/skills/{name}:
     get:
       tags: [skills]
-      summary: Load one skill in detail
+      summary: Load one skill
+      description: |
+        The skill's current revision with its SKILL.md and files, the run that
+        wrote it, and, when it has a manifest that parses, what its package
+        declares and how it runs. The package's state comes from the same
+        sources as `acorn doctor` and is reported only while the skill is in
+        use; secrets say only whether each has a value.
       operationId: clientGetSkill
       parameters:
         - $ref: '#/components/parameters/SkillName'
@@ -844,6 +855,255 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SkillEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{name}:rollback:
+    post:
+      tags: [skills]
+      summary: Roll a skill back to an earlier revision
+      description: |
+        Writes the SKILL.md and files of `revision` as the owner's new revision
+        on top of `base_revision`, the revision the owner read. The skill is in
+        use afterwards. The content passes the checks every write passes. Owner
+        changes need no approval.
+      operationId: clientRollbackSkill
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RollbackSkillRequest'
+      responses:
+        '200':
+          description: The skill at its new revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillSummary'
+        '400':
+          $ref: '#/components/responses/SkillChangeInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '409':
+          $ref: '#/components/responses/SkillChanged'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{name}:retire:
+    post:
+      tags: [skills]
+      summary: Retire a skill
+      description: Takes a skill in use out of use as the owner's revision on top of `base_revision`.
+      operationId: clientRetireSkill
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkillChangeRequest'
+      responses:
+        '200':
+          description: The skill at its new revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillSummary'
+        '400':
+          $ref: '#/components/responses/SkillChangeInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '409':
+          $ref: '#/components/responses/SkillChanged'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{name}:restore:
+    post:
+      tags: [skills]
+      summary: Restore a retired skill
+      description: |
+        Brings a retired skill back into use with the content it has, as the
+        owner's revision on top of `base_revision`. The content passes the
+        checks every write passes.
+      operationId: clientRestoreSkill
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkillChangeRequest'
+      responses:
+        '200':
+          description: The skill at its new revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillSummary'
+        '400':
+          $ref: '#/components/responses/SkillChangeInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '409':
+          $ref: '#/components/responses/SkillChanged'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{name}/revisions:
+    get:
+      tags: [skills]
+      summary: List a skill's revisions
+      operationId: clientListSkillRevisions
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+      responses:
+        '200':
+          description: Every revision without content, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillRevisionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{name}/revisions/{revision}:
+    get:
+      tags: [skills]
+      summary: Load one revision of a skill
+      operationId: clientGetSkillRevision
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+        - $ref: '#/components/parameters/SkillRevision'
+      responses:
+        '200':
+          description: The revision with its content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillRevision'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{name}/diff:
+    get:
+      tags: [skills]
+      summary: Compare two revisions of a skill
+      description: |
+        How the package changes from revision `from` to revision `to`, file by
+        file: SKILL.md first, then the other files by path. Files that are the
+        same in both are left out. Text files come as line hunks with three
+        unchanged lines of context; other files only say that they changed.
+      operationId: clientDiffSkillRevisions
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+        - $ref: '#/components/parameters/SkillDiffFrom'
+        - $ref: '#/components/parameters/SkillDiffTo'
+      responses:
+        '200':
+          description: The differences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillDiff'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{name}/secrets/{secret}:
+    put:
+      tags: [skills]
+      summary: Set a secret of a skill's package
+      description: |
+        Stores the value of a secret the manifest of the skill's current
+        revision declares, the same as `acorn skills secret set`. The package's
+        MCP server and trigger commands get it as an environment variable from
+        the next run on. Values are write-only: no response carries one.
+      operationId: clientSetSkillSecret
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+        - $ref: '#/components/parameters/SkillSecretName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetSkillSecretRequest'
+      responses:
+        '200':
+          description: Which declared secrets have a value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillSecretListResponse'
+        '400':
+          $ref: '#/components/responses/SkillChangeInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [skills]
+      summary: Clear a secret of a skill's package
+      description: Removes the value of a secret the manifest of the skill's current revision declares.
+      operationId: clientClearSkillSecret
+      parameters:
+        - $ref: '#/components/parameters/SkillName'
+        - $ref: '#/components/parameters/SkillSecretName'
+      responses:
+        '200':
+          description: Which declared secrets have a value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillSecretListResponse'
+        '400':
+          $ref: '#/components/responses/SkillChangeInvalid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
         '404':
           $ref: '#/components/responses/SkillNotFound'
         '500':
@@ -1315,6 +1575,38 @@ components:
       required: true
       schema:
         type: string
+    SkillRevision:
+      name: revision
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    SkillSecretName:
+      name: secret
+      in: path
+      required: true
+      schema:
+        type: string
+    SkillDiffFrom:
+      name: from
+      in: query
+      required: true
+      description: The revision the differences start from.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    SkillDiffTo:
+      name: to
+      in: query
+      required: true
+      description: The revision the differences lead to.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
     CommitmentID:
       name: commitment_id
       in: path
@@ -1686,6 +1978,30 @@ components:
                 error:
                   code: skill_not_found
                   message: 'skill not found: inspect-repo'
+    SkillChanged:
+      description: The skill changed since the client read it
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            skillChanged:
+              value:
+                error:
+                  code: skill_changed
+                  message: the skill changed since it was read; reload it and try again
+    SkillChangeInvalid:
+      description: The change does not fit the skill, or the request is malformed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            alreadyRetired:
+              value:
+                error:
+                  code: skill_change_invalid
+                  message: 'invalid skill change: skill orders is already retired'
     ExecutionNotReady:
       description: Execution paths are unavailable because required model/runtime config is missing
       content:
@@ -1800,25 +2116,44 @@ components:
     SkillSummary:
       type: object
       additionalProperties: false
-      required: [name, description, eligible]
+      required: [name, revision, author, updated_at, retired, eligible, file_count, has_manifest]
       properties:
         name:
           type: string
         description:
           type: string
+          description: Absent when SKILL.md does not parse.
+        revision:
+          type: integer
+          format: int64
+        author:
+          $ref: '#/components/schemas/SkillAuthor'
+        updated_at:
+          type: string
+          format: date-time
+        retired:
+          type: boolean
         eligible:
           type: boolean
-        requires_tools:
+          description: Whether the next run lists the skill.
+        disabled_reasons:
           type: array
+          description: Why a skill in use is not listed, such as `missing_secrets:NAME` or `files_need_workstation`.
           items:
             type: string
         file_count:
           type: integer
           description: Number of files the skill carries besides its SKILL.md.
-        disabled_reasons:
-          type: array
-          items:
-            type: string
+        has_manifest:
+          type: boolean
+          description: Whether the package carries acorn-package.yaml.
+        problem:
+          type: string
+          description: Why the current revision's SKILL.md or manifest does not parse.
+
+    SkillAuthor:
+      type: string
+      enum: [agent, owner, release]
 
     SkillFile:
       type: object
@@ -1830,39 +2165,158 @@ components:
         size:
           type: integer
           format: int64
+        content:
+          type: string
+          description: The file's content, for UTF-8 text files of at most 64 KiB.
 
     SkillDetail:
-      allOf:
-        - $ref: '#/components/schemas/SkillSummary'
-        - type: object
-          additionalProperties: false
-          required: [revision, instruction]
-          properties:
-            revision:
-              type: integer
-              format: int64
-            instruction:
-              type: string
-            license:
-              type: string
-            compatibility:
-              type: string
-            files:
-              type: array
-              items:
-                $ref: '#/components/schemas/SkillFile'
+      type: object
+      additionalProperties: false
+      required: [name, revision, author, updated_at, retired, eligible, file_count, has_manifest, sha256, markdown, files]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        revision:
+          type: integer
+          format: int64
+        author:
+          $ref: '#/components/schemas/SkillAuthor'
+        updated_at:
+          type: string
+          format: date-time
+        retired:
+          type: boolean
+        eligible:
+          type: boolean
+        disabled_reasons:
+          type: array
+          items:
+            type: string
+        file_count:
+          type: integer
+        has_manifest:
+          type: boolean
+        problem:
+          type: string
+        run_id:
+          type: string
+          description: The run that wrote the current revision; absent for the owner's and the release's revisions.
+        sha256:
+          type: string
+          description: Names the package the current revision holds.
+        markdown:
+          type: string
+          description: The whole SKILL.md.
+        instruction:
+          type: string
+          description: SKILL.md after its frontmatter; absent when it does not parse.
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillFile'
+        package:
+          $ref: '#/components/schemas/SkillPackage'
+
+    SkillPackage:
+      type: object
+      additionalProperties: false
+      required: [triggers, secrets]
+      description: What the manifest declares and, while the skill is in use, how it runs.
+      properties:
+        mcp:
+          $ref: '#/components/schemas/SkillPackageServer'
+        triggers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillPackageTrigger'
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillSecret'
+
+    SkillPackageServer:
+      type: object
+      additionalProperties: false
+      required: [command_line]
+      properties:
+        command_line:
+          type: string
+          description: The command and its arguments, quoted where a shell would split them.
+        state:
+          type: string
+          enum: [ready, failed, stopped, missing_secrets, 'off', unknown]
+          description: Absent while the skill is retired. `off` means no workstation is configured; `unknown` that the workstation did not answer.
+        error:
+          type: string
+
+    SkillPackageTrigger:
+      type: object
+      additionalProperties: false
+      required: [name, schedule, deliver, run]
+      properties:
+        name:
+          type: string
+        schedule:
+          type: string
+          description: Cron expression in the owner's time zone.
+        deliver:
+          type: string
+          enum: [immediate, digest]
+        run:
+          type: string
+        state:
+          type: string
+          enum: [scheduled, failing, unscheduled, missing_secrets, 'off']
+          description: Absent while the skill is retired.
+        next_at:
+          type: string
+          format: date-time
+        failures:
+          type: integer
+        last_error:
+          type: string
+
+    SkillSecret:
+      type: object
+      additionalProperties: false
+      required: [name, set]
+      properties:
+        name:
+          type: string
+        set:
+          type: boolean
+
+    SkillSecretListResponse:
+      type: object
+      additionalProperties: false
+      required: [secrets]
+      properties:
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillSecret'
+
+    SetSkillSecretRequest:
+      type: object
+      additionalProperties: false
+      required: [value]
+      properties:
+        value:
+          type: string
+          minLength: 1
+          description: At most 64 KiB.
 
     SkillListResponse:
       type: object
       additionalProperties: false
-      required: [items, total]
+      required: [items]
       properties:
         items:
           type: array
           items:
             $ref: '#/components/schemas/SkillSummary'
-        total:
-          type: integer
 
     SkillEnvelope:
       type: object
@@ -1871,6 +2325,162 @@ components:
       properties:
         item:
           $ref: '#/components/schemas/SkillDetail'
+
+    SkillRevisionSummary:
+      type: object
+      additionalProperties: false
+      required: [revision, author, at, retired, sha256]
+      properties:
+        revision:
+          type: integer
+          format: int64
+        author:
+          $ref: '#/components/schemas/SkillAuthor'
+        run_id:
+          type: string
+          description: The run that wrote the revision; absent for the owner's and the release's revisions.
+        at:
+          type: string
+          format: date-time
+        retired:
+          type: boolean
+          description: Whether the skill was out of use from this revision.
+        sha256:
+          type: string
+          description: Names the package the revision holds; revisions with the same content share it.
+
+    SkillRevisionListResponse:
+      type: object
+      additionalProperties: false
+      required: [revisions]
+      properties:
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillRevisionSummary'
+
+    SkillRevision:
+      type: object
+      additionalProperties: false
+      required: [name, revision, author, at, retired, sha256, markdown, files]
+      properties:
+        name:
+          type: string
+        revision:
+          type: integer
+          format: int64
+        author:
+          $ref: '#/components/schemas/SkillAuthor'
+        run_id:
+          type: string
+        at:
+          type: string
+          format: date-time
+        retired:
+          type: boolean
+        sha256:
+          type: string
+        markdown:
+          type: string
+        instruction:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillFile'
+        problem:
+          type: string
+          description: Why the revision's SKILL.md or manifest does not parse.
+
+    SkillDiff:
+      type: object
+      additionalProperties: false
+      required: [name, from, to, files]
+      properties:
+        name:
+          type: string
+        from:
+          type: integer
+          format: int64
+        to:
+          type: integer
+          format: int64
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillFileDiff'
+
+    SkillFileDiff:
+      type: object
+      additionalProperties: false
+      required: [path, change, binary, hunks]
+      properties:
+        path:
+          type: string
+        change:
+          type: string
+          enum: [added, removed, modified]
+        binary:
+          type: boolean
+          description: The file is not UTF-8 text on one side; it has no hunks.
+        hunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillDiffHunk'
+
+    SkillDiffHunk:
+      type: object
+      additionalProperties: false
+      required: [old_start, new_start, lines]
+      properties:
+        old_start:
+          type: integer
+          description: Line number of the hunk's first line in `from`, from 1.
+        new_start:
+          type: integer
+          description: Line number of the hunk's first line in `to`, from 1.
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillDiffLine'
+
+    SkillDiffLine:
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind:
+          type: string
+          enum: [same, added, removed]
+        text:
+          type: string
+
+    RollbackSkillRequest:
+      type: object
+      additionalProperties: false
+      required: [revision, base_revision]
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The revision whose content to write again.
+        base_revision:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The current revision the owner read.
+
+    SkillChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [base_revision]
+      properties:
+        base_revision:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The current revision the owner read.
 
     CapabilitiesSummary:
       type: object

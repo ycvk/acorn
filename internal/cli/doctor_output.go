@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
 )
 
@@ -241,7 +242,7 @@ func renderDoctorWorkstation(status wire.WorkstationStatus) string {
 
 // renderDoctorPackageTools says, for each skill package's MCP server, whether
 // it serves and, when not, why its skill and tools stay out of runs.
-func renderDoctorPackageTools(items []wire.PackageToolStatus) string {
+func renderDoctorPackageTools(items []skills.ServerReport) string {
 	lines := []string{"Package tools"}
 	for _, item := range items {
 		line := fmt.Sprintf("- %s (%s): ", item.Skill, item.Command)
@@ -253,7 +254,7 @@ func renderDoctorPackageTools(items []wire.PackageToolStatus) string {
 		case "stopped":
 			line += "not running; it starts with the next run that uses the skill"
 		case "off":
-			line += "off (" + item.Error + ")"
+			line += "off (workstation.url is not configured)"
 		default:
 			line += item.State + ": " + item.Error
 		}
@@ -267,7 +268,7 @@ func renderDoctorPackageTools(items []wire.PackageToolStatus) string {
 
 // renderDoctorPackageTriggers lists each skill trigger with its schedule
 // and, when it does not fire, why.
-func renderDoctorPackageTriggers(items []wire.PackageTriggerStatus, loc *time.Location) string {
+func renderDoctorPackageTriggers(items []skills.TriggerReport, loc *time.Location) string {
 	lines := []string{"Package triggers"}
 	for _, item := range items {
 		line := fmt.Sprintf("- %s (%q, %s, %s): ", item.Trigger, item.Schedule, item.Deliver, item.Run)

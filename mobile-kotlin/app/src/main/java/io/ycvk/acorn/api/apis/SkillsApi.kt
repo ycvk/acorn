@@ -28,8 +28,16 @@ import okhttp3.Call
 import okhttp3.HttpUrl
 
 import io.ycvk.acorn.api.models.ErrorResponse
+import io.ycvk.acorn.api.models.RollbackSkillRequest
+import io.ycvk.acorn.api.models.SetSkillSecretRequest
+import io.ycvk.acorn.api.models.SkillChangeRequest
+import io.ycvk.acorn.api.models.SkillDiff
 import io.ycvk.acorn.api.models.SkillEnvelope
 import io.ycvk.acorn.api.models.SkillListResponse
+import io.ycvk.acorn.api.models.SkillRevision
+import io.ycvk.acorn.api.models.SkillRevisionListResponse
+import io.ycvk.acorn.api.models.SkillSecretListResponse
+import io.ycvk.acorn.api.models.SkillSummary
 
 import com.squareup.moshi.Json
 
@@ -56,9 +64,168 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
+     * DELETE /v1/skills/{name}/secrets/{secret}
+     * Clear a secret of a skill&#39;s package
+     * Removes the value of a secret the manifest of the skill&#39;s current revision declares.
+     * @param name 
+     * @param secret 
+     * @return SkillSecretListResponse
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientClearSkillSecret(name: kotlin.String, secret: kotlin.String) : SkillSecretListResponse {
+        val localVarResponse = clientClearSkillSecretWithHttpInfo(name = name, secret = secret)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillSecretListResponse
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * DELETE /v1/skills/{name}/secrets/{secret}
+     * Clear a secret of a skill&#39;s package
+     * Removes the value of a secret the manifest of the skill&#39;s current revision declares.
+     * @param name 
+     * @param secret 
+     * @return ApiResponse<SkillSecretListResponse?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientClearSkillSecretWithHttpInfo(name: kotlin.String, secret: kotlin.String) : ApiResponse<SkillSecretListResponse?> {
+        val localVariableConfig = clientClearSkillSecretRequestConfig(name = name, secret = secret)
+
+        return request<Unit, SkillSecretListResponse>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientClearSkillSecret
+     *
+     * @param name 
+     * @param secret 
+     * @return RequestConfig
+     */
+    fun clientClearSkillSecretRequestConfig(name: kotlin.String, secret: kotlin.String) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.DELETE,
+            path = "/v1/skills/{name}/secrets/{secret}".replace("{"+"name"+"}", encodeURIComponent(name.toString())).replace("{"+"secret"+"}", encodeURIComponent(secret.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * GET /v1/skills/{name}/diff
+     * Compare two revisions of a skill
+     * How the package changes from revision &#x60;from&#x60; to revision &#x60;to&#x60;, file by file: SKILL.md first, then the other files by path. Files that are the same in both are left out. Text files come as line hunks with three unchanged lines of context; other files only say that they changed. 
+     * @param name 
+     * @param from The revision the differences start from.
+     * @param to The revision the differences lead to.
+     * @return SkillDiff
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientDiffSkillRevisions(name: kotlin.String, from: kotlin.Long, to: kotlin.Long) : SkillDiff {
+        val localVarResponse = clientDiffSkillRevisionsWithHttpInfo(name = name, from = from, to = to)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillDiff
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * GET /v1/skills/{name}/diff
+     * Compare two revisions of a skill
+     * How the package changes from revision &#x60;from&#x60; to revision &#x60;to&#x60;, file by file: SKILL.md first, then the other files by path. Files that are the same in both are left out. Text files come as line hunks with three unchanged lines of context; other files only say that they changed. 
+     * @param name 
+     * @param from The revision the differences start from.
+     * @param to The revision the differences lead to.
+     * @return ApiResponse<SkillDiff?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientDiffSkillRevisionsWithHttpInfo(name: kotlin.String, from: kotlin.Long, to: kotlin.Long) : ApiResponse<SkillDiff?> {
+        val localVariableConfig = clientDiffSkillRevisionsRequestConfig(name = name, from = from, to = to)
+
+        return request<Unit, SkillDiff>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientDiffSkillRevisions
+     *
+     * @param name 
+     * @param from The revision the differences start from.
+     * @param to The revision the differences lead to.
+     * @return RequestConfig
+     */
+    fun clientDiffSkillRevisionsRequestConfig(name: kotlin.String, from: kotlin.Long, to: kotlin.Long) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf<kotlin.String, kotlin.collections.List<kotlin.String>>()
+            .apply {
+                put("from", listOf(from.toString()))
+                put("to", listOf(to.toString()))
+            }
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.GET,
+            path = "/v1/skills/{name}/diff".replace("{"+"name"+"}", encodeURIComponent(name.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
      * GET /v1/skills/{name}
-     * Load one skill in detail
-     * 
+     * Load one skill
+     * The skill&#39;s current revision with its SKILL.md and files, the run that wrote it, and, when it has a manifest that parses, what its package declares and how it runs. The package&#39;s state comes from the same sources as &#x60;acorn doctor&#x60; and is reported only while the skill is in use; secrets say only whether each has a value. 
      * @param name 
      * @return SkillEnvelope
      * @throws IllegalStateException If the request is not correctly configured
@@ -89,8 +256,8 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
 
     /**
      * GET /v1/skills/{name}
-     * Load one skill in detail
-     * 
+     * Load one skill
+     * The skill&#39;s current revision with its SKILL.md and files, the run that wrote it, and, when it has a manifest that parses, what its package declares and how it runs. The package&#39;s state comes from the same sources as &#x60;acorn doctor&#x60; and is reported only while the skill is in use; secrets say only whether each has a value. 
      * @param name 
      * @return ApiResponse<SkillEnvelope?>
      * @throws IllegalStateException If the request is not correctly configured
@@ -129,11 +296,158 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
-     * GET /v1/skills
-     * List the skills in use
+     * GET /v1/skills/{name}/revisions/{revision}
+     * Load one revision of a skill
      * 
-     * @param limit Positive integer limit. Defaults to 100. (optional)
-     * @param offset Non-negative pagination offset. Defaults to 0. (optional)
+     * @param name 
+     * @param revision 
+     * @return SkillRevision
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientGetSkillRevision(name: kotlin.String, revision: kotlin.Long) : SkillRevision {
+        val localVarResponse = clientGetSkillRevisionWithHttpInfo(name = name, revision = revision)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillRevision
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * GET /v1/skills/{name}/revisions/{revision}
+     * Load one revision of a skill
+     * 
+     * @param name 
+     * @param revision 
+     * @return ApiResponse<SkillRevision?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientGetSkillRevisionWithHttpInfo(name: kotlin.String, revision: kotlin.Long) : ApiResponse<SkillRevision?> {
+        val localVariableConfig = clientGetSkillRevisionRequestConfig(name = name, revision = revision)
+
+        return request<Unit, SkillRevision>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientGetSkillRevision
+     *
+     * @param name 
+     * @param revision 
+     * @return RequestConfig
+     */
+    fun clientGetSkillRevisionRequestConfig(name: kotlin.String, revision: kotlin.Long) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.GET,
+            path = "/v1/skills/{name}/revisions/{revision}".replace("{"+"name"+"}", encodeURIComponent(name.toString())).replace("{"+"revision"+"}", encodeURIComponent(revision.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * GET /v1/skills/{name}/revisions
+     * List a skill&#39;s revisions
+     * 
+     * @param name 
+     * @return SkillRevisionListResponse
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientListSkillRevisions(name: kotlin.String) : SkillRevisionListResponse {
+        val localVarResponse = clientListSkillRevisionsWithHttpInfo(name = name)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillRevisionListResponse
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * GET /v1/skills/{name}/revisions
+     * List a skill&#39;s revisions
+     * 
+     * @param name 
+     * @return ApiResponse<SkillRevisionListResponse?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientListSkillRevisionsWithHttpInfo(name: kotlin.String) : ApiResponse<SkillRevisionListResponse?> {
+        val localVariableConfig = clientListSkillRevisionsRequestConfig(name = name)
+
+        return request<Unit, SkillRevisionListResponse>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientListSkillRevisions
+     *
+     * @param name 
+     * @return RequestConfig
+     */
+    fun clientListSkillRevisionsRequestConfig(name: kotlin.String) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.GET,
+            path = "/v1/skills/{name}/revisions".replace("{"+"name"+"}", encodeURIComponent(name.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * GET /v1/skills
+     * List every skill
+     * Every stored skill, retired ones included, with its current revision. &#x60;eligible&#x60; says whether the next run lists the skill: it is in use, its SKILL.md and manifest parse, it has the tools it requires and its package&#39;s secrets have values. A skill whose current revision does not parse carries &#x60;problem&#x60; instead of failing the list. 
      * @return SkillListResponse
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
@@ -143,8 +457,8 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientListSkills(limit: kotlin.Int? = null, offset: kotlin.Int? = null) : SkillListResponse {
-        val localVarResponse = clientListSkillsWithHttpInfo(limit = limit, offset = offset)
+    fun clientListSkills() : SkillListResponse {
+        val localVarResponse = clientListSkillsWithHttpInfo()
 
         return when (localVarResponse.responseType) {
             ResponseType.Success -> (localVarResponse as Success<*>).data as SkillListResponse
@@ -163,18 +477,16 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
 
     /**
      * GET /v1/skills
-     * List the skills in use
-     * 
-     * @param limit Positive integer limit. Defaults to 100. (optional)
-     * @param offset Non-negative pagination offset. Defaults to 0. (optional)
+     * List every skill
+     * Every stored skill, retired ones included, with its current revision. &#x60;eligible&#x60; says whether the next run lists the skill: it is in use, its SKILL.md and manifest parse, it has the tools it requires and its package&#39;s secrets have values. A skill whose current revision does not parse carries &#x60;problem&#x60; instead of failing the list. 
      * @return ApiResponse<SkillListResponse?>
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class)
-    fun clientListSkillsWithHttpInfo(limit: kotlin.Int?, offset: kotlin.Int?) : ApiResponse<SkillListResponse?> {
-        val localVariableConfig = clientListSkillsRequestConfig(limit = limit, offset = offset)
+    fun clientListSkillsWithHttpInfo() : ApiResponse<SkillListResponse?> {
+        val localVariableConfig = clientListSkillsRequestConfig()
 
         return request<Unit, SkillListResponse>(
             localVariableConfig
@@ -184,27 +496,328 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * To obtain the request config of the operation clientListSkills
      *
-     * @param limit Positive integer limit. Defaults to 100. (optional)
-     * @param offset Non-negative pagination offset. Defaults to 0. (optional)
      * @return RequestConfig
      */
-    fun clientListSkillsRequestConfig(limit: kotlin.Int?, offset: kotlin.Int?) : RequestConfig<Unit> {
+    fun clientListSkillsRequestConfig() : RequestConfig<Unit> {
         val localVariableBody = null
-        val localVariableQuery: MultiValueMap = mutableMapOf<kotlin.String, kotlin.collections.List<kotlin.String>>()
-            .apply {
-                if (limit != null) {
-                    put("limit", listOf(limit.toString()))
-                }
-                if (offset != null) {
-                    put("offset", listOf(offset.toString()))
-                }
-            }
+        val localVariableQuery: MultiValueMap = mutableMapOf()
         val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
         localVariableHeaders["Accept"] = "application/json"
 
         return RequestConfig(
             method = RequestMethod.GET,
             path = "/v1/skills",
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/skills/{name}:restore
+     * Restore a retired skill
+     * Brings a retired skill back into use with the content it has, as the owner&#39;s revision on top of &#x60;base_revision&#x60;. The content passes the checks every write passes. 
+     * @param name 
+     * @param skillChangeRequest 
+     * @return SkillSummary
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientRestoreSkill(name: kotlin.String, skillChangeRequest: SkillChangeRequest) : SkillSummary {
+        val localVarResponse = clientRestoreSkillWithHttpInfo(name = name, skillChangeRequest = skillChangeRequest)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillSummary
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/skills/{name}:restore
+     * Restore a retired skill
+     * Brings a retired skill back into use with the content it has, as the owner&#39;s revision on top of &#x60;base_revision&#x60;. The content passes the checks every write passes. 
+     * @param name 
+     * @param skillChangeRequest 
+     * @return ApiResponse<SkillSummary?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientRestoreSkillWithHttpInfo(name: kotlin.String, skillChangeRequest: SkillChangeRequest) : ApiResponse<SkillSummary?> {
+        val localVariableConfig = clientRestoreSkillRequestConfig(name = name, skillChangeRequest = skillChangeRequest)
+
+        return request<SkillChangeRequest, SkillSummary>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientRestoreSkill
+     *
+     * @param name 
+     * @param skillChangeRequest 
+     * @return RequestConfig
+     */
+    fun clientRestoreSkillRequestConfig(name: kotlin.String, skillChangeRequest: SkillChangeRequest) : RequestConfig<SkillChangeRequest> {
+        val localVariableBody = skillChangeRequest
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/skills/{name}:restore".replace("{"+"name"+"}", encodeURIComponent(name.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/skills/{name}:retire
+     * Retire a skill
+     * Takes a skill in use out of use as the owner&#39;s revision on top of &#x60;base_revision&#x60;.
+     * @param name 
+     * @param skillChangeRequest 
+     * @return SkillSummary
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientRetireSkill(name: kotlin.String, skillChangeRequest: SkillChangeRequest) : SkillSummary {
+        val localVarResponse = clientRetireSkillWithHttpInfo(name = name, skillChangeRequest = skillChangeRequest)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillSummary
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/skills/{name}:retire
+     * Retire a skill
+     * Takes a skill in use out of use as the owner&#39;s revision on top of &#x60;base_revision&#x60;.
+     * @param name 
+     * @param skillChangeRequest 
+     * @return ApiResponse<SkillSummary?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientRetireSkillWithHttpInfo(name: kotlin.String, skillChangeRequest: SkillChangeRequest) : ApiResponse<SkillSummary?> {
+        val localVariableConfig = clientRetireSkillRequestConfig(name = name, skillChangeRequest = skillChangeRequest)
+
+        return request<SkillChangeRequest, SkillSummary>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientRetireSkill
+     *
+     * @param name 
+     * @param skillChangeRequest 
+     * @return RequestConfig
+     */
+    fun clientRetireSkillRequestConfig(name: kotlin.String, skillChangeRequest: SkillChangeRequest) : RequestConfig<SkillChangeRequest> {
+        val localVariableBody = skillChangeRequest
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/skills/{name}:retire".replace("{"+"name"+"}", encodeURIComponent(name.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/skills/{name}:rollback
+     * Roll a skill back to an earlier revision
+     * Writes the SKILL.md and files of &#x60;revision&#x60; as the owner&#39;s new revision on top of &#x60;base_revision&#x60;, the revision the owner read. The skill is in use afterwards. The content passes the checks every write passes. Owner changes need no approval. 
+     * @param name 
+     * @param rollbackSkillRequest 
+     * @return SkillSummary
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientRollbackSkill(name: kotlin.String, rollbackSkillRequest: RollbackSkillRequest) : SkillSummary {
+        val localVarResponse = clientRollbackSkillWithHttpInfo(name = name, rollbackSkillRequest = rollbackSkillRequest)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillSummary
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/skills/{name}:rollback
+     * Roll a skill back to an earlier revision
+     * Writes the SKILL.md and files of &#x60;revision&#x60; as the owner&#39;s new revision on top of &#x60;base_revision&#x60;, the revision the owner read. The skill is in use afterwards. The content passes the checks every write passes. Owner changes need no approval. 
+     * @param name 
+     * @param rollbackSkillRequest 
+     * @return ApiResponse<SkillSummary?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientRollbackSkillWithHttpInfo(name: kotlin.String, rollbackSkillRequest: RollbackSkillRequest) : ApiResponse<SkillSummary?> {
+        val localVariableConfig = clientRollbackSkillRequestConfig(name = name, rollbackSkillRequest = rollbackSkillRequest)
+
+        return request<RollbackSkillRequest, SkillSummary>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientRollbackSkill
+     *
+     * @param name 
+     * @param rollbackSkillRequest 
+     * @return RequestConfig
+     */
+    fun clientRollbackSkillRequestConfig(name: kotlin.String, rollbackSkillRequest: RollbackSkillRequest) : RequestConfig<RollbackSkillRequest> {
+        val localVariableBody = rollbackSkillRequest
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/skills/{name}:rollback".replace("{"+"name"+"}", encodeURIComponent(name.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * PUT /v1/skills/{name}/secrets/{secret}
+     * Set a secret of a skill&#39;s package
+     * Stores the value of a secret the manifest of the skill&#39;s current revision declares, the same as &#x60;acorn skills secret set&#x60;. The package&#39;s MCP server and trigger commands get it as an environment variable from the next run on. Values are write-only: no response carries one. 
+     * @param name 
+     * @param secret 
+     * @param setSkillSecretRequest 
+     * @return SkillSecretListResponse
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientSetSkillSecret(name: kotlin.String, secret: kotlin.String, setSkillSecretRequest: SetSkillSecretRequest) : SkillSecretListResponse {
+        val localVarResponse = clientSetSkillSecretWithHttpInfo(name = name, secret = secret, setSkillSecretRequest = setSkillSecretRequest)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillSecretListResponse
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * PUT /v1/skills/{name}/secrets/{secret}
+     * Set a secret of a skill&#39;s package
+     * Stores the value of a secret the manifest of the skill&#39;s current revision declares, the same as &#x60;acorn skills secret set&#x60;. The package&#39;s MCP server and trigger commands get it as an environment variable from the next run on. Values are write-only: no response carries one. 
+     * @param name 
+     * @param secret 
+     * @param setSkillSecretRequest 
+     * @return ApiResponse<SkillSecretListResponse?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientSetSkillSecretWithHttpInfo(name: kotlin.String, secret: kotlin.String, setSkillSecretRequest: SetSkillSecretRequest) : ApiResponse<SkillSecretListResponse?> {
+        val localVariableConfig = clientSetSkillSecretRequestConfig(name = name, secret = secret, setSkillSecretRequest = setSkillSecretRequest)
+
+        return request<SetSkillSecretRequest, SkillSecretListResponse>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientSetSkillSecret
+     *
+     * @param name 
+     * @param secret 
+     * @param setSkillSecretRequest 
+     * @return RequestConfig
+     */
+    fun clientSetSkillSecretRequestConfig(name: kotlin.String, secret: kotlin.String, setSkillSecretRequest: SetSkillSecretRequest) : RequestConfig<SetSkillSecretRequest> {
+        val localVariableBody = setSkillSecretRequest
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.PUT,
+            path = "/v1/skills/{name}/secrets/{secret}".replace("{"+"name"+"}", encodeURIComponent(name.toString())).replace("{"+"secret"+"}", encodeURIComponent(secret.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

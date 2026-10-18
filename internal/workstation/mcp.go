@@ -50,17 +50,8 @@ type MCPServersRequest struct {
 	Servers []MCPServerSpec `json:"servers"`
 }
 
-// MCPServerStatus reports one server: Ready when it serves, otherwise Error
-// says why not.
-type MCPServerStatus struct {
-	Name  string `json:"name"`
-	Hash  string `json:"hash"`
-	Ready bool   `json:"ready"`
-	Error string `json:"error,omitempty"`
-}
-
 type MCPServersStatus struct {
-	Servers []MCPServerStatus `json:"servers"`
+	Servers []skills.ServerStatus `json:"servers"`
 }
 
 // mcpHost runs the MCP servers of skill packages, each from its package
@@ -144,10 +135,10 @@ func (h *mcpHost) server(name string) *mcpServer {
 	return h.servers[name]
 }
 
-func (h *mcpHost) statuses() []MCPServerStatus {
+func (h *mcpHost) statuses() []skills.ServerStatus {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	out := make([]MCPServerStatus, 0, len(h.servers))
+	out := make([]skills.ServerStatus, 0, len(h.servers))
 	for _, name := range slices.Sorted(maps.Keys(h.servers)) {
 		out = append(out, h.servers[name].status())
 	}
@@ -489,10 +480,10 @@ func (s *mcpServer) settled() (bool, <-chan struct{}) {
 	return s.session != nil || s.ended && !s.attempting, s.changed
 }
 
-func (s *mcpServer) status() MCPServerStatus {
+func (s *mcpServer) status() skills.ServerStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	status := MCPServerStatus{Name: s.name, Hash: s.spec.Hash, Ready: s.session != nil}
+	status := skills.ServerStatus{Name: s.name, Hash: s.spec.Hash, Ready: s.session != nil}
 	switch {
 	case status.Ready:
 	case s.err != nil:
@@ -526,7 +517,7 @@ func (s *Server) runMCPServers(w http.ResponseWriter, r *http.Request) {
 	servers := s.mcp.reconcile(req.Servers)
 	timeout := time.NewTimer(mcpStartWait)
 	defer timeout.Stop()
-	out := MCPServersStatus{Servers: make([]MCPServerStatus, 0, len(servers))}
+	out := MCPServersStatus{Servers: make([]skills.ServerStatus, 0, len(servers))}
 	for _, srv := range servers {
 		settled, changed := srv.settled()
 	wait:
@@ -580,7 +571,7 @@ func (c *Client) RunMCPServers(ctx context.Context, servers []skills.MCPServerRu
 }
 
 // MCPServers reports the packages' MCP servers the workstation runs.
-func (c *Client) MCPServers(ctx context.Context) ([]MCPServerStatus, error) {
+func (c *Client) MCPServers(ctx context.Context) ([]skills.ServerStatus, error) {
 	var out MCPServersStatus
 	return out.Servers, c.call(ctx, http.MethodGet, "/v1/mcp", nil, &out)
 }

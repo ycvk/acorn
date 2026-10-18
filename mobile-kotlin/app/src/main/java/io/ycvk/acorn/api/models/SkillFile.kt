@@ -32,6 +32,7 @@ import com.squareup.moshi.JsonClass
  *
  * @param path 
  * @param propertySize 
+ * @param content The file's content, for UTF-8 text files of at most 64 KiB.
  */
 
 
@@ -41,7 +42,11 @@ data class SkillFile (
     val path: kotlin.String,
 
     @Json(name = "size")
-    val propertySize: kotlin.Long
+    val propertySize: kotlin.Long,
+
+    /* The file's content, for UTF-8 text files of at most 64 KiB. */
+    @Json(name = "content")
+    val content: kotlin.String? = null
 
 ) {
 

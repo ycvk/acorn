@@ -23,7 +23,9 @@
 
 package io.ycvk.acorn.api.models
 
+import io.ycvk.acorn.api.models.SkillAuthor
 import io.ycvk.acorn.api.models.SkillFile
+import io.ycvk.acorn.api.models.SkillPackage
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -32,16 +34,22 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param name 
- * @param description 
- * @param eligible 
  * @param revision 
- * @param instruction 
- * @param requiresTools 
- * @param fileCount Number of files the skill carries besides its SKILL.md.
- * @param disabledReasons 
- * @param license 
- * @param compatibility 
+ * @param author 
+ * @param updatedAt 
+ * @param retired 
+ * @param eligible 
+ * @param fileCount 
+ * @param hasManifest 
+ * @param sha256 Names the package the current revision holds.
+ * @param markdown The whole SKILL.md.
  * @param files 
+ * @param description 
+ * @param disabledReasons 
+ * @param problem 
+ * @param runId The run that wrote the current revision; absent for the owner's and the release's revisions.
+ * @param instruction SKILL.md after its frontmatter; absent when it does not parse.
+ * @param `package` 
  */
 
 
@@ -50,36 +58,57 @@ data class SkillDetail (
     @Json(name = "name")
     val name: kotlin.String,
 
-    @Json(name = "description")
-    val description: kotlin.String,
+    @Json(name = "revision")
+    val revision: kotlin.Long,
+
+    @Json(name = "author")
+    val author: SkillAuthor,
+
+    @Json(name = "updated_at")
+    val updatedAt: java.time.OffsetDateTime,
+
+    @Json(name = "retired")
+    val retired: kotlin.Boolean,
 
     @Json(name = "eligible")
     val eligible: kotlin.Boolean,
 
-    @Json(name = "revision")
-    val revision: kotlin.Long,
-
-    @Json(name = "instruction")
-    val instruction: kotlin.String,
-
-    @Json(name = "requires_tools")
-    val requiresTools: kotlin.collections.List<kotlin.String>? = null,
-
-    /* Number of files the skill carries besides its SKILL.md. */
     @Json(name = "file_count")
-    val fileCount: kotlin.Int? = null,
+    val fileCount: kotlin.Int,
+
+    @Json(name = "has_manifest")
+    val hasManifest: kotlin.Boolean,
+
+    /* Names the package the current revision holds. */
+    @Json(name = "sha256")
+    val sha256: kotlin.String,
+
+    /* The whole SKILL.md. */
+    @Json(name = "markdown")
+    val markdown: kotlin.String,
+
+    @Json(name = "files")
+    val files: kotlin.collections.List<SkillFile>,
+
+    @Json(name = "description")
+    val description: kotlin.String? = null,
 
     @Json(name = "disabled_reasons")
     val disabledReasons: kotlin.collections.List<kotlin.String>? = null,
 
-    @Json(name = "license")
-    val license: kotlin.String? = null,
+    @Json(name = "problem")
+    val problem: kotlin.String? = null,
 
-    @Json(name = "compatibility")
-    val compatibility: kotlin.String? = null,
+    /* The run that wrote the current revision; absent for the owner's and the release's revisions. */
+    @Json(name = "run_id")
+    val runId: kotlin.String? = null,
 
-    @Json(name = "files")
-    val files: kotlin.collections.List<SkillFile>? = null
+    /* SKILL.md after its frontmatter; absent when it does not parse. */
+    @Json(name = "instruction")
+    val instruction: kotlin.String? = null,
+
+    @Json(name = "package")
+    val `package`: SkillPackage? = null
 
 ) {
 

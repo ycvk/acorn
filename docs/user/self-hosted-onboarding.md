@@ -525,6 +525,8 @@ acorn skills import ./pdf.zip
 
 `--replace` replaces a skill of the same name. `acorn skills list`, `acorn skills inspect <name>` and `acorn skills check` show what the agent has.
 
+In the app, 设置 → 技能 lists every skill, retired ones included, and says which ones the next conversation leaves out and why. A skill's page shows its `SKILL.md`, its files, its package and every revision with who wrote it; a revision the agent wrote links to its conversation. Open a revision to see what it changed and how it differs from the one in use, both computed on the server. From there you can roll back to that revision, and on the skill's page retire or restore it. Each of these asks for confirmation and saves a new revision by you on top of the one you read; if the agent changed the skill meanwhile, the app reloads it and you confirm again. Your changes need no approval, and the next run uses them. To write or install skills, ask the agent; it does so with `skill_write` and `skill_import`.
+
 #### Packages with tools and triggers
 
 A package can bring its own tools and wake the agent on its own schedule. An `acorn-package.yaml` beside `SKILL.md` declares a stdio MCP server, triggers, or both; each runs on the workstation from the package's directory. The workstation image has `uv` and Node.js, so the usual `uvx` and `npx` commands work:
@@ -547,13 +549,13 @@ While the skill is in use, its MCP server runs on the workstation, restarts when
 
 A trigger's command runs at each time of its schedule, bounded by `workstation.command_timeout_seconds`. Each line it prints is an event, `{"key": "...", "text": "..."}`; printing nothing means nothing happened, and the model is not called. Acorn handles each key of a trigger once, so the command can print everything it still sees and only new keys count. Put the deterministic check in the command: compare the price with a threshold, list the items not seen yet. Events of an `immediate` trigger start a run in the package's own conversation, named after the skill, and the agent loads the skill to handle them; these runs count toward `wake.daily_limit` and `wake.daily_tokens`, and events over the limit, or whose run could not start, go to the next morning briefing. Events of a `digest` trigger only go to the briefing. Events are kept as external sources the agent can cite; like phone notifications, nothing in them changes the agent's rules. A trigger whose command fails five times in a row is listed under System health in the briefing and retries after a growing wait. Retiring the skill stops its triggers.
 
-`secrets` lists environment variables the package needs. Set each on the server; the value is read from standard input, or typed without echo:
+`secrets` lists environment variables the package needs. Set each on the skill's page in the app, under 密钥, or on the server, where the value is read from standard input or typed without echo:
 
 ```bash
 acorn skills secret set price-watch PRICE_API_KEY < key.txt
 ```
 
-The value is stored in the database and kept in backups. It goes only to the package's MCP server and trigger commands, as an environment variable; the model, approvals, the app and the logs never see it, but commands the agent runs on the workstation run as the same user and can read it. Until every secret is set, the skill and its tools stay out of runs and its triggers do not run. `acorn doctor` lists each package's server under Package tools (ready, not running yet, failed with the reason, or the secrets it still needs) and each trigger under Package triggers (its next time, its failures, or the secrets it still needs).
+Secrets are write-only: the app shows which ones are set, never a value, and can clear one. The value is stored in the database and kept in backups. It goes only to the package's MCP server and trigger commands, as an environment variable; the model, approvals, the app and the logs never see it, but commands the agent runs on the workstation run as the same user and can read it. Until every secret is set, the skill and its tools stay out of runs and its triggers do not run. The skill's page in the app and `acorn doctor` read the same status: each package's server (ready, not running yet, failed with the reason, or the secrets it still needs, under Package tools in doctor) and each trigger (its next time, its failures, or the secrets it still needs, under Package triggers).
 
 `uvx` and `npx` fetch the server's code the first time it starts, so the first run that uses a new package can wait up to 90 seconds; if the server is not up by then, that run goes without the skill. The fetched code is not what you approved; judge where a package comes from before you approve it.
 

@@ -1,9 +1,5 @@
 package api
 
-import (
-	"github.com/ycvk/acorn/internal/skills"
-)
-
 type HealthResponse struct {
 	OK bool `json:"ok"`
 }
@@ -114,70 +110,4 @@ func systemStatusDTOFromSnapshot(snapshot SystemCapabilities) SystemStatusDTO {
 type ToolListResponse struct {
 	Items []CapabilitiesToolDTO `json:"items"`
 	Total int                   `json:"total"`
-}
-
-type SkillSummaryDTO struct {
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Eligible        bool     `json:"eligible"`
-	RequiresTools   []string `json:"requires_tools,omitempty"`
-	FileCount       int      `json:"file_count,omitempty"`
-	DisabledReasons []string `json:"disabled_reasons,omitempty"`
-}
-
-type SkillFileDTO struct {
-	Path string `json:"path"`
-	Size int64  `json:"size"`
-}
-
-type SkillDetailDTO struct {
-	SkillSummaryDTO
-	Revision      int64          `json:"revision"`
-	Instruction   string         `json:"instruction"`
-	License       string         `json:"license,omitempty"`
-	Compatibility string         `json:"compatibility,omitempty"`
-	Files         []SkillFileDTO `json:"files,omitempty"`
-}
-
-type SkillListResponse struct {
-	Items []SkillSummaryDTO `json:"items"`
-	Total int               `json:"total"`
-}
-
-type SkillEnvelope struct {
-	Item SkillDetailDTO `json:"item"`
-}
-
-func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
-	return SkillSummaryDTO{
-		Name:            item.Name,
-		Description:     item.Description,
-		Eligible:        item.Eligible,
-		RequiresTools:   append([]string(nil), item.RequiresTools...),
-		FileCount:       len(item.Files),
-		DisabledReasons: append([]string(nil), item.DisabledReasons...),
-	}
-}
-
-func skillDetailDTOFromView(item skills.View) SkillDetailDTO {
-	files := make([]SkillFileDTO, 0, len(item.Files))
-	for _, f := range item.Files {
-		files = append(files, SkillFileDTO{Path: f.Path, Size: f.Size})
-	}
-	return SkillDetailDTO{
-		SkillSummaryDTO: skillSummaryDTOFromView(item),
-		Revision:        item.Revision,
-		Instruction:     item.Instruction,
-		License:         item.License,
-		Compatibility:   item.Compatibility,
-		Files:           files,
-	}
-}
-
-func skillSummaryDTOsFromViews(items []skills.View) []SkillSummaryDTO {
-	out := make([]SkillSummaryDTO, 0, len(items))
-	for _, item := range items {
-		out = append(out, skillSummaryDTOFromView(item))
-	}
-	return out
 }

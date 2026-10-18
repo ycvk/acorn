@@ -25,8 +25,6 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 		s.respondNotFound(w, r, "pending_action_not_found", err.Error())
 	case errors.Is(err, core.ErrPendingActionDecided):
 		s.respondConflict(w, r, "pending_action_already_decided", err.Error())
-	case errors.Is(err, ErrSkillNotFound):
-		s.respondNotFound(w, r, "skill_not_found", err.Error())
 	case errors.Is(err, core.ErrRunNotActive):
 		s.respondConflict(w, r, "run_not_active", err.Error())
 	case errors.Is(err, core.ErrExecutionNotReady):

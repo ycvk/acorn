@@ -46,7 +46,7 @@ secrets: [GITHUB_WEBHOOK_SECRET]
 
 ### 密钥
 
-清单顶层的 `secrets` 列出包需要的环境变量名，MCP 服务器与触发器共用。owner 用 `acorn skills secret set <skill> <NAME>` 从标准输入设置值，存在 SQLite，随备份保存。值不进入模型输入、审批详情、API 响应与日志，只作为环境变量交给这个包的 MCP 服务器和触发器命令。agent 没有设置密钥的工具。
+清单顶层的 `secrets` 列出包需要的环境变量名，MCP 服务器与触发器共用。owner 用 `acorn skills secret set <skill> <NAME>` 从标准输入设置值，也可以在 App 的技能页设置或清除，两条路径的规则相同：名字必须是技能当前清单声明的，值非空、不超过 64 KiB。密钥只写不读，App 只看到哪些名字已设置。值存在 SQLite，随备份保存，不进入模型输入、审批详情、API 响应与日志，只作为环境变量交给这个包的 MCP 服务器和触发器命令。agent 没有设置密钥的工具。
 
 ### 触发器
 

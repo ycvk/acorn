@@ -67,7 +67,7 @@ func TestPackageTriggersWakeTheAgentOnlyForNewEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	tick(9, 7)
-	status, err := c.PackageTriggersStatus(ctx)
+	status, err := c.PackageStatus().Triggers(ctx)
 	if err != nil || len(status) != 1 || status[0].State != "missing_secrets" {
 		t.Fatalf("doctor before the secret = %+v, %v", status, err)
 	}
@@ -76,7 +76,7 @@ func TestPackageTriggersWakeTheAgentOnlyForNewEvents(t *testing.T) {
 		t.Fatalf("a trigger missing its secret ran: %+v", states)
 	}
 
-	if err := c.Skills().SetSecret(ctx, "price-watch", "CHECK_TOKEN", triggerSecret); err != nil {
+	if _, err := c.Skills().SetSecret(ctx, "price-watch", "CHECK_TOKEN", triggerSecret); err != nil {
 		t.Fatal(err)
 	}
 	tick(10, 0)
@@ -113,7 +113,7 @@ func TestPackageTriggersWakeTheAgentOnlyForNewEvents(t *testing.T) {
 	if n := provider.requestCount(); n != 1 {
 		t.Fatalf("the same price woke the agent again: %d model calls", n)
 	}
-	if status, err := c.PackageTriggersStatus(ctx); err != nil || status[0].State != "scheduled" || !status[0].NextAt.Equal(time.Date(2026, 10, 17, 11, 30, 0, 0, time.UTC)) {
+	if status, err := c.PackageStatus().Triggers(ctx); err != nil || status[0].State != "scheduled" || !status[0].NextAt.Equal(time.Date(2026, 10, 17, 11, 30, 0, 0, time.UTC)) {
 		t.Fatalf("doctor = %+v, %v", status, err)
 	}
 	body, err := json.Marshal(provider.request(0))

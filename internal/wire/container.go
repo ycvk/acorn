@@ -31,6 +31,7 @@ type Container struct {
 	runResume          *api.RunResumeService
 	skills             *api.SkillService
 	skillLibrary       *skills.Library
+	packageStatus      *skills.Status
 	threads            *api.ThreadService
 	runs               *api.RunService
 	events             *api.EventService
@@ -77,6 +78,11 @@ func (c *Container) ResumeReadyRuns(ctx context.Context) error {
 
 func (c *Container) Skills() *api.SkillService {
 	return c.skills
+}
+
+// PackageStatus reads how the packages of the skills in use run.
+func (c *Container) PackageStatus() *skills.Status {
+	return c.packageStatus
 }
 
 func (c *Container) Persona() *api.PersonaService {
@@ -222,8 +228,11 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	}
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
-	container.skills = api.NewSkillService(cfg, deps.skills)
-	container.skillLibrary = deps.skills
+	skillService, err := api.NewSkillService(cfg, deps.skills, deps.packageStatus)
+	if err != nil {
+		return nil, err
+	}
+	container.skills, container.skillLibrary, container.packageStatus = skillService, deps.skills, deps.packageStatus
 	forgetBarrier := memoryForgetBarrier(deps.runController, db)
 	threads, err := api.NewThreadService(db, db, deps.memory, forgetBarrier)
 	if err != nil {

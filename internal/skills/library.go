@@ -169,39 +169,138 @@ func (l *Library) Seed(ctx context.Context) error {
 // Scan parses the skills in use. A stored skill that no longer parses is a
 // problem, not a skill.
 func (l *Library) Scan(ctx context.Context) (*ScanResult, error) {
-	stored, err := l.store.Skills(ctx)
+	entries, err := l.Entries(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]Spec, 0, len(stored))
+	items := make([]Spec, 0, len(entries))
 	problems := []Problem{}
-	for _, skill := range stored {
-		if skill.Retired {
-			continue
+	for _, entry := range entries {
+		switch {
+		case entry.Skill.Retired:
+		case entry.Problem != "":
+			problems = append(problems, Problem{Name: entry.Skill.ID, Error: entry.Problem})
+		default:
+			items = append(items, entry.Spec)
 		}
-		spec, err := Parse(skill.Markdown)
-		if err != nil {
-			problems = append(problems, Problem{Name: skill.ID, Error: fmt.Sprintf("parse skill: %v", err)})
-			continue
-		}
-		spec.Revision, spec.Markdown, spec.Files = skill.Revision, skill.Markdown, slices.Clone(skill.Files)
-		if slices.ContainsFunc(skill.Files, func(f core.SkillFileInfo) bool { return f.Path == ManifestFileName }) {
-			content, err := l.store.SkillFile(ctx, skill.ID, skill.Revision, ManifestFileName)
-			if err != nil {
-				return nil, err
-			}
-			m, err := ParseManifest(content)
-			if err != nil {
-				problems = append(problems, Problem{Name: skill.ID, Error: err.Error()})
-				continue
-			}
-			spec = spec.withManifest(m)
-		}
-		items = append(items, spec)
 	}
 	sortSkills(items)
 	sortSkillProblems(problems)
 	return &ScanResult{Skills: items, Problems: problems}, nil
+}
+
+// Entry is a stored skill as the owner reads it, retired or not: its current
+// revision and what parses of it. Problem says why its SKILL.md or its
+// manifest does not parse; Spec then holds what does.
+type Entry struct {
+	Skill   core.Skill
+	Spec    Spec
+	Problem string
+}
+
+// Entries reads every stored skill, the retired ones and the ones that no
+// longer parse included, by name.
+func (l *Library) Entries(ctx context.Context) ([]Entry, error) {
+	stored, err := l.store.Skills(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]Entry, 0, len(stored))
+	for _, skill := range stored {
+		entry, err := l.entry(ctx, skill)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+// Entry reads one stored skill like Entries.
+func (l *Library) Entry(ctx context.Context, name string) (Entry, error) {
+	skill, err := l.store.Skill(ctx, strings.TrimSpace(name))
+	if err != nil {
+		return Entry{}, err
+	}
+	return l.entry(ctx, skill)
+}
+
+func (l *Library) entry(ctx context.Context, skill core.Skill) (Entry, error) {
+	var manifest []byte
+	if HasManifest(skill.Files) {
+		var err error
+		if manifest, err = l.store.SkillFile(ctx, skill.ID, skill.Revision, ManifestFileName); err != nil {
+			return Entry{}, err
+		}
+	}
+	spec, problem := parseRevision(skill.Revision, skill.Markdown, skill.Files, manifest)
+	return Entry{Skill: skill, Spec: spec, Problem: problem}, nil
+}
+
+// HasManifest reports whether a package's files hold acorn-package.yaml.
+func HasManifest(files []core.SkillFileInfo) bool {
+	return slices.ContainsFunc(files, func(f core.SkillFileInfo) bool { return f.Path == ManifestFileName })
+}
+
+// parseRevision parses a stored revision's SKILL.md and, when the package has
+// one, its manifest, and says why either does not parse.
+func parseRevision(revision int64, markdown string, files []core.SkillFileInfo, manifest []byte) (Spec, string) {
+	spec, err := Parse(markdown)
+	if err != nil {
+		return Spec{}, fmt.Sprintf("parse skill: %v", err)
+	}
+	spec.Revision, spec.Markdown, spec.Files = revision, markdown, slices.Clone(files)
+	if !HasManifest(files) {
+		return spec, ""
+	}
+	m, err := ParseManifest(manifest)
+	if err != nil {
+		return spec, err.Error()
+	}
+	return spec.withManifest(m), ""
+}
+
+// Version is one stored revision of a skill with the content of its files,
+// parsed like Entries.
+type Version struct {
+	Revision core.SkillRevision
+	Files    []core.SkillFile
+	Spec     Spec
+	Problem  string
+}
+
+// Hash names the version's package, as Spec.Hash does.
+func (v Version) Hash() string {
+	return PackageHash(v.Revision.Markdown, v.Files)
+}
+
+// Version reads one revision of a skill with its files.
+func (l *Library) Version(ctx context.Context, name string, revision int64) (Version, error) {
+	name = strings.TrimSpace(name)
+	r, err := l.store.SkillRevision(ctx, name, revision)
+	if err != nil {
+		return Version{}, err
+	}
+	files, err := l.store.SkillFiles(ctx, name, revision)
+	if err != nil {
+		return Version{}, err
+	}
+	var manifest []byte
+	if i := slices.IndexFunc(files, func(f core.SkillFile) bool { return f.Path == ManifestFileName }); i >= 0 {
+		manifest = files[i].Content
+	}
+	spec, problem := parseRevision(r.Revision, r.Markdown, r.Files, manifest)
+	return Version{Revision: r, Files: files, Spec: spec, Problem: problem}, nil
+}
+
+// Revisions lists a skill's revisions, newest first.
+func (l *Library) Revisions(ctx context.Context, name string) ([]core.SkillRevision, error) {
+	return l.store.SkillRevisions(ctx, strings.TrimSpace(name))
+}
+
+// RevisionHash names the package a stored revision holds, as Spec.Hash does.
+func RevisionHash(r core.SkillRevision) string {
+	return packageHash(r.Markdown, infoSums(r.Files))
 }
 
 // Skill reads a stored skill, retired or not.
@@ -245,34 +344,103 @@ func (l *Library) Write(ctx context.Context, req WriteRequest) (core.Skill, erro
 		files = slices.DeleteFunc(files, func(f core.SkillFile) bool { return f.Path == p })
 		files = append(files, core.SkillFile{Path: p, Content: []byte(content)})
 	}
-	if files, err = normalizeFiles(markdown, files); err != nil {
-		return core.Skill{}, err
-	}
-	server, err := mcpOf(files)
-	if err != nil {
-		return core.Skill{}, err
-	}
-	if err := l.checkProvider(spec.Name, server); err != nil {
+	if _, files, err = l.check(markdown, files); err != nil {
 		return core.Skill{}, err
 	}
 	return l.store.WriteSkill(ctx, core.SkillWrite{ID: spec.Name, Markdown: markdown, Files: files, Author: core.SkillAuthorAgent, RunID: req.RunID, At: l.clock(), BaseRevision: req.BaseRevision})
 }
 
-// Retire takes a skill out of use as a new revision; writing it again brings
-// it back.
+// check validates a package as every write does: its SKILL.md, its files
+// and their limits, its manifest, and the name of its MCP server. It returns
+// the files sorted by path.
+func (l *Library) check(markdown string, files []core.SkillFile) (Spec, []core.SkillFile, error) {
+	spec, err := validateSkill(markdown)
+	if err != nil {
+		return Spec{}, nil, err
+	}
+	if files, err = normalizeFiles(markdown, files); err != nil {
+		return Spec{}, nil, err
+	}
+	server, err := mcpOf(files)
+	if err != nil {
+		return Spec{}, nil, err
+	}
+	if err := l.checkProvider(spec.Name, server); err != nil {
+		return Spec{}, nil, err
+	}
+	return spec, files, nil
+}
+
+// Retire takes a skill out of use as the agent's revision; writing it again
+// brings it back.
 func (l *Library) Retire(ctx context.Context, name string, baseRevision int64, runID string) (core.Skill, error) {
+	return l.retire(ctx, name, baseRevision, core.SkillAuthorAgent, runID)
+}
+
+// RetireForOwner takes a skill out of use as the owner's revision on top of
+// baseRevision.
+func (l *Library) RetireForOwner(ctx context.Context, name string, baseRevision int64) (core.Skill, error) {
+	return l.retire(ctx, name, baseRevision, core.SkillAuthorOwner, "")
+}
+
+func (l *Library) retire(ctx context.Context, name string, baseRevision int64, author core.SkillAuthor, runID string) (core.Skill, error) {
 	current, err := l.store.Skill(ctx, strings.TrimSpace(name))
 	if err != nil {
 		return core.Skill{}, err
 	}
 	if current.Retired {
-		return core.Skill{}, fmt.Errorf("skill %s is already retired", current.ID)
+		return core.Skill{}, fmt.Errorf("%w: skill %s is already retired", core.ErrSkillInvalid, current.ID)
 	}
 	files, err := l.store.SkillFiles(ctx, current.ID, current.Revision)
 	if err != nil {
 		return core.Skill{}, err
 	}
-	return l.store.WriteSkill(ctx, core.SkillWrite{ID: current.ID, Markdown: current.Markdown, Files: files, Retired: true, Author: core.SkillAuthorAgent, RunID: runID, At: l.clock(), BaseRevision: baseRevision})
+	return l.store.WriteSkill(ctx, core.SkillWrite{ID: current.ID, Markdown: current.Markdown, Files: files, Retired: true, Author: author, RunID: runID, At: l.clock(), BaseRevision: baseRevision})
+}
+
+// Restore brings a retired skill back into use with the content it has, as
+// the owner's revision on top of baseRevision.
+func (l *Library) Restore(ctx context.Context, name string, baseRevision int64) (core.Skill, error) {
+	current, err := l.store.Skill(ctx, strings.TrimSpace(name))
+	if err != nil {
+		return core.Skill{}, err
+	}
+	if !current.Retired {
+		return core.Skill{}, fmt.Errorf("%w: skill %s is in use", core.ErrSkillInvalid, current.ID)
+	}
+	files, err := l.store.SkillFiles(ctx, current.ID, current.Revision)
+	if err != nil {
+		return core.Skill{}, err
+	}
+	return l.ownerWrite(ctx, current.ID, current.Markdown, files, baseRevision)
+}
+
+// Rollback writes the content of an earlier revision of a skill as the
+// owner's revision on top of baseRevision. The skill is in use after it.
+func (l *Library) Rollback(ctx context.Context, name string, revision, baseRevision int64) (core.Skill, error) {
+	name = strings.TrimSpace(name)
+	old, err := l.store.SkillRevision(ctx, name, revision)
+	if err != nil {
+		return core.Skill{}, err
+	}
+	files, err := l.store.SkillFiles(ctx, name, revision)
+	if err != nil {
+		return core.Skill{}, err
+	}
+	return l.ownerWrite(ctx, name, old.Markdown, files, baseRevision)
+}
+
+// ownerWrite stores a stored package as the owner's revision in use, checked
+// like any write.
+func (l *Library) ownerWrite(ctx context.Context, name, markdown string, files []core.SkillFile, baseRevision int64) (core.Skill, error) {
+	spec, files, err := l.check(markdown, files)
+	if err != nil {
+		return core.Skill{}, fmt.Errorf("%w: %v", core.ErrSkillInvalid, err)
+	}
+	if spec.Name != name {
+		return core.Skill{}, fmt.Errorf("%w: the content names skill %s, not %s", core.ErrSkillInvalid, spec.Name, name)
+	}
+	return l.store.WriteSkill(ctx, core.SkillWrite{ID: name, Markdown: markdown, Files: files, Author: core.SkillAuthorOwner, At: l.clock(), BaseRevision: baseRevision})
 }
 
 // Stage checks a package read from a directory or zip and keeps it under its
@@ -387,31 +555,56 @@ func (l *Library) Sync(ctx context.Context, host PackageHost, snapshot Snapshot)
 	return dir, nil
 }
 
+// MaxSecretBytes bounds a secret's value.
+const MaxSecretBytes = 64 << 10
+
 // SetSecret stores the value of a secret the package of a skill's current
 // revision declares.
 func (l *Library) SetSecret(ctx context.Context, name, secret, value string) error {
-	skill, err := l.store.Skill(ctx, strings.TrimSpace(name))
+	skill, err := l.declaring(ctx, name, secret)
 	if err != nil {
 		return err
 	}
-	if !slices.ContainsFunc(skill.Files, func(f core.SkillFileInfo) bool { return f.Path == ManifestFileName }) {
-		return fmt.Errorf("skill %s has no %s and takes no secrets", skill.ID, ManifestFileName)
+	switch {
+	case value == "":
+		return fmt.Errorf("%w: the value of %s is empty", core.ErrSkillInvalid, secret)
+	case len(value) > MaxSecretBytes:
+		return fmt.Errorf("%w: the value of %s is longer than %d bytes", core.ErrSkillInvalid, secret, MaxSecretBytes)
+	}
+	return l.store.SetSkillSecret(ctx, skill.ID, secret, value, l.clock())
+}
+
+// ClearSecret removes the value of a secret the package of a skill's current
+// revision declares.
+func (l *Library) ClearSecret(ctx context.Context, name, secret string) error {
+	skill, err := l.declaring(ctx, name, secret)
+	if err != nil {
+		return err
+	}
+	return l.store.DeleteSkillSecret(ctx, skill.ID, secret)
+}
+
+// declaring reads a skill whose current package declares the secret.
+func (l *Library) declaring(ctx context.Context, name, secret string) (core.Skill, error) {
+	skill, err := l.store.Skill(ctx, strings.TrimSpace(name))
+	if err != nil {
+		return core.Skill{}, err
+	}
+	if !HasManifest(skill.Files) {
+		return core.Skill{}, fmt.Errorf("%w: skill %s has no %s and takes no secrets", core.ErrSkillInvalid, skill.ID, ManifestFileName)
 	}
 	content, err := l.store.SkillFile(ctx, skill.ID, skill.Revision, ManifestFileName)
 	if err != nil {
-		return err
+		return core.Skill{}, err
 	}
 	m, err := ParseManifest(content)
 	if err != nil {
-		return err
+		return core.Skill{}, fmt.Errorf("%w: %v", core.ErrSkillInvalid, err)
 	}
 	if !slices.Contains(m.Secrets, secret) {
-		return fmt.Errorf("skill %s's package declares the secrets %v, not %s", skill.ID, m.Secrets, secret)
+		return core.Skill{}, fmt.Errorf("%w: skill %s's package declares the secrets %v, not %s", core.ErrSkillInvalid, skill.ID, m.Secrets, secret)
 	}
-	if value == "" {
-		return fmt.Errorf("the value of %s is empty", secret)
-	}
-	return l.store.SetSkillSecret(ctx, skill.ID, secret, value, l.clock())
+	return skill, nil
 }
 
 // MissingSecrets lists the secrets a skill's package declares that have no

@@ -68,7 +68,7 @@ func TestSecretValuesDropOneTrailingNewline(t *testing.T) {
 			t.Fatalf("secretValue(%q) = %q, %v", in, got, err)
 		}
 	}
-	for _, in := range []string{"", "\n", strings.Repeat("x", maxSecretBytes+1)} {
+	for _, in := range []string{"", "\n", strings.Repeat("x", skills.MaxSecretBytes+1)} {
 		if _, err := secretValue([]byte(in)); err == nil {
 			t.Fatalf("secretValue(%q) succeeded", in)
 		}

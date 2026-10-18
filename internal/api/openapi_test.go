@@ -11,6 +11,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/ycvk/acorn/internal/core"
+	"gopkg.in/yaml.v3"
 )
 
 func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
@@ -79,6 +80,15 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"/v1/tools",
 		"/v1/skills",
 		"/v1/skills/{name}",
+		"/v1/skills/{name}:rollback",
+		"/v1/skills/{name}:retire",
+		"/v1/skills/{name}:restore",
+		"/v1/skills/{name}/revisions",
+		"/v1/skills/{name}/revisions/{revision}",
+		"/v1/skills/{name}/diff",
+		"/v1/skills/{name}/secrets/{secret}",
+		"skill_changed",
+		"skill_change_invalid",
 		"/v1/captures",
 		"/v1/knowledge/notes",
 		"/v1/knowledge/note",
@@ -291,6 +301,10 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"PairDeviceRequest",
 		"PairDeviceResponse",
 		"SkillEnvelope",
+		"SkillRevisionListResponse",
+		"SkillRevision",
+		"SkillDiff",
+		"SkillSecretListResponse",
 		"Thread",
 		"ThreadListResponse",
 		"CreateThreadRequest",
@@ -422,4 +436,36 @@ func TestProjectToolApprovalEvents(t *testing.T) {
 	if got := decided.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.Decision != "decline" {
 		t.Fatalf("decided data = %+v", got)
 	}
+}
+
+// TestOpenAPIEnumsSurviveYAML11 rejects plain enum values that YAML 1.1
+// parsers, such as the client generator's, read as booleans: a bare off
+// becomes false there while YAML 1.2 keeps the string.
+func TestOpenAPIEnumsSurviveYAML11(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "docs", "openapi.yaml"))
+	if err != nil {
+		t.Fatalf("read openapi: %v", err)
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal(body, &root); err != nil {
+		t.Fatalf("parse openapi: %v", err)
+	}
+	yaml11Bools := map[string]bool{}
+	for _, word := range []string{"y", "yes", "n", "no", "true", "false", "on", "off"} {
+		yaml11Bools[word] = true
+	}
+	var walk func(node *yaml.Node)
+	walk = func(node *yaml.Node) {
+		for i, child := range node.Content {
+			if node.Kind == yaml.MappingNode && i%2 == 0 && child.Value == "enum" && i+1 < len(node.Content) {
+				for _, value := range node.Content[i+1].Content {
+					if value.Style == 0 && value.Tag == "!!str" && yaml11Bools[strings.ToLower(value.Value)] {
+						t.Errorf("line %d: enum value %s is a boolean to YAML 1.1; quote it", value.Line, value.Value)
+					}
+				}
+			}
+			walk(child)
+		}
+	}
+	walk(&root)
 }
