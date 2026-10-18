@@ -31,10 +31,12 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param id 
+ * @param threadId The conversation the concern was created in; the agent works on it there.
  * @param title 
  * @param state 
- * @param reason 
+ * @param reason The latest reason, written with the current revision.
  * @param updatedAt 
+ * @param outcome What the agent hands to the owner when the concern is done; absent for a concern that only follows something.
  * @param reviewAt 
  */
 
@@ -44,17 +46,26 @@ data class NowConcern (
     @Json(name = "id")
     val id: kotlin.String,
 
+    /* The conversation the concern was created in; the agent works on it there. */
+    @Json(name = "thread_id")
+    val threadId: kotlin.String,
+
     @Json(name = "title")
     val title: kotlin.String,
 
     @Json(name = "state")
     val state: NowConcern.State,
 
+    /* The latest reason, written with the current revision. */
     @Json(name = "reason")
     val reason: kotlin.String,
 
     @Json(name = "updated_at")
     val updatedAt: java.time.OffsetDateTime,
+
+    /* What the agent hands to the owner when the concern is done; absent for a concern that only follows something. */
+    @Json(name = "outcome")
+    val outcome: kotlin.String? = null,
 
     @Json(name = "review_at")
     val reviewAt: java.time.OffsetDateTime? = null
