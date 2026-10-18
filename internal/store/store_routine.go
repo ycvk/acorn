@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -57,16 +56,12 @@ func (s *Store) SetRoutineRun(ctx context.Context, routine, slot, threadID, runI
 	return nil
 }
 
-func (s *Store) LatestRoutineThread(ctx context.Context, routines ...string) (string, error) {
-	if len(routines) == 0 {
-		return "", errors.New("latest routine thread: routines are required")
-	}
-	args := make([]any, len(routines))
-	for i, name := range routines {
-		args[i] = name
+func (s *Store) LatestRoutineThread(ctx context.Context, routine string) (string, error) {
+	if routine == "" {
+		return "", errors.New("latest routine thread: routine is required")
 	}
 	var thread string
-	err := s.db.QueryRowContext(ctx, `SELECT thread_id FROM routine_runs WHERE run_id <> '' AND routine IN (`+strings.TrimRight(strings.Repeat("?,", len(args)), ",")+`) ORDER BY created_at DESC, slot DESC LIMIT 1`, args...).Scan(&thread)
+	err := s.db.QueryRowContext(ctx, `SELECT thread_id FROM routine_runs WHERE run_id <> '' AND routine = ? ORDER BY created_at DESC, slot DESC LIMIT 1`, routine).Scan(&thread)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}

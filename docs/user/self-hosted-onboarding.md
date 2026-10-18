@@ -616,7 +616,7 @@ The calls you are asked about, their target and page, and your request go to Typ
 
 ## Idle Thinking and Phone Notifications
 
-Night reflection runs once per owner-local day at `thinking.night_at`. It reviews changed evidence, understandings awaiting review, open thoughts, concerns and unfinished appointment occurrences in the Thoughts thread. `think` records or ends a thought; `concern` records progress and review time; `settle` completes an occurrence with execution evidence. Idle-thought slots advance one due open concern at a time.
+Night reflection runs once per owner-local day at `thinking.night_at`. It reviews changed evidence, understandings awaiting review, open thoughts, concerns and unfinished appointment occurrences in the Thoughts thread. `think` records or ends a thought; `concern` records progress and review time; `settle` completes an occurrence with execution evidence. Each idle-thought slot advances one due open concern, the one revised longest ago, in the conversation where it was raised, so the advance continues from earlier progress there. A concern whose conversation has a run still working or waiting for your approval waits for a later slot. Deleting a conversation drops the concerns raised in it.
 
 ```yaml
 wake:

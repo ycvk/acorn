@@ -98,10 +98,12 @@
 - **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
-- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。
+- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
+  - `internal/store/memory_state_test.go`
+  - `internal/wire/concern_acceptance_e2e_test.go`
 - **自动抽取只读 owner 的话，insight 需要独立的 owner 证据**：只有 speaker 为 owner 的来源登记 extract 任务；工具结果、watch 条目与笔记 revision 登记为来源供证据引用，不自动抽取，v8 迁移结束此前排队的非 owner 抽取。整合新建或修订 insight 时，其父记录经 `memory_revision_sources` 解析到的根来源中必须有至少两个不同的 owner 来源，否则整批拒绝。
   - `internal/store/memory_contract_test.go`
   - `internal/memory/process_test.go`
@@ -203,7 +205,7 @@
   - `internal/core/core_test.go`
   - `internal/api/openapi_test.go`
   - `internal/wire/approval_restart_e2e_test.go`
-- **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（已遗忘来源不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
+- **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（来源已遗忘或所在对话已删除的不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
   - `internal/api/now_test.go`
   - `internal/wire/now_acceptance_e2e_test.go`
 - **技能页只读后端事实**：`GET /v1/skills` 列出全部技能，已停用的也在内，带当前 revision、作者、更新时间、是否带清单、下一次 run 能否列出与原因（静态工具资格加缺的密钥）；当前 revision 的 `SKILL.md` 或清单解析不了的技能带 `problem`，列表与详情照常返回。详情给出当前 revision 的 `SKILL.md`、附带文件（不超过 64 KiB 的 UTF-8 文本带内容）与写入它的 run，有清单时给出清单内容、运行状态与密钥是否已设置；修订历史给出每个 revision 的作者、run、时间、是否停用与包哈希，任一 revision 可读。两个 revision 的差异由后端逐文件按行算好：`SKILL.md` 在前，其余按路径，相同的文件省略，文本文件是带 3 行上下文的 hunk，非文本只标出变化；App 只渲染。
@@ -219,7 +221,7 @@
 
 ## 约定、唤醒与追踪
 
-- **约定发生只认领一次，执行前绑定来源**：约定规则与 occurrence 独立。条件认领后，Executor 在模型调用前绑定执行 run；周期沿同一规则排下一次。五分钟未绑定的认领可恢复，迟到启动受状态校验拦截。完成约定必须引用 owner 确认或成功执行结果。
+- **约定发生只认领一次，执行前绑定来源**：约定规则与 occurrence 独立。条件认领后，Executor 在模型调用前绑定执行 run；周期沿同一规则排下一次。五分钟未绑定的认领可恢复，迟到启动受状态校验拦截。完成约定必须引用 owner 确认或成功执行结果。关联了关切的约定醒来时，输入在约定内容之后附上关切的标题、状态与最新理由。
   - `internal/store/commitment_contract_test.go`
   - `internal/wake/scheduler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
@@ -267,8 +269,11 @@
 
 ## 空闲思考、用量与手机通知
 
-- **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思与游思复用 Thoughts 线程。
+- **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思在 Thoughts 线程运行。
   - `internal/wake/thinking_test.go`
+- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件，所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。
+  - `internal/wake/thinking_test.go`
+  - `internal/wire/concern_acceptance_e2e_test.go`
 - **原始通知只有一个写入入口**：鉴权设备身份与服务器 received_at 由 API 决定;批次全量校验后事务写入,按 (device,key,posted_at) 去重,不修改调用方输入。
   - `internal/api/phone_notification_service_test.go`
   - `internal/store/store_phone_notifications_test.go`

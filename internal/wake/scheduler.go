@@ -25,6 +25,9 @@ type RunStarter interface {
 	StartWakeRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (runID string, err error)
 	// StartRoutineRun starts in threadID or creates a thread with title.
 	StartRoutineRun(ctx context.Context, threadID, title, input string, wake core.ScheduledWake) (thread, runID string, err error)
+	// StartThreadRun starts a run in threadID; a deleted thread fails with
+	// core.ErrSessionNotFound.
+	StartThreadRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (runID string, err error)
 }
 
 // WatchChecker fetches a watch and records what it found.
@@ -215,6 +218,10 @@ func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Tim
 			return fmt.Errorf("recurrence: %w", err)
 		}
 	}
+	concern, err := s.linkedConcern(ctx, item.ConcernID)
+	if err != nil {
+		return err
+	}
 	occurrence, err := s.cfg.Commitments.ClaimCommitment(ctx, item.ID, now)
 	if errors.Is(err, core.ErrCommitmentNotDue) {
 		return nil
@@ -225,6 +232,9 @@ func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Tim
 	wake := fmt.Sprintf("commitment #%d: %s", item.ID, item.Content)
 	input := fmt.Sprintf("[commitment #%d, made %s] %s",
 		item.ID, item.CreatedAt.In(s.cfg.Location).Format("2006-01-02 15:04"), item.Content)
+	if concern != nil {
+		input += fmt.Sprintf("\nConcern %s rev %d [%s]: %s. Latest reason: %s", concern.ID, concern.Revision, concern.State, concern.Title, concern.Reason)
+	}
 	runID, err := s.cfg.Runs.StartWakeRun(ctx, item.SessionID, input, core.ScheduledWake{Reason: wake, Autonomous: true, Commitment: &core.CommitmentWake{Occurrence: occurrence, Next: next}})
 	if err != nil {
 		return s.retryLater(ctx, occurrence, now, err)
@@ -233,6 +243,24 @@ func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Tim
 		return fmt.Errorf("record wake of run %s: %w", runID, err)
 	}
 	return nil
+}
+
+// linkedConcern is the concern a commitment advances; nil when it has none or
+// the concern was forgotten with its source or conversation.
+func (s *Scheduler) linkedConcern(ctx context.Context, id string) (*core.MemoryConcern, error) {
+	if id == "" {
+		return nil, nil
+	}
+	concerns, err := s.cfg.Memory.ListConcerns(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("list concerns: %w", err)
+	}
+	for _, c := range concerns {
+		if c.ID == id {
+			return &c, nil
+		}
+	}
+	return nil, nil
 }
 
 // withinBudget reports whether another wake fits today's limit and warns

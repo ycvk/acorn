@@ -43,8 +43,8 @@ func TestRoutineClaimsAndSuccessfulWindow(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	thread, err := s.LatestRoutineThread(ctx, "night", "wander")
-	if err != nil || thread != "wander" {
+	thread, err := s.LatestRoutineThread(ctx, "night")
+	if err != nil || thread != "night" {
 		t.Fatalf("latest thoughts thread: %q, %v", thread, err)
 	}
 	night, err := s.LatestRoutineRun(ctx, "night")
