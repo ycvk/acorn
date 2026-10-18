@@ -154,6 +154,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		Attachments:        opts.Attachments,
 		Files:              opts.Files,
 		Uploads:            opts.Uploads,
+		Work:               opts.Work,
 		PhoneNotifications: opts.PhoneNotifications,
 		Workstation:        opts.Workstation,
 		Reviewer:           opts.Reviewer,
@@ -222,6 +223,9 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
+	if err := removeForgottenWork(ctx, f.deps.MemoryStore, f.deps.Work); err != nil {
+		slog.Warn("work directories of deleted conversations left on the workstation", "error", err)
+	}
 	owner, err := loadOwnerFiles(ctx, f.deps.Files, f.deps.Uploads, req.SessionID)
 	if err != nil {
 		return nil, err
@@ -271,8 +275,10 @@ type RunnerFactoryOptions struct {
 	Commitments           core.CommitmentStore
 	Attachments           core.AttachmentReader
 	Files                 core.ThreadFiles
-	// Uploads and SkillServers are nil when no workstation is configured.
+	// Uploads, Work and SkillServers are nil when no workstation is
+	// configured.
 	Uploads     UploadHost
+	Work        WorkHost
 	Workstation tools.WorkstationToolsConfig
 	// Reviewer judges calls the approval rules leave open; nil turns review off.
 	Reviewer ActionReviewer

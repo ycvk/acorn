@@ -252,6 +252,9 @@ type MemoryStore interface {
 	// ListConcerns leaves out concerns whose source or linked records were
 	// forgotten and those created in a deleted conversation.
 	ListConcerns(context.Context, bool) ([]MemoryConcern, error)
+	// DeletedThreadConcernIDs lists the concerns created in conversations
+	// the owner deleted.
+	DeletedThreadConcernIDs(context.Context) ([]string, error)
 	ClaimMemoryJob(context.Context, time.Time, time.Duration, string) (*MemoryJob, error)
 	ReadyMemoryJobs(context.Context, time.Time, string, int) ([]MemoryJob, error)
 	ClaimMemoryJobs(context.Context, []int64, time.Time, time.Duration) ([]MemoryJob, error)

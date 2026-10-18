@@ -191,6 +191,16 @@ func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.Memor
 	return out, err
 }
 
+// DeletedThreadConcernIDs lists the concerns created in conversations the
+// owner deleted.
+func (s *Store) DeletedThreadConcernIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id FROM memory_concerns c WHERE NOT EXISTS(SELECT 1 FROM sessions t WHERE t.session_id=c.thread_id) ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("list concerns of deleted conversations: %w", err)
+	}
+	return memoryStringRows(rows)
+}
+
 func (s *Store) SaveThreadSummary(ctx context.Context, summary core.ThreadSummary) error {
 	if summary.SessionID == "" || summary.Content == "" || summary.ThroughMessageID <= 0 || len(summary.SourceIDs) == 0 || summary.UpdatedAt.IsZero() {
 		return errors.New("thread summary requires session, content, through_message_id, sources and updated_at")
