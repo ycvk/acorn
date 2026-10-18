@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -27,7 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,6 +43,7 @@ import io.ycvk.acorn.api.models.RuntimeReadiness
 import io.ycvk.acorn.core.push.PushStatus
 import io.ycvk.acorn.core.push.pushStatusDetail
 import io.ycvk.acorn.core.push.pushStatusLabel
+import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornDialog
@@ -64,6 +70,10 @@ fun SettingsScreen(
     val colors = AcornTheme.colors
     val scroll = rememberScrollState()
     var confirmDisconnect by remember { mutableStateOf(false) }
+    val ownerName by viewModel.ownerName.collectAsStateWithLifecycle()
+    val savingName by viewModel.savingName.collectAsStateWithLifecycle()
+    val nameError by viewModel.nameError.collectAsStateWithLifecycle()
+    var editingName by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadSettings() }
 
@@ -88,6 +98,16 @@ fun SettingsScreen(
             }
 
             SettingsGroup("Acorn") {
+                SettingRow(
+                    "怎么称呼你",
+                    when (val name = ownerName) {
+                        null -> "—"
+                        "" -> "未设置"
+                        else -> name
+                    },
+                    onClick = ownerName?.let { name -> { editingName = name } },
+                )
+                Hairline(inset = 16.dp)
                 SettingRow("人格", "它是谁、怎么说话", onClick = onOpenPersona)
                 Hairline(inset = 16.dp)
                 SettingRow("技能", "它会做的事和技能包", onClick = onOpenSkills)
@@ -167,6 +187,47 @@ fun SettingsScreen(
         }
     }
 
+    editingName?.let { draft ->
+        AcornDialog(
+            title = "Acorn 怎么称呼你",
+            body = "Acorn 会这样称呼你，记下关于你的事时也用这个名字，从下一次对话起生效。留空就不设称呼。",
+            confirm = "保存",
+            confirmEnabled = !savingName,
+            confirmLoading = savingName,
+            dismissEnabled = !savingName,
+            onConfirm = { viewModel.saveOwnerName(draft) { editingName = null } },
+            onDismiss = {
+                if (!savingName) {
+                    viewModel.dismissNameError()
+                    editingName = null
+                }
+            },
+        ) {
+            BasicTextField(
+                value = draft,
+                onValueChange = { editingName = it.filterNot(Char::isISOControl).take(OWNER_NAME_MAX_LENGTH) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                textStyle = AcornTheme.type.callout.copy(color = colors.ink),
+                cursorBrush = SolidColor(colors.accent),
+                decorationBox = { field ->
+                    if (draft.isEmpty()) Text("你的名字或昵称", style = AcornTheme.type.callout, color = colors.inkFaint)
+                    field()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .clip(AcornShapes.medium)
+                    .background(colors.surfaceMuted)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            )
+            nameError?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, style = AcornTheme.type.caption, color = colors.danger)
+            }
+        }
+    }
+
     if (confirmDisconnect) {
         AcornDialog(
             title = "断开连接？",
@@ -181,6 +242,9 @@ fun SettingsScreen(
         )
     }
 }
+
+/** The longest name the server keeps for the owner. */
+private const val OWNER_NAME_MAX_LENGTH = 40
 
 /** "device_85995e25…66b0": enough to recognise a device without the whole id. */
 fun shortId(id: String): String = if (id.length > 20) id.take(15) + "…" + id.takeLast(4) else id

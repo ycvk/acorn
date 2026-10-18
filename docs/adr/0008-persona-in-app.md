@@ -43,6 +43,14 @@ agent 没有写人格的工具。owner 在对话里说的说话方式偏好照�
 
 ADR 0007 S3 的技能页复用同一套历史、差异与恢复的界面。人格只有一份正文、没有附带文件，先做人格，再做技能页。
 
+### owner 的称呼
+
+Acorn 怎么称呼 owner 也存进 SQLite：`owner` 表只有一行，记录称呼与保存时间，没有这一行就是没有称呼。称呼去掉首尾空白后至多 40 个字，不能有换行等控制字符，空称呼表示不设。每个 run 开始时读当前称呼写进 Instruction，每次记忆抽取也读当前称呼，用它写关于 owner 的事实，没有称呼时写成 owner。保存后的下一个 run 生效。称呼没有历史，以最后一次保存为准。
+
+App 设置页的「Acorn」分组里有「怎么称呼你」；服务器上用 `acorn owner show` 查看，`acorn owner set <称呼>` 设置。接口是 `GET /v1/owner` 与 `PUT /v1/owner`。agent 没有写称呼的工具。
+
+配置里的 `owner.name` 随之删除，`owner` 一节只剩 `timezone`。
+
 ### 边界变化
 
 本决定取代 ADR 0003 中「人格来自 owner 可编辑的 `{storage_dir}/persona.md`」。人格只由 owner 修改，这一点不变。
@@ -53,6 +61,7 @@ ADR 0007 S3 的技能页复用同一套历史、差异与恢复的界面。人�
 |---|---|---|
 | P1 | `persona_revisions`、默认人格写入、run 从 SQLite 读人格、`/v1/persona` 接口、`acorn persona show/set`；删除人格文件与相关步骤 | 在测试机上 `acorn persona set` 一份新人格，新对话里的语气随之改变；基于同一 revision 的两次保存，后一次失败 |
 | P2 | App 设置页的人格编辑、历史、差异与恢复 | owner 在手机上改人格，下一次对话按新人格回答；恢复到 revision 1 后，下一次 run 用回默认人格 |
+| P3 | `owner` 表、run 与记忆抽取读称呼、`/v1/owner`、`acorn owner show/set`、App 设置里的「怎么称呼你」；删除配置里的 `owner.name` | owner 在手机上设好称呼，下一次对话里 agent 用这个称呼；之后记下的关于 owner 的事实用这个称呼，不再写成 owner |
 
 ## 代价
 
@@ -60,3 +69,4 @@ ADR 0007 S3 的技能页复用同一套历史、差异与恢复的界面。人�
 - 在服务器上不能再直接用编辑器改人格，要经过 CLI 或 App。
 - 人格进入每次 run 的 Instruction，写得越长，记忆和对话能用的预算越少；每次修改还会让模型侧的前缀缓存失效一次。
 - 新版本的默认人格不会到达已有安装，想要新写法得 owner 自己改。
+- 配置里还写着 `owner.name` 的安装，升级后后端会因为未知字段拒绝启动；删掉这一行，再在 App 或用 `acorn owner set` 设称呼。改称呼不会改写已经记下的事实，旧事实保留当时的写法。

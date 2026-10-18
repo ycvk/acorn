@@ -45,6 +45,11 @@ type PersonaReader interface {
 	Persona(ctx context.Context) (core.PersonaRevision, error)
 }
 
+// OwnerReader reads what Acorn calls the owner.
+type OwnerReader interface {
+	OwnerName(ctx context.Context) (core.OwnerName, error)
+}
+
 // SkillLibrary reads the skills in use, puts their files where the agent
 // runs them and has their MCP servers run there.
 type SkillLibrary interface {
@@ -64,6 +69,7 @@ type RuntimeDeps struct {
 	Config             *config.Config
 	Store              RuntimeStore
 	Persona            PersonaReader
+	Owner              OwnerReader
 	Skills             SkillLibrary
 	SkillPackages      skills.PackageHost
 	SkillServers       SkillServerHost

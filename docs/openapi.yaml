@@ -22,6 +22,7 @@ tags:
   - name: knowledge
   - name: memories
   - name: persona
+  - name: owner
   - name: browser
 paths:
   /healthz:
@@ -1535,6 +1536,57 @@ paths:
           $ref: '#/components/responses/DeviceRevoked'
         '404':
           $ref: '#/components/responses/PersonaNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/owner:
+    get:
+      tags: [owner]
+      summary: Load what Acorn calls the owner
+      description: |
+        Every run and every memory extraction reads the current name. An
+        empty name means Acorn calls the owner "the owner".
+      operationId: clientGetOwner
+      responses:
+        '200':
+          description: What Acorn calls the owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Owner'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [owner]
+      summary: Set what Acorn calls the owner
+      description: |
+        Saves `name`, trimmed. An empty name leaves the owner unnamed. The
+        next run uses it; facts already written keep the name they were
+        written with.
+      operationId: clientSetOwner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetOwnerRequest'
+      responses:
+        '200':
+          description: The saved name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Owner'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -3819,6 +3871,29 @@ components:
           type: integer
           format: int64
           minimum: 1
+
+    Owner:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: What Acorn calls the owner; empty when unnamed.
+        updated_at:
+          type: string
+          format: date-time
+          description: When the name was last saved; absent when never saved.
+
+    SetOwnerRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+          description: At most 40 characters once trimmed, without line breaks or other control characters. Empty leaves the owner unnamed.
 
     KnowledgeNoteSummary:
       type: object

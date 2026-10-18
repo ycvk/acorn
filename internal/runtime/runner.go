@@ -117,6 +117,9 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.Persona == nil {
 		return RuntimeDeps{}, errors.New("persona reader is required")
 	}
+	if opts.Owner == nil {
+		return RuntimeDeps{}, errors.New("owner name reader is required")
+	}
 	if opts.Skills == nil {
 		return RuntimeDeps{}, errors.New("skill library is required")
 	}
@@ -137,6 +140,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		Config:             cfg,
 		Store:              store,
 		Persona:            opts.Persona,
+		Owner:              opts.Owner,
 		Skills:             opts.Skills,
 		SkillPackages:      opts.SkillPackages,
 		SkillServers:       opts.SkillServers,
@@ -195,6 +199,11 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		return nil, err
 	}
 	persona := current.Content
+	ownerName, err := f.deps.Owner.OwnerName(ctx)
+	if err != nil {
+		return nil, err
+	}
+	instruction := buildStableInstruction(persona, ownerName.Name)
 	infos := make([]*schema.ToolInfo, 0)
 	for _, spec := range capabilities.catalog.EnabledSpecs() {
 		if spec.Tool != nil {
@@ -217,7 +226,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
-	mem, err := prepareRunMemory(ctx, f.deps, req, buildStableInstruction(persona, f.deps.Config.Owner.Name), toolTokens, owner)
+	mem, err := prepareRunMemory(ctx, f.deps, req, instruction, toolTokens, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +238,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		Catalog:     capabilities.catalog,
 		Skills:      capabilities.skillSnapshot,
 		SkillDir:    capabilities.skillDir,
-		Instruction: buildStableInstruction(persona, f.deps.Config.Owner.Name),
+		Instruction: instruction,
 		FailedCalls: failed,
 	})
 	if err != nil {
@@ -248,6 +257,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 
 type RunnerFactoryOptions struct {
 	Persona               PersonaReader
+	Owner                 OwnerReader
 	Skills                SkillLibrary
 	SkillPackages         skills.PackageHost
 	SkillServers          SkillServerHost
@@ -327,8 +337,8 @@ const operatingRules = `Operating rules:
 - Some calls pause for the owner's approval on their phone: tools their rules name, and commands or browser actions with consequences outside the workstation, such as paying, sending, deleting or changing settings. Say what you are about to do before such a call. Do not retry a call the owner declined or the rules blocked.
 - Prefer available MCP tools over inventing capabilities, and never claim a tool succeeded when it did not run.`
 
-// ownerIdentity ties the configured name to the owner, so sources that name
-// the owner are read as being about them.
+// ownerIdentity ties the name the owner saved to the owner, so sources that
+// name the owner are read as being about them.
 func ownerIdentity(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {

@@ -37,6 +37,8 @@ func Run(ctx context.Context, args []string) error {
 		return runSkills(ctx, args[1:])
 	case "persona":
 		return runPersona(ctx, args[1:])
+	case "owner":
+		return runOwner(ctx, args[1:])
 	case "pair":
 		return runPair(ctx, args[1:])
 	case "token":
@@ -77,6 +79,8 @@ Usage:
   acorn skills secret set [-c path] SKILL NAME < value
   acorn persona show [-c path] [--json]
   acorn persona set [-c path] FILE
+  acorn owner show [-c path] [--json]
+  acorn owner set [-c path] NAME
   acorn pair [-c path] [--json] [--qr] [--ttl duration] [--server-url url]
   acorn token issue [-c path] [--json] [--name name] [--ttl duration]
   acorn devices list [-c path] [--json]

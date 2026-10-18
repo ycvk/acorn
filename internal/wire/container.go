@@ -43,6 +43,7 @@ type Container struct {
 	knowledge          *api.KnowledgeService
 	memories           *api.MemoryService
 	persona            *api.PersonaService
+	owner              *api.OwnerService
 	captures           *api.CaptureService
 	phoneNotifications *api.PhoneNotificationService
 	now                *api.NowService
@@ -89,6 +90,11 @@ func (c *Container) Persona() *api.PersonaService {
 	return c.persona
 }
 
+// Owner lets the owner read and set what Acorn calls them.
+func (c *Container) Owner() *api.OwnerService {
+	return c.owner
+}
+
 func (c *Container) Capabilities() *api.CapabilitiesService {
 	return c.capabilities
 }
@@ -119,6 +125,7 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		Knowledge:          c.knowledge,
 		Memories:           c.memories,
 		Persona:            c.persona,
+		Owner:              c.owner,
 		Captures:           c.captures,
 		PhoneNotifications: c.phoneNotifications,
 		Now:                c.now,
@@ -257,6 +264,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	}
 	container.memories = memories
 	if container.persona, err = api.NewPersonaService(db, clock); err != nil {
+		return nil, err
+	}
+	if container.owner, err = api.NewOwnerService(db, clock); err != nil {
 		return nil, err
 	}
 

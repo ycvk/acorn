@@ -196,6 +196,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Files:                 db,
 		Uploads:               uploads,
 		Persona:               db,
+		Owner:                 db,
 		Skills:                skillLibrary,
 		SkillPackages:         skillPackages,
 		SkillServers:          skillServers,

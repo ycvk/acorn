@@ -75,6 +75,7 @@ var schemaRequiredTables = map[string][]string{
 	"skill_trigger_events":      {"id", "skill", "trigger_name", "event_key", "text", "status", "run_id", "seen_at"},
 	"skill_threads":             {"skill", "thread_id"},
 	"persona_revisions":         {"revision", "content", "content_sha256", "author", "device_id", "at"},
+	"owner":                     {"id", "name", "updated_at"},
 	"watches":                   {"id", "name", "kind", "target", "selector", "mode", "interval_seconds", "status", "session_id", "next_check_at", "last_checked_at", "last_error", "failures", "snapshot", "created_at", "updated_at"},
 	"watch_items":               {"id", "watch_id", "item_key", "title", "url", "summary", "published_at", "status", "run_id", "seen_at"},
 	"routine_runs":              {"routine", "slot", "thread_id", "run_id", "created_at"},

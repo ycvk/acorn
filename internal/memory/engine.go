@@ -31,8 +31,9 @@ type Config struct {
 	Count     func(context.Context, string) (int, error)
 	Clock     func() time.Time
 	Location  *time.Location
-	// OwnerName is how extracted facts refer to the owner; empty means "owner".
-	OwnerName        string
+	// Owner says how extracted facts refer to the owner; an unnamed owner
+	// is "owner".
+	Owner            OwnerReader
 	DailyTokens      int
 	AutonomousTokens int
 	BatchTokens      int
@@ -40,11 +41,16 @@ type Config struct {
 	HistoryTokens    int
 }
 
+// OwnerReader reads what Acorn calls the owner.
+type OwnerReader interface {
+	OwnerName(ctx context.Context) (core.OwnerName, error)
+}
+
 type Engine struct{ cfg Config }
 
 func New(cfg Config) (*Engine, error) {
-	if cfg.Store == nil || cfg.Model == nil || cfg.Embedder == nil || cfg.Count == nil || cfg.Clock == nil || cfg.Location == nil {
-		return nil, errors.New("memory requires store, model, embedder, token counter, clock and location")
+	if cfg.Store == nil || cfg.Model == nil || cfg.Embedder == nil || cfg.Count == nil || cfg.Clock == nil || cfg.Location == nil || cfg.Owner == nil {
+		return nil, errors.New("memory requires store, model, embedder, token counter, clock, location and owner name reader")
 	}
 	if cfg.Index.Model == "" || cfg.Index.Dimensions <= 0 || cfg.BatchTokens < 256 || cfg.ContextTokens < 256 || cfg.HistoryTokens < 256 {
 		return nil, errors.New("memory requires model names, embedding dimensions and positive token budgets")

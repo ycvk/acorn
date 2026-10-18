@@ -19,7 +19,7 @@ make test-architecture             # 架构边界守卫
 make generate                      # go generate ./internal/api
 make release-linux-amd64           # 纯 Go 交叉编译
 
-acorn serve | run | smoke | init | doctor | skills | persona | pair | token | devices | memory reindex | backup | restore
+acorn serve | run | smoke | init | doctor | skills | persona | owner | pair | token | devices | memory reindex | backup | restore
 cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assembleDebug
 ```
 
@@ -28,7 +28,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - `internal/wire.Container` 是唯一实例化具体实现的组合根;`cmd/acorn → cli → wire → {api, runtime, store, memory, wake, notify, knowledge, watch}`。`serve` 是唯一长驻的后端命令,同时运行 wake 调度器;`workstation serve` 只在工作机容器里运行。
 - `internal/core` 只放 domain 类型与 consumer-owned 接口,不导入任何内部包。业务包只依赖 core 接口;只有 `internal/wire` 导入 `internal/store`。
 - 运行时主链在 `internal/runtime`:`Executor → RunnerFactory → Eino ChatModelAgent → adk.Runner`,事件投影写入 SQLite。
-- SQLite(modernc.org/sqlite)是运行时、记忆、约定与索引的真相;写入经单连接串行执行,记忆召回与整合候选读取走 `query_only` 的 WAL 只读连接池。人格存在 SQLite,每次保存是一个新 revision,只由 owner 经 App 接口或 `acorn persona` 修改;启动时没有人格才写入默认人格。
+- SQLite(modernc.org/sqlite)是运行时、记忆、约定与索引的真相;写入经单连接串行执行,记忆召回与整合候选读取走 `query_only` 的 WAL 只读连接池。人格存在 SQLite,每次保存是一个新 revision,只由 owner 经 App 接口或 `acorn persona` 修改;启动时没有人格才写入默认人格。Acorn 对 owner 的称呼也存在 SQLite,只由 owner 经 App 接口或 `acorn owner` 设置,run 与记忆抽取读当前称呼。
 - `docs/openapi.yaml` 是唯一 wire contract,mobile 客户端由它生成;客户端只接收 `internal/api/projection.go` 投影的 RunEvent。
 
 ## 硬边界

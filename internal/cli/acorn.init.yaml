@@ -42,9 +42,6 @@ review:
   timeout_seconds: 20
 
 owner:
-  # Your name, so the agent knows it is you when shared material, notifications
-  # or memories name you. Empty leaves you unnamed.
-  name: ""
   # IANA timezone used to show times and to read wake times given in local time,
   # e.g. Asia/Shanghai.
   timezone: UTC

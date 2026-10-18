@@ -40,7 +40,7 @@ func testPresenceDeps(t *testing.T, bridge core.ToolCallContextBridge) (Presence
 	if err != nil {
 		t.Fatal(err)
 	}
-	engine, err := memory.New(memory.Config{Store: db, Model: unusedMemoryModel{}, ModelName: "fixture", Embedder: unusedEmbedding{}, Index: core.MemoryIndex{Model: "fixture", Dimensions: 1}, Count: func(_ context.Context, s string) (int, error) { return len(s), nil }, Clock: func() time.Time { return presenceTestNow }, Location: loc, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
+	engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: unusedMemoryModel{}, ModelName: "fixture", Embedder: unusedEmbedding{}, Index: core.MemoryIndex{Model: "fixture", Dimensions: 1}, Count: func(_ context.Context, s string) (int, error) { return len(s), nil }, Clock: func() time.Time { return presenceTestNow }, Location: loc, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
 	if err != nil {
 		t.Fatal(err)
 	}

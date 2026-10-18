@@ -273,7 +273,7 @@ func TestMemoryLongitudinalResearch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		engine, err := memory.New(memory.Config{Store: db, Model: model, ModelName: provider.Model, Embedder: embed, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Location: time.UTC, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
+		engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: model, ModelName: provider.Model, Embedder: embed, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Location: time.UTC, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
 		if err != nil {
 			t.Fatal(err)
 		}

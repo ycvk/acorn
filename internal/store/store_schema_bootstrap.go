@@ -150,6 +150,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + personaTable + `
 
+` + ownerTable + `
+
 ` + threadFilesTable + `
 
 ` + runProcessesTable + `
@@ -351,6 +353,14 @@ const personaTable = `CREATE TABLE IF NOT EXISTS persona_revisions (
     author TEXT NOT NULL,
     device_id TEXT NOT NULL DEFAULT '',
     at TEXT NOT NULL
+);`
+
+// ownerTable is shared with the migration that adds it. Its one row holds
+// what Acorn calls the owner; no row means the owner is unnamed.
+const ownerTable = `CREATE TABLE IF NOT EXISTS owner (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    name TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );`
 
 // notificationsTable is shared with the migrations that rebuild the table, so

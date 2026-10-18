@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
 
 // A fact the owner kept from a message is shown to extraction of that same
-// message as an existing record, with the owner's name; a draft that repeats
+// message as an existing record, with the name the owner saved; a draft that repeats
 // its content is dropped, a differently worded one is still committed.
 func TestExtractionDropsDraftsRepeatingFactsTheSourceAlreadySupports(t *testing.T) {
 	cases := []struct {
@@ -26,7 +27,9 @@ func TestExtractionDropsDraftsRepeatingFactsTheSourceAlreadySupports(t *testing.
 			ctx := context.Background()
 			model := &protocolModel{}
 			engine, db := testEngine(t, model, 100000)
-			engine.cfg.OwnerName = "小明"
+			if _, err := db.SetOwnerName(ctx, "小明", time.Date(2026, 10, 18, 9, 0, 0, 0, time.UTC)); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := db.CreateSession(ctx, "food", "饮食"); err != nil {
 				t.Fatal(err)
 			}

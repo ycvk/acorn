@@ -18,6 +18,7 @@ type Dependencies struct {
 	Knowledge          *KnowledgeService
 	Memories           *MemoryService
 	Persona            *PersonaService
+	Owner              *OwnerService
 	Captures           *CaptureService
 	PhoneNotifications *PhoneNotificationService
 	Now                *NowService
@@ -39,6 +40,7 @@ type Server struct {
 	knowledge          *KnowledgeService
 	memories           *MemoryService
 	persona            *PersonaService
+	owner              *OwnerService
 	captures           *CaptureService
 	phoneNotifications *PhoneNotificationService
 	now                *NowService

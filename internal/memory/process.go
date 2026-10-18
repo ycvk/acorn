@@ -125,7 +125,11 @@ func (e *Engine) extract(ctx context.Context, job core.MemoryJob) error {
 	if err != nil {
 		return err
 	}
-	in := extractionInput{Source: source, OwnerTimezone: e.cfg.Location.String(), OwnerName: e.cfg.OwnerName, Existing: make([]extractionExisting, 0, len(existing))}
+	owner, err := e.cfg.Owner.OwnerName(ctx)
+	if err != nil {
+		return err
+	}
+	in := extractionInput{Source: source, OwnerTimezone: e.cfg.Location.String(), OwnerName: owner.Name, Existing: make([]extractionExisting, 0, len(existing))}
 	for _, r := range existing {
 		in.Existing = append(in.Existing, extractionExisting{ID: r.ID, Content: r.Content, Scope: r.Scope})
 	}

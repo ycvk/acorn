@@ -139,7 +139,7 @@ func TestMemoryLiveEvaluation(t *testing.T) {
 	}
 	stage := "ingestion"
 	var providerCalls []evalProviderCall
-	engine, err := memory.New(memory.Config{Store: db, Model: measuredEvaluationModel{inner: model, stage: &stage, calls: &providerCalls}, ModelName: provider.Model, Embedder: measuredEvaluationEmbedding{inner: embed, stage: &stage, calls: &providerCalls}, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Location: time.UTC, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
+	engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: measuredEvaluationModel{inner: model, stage: &stage, calls: &providerCalls}, ModelName: provider.Model, Embedder: measuredEvaluationEmbedding{inner: embed, stage: &stage, calls: &providerCalls}, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Location: time.UTC, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
 	if err != nil {
 		t.Fatal(err)
 	}

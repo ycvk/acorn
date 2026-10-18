@@ -45,7 +45,7 @@ func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, clock
 	if err != nil {
 		return nil, err
 	}
-	return memory.New(memory.Config{Ready: ready, Store: db, Model: model, ModelName: provider.Model, Embedder: voyage, Index: index, Count: counter.CountText, Clock: clock, Location: loc, OwnerName: cfg.Owner.Name, DailyTokens: cfg.Memory.DailyTokens, AutonomousTokens: cfg.Wake.DailyTokens, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
+	return memory.New(memory.Config{Ready: ready, Store: db, Model: model, ModelName: provider.Model, Embedder: voyage, Index: index, Count: counter.CountText, Clock: clock, Location: loc, Owner: db, DailyTokens: cfg.Memory.DailyTokens, AutonomousTokens: cfg.Wake.DailyTokens, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
 }
 
 func (c *Container) MemoryWorker() *memory.Engine { return c.memory }

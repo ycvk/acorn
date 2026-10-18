@@ -70,7 +70,14 @@
   - `internal/presence/presence_test.go`
   - `internal/api/handlers_persona_test.go`
   - `internal/wire/persona_e2e_test.go`
-- **Instruction = 人格 + 内置规则 + 技能说明**：人格是 run 开始时的当前人格；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
+- **称呼只由 owner 设置**：Acorn 怎么称呼 owner 存在 SQLite 的 `owner` 表，去掉首尾空白后至多 40 个字、不含控制字符，空表示没有称呼。owner 经 `/v1/owner` 与 `acorn owner set` 设置，agent 没有写称呼的工具。每个 run 开始时与每次记忆抽取时读当前称呼：前者写进 Instruction，后者用它写关于 owner 的事实，没有称呼时写成 owner。配置不读 `owner.name`，写了按未知字段拒绝。
+  - `internal/store/store_owner_test.go`
+  - `internal/presence/owner_test.go`
+  - `internal/api/handlers_owner_test.go`
+  - `internal/wire/owner_e2e_test.go`
+  - `internal/memory/extraction_dedup_test.go`
+  - `internal/config/config_load_test.go`
+- **Instruction = 人格 + 称呼 + 内置规则 + 技能说明**：人格是 run 开始时的当前人格，有称呼时其后一句说明 owner 是谁；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/skill_backend_test.go`
   - `internal/wire/persona_e2e_test.go`

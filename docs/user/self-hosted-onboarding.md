@@ -322,11 +322,19 @@ acorn persona set my-persona.md
 
 Every save is a new revision on top of the one it replaces and fails when the persona changed in the meantime. A persona is trimmed, must not be empty and holds at most 8 KiB, because it goes into every model call. The agent cannot change it; preferences you tell it in conversation become memories.
 
-Set your name and timezone. The name tells the agent it is you when shared material, notifications or memories name you; the timezone makes it read and schedule times the way you say them:
+Tell Acorn what to call you in the app, under 设置 → Acorn → 怎么称呼你, or on the server:
+
+```bash
+acorn owner set 温遥
+acorn owner show
+```
+
+The name tells the agent it is you when shared material, notifications or memories name you, and facts it learns about you are written with it. It holds at most 40 characters on one line; `acorn owner set ""` leaves you unnamed. The next conversation uses a new name; facts already written keep theirs.
+
+Set your timezone so the agent reads and schedules times the way you say them:
 
 ```yaml
 owner:
-  name: 温遥                 # optional
   timezone: Asia/Shanghai   # IANA name; default UTC
 ```
 
@@ -383,8 +391,9 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `mcp.providers[].tool_safety` (use `approval.require`)
 - the whole `browser` block (the workstation runs the browser)
 - the whole `skills` block (skills live in the database)
+- `owner.name` (set it in the app or with `acorn owner set`)
 
-New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`, `approval.block`, `approval.allow`, `review.*`. Then run `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`, `approval.block`, `approval.allow`, `review.*`. Then run `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/`) is no longer read. Delete it once you no longer need it.
 

@@ -12,6 +12,7 @@ import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.push.PushStatus
+import io.ycvk.acorn.data.repository.OwnerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,12 +23,14 @@ import javax.inject.Inject
 
 /**
  * Backs the settings page: loads server [SystemStatus] so the owner can
- * inspect the model, readiness and the connection, and disconnect the device.
+ * inspect the model, readiness and the connection, sets what Acorn calls the
+ * owner, and disconnects the device.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
 	private val authController: AuthController,
 	private val pushManager: PushManager,
+    private val ownerRepository: OwnerRepository,
 ) : ViewModel() {
 
 	val pushStatus: StateFlow<PushStatus> = pushManager.status
@@ -41,6 +44,16 @@ class SettingsViewModel @Inject constructor(
 
 	private val _error = MutableStateFlow<String?>(null)
 	val error: StateFlow<String?> = _error.asStateFlow()
+
+    /** What Acorn calls the owner: null until loaded, empty when unnamed. */
+    private val _ownerName = MutableStateFlow<String?>(null)
+    val ownerName: StateFlow<String?> = _ownerName.asStateFlow()
+
+    private val _savingName = MutableStateFlow(false)
+    val savingName: StateFlow<Boolean> = _savingName.asStateFlow()
+
+    private val _nameError = MutableStateFlow<String?>(null)
+    val nameError: StateFlow<String?> = _nameError.asStateFlow()
 
     val profile: ConnectionProfile?
         get() = (authController.authState.value as? AuthState.Connected)?.profile
@@ -60,6 +73,34 @@ class SettingsViewModel @Inject constructor(
 				_error.value = userMessage(e)
             }
         }
+        viewModelScope.launch {
+            try {
+                _ownerName.value = withContext(Dispatchers.IO) { ownerRepository.current(profile) }.name
+            } catch (e: Exception) {
+                _error.value = userMessage(e)
+            }
+        }
+    }
+
+    /** Saves [name] as what Acorn calls the owner; an empty name leaves them unnamed. */
+    fun saveOwnerName(name: String, onSaved: () -> Unit) {
+        val profile = profile ?: return
+        _savingName.value = true
+        _nameError.value = null
+        viewModelScope.launch {
+            try {
+                _ownerName.value = withContext(Dispatchers.IO) { ownerRepository.setName(profile, name) }.name
+                onSaved()
+            } catch (e: Exception) {
+                _nameError.value = userMessage(e)
+            } finally {
+                _savingName.value = false
+            }
+        }
+    }
+
+    fun dismissNameError() {
+        _nameError.value = null
     }
 
     fun disconnect() {
