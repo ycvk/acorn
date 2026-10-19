@@ -171,7 +171,7 @@ fun NowScreen(
                         pending = pending,
                         today = today,
                         zone = zone,
-                        onBriefingClick = onThreadClick,
+                        onThreadClick = onThreadClick,
                         onCancel = { cancelling = it },
                         onPause = viewModel::pauseWatch,
                         onResume = viewModel::resumeWatch,
@@ -223,7 +223,7 @@ private fun LazyListScope.nowSections(
     pending: List<PendingActionSummary>,
     today: LocalDate,
     zone: ZoneId,
-    onBriefingClick: (String) -> Unit,
+    onThreadClick: (String) -> Unit,
     onCancel: (NowCommitment) -> Unit,
     onPause: (Long) -> Unit,
     onResume: (Long) -> Unit,
@@ -244,7 +244,7 @@ private fun LazyListScope.nowSections(
 
     if (briefing != null) {
         item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
-        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onBriefingClick(briefing.threadId) }) }
+        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onThreadClick(briefing.threadId) }) }
     }
 
     if (now.commitments.isNotEmpty()) {
@@ -261,7 +261,7 @@ private fun LazyListScope.nowSections(
         item(key = "concerns:label") { SectionLabel("正在跟进", count = now.concerns.size) }
         items(now.concerns, key = { "concern:${it.id}" }) { concern ->
             Column(Modifier.animateItem()) {
-                ConcernRow(concern)
+                ConcernRow(concern, onClick = { onThreadClick(concern.threadId) })
                 Hairline(inset = ScreenPadding + 28.dp)
             }
         }
@@ -343,15 +343,19 @@ private fun CommitmentRow(commitment: NowCommitment, wake: WakeTime, onCancel: (
 }
 
 @Composable
-private fun ConcernRow(concern: NowConcern) {
+private fun ConcernRow(concern: NowConcern, onClick: () -> Unit) {
     val colors = AcornTheme.colors
     val waiting = concern.state == NowConcern.State.waiting
     ListRow(
+        onClick = onClick,
         verticalAlignment = Alignment.Top,
         leading = { StatusGlyph(if (waiting) Status.Waiting else Status.Running, Modifier.padding(top = 3.dp)) },
         trailing = if (waiting) ({ Tag("在等你", color = colors.warningInk, container = colors.warningSoft) }) else null,
     ) {
         Text(concern.title, style = AcornTheme.type.body, color = colors.ink)
+        concern.outcome?.let {
+            Text("成品：$it", style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
         if (concern.reason.isNotBlank()) {
             Text(concern.reason, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }

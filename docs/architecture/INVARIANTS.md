@@ -207,7 +207,7 @@
   - `internal/core/core_test.go`
   - `internal/api/openapi_test.go`
   - `internal/wire/approval_restart_e2e_test.go`
-- **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（来源已遗忘或所在对话已删除的不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
+- **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（带所在对话与 outcome，没有 outcome 的不输出该字段；来源已遗忘或所在对话已删除的不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
   - `internal/api/now_test.go`
   - `internal/wire/now_acceptance_e2e_test.go`
 - **技能页只读后端事实**：`GET /v1/skills` 列出全部技能，已停用的也在内，带当前 revision、作者、更新时间、是否带清单、下一次 run 能否列出与原因（静态工具资格加缺的密钥）；当前 revision 的 `SKILL.md` 或清单解析不了的技能带 `problem`，列表与详情照常返回。详情给出当前 revision 的 `SKILL.md`、附带文件（不超过 64 KiB 的 UTF-8 文本带内容）与写入它的 run，有清单时给出清单内容、运行状态与密钥是否已设置；修订历史给出每个 revision 的作者、run、时间、是否停用与包哈希，任一 revision 可读。两个 revision 的差异由后端逐文件按行算好：`SKILL.md` 在前，其余按路径，相同的文件省略，文本文件是带 3 行上下文的 hunk，非文本只标出变化；App 只渲染。

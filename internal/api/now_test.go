@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -96,7 +97,10 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 			{ID: 2, Content: "周报", State: "scheduled", SessionID: "thread_b", WakeAt: nowTestTime.Add(time.Hour), Recurrence: "0 9 * * 1"},
 		},
 		occurrences: []core.CommitmentOccurrence{{ID: 9, CommitmentID: 1, DueAt: nowTestTime.Add(-time.Hour), State: "due", RunID: "run_x"}},
-		concerns:    []core.MemoryConcern{{ID: "concern_1", Title: "准备 Go 面试", State: "waiting", Reason: "等面试时间", UpdatedAt: nowTestTime}},
+		concerns: []core.MemoryConcern{
+			{ID: "concern_1", Title: "准备 Go 面试", State: "waiting", Reason: "等面试时间", ThreadID: "thread_goals", UpdatedAt: nowTestTime},
+			{ID: "concern_2", Title: "整理 tokio 变更", Outcome: "一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更", State: "active", Reason: "读完了 v1.5", ThreadID: "thread_tokio", ReviewAt: nowTestTime.Add(time.Hour), UpdatedAt: nowTestTime},
+		},
 		watches: []core.Watch{
 			{ID: 1, Name: "tokio", Kind: core.WatchGitHub, Mode: core.WatchModeDigest, Status: core.WatchActive, Interval: time.Hour, NextCheckAt: nowTestTime},
 			{ID: 2, Name: "price", Kind: core.WatchWeb, Mode: core.WatchModeImmediate, Status: core.WatchFailing, Interval: 30 * time.Minute, NextCheckAt: nowTestTime, LastCheckedAt: nowTestTime, LastError: "selector matched nothing", Failures: 3},
@@ -121,8 +125,15 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 	if got.Commitments[1].Recurrence != "0 9 * * 1" {
 		t.Fatalf("recurring commitment = %+v", got.Commitments[1])
 	}
-	if len(got.Concerns) != 1 || got.Concerns[0].State != "waiting" || got.Concerns[0].ReviewAt != nil {
-		t.Fatalf("concerns = %+v", got.Concerns)
+	wantConcerns := []NowConcernDTO{
+		{ID: "concern_1", ThreadID: "thread_goals", Title: "准备 Go 面试", State: "waiting", Reason: "等面试时间", UpdatedAt: nowTestTime},
+		{ID: "concern_2", ThreadID: "thread_tokio", Title: "整理 tokio 变更", Outcome: "一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更", State: "active", Reason: "读完了 v1.5", ReviewAt: optionalUTC(nowTestTime.Add(time.Hour)), UpdatedAt: nowTestTime},
+	}
+	if !reflect.DeepEqual(got.Concerns, wantConcerns) {
+		t.Fatalf("concerns = %+v, want %+v", got.Concerns, wantConcerns)
+	}
+	if strings.Count(rec.Body.String(), `"outcome"`) != 1 {
+		t.Fatalf("a concern without an outcome must omit it: %s", rec.Body.String())
 	}
 	if len(got.Watches) != 2 || got.Watches[0].ID != 2 || got.Watches[0].IntervalSeconds != 1800 || got.Watches[1].LastCheckedAt != nil {
 		t.Fatalf("watches = %+v", got.Watches)

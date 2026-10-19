@@ -52,7 +52,7 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 		t.Fatalf("create thread: %v", err)
 	}
 	for title, source := range map[string]core.MemorySource{"准备 Go 面试": kept, "京都旅行": forgotten} {
-		if _, err := c.store.SaveConcern(ctx, core.MemoryConcern{Title: title, State: "active", Reason: "owner goal", SourceID: source.ID, ThreadID: "thread_goals", CreatedAt: start, UpdatedAt: start}, 0); err != nil {
+		if _, err := c.store.SaveConcern(ctx, core.MemoryConcern{Title: title, Outcome: "一份 Markdown 清单", State: "active", Reason: "owner goal", SourceID: source.ID, ThreadID: "thread_goals", CreatedAt: start, UpdatedAt: start}, 0); err != nil {
 			t.Fatalf("save concern: %v", err)
 		}
 	}
@@ -68,7 +68,7 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 	if len(now.Commitments) != 1 || now.Commitments[0].ID != commitment.ID || now.Commitments[0].State != "scheduled" {
 		t.Fatalf("commitments = %+v", now.Commitments)
 	}
-	if len(now.Concerns) != 1 || now.Concerns[0].Title != "准备 Go 面试" {
+	if len(now.Concerns) != 1 || now.Concerns[0].Title != "准备 Go 面试" || now.Concerns[0].ThreadID != "thread_goals" || now.Concerns[0].Outcome != "一份 Markdown 清单" {
 		t.Fatalf("concerns = %+v, the forgotten one must be gone", now.Concerns)
 	}
 	if len(now.Watches) != 1 || now.Watches[0].Status != "active" {

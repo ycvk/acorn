@@ -74,7 +74,9 @@ type NowOccurrenceDTO struct {
 // NowConcernDTO is an active or waiting concern.
 type NowConcernDTO struct {
 	ID        string     `json:"id"`
+	ThreadID  string     `json:"thread_id"`
 	Title     string     `json:"title"`
+	Outcome   string     `json:"outcome,omitempty"`
 	State     string     `json:"state"`
 	Reason    string     `json:"reason"`
 	ReviewAt  *time.Time `json:"review_at,omitempty"`
@@ -176,7 +178,7 @@ func nowConcerns(concerns []core.MemoryConcern) []NowConcernDTO {
 	out := make([]NowConcernDTO, 0, len(concerns))
 	for _, c := range concerns {
 		out = append(out, NowConcernDTO{
-			ID: c.ID, Title: c.Title, State: c.State, Reason: c.Reason,
+			ID: c.ID, ThreadID: c.ThreadID, Title: c.Title, Outcome: c.Outcome, State: c.State, Reason: c.Reason,
 			ReviewAt: optionalUTC(c.ReviewAt), UpdatedAt: c.UpdatedAt.UTC(),
 		})
 	}

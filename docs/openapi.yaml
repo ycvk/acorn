@@ -3621,17 +3621,24 @@ components:
     NowConcern:
       type: object
       additionalProperties: false
-      required: [id, title, state, reason, updated_at]
+      required: [id, thread_id, title, state, reason, updated_at]
       properties:
         id:
           type: string
+        thread_id:
+          type: string
+          description: The conversation the concern was created in; the agent works on it there.
         title:
           type: string
+        outcome:
+          type: string
+          description: What the agent hands to the owner when the concern is done; absent for a concern that only follows something.
         state:
           type: string
           enum: [active, waiting]
         reason:
           type: string
+          description: The latest reason, written with the current revision.
         review_at:
           type: string
           format: date-time
