@@ -23,6 +23,7 @@
 
 package io.ycvk.acorn.api.models
 
+import io.ycvk.acorn.api.models.BrowserDragPoint
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -31,9 +32,11 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param tab 
- * @param type `down`, `move` and `up` drag on the page: the left mouse button presses at a point, moves with the button held and releases. Each is its own request, sent in order; the button stays pressed between them.
- * @param x x of a point in a frame, for tap, scroll, down, move and up.
- * @param y y of a point in a frame, for tap, scroll, down, move and up.
+ * @param type `down`, `move` and `up` drag on the page: the left mouse button presses where the finger went down, follows its points with the button held and releases where it lifted. Each is its own request, sent in order and one at a time; a `down` while a drag lost its `up` releases that drag first.
+ * @param x x of a point in a frame, for tap, scroll, down and up.
+ * @param y y of a point in a frame, for tap, scroll, down and up.
+ * @param t For up, milliseconds from the finger going down to it lifting.
+ * @param points For move, every point the finger passed since the previous move, in time order.
  * @param dy Scroll distance in a frame's units; positive scrolls down.
  * @param text Text to type into the focused field.
  * @param key 
@@ -46,17 +49,25 @@ data class BrowserInputRequest (
     @Json(name = "tab")
     val tab: kotlin.String,
 
-    /* `down`, `move` and `up` drag on the page: the left mouse button presses at a point, moves with the button held and releases. Each is its own request, sent in order; the button stays pressed between them. */
+    /* `down`, `move` and `up` drag on the page: the left mouse button presses where the finger went down, follows its points with the button held and releases where it lifted. Each is its own request, sent in order and one at a time; a `down` while a drag lost its `up` releases that drag first. */
     @Json(name = "type")
     val type: BrowserInputRequest.Type,
 
-    /* x of a point in a frame, for tap, scroll, down, move and up. */
+    /* x of a point in a frame, for tap, scroll, down and up. */
     @Json(name = "x")
     val x: kotlin.Double? = null,
 
-    /* y of a point in a frame, for tap, scroll, down, move and up. */
+    /* y of a point in a frame, for tap, scroll, down and up. */
     @Json(name = "y")
     val y: kotlin.Double? = null,
+
+    /* For up, milliseconds from the finger going down to it lifting. */
+    @Json(name = "t")
+    val t: kotlin.Long? = null,
+
+    /* For move, every point the finger passed since the previous move, in time order. */
+    @Json(name = "points")
+    val points: kotlin.collections.List<BrowserDragPoint>? = null,
 
     /* Scroll distance in a frame's units; positive scrolls down. */
     @Json(name = "dy")
@@ -76,7 +87,7 @@ data class BrowserInputRequest (
 ) {
 
     /**
-     * `down`, `move` and `up` drag on the page: the left mouse button presses at a point, moves with the button held and releases. Each is its own request, sent in order; the button stays pressed between them.
+     * `down`, `move` and `up` drag on the page: the left mouse button presses where the finger went down, follows its points with the button held and releases where it lifted. Each is its own request, sent in order and one at a time; a `down` while a drag lost its `up` releases that drag first.
      *
      * Values: tap,scroll,down,move,up,text,key,navigate,back,reload
      */

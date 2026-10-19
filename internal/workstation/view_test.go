@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
@@ -22,16 +23,24 @@ import (
 )
 
 // fakeDevTools serves /json/list and a DevTools socket per page that answers
-// every command and records it. Screenshots return shots in turn, repeating
-// the last, and a non-nil hold delays their replies until it closes.
+// every command and records it with the socket it came on and when.
+// Screenshots return shots in turn, repeating the last, and a non-nil hold
+// delays their replies until it closes. A screencast sends cast as its frame.
+// Mouse events are answered after answerAfter, while later commands go on, as
+// a page that handles input at its next frame.
 type fakeDevTools struct {
-	server *httptest.Server
-	mu     sync.Mutex
-	calls  []string
-	params []map[string]any
-	shots  []string
-	taken  int
-	hold   chan struct{}
+	server      *httptest.Server
+	mu          sync.Mutex
+	calls       []string
+	params      []map[string]any
+	sockets     []int
+	times       []time.Time
+	opened      int
+	shots       []string
+	taken       int
+	hold        chan struct{}
+	cast        string
+	answerAfter time.Duration
 }
 
 // testShot is a base64 JPEG of width by height pixels in one gray level.
@@ -67,6 +76,10 @@ func newFakeDevTools(t *testing.T) *fakeDevTools {
 			return
 		}
 		defer conn.CloseNow()
+		f.mu.Lock()
+		f.opened++
+		socket := f.opened
+		f.mu.Unlock()
 		ctx := r.Context()
 		for {
 			_, data, err := conn.Read(ctx)
@@ -85,6 +98,9 @@ func newFakeDevTools(t *testing.T) *fakeDevTools {
 			f.mu.Lock()
 			f.calls = append(f.calls, msg.Method)
 			f.params = append(f.params, msg.Params)
+			f.sockets = append(f.sockets, socket)
+			f.times = append(f.times, time.Now())
+			cast, answerAfter := f.cast, f.answerAfter
 			result := map[string]any{}
 			if msg.Method == "Page.captureScreenshot" && len(f.shots) > 0 {
 				result["data"] = f.shots[min(f.taken, len(f.shots)-1)]
@@ -103,8 +119,23 @@ func newFakeDevTools(t *testing.T) *fakeDevTools {
 				result = map[string]any{"cssVisualViewport": map[string]any{"offsetX": 10, "offsetY": 20, "scale": 0.5}}
 			}
 			reply, _ := json.Marshal(map[string]any{"id": msg.ID, "result": result})
+			if msg.Method == "Input.dispatchMouseEvent" && answerAfter > 0 {
+				go func() {
+					time.Sleep(answerAfter)
+					_ = conn.Write(ctx, websocket.MessageText, reply)
+				}()
+				continue
+			}
 			if err := conn.Write(ctx, websocket.MessageText, reply); err != nil {
 				return
+			}
+			if msg.Method == "Page.startScreencast" {
+				frame, _ := json.Marshal(map[string]any{"method": "Page.screencastFrame", "params": map[string]any{
+					"data": cast, "sessionId": 1, "metadata": map[string]any{"deviceWidth": 412, "deviceHeight": 700, "pageScaleFactor": 1},
+				}})
+				if err := conn.Write(ctx, websocket.MessageText, frame); err != nil {
+					return
+				}
 			}
 		}
 	})
@@ -117,6 +148,30 @@ func (f *fakeDevTools) recorded() ([]string, []map[string]any) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]string(nil), f.calls...), append([]map[string]any(nil), f.params...)
+}
+
+// call is one recorded command with the socket it came on and when.
+type call struct {
+	method string
+	params map[string]any
+	socket int
+	at     time.Time
+}
+
+func (f *fakeDevTools) since(n int) []call {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []call
+	for i := n; i < len(f.calls); i++ {
+		out = append(out, call{f.calls[i], f.params[i], f.sockets[i], f.times[i]})
+	}
+	return out
+}
+
+func (f *fakeDevTools) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.calls)
 }
 
 func newViewClient(t *testing.T) (*Client, *fakeDevTools) {
@@ -245,29 +300,201 @@ func TestViewInput(t *testing.T) {
 	}
 }
 
-func TestViewDrag(t *testing.T) {
+func TestViewDragPlaysOnOneSessionAtTheFingersTimes(t *testing.T) {
 	client, devtools := newViewClient(t)
-	for _, in := range []Input{{Tab: "T1", Type: "down", X: 100, Y: 200}, {Tab: "T1", Type: "move", X: 140, Y: 200}, {Tab: "T1", Type: "up", X: 180, Y: 200}} {
+	before := devtools.count()
+	sent := time.Now()
+	for _, in := range []Input{
+		{Tab: "T1", Type: "down", X: 100, Y: 200},
+		{Tab: "T1", Type: "move", Points: []DragPoint{{X: 110, Y: 200, T: 40}, {X: 120, Y: 201, T: 80}}},
+		{Tab: "T1", Type: "move", Points: []DragPoint{{X: 130, Y: 202, T: 120}}},
+		{Tab: "T1", Type: "up", X: 140, Y: 202, T: 160},
+	} {
 		if err := client.BrowserInput(t.Context(), in); err != nil {
 			t.Fatal(err)
 		}
 	}
-	calls, params := devtools.recorded()
-	want := []string{"Page.getLayoutMetrics", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Page.getLayoutMetrics", "Input.dispatchMouseEvent", "Page.getLayoutMetrics", "Input.dispatchMouseEvent"}
-	if !reflect.DeepEqual(calls, want) {
-		t.Fatalf("calls = %v", calls)
+	calls := devtools.since(before)
+	var methods []string
+	for _, c := range calls {
+		methods = append(methods, c.method)
+		if c.socket != calls[0].socket {
+			t.Fatalf("calls came on sockets %d and %d, want one session for the drag", calls[0].socket, c.socket)
+		}
 	}
-	// Each point lands at offset + point / scale, as a tap does.
-	for i, w := range map[int]map[string]any{
-		2: {"type": "mousePressed", "x": float64(210), "y": float64(420), "buttons": float64(1)},
-		4: {"type": "mouseMoved", "x": float64(290), "y": float64(420), "buttons": float64(1)},
-		6: {"type": "mouseReleased", "x": float64(370), "y": float64(420), "buttons": float64(0)},
+	if want := []string{"Page.getLayoutMetrics", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent"}; !reflect.DeepEqual(methods, want) {
+		t.Fatalf("calls = %v", methods)
+	}
+	// Each point lands at offset + point / scale, the viewport read once at the down.
+	for i, w := range []struct {
+		kind    string
+		x, y    float64
+		buttons float64
+		after   time.Duration
+	}{
+		{"mouseMoved", 210, 420, 0, 0},
+		{"mousePressed", 210, 420, 1, 0},
+		{"mouseMoved", 230, 420, 1, 40 * time.Millisecond},
+		{"mouseMoved", 250, 422, 1, 80 * time.Millisecond},
+		{"mouseMoved", 270, 424, 1, 120 * time.Millisecond},
+		{"mouseReleased", 290, 424, 0, 160 * time.Millisecond},
 	} {
-		for k, v := range w {
-			if params[i][k] != v {
-				t.Fatalf("params[%d] = %v, want %s %v", i, params[i], k, v)
+		c := calls[i+1]
+		buttons, _ := c.params["buttons"].(float64)
+		if c.params["type"] != w.kind || c.params["x"] != w.x || c.params["y"] != w.y || buttons != w.buttons {
+			t.Fatalf("event %d = %v, want %s at %v,%v buttons %v", i, c.params, w.kind, w.x, w.y, w.buttons)
+		}
+		// Timers never fire early. The exact times are TestReplay's.
+		if gap := c.at.Sub(sent); gap < dragDelay+w.after {
+			t.Fatalf("event %d came %s after the down was sent, want at least %s", i, gap, dragDelay+w.after)
+		}
+	}
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "move", Points: []DragPoint{{X: 1, Y: 1, T: 200}}}); err == nil || !strings.Contains(err.Error(), ErrNoDrag.Error()) {
+		t.Fatalf("move after the up err = %v", err)
+	}
+}
+
+func TestViewDragDoesNotWaitForThePageToHandleEachEvent(t *testing.T) {
+	client, devtools := newViewClient(t)
+	devtools.mu.Lock()
+	devtools.answerAfter = 40 * time.Millisecond
+	devtools.mu.Unlock()
+	before := devtools.count()
+	points := []DragPoint{}
+	for i := int64(1); i <= 10; i++ {
+		points = append(points, DragPoint{X: 100 + float64(i), Y: 200, T: 8 * i})
+	}
+	for _, in := range []Input{
+		{Tab: "T1", Type: "down", X: 100, Y: 200},
+		{Tab: "T1", Type: "move", Points: points},
+		{Tab: "T1", Type: "up", X: 110, Y: 200, T: 88},
+	} {
+		if err := client.BrowserInput(t.Context(), in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var moves []time.Time
+	for _, c := range devtools.since(before) {
+		if c.method == "Input.dispatchMouseEvent" && c.params["type"] == "mouseMoved" && c.params["buttons"] == float64(1) {
+			moves = append(moves, c.at)
+		}
+	}
+	// Waiting for each answer would spread the ten moves over 400 ms.
+	if len(moves) != 10 || moves[9].Sub(moves[0]) > 150*time.Millisecond {
+		t.Fatalf("%d moves over %s, want 10 over about 72ms", len(moves), moves[len(moves)-1].Sub(moves[0]))
+	}
+}
+
+func TestViewDragRejectsPointsOutOfOrder(t *testing.T) {
+	client, devtools := newViewClient(t)
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "move", Points: []DragPoint{{X: 1, Y: 1, T: 10}}}); err == nil || !strings.Contains(err.Error(), ErrNoDrag.Error()) {
+		t.Fatalf("move without a drag err = %v", err)
+	}
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "down", X: 100, Y: 200}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "move", Points: []DragPoint{{X: 110, Y: 200, T: 40}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "move", Points: []DragPoint{{X: 120, Y: 200, T: 30}}}); err == nil || !strings.Contains(err.Error(), "time order") {
+		t.Fatalf("earlier point err = %v", err)
+	}
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "move", Points: []DragPoint{{X: 120, Y: 200, T: 60_000}}}); err == nil || !strings.Contains(err.Error(), "ahead of the drag") {
+		t.Fatalf("future point err = %v", err)
+	}
+	time.Sleep(dragDelay + 100*time.Millisecond)
+	// A down while the drag lost its up releases that drag where the page had it.
+	before := devtools.count()
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "down", X: 50, Y: 60}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "up", X: 50, Y: 60, T: 10}); err != nil {
+		t.Fatal(err)
+	}
+	var events []string
+	for _, c := range devtools.since(before) {
+		if c.method == "Input.dispatchMouseEvent" {
+			events = append(events, fmt.Sprintf("%s %v,%v", c.params["type"], c.params["x"], c.params["y"]))
+		}
+	}
+	if want := []string{"mouseReleased 230,420", "mouseMoved 110,140", "mousePressed 110,140", "mouseReleased 110,140"}; !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v", events)
+	}
+}
+
+func TestViewStreamsTheScreencastWhileADragPlays(t *testing.T) {
+	client, devtools := newViewClient(t)
+	shot, cast := testShot(t, 824, 1400, 40), testShot(t, 412, 700, 120)
+	devtools.mu.Lock()
+	devtools.shots = []string{shot}
+	devtools.cast = cast
+	devtools.mu.Unlock()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	body, err := client.BrowserFrames(ctx, "T1", Viewport{Width: 412, Height: 700})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer body.Close()
+	frames := make(chan Frame, 8)
+	go func() {
+		reader := bufio.NewReader(body)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+			if data, ok := strings.CutPrefix(line, "data: "); ok {
+				var frame Frame
+				if json.Unmarshal([]byte(strings.TrimSpace(data)), &frame) == nil {
+					frames <- frame
+				}
 			}
 		}
+	}()
+	next := func() Frame {
+		select {
+		case f := <-frames:
+			return f
+		case <-ctx.Done():
+			t.Fatal("no frame")
+			return Frame{}
+		}
+	}
+	if f := next(); f.JPEG != shot || f.Width != 412 || f.Height != 700 {
+		t.Fatalf("first frame = %dx%d", f.Width, f.Height)
+	}
+	before := devtools.count()
+	if err := client.BrowserInput(ctx, Input{Tab: "T1", Type: "down", X: 100, Y: 200}); err != nil {
+		t.Fatal(err)
+	}
+	// The screencast's frames have the units of the screenshots'.
+	if f := next(); f.JPEG != cast || f.Width != 412 || f.Height != 700 {
+		t.Fatalf("drag frame = %dx%d, want the screencast's", f.Width, f.Height)
+	}
+	if err := client.BrowserInput(ctx, Input{Tab: "T1", Type: "up", X: 120, Y: 200, T: 30}); err != nil {
+		t.Fatal(err)
+	}
+	if f := next(); f.JPEG != shot {
+		t.Fatal("no screenshot after the drag")
+	}
+	var pressed, released, stopped, shotAfter bool
+	for _, c := range devtools.since(before) {
+		switch {
+		case c.method == "Input.dispatchMouseEvent" && c.params["type"] == "mousePressed":
+			pressed = true
+		case c.method == "Input.dispatchMouseEvent" && c.params["type"] == "mouseReleased":
+			released = true
+		case c.method == "Page.stopScreencast":
+			stopped = true
+		case c.method == "Page.captureScreenshot" && pressed && !released:
+			t.Fatal("a screenshot was taken while the button was pressed")
+		case c.method == "Page.captureScreenshot" && released:
+			shotAfter = true
+		}
+	}
+	if !pressed || !released || !stopped || !shotAfter {
+		t.Fatalf("pressed %v released %v stopped %v screenshot after %v", pressed, released, stopped, shotAfter)
 	}
 }
 
@@ -311,14 +538,14 @@ func TestViewInputAtAPointWaitsForAScreenshot(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	moved := make(chan error, 1)
-	go func() { moved <- client.BrowserInput(ctx, Input{Tab: "T1", Type: "move", X: 100, Y: 200}) }()
+	tapped := make(chan error, 1)
+	go func() { tapped <- client.BrowserInput(ctx, Input{Tab: "T1", Type: "tap", X: 100, Y: 200}) }()
 	time.Sleep(200 * time.Millisecond)
 	if calls, _ := devtools.recorded(); calls[len(calls)-1] != "Page.captureScreenshot" {
-		t.Fatalf("calls = %v, want the move to wait for the screenshot", calls)
+		t.Fatalf("calls = %v, want the tap to wait for the screenshot", calls)
 	}
 	close(hold)
-	if err := <-moved; err != nil {
+	if err := <-tapped; err != nil {
 		t.Fatal(err)
 	}
 	calls, _ := devtools.recorded()

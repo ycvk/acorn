@@ -757,10 +757,18 @@ paths:
       tags: [browser]
       summary: Use a page of the agent's browser
       description: |
-        Performs one input on the page: a tap or scroll at a point of a frame,
-        in the units of the frame's width and height (a page zoomed out to fit
-        the phone is mapped back onto the page), typed text, a key, navigation
-        to an http(s) URL, back or reload.
+        Performs one input on the page: a tap, scroll or drag at points of a
+        frame, in the units of the frame's width and height (a page zoomed out
+        to fit the phone is mapped back onto the page), typed text, a key,
+        navigation to an http(s) URL, back or reload.
+
+        A drag plays on the page at the times the finger made it, 150 ms after
+        its `down` arrives, so moves sent in batches reach the page at the
+        finger's own spacing. A batch that arrives after its points are due
+        plays at once and the rest of the drag moves back by as much. `down`
+        and `move` return once queued; `up` returns once the drag has played,
+        with any failure in it. While a drag plays, frames come from the
+        browser's screencast at one image pixel per unit.
       operationId: clientBrowserInput
       requestBody:
         required: true
@@ -3513,17 +3521,32 @@ components:
           enum: [tap, scroll, down, move, up, text, key, navigate, back, reload]
           description: >-
             `down`, `move` and `up` drag on the page: the left mouse button
-            presses at a point, moves with the button held and releases. Each is
-            its own request, sent in order; the button stays pressed between
-            them.
+            presses where the finger went down, follows its points with the
+            button held and releases where it lifted. Each is its own request,
+            sent in order and one at a time; a `down` while a drag lost its
+            `up` releases that drag first.
         x:
           type: number
           format: double
-          description: x of a point in a frame, for tap, scroll, down, move and up.
+          description: x of a point in a frame, for tap, scroll, down and up.
         y:
           type: number
           format: double
-          description: y of a point in a frame, for tap, scroll, down, move and up.
+          description: y of a point in a frame, for tap, scroll, down and up.
+        t:
+          type: integer
+          format: int64
+          minimum: 0
+          description: For up, milliseconds from the finger going down to it lifting.
+        points:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/BrowserDragPoint'
+          description: >-
+            For move, every point the finger passed since the previous move, in
+            time order.
         dy:
           type: number
           format: double
@@ -3537,6 +3560,23 @@ components:
         url:
           type: string
           description: http(s) URL to open, for navigate.
+    BrowserDragPoint:
+      type: object
+      required: [x, y, t]
+      properties:
+        x:
+          type: number
+          format: double
+          description: x of the point in a frame.
+        y:
+          type: number
+          format: double
+          description: y of the point in a frame.
+        t:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Milliseconds from the finger going down to it being here.
     NowResponse:
       type: object
       additionalProperties: false

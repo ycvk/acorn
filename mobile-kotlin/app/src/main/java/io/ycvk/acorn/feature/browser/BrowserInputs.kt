@@ -47,34 +47,49 @@ fun movedTouch(dx: Float, dy: Float, slop: Float): Touch? = when {
     else -> Touch.Scroll
 }
 
+/** Where the finger was during a drag, [t] milliseconds after it went down. */
+data class DragSample(val at: ViewportPoint, val t: Long)
+
+/** The most points one move carries, as the server accepts. */
+const val MAX_DRAG_POINTS = 1000
+
 /**
- * Sends drags to the page in order, one request at a time. A move waiting to
- * be sent gives way to a newer one, so the page follows where the finger is
- * rather than replaying where it was; downs and ups are always sent. After a
- * move the next request waits [moveSpacingMs]. Call [add] on the main thread
- * with a [scope] that runs there.
+ * Sends drags to the page in order, one request at a time, without dropping a
+ * point. Samples that come while a request is out join the waiting move, and
+ * moves go at most every [batchMs] until the finger lifts; then the last move
+ * and the up go at once. The page plays the samples at the times the finger
+ * made them. Call [add] on the main thread with a [scope] that runs there.
  */
 class DragSender(
     private val scope: CoroutineScope,
-    private val moveSpacingMs: Long,
+    private val batchMs: Long,
     private val send: suspend (BrowserInputRequest) -> Unit,
 ) {
     private val waiting = ArrayDeque<BrowserInputRequest>()
     private var sending: Job? = null
+    private var gap: Job? = null
 
     fun add(request: BrowserInputRequest) {
-        if (request.type == BrowserInputRequest.Type.move && waiting.lastOrNull()?.type == BrowserInputRequest.Type.move) {
-            waiting.removeLast()
+        val last = waiting.lastOrNull()
+        val joined = last?.points.orEmpty() + request.points.orEmpty()
+        if (request.type == BrowserInputRequest.Type.move && last?.type == BrowserInputRequest.Type.move && joined.size <= MAX_DRAG_POINTS) {
+            waiting[waiting.lastIndex] = last.copy(points = joined)
+        } else {
+            waiting.addLast(request)
         }
-        waiting.addLast(request)
+        if (request.type != BrowserInputRequest.Type.move) gap?.cancel()
         if (sending?.isActive != true) sending = scope.launch { drain() }
     }
 
     private suspend fun drain() {
         while (true) {
-            val next = waiting.removeFirstOrNull() ?: return
-            send(next)
-            if (next.type == BrowserInputRequest.Type.move) delay(moveSpacingMs)
+            val next = waiting.firstOrNull() ?: return
+            if (next.type == BrowserInputRequest.Type.move) {
+                // The move waits here for the batch's time and gathers what comes meanwhile.
+                gap?.join()
+                gap = scope.launch { delay(batchMs) }
+            }
+            send(waiting.removeFirst())
         }
     }
 }
