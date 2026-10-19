@@ -1,7 +1,7 @@
 ---
 adr: 0009
 title: 后台把关切推进到成品
-status: Proposed
+status: Accepted
 date: 2026-10-17
 supersedes: []
 ---
