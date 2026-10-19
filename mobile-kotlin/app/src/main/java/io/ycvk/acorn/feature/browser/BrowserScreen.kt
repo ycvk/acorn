@@ -1,5 +1,7 @@
 package io.ycvk.acorn.feature.browser
 
+import android.os.Build
+import android.view.InputDevice
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,17 +42,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -214,9 +219,10 @@ private fun AddressBar(enabled: Boolean, onOpen: (String) -> Boolean) {
  * it moves past the touch slop, it taps; moving past the slop mostly up or
  * down, it scrolls the page by as much once lifted; moving past the slop
  * mostly sideways, or held still for the long-press timeout, it drags. A drag
- * presses the page's mouse where the finger went down, moves it with the
- * finger and releases it where the finger lifts, so a slider follows the
- * finger.
+ * presses the page's mouse where the finger went down, moves it through every
+ * sample the finger made, with the time it made it, from the first one, and
+ * releases it where the finger lifts, so a slider follows the finger as it
+ * moved.
  */
 @Composable
 private fun Frame(
@@ -224,10 +230,19 @@ private fun Frame(
     onTap: (ViewportPoint) -> Unit,
     onScroll: (ViewportPoint, Double) -> Unit,
     onDragDown: (ViewportPoint) -> Unit,
-    onDragMove: (ViewportPoint) -> Unit,
-    onDragUp: (ViewportPoint) -> Unit,
+    onDragMove: (List<DragSample>) -> Unit,
+    onDragUp: (ViewportPoint, Long) -> Unit,
 ) {
     val haptics = rememberHaptics()
+    // Touches batched per frame get a point the system makes up for the frame's
+    // time; delivered one by one, they carry only the samples the finger made.
+    val view = LocalView.current
+    DisposableEffect(view) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) view.requestUnbufferedDispatch(InputDevice.SOURCE_CLASS_POINTER)
+        onDispose {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) view.requestUnbufferedDispatch(InputDevice.SOURCE_CLASS_NONE)
+        }
+    }
     Image(
         bitmap = frame.image,
         contentDescription = "Agent 的浏览器画面",
@@ -236,9 +251,12 @@ private fun Frame(
             .aspectRatio(frame.width.toFloat() / frame.height.toFloat())
             .pointerInput(frame.width, frame.height) {
                 fun point(at: Offset) = viewportPoint(at.x, at.y, size.width.toFloat(), size.height.toFloat(), frame.width, frame.height)
+                fun samples(traced: List<Traced>) = traced.map { DragSample(point(it.at), it.t) }
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     var at = down.position
+                    // What the finger does before the touch is known to be a drag is part of the drag.
+                    val early = mutableListOf<Traced>()
                     val touch = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
                         var decided: Touch? = null
                         while (decided == null) {
@@ -246,6 +264,7 @@ private fun Frame(
                             if (change == null || !change.pressed) {
                                 decided = Touch.Tap
                             } else {
+                                early += traced(change, down.uptimeMillis)
                                 at = change.position
                                 decided = movedTouch(at.x - down.position.x, at.y - down.position.y, viewConfiguration.touchSlop)
                             }
@@ -264,15 +283,16 @@ private fun Frame(
                         Touch.Drag -> {
                             haptics.longPress()
                             onDragDown(point(down.position))
-                            if (at != down.position) onDragMove(point(at))
+                            if (early.isNotEmpty()) onDragMove(samples(early))
+                            var last = early.lastOrNull() ?: Traced(down.position, 0)
                             // A gesture cut short, as when the frame changes size, still releases the mouse.
                             try {
-                                at = follow(down.id, at) {
-                                    at = it
-                                    onDragMove(point(it))
+                                last = trace(down.id, down.uptimeMillis, last) {
+                                    last = it.last()
+                                    onDragMove(samples(it))
                                 }
                             } finally {
-                                onDragUp(point(at))
+                                onDragUp(point(last.at), last.t)
                             }
                         }
                     }
@@ -281,8 +301,42 @@ private fun Frame(
     )
 }
 
-/** Follows pointer [id] from [from] until it lifts, calling [onMove] as it moves; returns where it lifted. */
-private suspend fun AwaitPointerEventScope.follow(id: PointerId, from: Offset, onMove: (Offset) -> Unit = {}): Offset {
+/** Where a finger was, [t] milliseconds after it went down. */
+private data class Traced(val at: Offset, val t: Long)
+
+/** The samples the system batched into [change] since the last event, from a pointer that went down at [downAt] uptime. */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun history(change: PointerInputChange, downAt: Long): List<Traced> =
+    change.historical.map { Traced(it.position, it.uptimeMillis - downAt) }
+
+/** The samples [change] carries: its history, then its own when it moved. */
+private fun traced(change: PointerInputChange, downAt: Long): List<Traced> =
+    history(change, downAt) + listOfNotNull(Traced(change.position, change.uptimeMillis - downAt).takeIf { change.positionChanged() })
+
+/**
+ * Follows pointer [id], down at [downAt] uptime, from [from] until it lifts,
+ * passing each event's samples to [onMove]; returns where and when it lifted.
+ */
+private suspend fun AwaitPointerEventScope.trace(id: PointerId, downAt: Long, from: Traced, onMove: (List<Traced>) -> Unit): Traced {
+    var last = from
+    while (true) {
+        val change = awaitPointerEvent().changes.firstOrNull { it.id == id } ?: return last
+        if (!change.pressed) {
+            val moves = history(change, downAt)
+            if (moves.isNotEmpty()) onMove(moves)
+            return Traced(change.position, change.uptimeMillis - downAt)
+        }
+        val samples = traced(change, downAt)
+        if (samples.isNotEmpty()) {
+            change.consume()
+            last = samples.last()
+            onMove(samples)
+        }
+    }
+}
+
+/** Follows pointer [id] from [from] until it lifts; returns where it lifted. */
+private suspend fun AwaitPointerEventScope.follow(id: PointerId, from: Offset): Offset {
     var at = from
     while (true) {
         val change = awaitPointerEvent().changes.firstOrNull { it.id == id } ?: return at
@@ -290,7 +344,6 @@ private suspend fun AwaitPointerEventScope.follow(id: PointerId, from: Offset, o
         if (change.positionChanged()) {
             change.consume()
             at = change.position
-            onMove(at)
         }
     }
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image/jpeg"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -36,17 +37,20 @@ type Frame struct {
 }
 
 // Input is one thing the owner does in the view: tap, scroll or drag at
-// viewport coordinates, type text, press a key, or navigate. A drag is a down,
-// any number of moves and an up, each its own Input.
+// viewport coordinates, type text, press a key, or navigate. A drag is a down
+// at X and Y, moves carrying the finger's Points and an up at X and Y, T
+// milliseconds after the down, each its own Input.
 type Input struct {
-	Tab  string  `json:"tab"`
-	Type string  `json:"type"`
-	X    float64 `json:"x,omitempty"`
-	Y    float64 `json:"y,omitempty"`
-	DY   float64 `json:"dy,omitempty"`
-	Text string  `json:"text,omitempty"`
-	Key  string  `json:"key,omitempty"`
-	URL  string  `json:"url,omitempty"`
+	Tab    string      `json:"tab"`
+	Type   string      `json:"type"`
+	X      float64     `json:"x,omitempty"`
+	Y      float64     `json:"y,omitempty"`
+	T      int64       `json:"t,omitempty"`
+	Points []DragPoint `json:"points,omitempty"`
+	DY     float64     `json:"dy,omitempty"`
+	Text   string      `json:"text,omitempty"`
+	Key    string      `json:"key,omitempty"`
+	URL    string      `json:"url,omitempty"`
 }
 
 // Viewport is the screen a phone shows a stream on, in CSS pixels. The zero
@@ -85,11 +89,16 @@ var keys = map[string]int{"Enter": 13, "Backspace": 8, "Tab": 9, "Escape": 27, "
 type View struct {
 	devtools string
 	http     *http.Client
-	// screenshot is held while a stream takes a screenshot and while an input
-	// at a point is performed. A screenshot of a phone-sized view lays the
-	// page out again at its pixel size until it is taken, and a point given
-	// meanwhile lands at the wrong scale.
-	screenshot sync.Mutex
+	// page is held while a stream takes a screenshot, while an input at a
+	// point is performed and from a drag's down until its release. A
+	// screenshot of a phone-sized view lays the page out again at its pixel
+	// size until it is taken, and a point given meanwhile lands at the wrong
+	// scale.
+	page chan struct{}
+	mu   sync.Mutex
+	// drag is the latest drag; dragged closes when the next one begins.
+	drag    *drag
+	dragged chan struct{}
 }
 
 // NewView talks to the DevTools endpoint at devtools, such as
@@ -102,7 +111,21 @@ func NewView(devtools string, httpClient *http.Client) (*View, error) {
 	if httpClient == nil {
 		return nil, errors.New("view http client is required")
 	}
-	return &View{devtools: strings.TrimRight(devtools, "/"), http: httpClient}, nil
+	return &View{devtools: strings.TrimRight(devtools, "/"), http: httpClient, page: make(chan struct{}, 1), dragged: make(chan struct{})}, nil
+}
+
+// hold takes the page for a screenshot, an input at a point or a drag.
+func (v *View) hold(ctx context.Context) error {
+	select {
+	case v.page <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (v *View) unhold() {
+	<-v.page
 }
 
 type devtoolsTarget struct {
@@ -176,7 +199,9 @@ const frameInterval = 200 * time.Millisecond
 // Stream sends images of the tab to send until ctx ends or send fails, after
 // bringing the tab to the front. A non-zero viewport lays the page out as a
 // phone of that size meanwhile. A slow viewer slows the stream, since the
-// next image is taken after send returns.
+// next image is taken after send returns. While a drag is in progress the
+// images come from the browser's screencast, since screenshots would move
+// the drag's points.
 func (v *View) Stream(ctx context.Context, tab string, viewport Viewport, send func(Frame) error) error {
 	conn, err := v.attach(ctx, tab)
 	if err != nil {
@@ -200,6 +225,24 @@ func (v *View) Stream(ctx context.Context, tab string, viewport Viewport, send f
 	defer ticker.Stop()
 	var last string
 	for {
+		dragging, dragged := v.dragState()
+		if dragging != nil {
+			if err := screencast(ctx, conn, dragging.done, send); err != nil {
+				return err
+			}
+			// The screencast's frames are softer; the next screenshot replaces them.
+			last = ""
+			continue
+		}
+		select {
+		case v.page <- struct{}{}:
+		case <-dragged:
+			continue
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-conn.done:
+			return err
+		}
 		raw, err := v.capture(ctx, conn)
 		if err != nil {
 			return err
@@ -233,9 +276,9 @@ func (v *View) Stream(ctx context.Context, tab string, viewport Viewport, send f
 // screenshotTimeout bounds one screenshot, which inputs at a point wait for.
 const screenshotTimeout = 10 * time.Second
 
+// capture takes a screenshot of the held page and lets the page go.
 func (v *View) capture(ctx context.Context, conn *cdpConn) (json.RawMessage, error) {
-	v.screenshot.Lock()
-	defer v.screenshot.Unlock()
+	defer v.unhold()
 	shotCtx, cancel := context.WithTimeout(ctx, screenshotTimeout)
 	defer cancel()
 	raw, err := conn.call(shotCtx, "Page.captureScreenshot", map[string]any{"format": "jpeg", "quality": 70})
@@ -243,6 +286,58 @@ func (v *View) capture(ctx context.Context, conn *cdpConn) (json.RawMessage, err
 		return nil, fmt.Errorf("screenshot: no image after %s", screenshotTimeout)
 	}
 	return raw, err
+}
+
+// dragFrameInterval spaces the frames of a drag. The screencast sends one
+// each time the page changes; the latest is sent at this pace.
+const dragFrameInterval = 100 * time.Millisecond
+
+// screencast sends the frames the browser composites until stop closes. It
+// leaves the page's layout alone, so a drag's points land where they are
+// sent, and its frames have one image pixel per CSS pixel.
+func screencast(ctx context.Context, conn *cdpConn, stop <-chan struct{}, send func(Frame) error) error {
+	frames, unsubscribe := conn.subscribe("Page.screencastFrame")
+	defer unsubscribe()
+	if _, err := conn.call(ctx, "Page.startScreencast", map[string]any{"format": "jpeg", "quality": 70}); err != nil {
+		return err
+	}
+	ticker := time.NewTicker(dragFrameInterval)
+	defer ticker.Stop()
+	var latest *Frame
+	for {
+		select {
+		case raw := <-frames:
+			var f struct {
+				Data      string `json:"data"`
+				SessionID int    `json:"sessionId"`
+				Metadata  struct {
+					DeviceWidth  float64 `json:"deviceWidth"`
+					DeviceHeight float64 `json:"deviceHeight"`
+				} `json:"metadata"`
+			}
+			if err := json.Unmarshal(raw, &f); err != nil {
+				return fmt.Errorf("screencast frame: %w", err)
+			}
+			if _, err := conn.call(ctx, "Page.screencastFrameAck", map[string]any{"sessionId": f.SessionID}); err != nil {
+				return err
+			}
+			latest = &Frame{JPEG: f.Data, Width: int(math.Round(f.Metadata.DeviceWidth)), Height: int(math.Round(f.Metadata.DeviceHeight))}
+		case <-ticker.C:
+			if latest != nil {
+				if err := send(*latest); err != nil {
+					return err
+				}
+				latest = nil
+			}
+		case <-stop:
+			_, err := conn.call(ctx, "Page.stopScreencast", map[string]any{})
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-conn.done:
+			return err
+		}
+	}
 }
 
 // frameOf sizes a base64 JPEG screenshot taken at scale device pixels per
@@ -260,10 +355,18 @@ func frameOf(data string, scale int) (Frame, error) {
 }
 
 // Do performs one input on its tab. Inputs at a point arrive in the stream's
-// coordinates and are moved onto the page first. Each input attaches anew; the
-// browser keeps a drag's button pressed between a down and its up although
-// they arrive on different DevTools sessions.
+// coordinates and are moved onto the page first. A drag's down starts playing
+// the drag on its own DevTools session, its moves join it and its up returns
+// once it has played; any other input attaches anew.
 func (v *View) Do(ctx context.Context, in Input) error {
+	switch in.Type {
+	case "down":
+		return v.dragDown(ctx, in)
+	case "move":
+		return v.dragMove(in)
+	case "up":
+		return v.dragUp(ctx, in)
+	}
 	commands, err := inputCommands(in)
 	if err != nil {
 		return err
@@ -277,8 +380,10 @@ func (v *View) Do(ctx context.Context, in Input) error {
 		return goBack(ctx, conn)
 	}
 	if pointed[in.Type] {
-		v.screenshot.Lock()
-		defer v.screenshot.Unlock()
+		if err := v.hold(ctx); err != nil {
+			return err
+		}
+		defer v.unhold()
 		viewport, err := visualViewport(ctx, conn)
 		if err != nil {
 			return err
@@ -330,8 +435,8 @@ func (v cssVisualViewport) toPage(in Input) Input {
 	return in
 }
 
-// pointed are the inputs at a point in the stream.
-var pointed = map[string]bool{"tap": true, "scroll": true, "down": true, "move": true, "up": true}
+// pointed are the inputs at a point in the stream other than a drag's.
+var pointed = map[string]bool{"tap": true, "scroll": true}
 
 type command struct {
 	method string
@@ -424,6 +529,7 @@ type cdpConn struct {
 	nextID  atomic.Int64
 	mu      sync.Mutex
 	pending map[int64]chan cdpReply
+	events  map[string]chan json.RawMessage
 	done    chan error
 	cancel  context.CancelFunc
 }
@@ -445,7 +551,7 @@ func dialCDP(ctx context.Context, wsURL string) (*cdpConn, error) {
 	// Screenshots of a full page exceed the default message limit.
 	ws.SetReadLimit(32 << 20)
 	readCtx, cancel := context.WithCancel(context.Background())
-	c := &cdpConn{ws: ws, pending: map[int64]chan cdpReply{}, done: make(chan error, 1), cancel: cancel}
+	c := &cdpConn{ws: ws, pending: map[int64]chan cdpReply{}, events: map[string]chan json.RawMessage{}, done: make(chan error, 1), cancel: cancel}
 	go c.read(readCtx)
 	return c, nil
 }
@@ -463,6 +569,8 @@ func (c *cdpConn) read(ctx context.Context) {
 			Error  *struct {
 				Message string `json:"message"`
 			} `json:"error"`
+			Method string          `json:"method"`
+			Params json.RawMessage `json:"params"`
 		}
 		if err := json.Unmarshal(data, &msg); err != nil {
 			c.fail(fmt.Errorf("browser tab message: %w", err))
@@ -479,7 +587,19 @@ func (c *cdpConn) read(ctx context.Context) {
 				ch <- reply
 			}
 		}
+		var overflow bool
+		if ch, ok := c.events[msg.Method]; ok && msg.ID == 0 {
+			select {
+			case ch <- msg.Params:
+			default:
+				overflow = true
+			}
+		}
 		c.mu.Unlock()
+		if overflow {
+			c.fail(fmt.Errorf("browser tab: %s events are not being read", msg.Method))
+			return
+		}
 	}
 }
 
@@ -496,7 +616,40 @@ func (c *cdpConn) fail(err error) {
 	}
 }
 
+// subscribe delivers the params of the tab's method events until the returned
+// function is called. A screencast has at most a few frames waiting for their
+// acknowledgement, well within the buffer.
+func (c *cdpConn) subscribe(method string) (<-chan json.RawMessage, func()) {
+	ch := make(chan json.RawMessage, 16)
+	c.mu.Lock()
+	c.events[method] = ch
+	c.mu.Unlock()
+	return ch, func() {
+		c.mu.Lock()
+		delete(c.events, method)
+		c.mu.Unlock()
+	}
+}
+
 func (c *cdpConn) call(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {
+	reply, err := c.send(ctx, method, params)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case r := <-reply:
+		if r.err != nil {
+			return nil, fmt.Errorf("%s: %w", method, r.err)
+		}
+		return r.result, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// send writes a command and returns the channel its reply comes on, so the
+// next command can go before the browser has answered this one.
+func (c *cdpConn) send(ctx context.Context, method string, params map[string]any) (<-chan cdpReply, error) {
 	id := c.nextID.Add(1)
 	reply := make(chan cdpReply, 1)
 	c.mu.Lock()
@@ -511,15 +664,7 @@ func (c *cdpConn) call(ctx context.Context, method string, params map[string]any
 	if err := c.ws.Write(writeCtx, websocket.MessageText, data); err != nil {
 		return nil, fmt.Errorf("%s: %w", method, err)
 	}
-	select {
-	case r := <-reply:
-		if r.err != nil {
-			return nil, fmt.Errorf("%s: %w", method, r.err)
-		}
-		return r.result, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return reply, nil
 }
 
 // close detaches from the tab; the tab stays open. The connection is often

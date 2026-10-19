@@ -314,6 +314,10 @@
 - **浏览器画面只给已认证的 owner**：工作机的 DevTools 只在容器内开放；`/v1/browser/*` 经设备认证转发到工作机，未配置工作机时返回 `browser_unavailable`，未知标签页返回 `browser_tab_not_found`；导航只接受 http(s)。画面流可按 owner 的手机尺寸排版，宽高要么都给、要么都不给。
   - `internal/workstation/view_test.go`
   - `internal/api/handlers_browser_test.go`
+- **拖动按手指的时间回放**：App 把拖动中手指的每个采样连同距按下的毫秒数分批发送，不丢点，不合成点；工作机一次拖动只用一个 DevTools 会话，视口换算在 down 时做一次，down 到达 150 ms 后按每个点的时间派发，不等页面应答下一个点；某批迟到时它到即派发，之后的点整体后移同样时长；up 等整次拖动派发完才返回。拖动期间画面来自 screencast，不截图。
+  - `internal/workstation/drag_test.go`
+  - `internal/workstation/view_test.go`
+  - `internal/api/handlers_browser_test.go`
 - **命令有界**：超时或请求取消时杀掉命令的整个进程组；工具超时不能超过 `workstation.command_timeout_seconds`；stdout 与 stderr 超出上限时各保留开头和结尾并标出省略的字节数。
   - `internal/workstation/workstation_test.go`
   - `internal/tools/workstation_tools_test.go`

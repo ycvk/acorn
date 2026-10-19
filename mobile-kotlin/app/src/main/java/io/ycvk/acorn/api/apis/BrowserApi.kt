@@ -59,7 +59,7 @@ open class BrowserApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     /**
      * POST /v1/browser/input
      * Use a page of the agent&#39;s browser
-     * Performs one input on the page: a tap or scroll at a point of a frame, in the units of the frame&#39;s width and height (a page zoomed out to fit the phone is mapped back onto the page), typed text, a key, navigation to an http(s) URL, back or reload. 
+     * Performs one input on the page: a tap, scroll or drag at points of a frame, in the units of the frame&#39;s width and height (a page zoomed out to fit the phone is mapped back onto the page), typed text, a key, navigation to an http(s) URL, back or reload.  A drag plays on the page at the times the finger made it, 150 ms after its &#x60;down&#x60; arrives, so moves sent in batches reach the page at the finger&#39;s own spacing. A batch that arrives after its points are due plays at once and the rest of the drag moves back by as much. &#x60;down&#x60; and &#x60;move&#x60; return once queued; &#x60;up&#x60; returns once the drag has played, with any failure in it. While a drag plays, frames come from the browser&#39;s screencast at one image pixel per unit. 
      * @param browserInputRequest 
      * @return void
      * @throws IllegalStateException If the request is not correctly configured
@@ -90,7 +90,7 @@ open class BrowserApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     /**
      * POST /v1/browser/input
      * Use a page of the agent&#39;s browser
-     * Performs one input on the page: a tap or scroll at a point of a frame, in the units of the frame&#39;s width and height (a page zoomed out to fit the phone is mapped back onto the page), typed text, a key, navigation to an http(s) URL, back or reload. 
+     * Performs one input on the page: a tap, scroll or drag at points of a frame, in the units of the frame&#39;s width and height (a page zoomed out to fit the phone is mapped back onto the page), typed text, a key, navigation to an http(s) URL, back or reload.  A drag plays on the page at the times the finger made it, 150 ms after its &#x60;down&#x60; arrives, so moves sent in batches reach the page at the finger&#39;s own spacing. A batch that arrives after its points are due plays at once and the rest of the drag moves back by as much. &#x60;down&#x60; and &#x60;move&#x60; return once queued; &#x60;up&#x60; returns once the drag has played, with any failure in it. While a drag plays, frames come from the browser&#39;s screencast at one image pixel per unit. 
      * @param browserInputRequest 
      * @return ApiResponse<Unit?>
      * @throws IllegalStateException If the request is not correctly configured

@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.ycvk.acorn.api.models.BrowserDragPoint
 import io.ycvk.acorn.api.models.BrowserFrame
 import io.ycvk.acorn.api.models.BrowserInputRequest
 import io.ycvk.acorn.api.models.BrowserTab
@@ -30,9 +31,10 @@ import javax.inject.Inject
 
 private const val TAB_REFRESH_MS = 4_000L
 
-// Moves reach the page at most 20 times a second, more often than the picture
-// changes; each one attaches to the browser anew.
-private const val DRAG_MOVE_SPACING_MS = 50L
+// A drag's samples go to the server in batches up to 20 times a second. The
+// page plays them 150 ms after the down arrives, so a batch is in time when it
+// takes less than that to arrive.
+private const val DRAG_BATCH_MS = 50L
 
 /** The latest picture of the page and the viewport it spans. */
 data class ShownFrame(val image: ImageBitmap, val width: Int, val height: Int)
@@ -71,7 +73,7 @@ class BrowserViewModel @Inject constructor(
     private var tabsJob: Job? = null
     private var screen: PhoneScreen? = null
     private var pendingUrl: String? = null
-    private val drags = DragSender(viewModelScope, DRAG_MOVE_SPACING_MS) { request -> profile()?.let { input(it, request) } }
+    private val drags = DragSender(viewModelScope, DRAG_BATCH_MS) { request -> profile()?.let { input(it, request) } }
 
     /** The page streams laid out for [size]; a new size restarts the stream. */
     fun screen(size: PhoneScreen) {
@@ -168,15 +170,23 @@ class BrowserViewModel @Inject constructor(
 
     fun scroll(at: ViewportPoint, dy: Double) = send(BrowserInputRequest.Type.scroll, x = at.x, y = at.y, dy = dy)
 
-    fun dragDown(at: ViewportPoint) = drag(BrowserInputRequest.Type.down, at)
-
-    fun dragMove(at: ViewportPoint) = drag(BrowserInputRequest.Type.move, at)
-
-    fun dragUp(at: ViewportPoint) = drag(BrowserInputRequest.Type.up, at)
-
-    private fun drag(type: BrowserInputRequest.Type, at: ViewportPoint) {
+    fun dragDown(at: ViewportPoint) {
         val tab = _state.value.tab ?: return
-        drags.add(BrowserInputRequest(tab = tab, type = type, x = at.x, y = at.y))
+        drags.add(BrowserInputRequest(tab = tab, type = BrowserInputRequest.Type.down, x = at.x, y = at.y))
+    }
+
+    fun dragMove(samples: List<DragSample>) {
+        val tab = _state.value.tab ?: return
+        if (samples.isEmpty()) return
+        samples.chunked(MAX_DRAG_POINTS).forEach { chunk ->
+            val points = chunk.map { BrowserDragPoint(x = it.at.x, y = it.at.y, t = it.t) }
+            drags.add(BrowserInputRequest(tab = tab, type = BrowserInputRequest.Type.move, points = points))
+        }
+    }
+
+    fun dragUp(at: ViewportPoint, t: Long) {
+        val tab = _state.value.tab ?: return
+        drags.add(BrowserInputRequest(tab = tab, type = BrowserInputRequest.Type.up, x = at.x, y = at.y, t = t))
     }
 
     fun type(text: String) {

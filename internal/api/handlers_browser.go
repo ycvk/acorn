@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -29,15 +30,26 @@ type BrowserTabListResponse struct {
 }
 
 type BrowserInputRequest struct {
-	Tab  string  `json:"tab"`
-	Type string  `json:"type"`
-	X    float64 `json:"x,omitempty"`
-	Y    float64 `json:"y,omitempty"`
-	DY   float64 `json:"dy,omitempty"`
-	Text string  `json:"text,omitempty"`
-	Key  string  `json:"key,omitempty"`
-	URL  string  `json:"url,omitempty"`
+	Tab    string             `json:"tab"`
+	Type   string             `json:"type"`
+	X      float64            `json:"x,omitempty"`
+	Y      float64            `json:"y,omitempty"`
+	T      int64              `json:"t,omitempty"`
+	Points []BrowserDragPoint `json:"points,omitempty"`
+	DY     float64            `json:"dy,omitempty"`
+	Text   string             `json:"text,omitempty"`
+	Key    string             `json:"key,omitempty"`
+	URL    string             `json:"url,omitempty"`
 }
+
+type BrowserDragPoint struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	T int64   `json:"t"`
+}
+
+// maxBrowserDragPoints bounds the points of one move.
+const maxBrowserDragPoints = 1000
 
 var browserInputTypes = map[string]bool{"tap": true, "scroll": true, "down": true, "move": true, "up": true, "text": true, "key": true, "navigate": true, "back": true, "reload": true}
 
@@ -75,11 +87,48 @@ func (s *Server) handleBrowserInput(w http.ResponseWriter, r *http.Request) {
 		s.respondBadRequest(w, r, "type must be tap, scroll, down, move, up, text, key, navigate, back or reload")
 		return
 	}
-	if err := s.browser.BrowserInput(r.Context(), workstation.Input(req)); err != nil {
+	if err := validateBrowserDrag(req); err != nil {
+		s.respondBadRequest(w, r, err.Error())
+		return
+	}
+	in := workstation.Input{Tab: req.Tab, Type: req.Type, X: req.X, Y: req.Y, T: req.T, DY: req.DY, Text: req.Text, Key: req.Key, URL: req.URL}
+	for _, p := range req.Points {
+		in.Points = append(in.Points, workstation.DragPoint(p))
+	}
+	if err := s.browser.BrowserInput(r.Context(), in); err != nil {
 		s.respondBrowserError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// validateBrowserDrag checks the time and points of a drag's input: a move
+// carries points in time order, an up its time, and nothing else carries
+// either.
+func validateBrowserDrag(req BrowserInputRequest) error {
+	if req.Type != "move" && len(req.Points) > 0 {
+		return errors.New("points are only for move")
+	}
+	if req.Type != "up" && req.T != 0 {
+		return errors.New("t is only for up")
+	}
+	if req.T < 0 {
+		return errors.New("t must not be negative")
+	}
+	if req.Type != "move" {
+		return nil
+	}
+	if len(req.Points) == 0 || len(req.Points) > maxBrowserDragPoints {
+		return fmt.Errorf("move needs 1 to %d points, got %d", maxBrowserDragPoints, len(req.Points))
+	}
+	var last int64
+	for i, p := range req.Points {
+		if p.T < last {
+			return fmt.Errorf("points[%d].t %d is before the previous point's %d", i, p.T, last)
+		}
+		last = p.T
+	}
+	return nil
 }
 
 // handleBrowserFrames relays the workstation's frame stream as it arrives.
