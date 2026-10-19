@@ -83,6 +83,12 @@ func TestBrowserInput(t *testing.T) {
 	if rec.Code != http.StatusNoContent || len(view.inputs) != 1 || view.inputs[0] != (workstation.Input{Tab: "T1", Type: "tap", X: 100, Y: 200}) {
 		t.Fatalf("tap: %d %s %+v", rec.Code, rec.Body.String(), view.inputs)
 	}
+	for _, kind := range []string{"down", "move", "up"} {
+		rec := performClientRequest(router, http.MethodPost, "/v1/browser/input", `{"tab":"T1","type":"`+kind+`","x":100,"y":200}`)
+		if rec.Code != http.StatusNoContent || view.inputs[len(view.inputs)-1] != (workstation.Input{Tab: "T1", Type: kind, X: 100, Y: 200}) {
+			t.Fatalf("%s: %d %s %+v", kind, rec.Code, rec.Body.String(), view.inputs)
+		}
+	}
 	for _, body := range []string{`{"type":"tap"}`, `{"tab":"T1","type":"drag"}`, `{"tab":"T1","type":"tap","extra":1}`} {
 		if rec := performClientRequest(router, http.MethodPost, "/v1/browser/input", body); rec.Code != http.StatusBadRequest {
 			t.Fatalf("%s: %d %s", body, rec.Code, rec.Body.String())

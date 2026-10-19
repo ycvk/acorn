@@ -3510,15 +3510,20 @@ components:
           type: string
         type:
           type: string
-          enum: [tap, scroll, text, key, navigate, back, reload]
+          enum: [tap, scroll, down, move, up, text, key, navigate, back, reload]
+          description: >-
+            `down`, `move` and `up` drag on the page: the left mouse button
+            presses at a point, moves with the button held and releases. Each is
+            its own request, sent in order; the button stays pressed between
+            them.
         x:
           type: number
           format: double
-          description: x of a point in a frame, for tap and scroll.
+          description: x of a point in a frame, for tap, scroll, down, move and up.
         y:
           type: number
           format: double
-          description: y of a point in a frame, for tap and scroll.
+          description: y of a point in a frame, for tap, scroll, down, move and up.
         dy:
           type: number
           format: double

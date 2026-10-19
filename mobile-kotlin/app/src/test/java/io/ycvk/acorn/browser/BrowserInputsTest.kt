@@ -1,7 +1,9 @@
 package io.ycvk.acorn.browser
 
 import io.ycvk.acorn.feature.browser.PhoneScreen
+import io.ycvk.acorn.feature.browser.Touch
 import io.ycvk.acorn.feature.browser.ViewportPoint
+import io.ycvk.acorn.feature.browser.movedTouch
 import io.ycvk.acorn.feature.browser.navigationUrl
 import io.ycvk.acorn.feature.browser.pageHost
 import io.ycvk.acorn.feature.browser.phoneScreen
@@ -28,6 +30,14 @@ class BrowserInputsTest {
     fun draggingUpScrollsDown() {
         assertEquals(450.0, scrollDistance(-380f, 760f, 900), 0.001)
         assertEquals(-90.0, scrollDistance(76f, 760f, 900), 0.001)
+    }
+
+    @Test
+    fun touchesAreDecidedByHowTheyFirstMove() {
+        assertNull(movedTouch(3f, -4f, 8f))
+        assertEquals(Touch.Drag, movedTouch(-12f, 5f, 8f))
+        assertEquals(Touch.Scroll, movedTouch(5f, 12f, 8f))
+        assertEquals(Touch.Scroll, movedTouch(9f, -9f, 8f))
     }
 
     @Test

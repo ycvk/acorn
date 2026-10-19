@@ -12,6 +12,7 @@ import io.ycvk.acorn.api.models.BrowserInputRequest
 import io.ycvk.acorn.api.models.BrowserTab
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
+import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.BrowserRepository
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,10 @@ import okhttp3.sse.EventSource
 import javax.inject.Inject
 
 private const val TAB_REFRESH_MS = 4_000L
+
+// Moves reach the page at most 20 times a second, more often than the picture
+// changes; each one attaches to the browser anew.
+private const val DRAG_MOVE_SPACING_MS = 50L
 
 /** The latest picture of the page and the viewport it spans. */
 data class ShownFrame(val image: ImageBitmap, val width: Int, val height: Int)
@@ -51,7 +56,8 @@ data class BrowserUiState(
 
 /**
  * The owner's view of the agent's browser. It streams one page while the
- * screen is shown ([start] and [stop]) and sends taps, scrolls, text and keys.
+ * screen is shown ([start] and [stop]) and sends taps, scrolls, drags, text
+ * and keys.
  */
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
@@ -65,6 +71,7 @@ class BrowserViewModel @Inject constructor(
     private var tabsJob: Job? = null
     private var screen: PhoneScreen? = null
     private var pendingUrl: String? = null
+    private val drags = DragSender(viewModelScope, DRAG_MOVE_SPACING_MS) { request -> profile()?.let { input(it, request) } }
 
     /** The page streams laid out for [size]; a new size restarts the stream. */
     fun screen(size: PhoneScreen) {
@@ -161,6 +168,17 @@ class BrowserViewModel @Inject constructor(
 
     fun scroll(at: ViewportPoint, dy: Double) = send(BrowserInputRequest.Type.scroll, x = at.x, y = at.y, dy = dy)
 
+    fun dragDown(at: ViewportPoint) = drag(BrowserInputRequest.Type.down, at)
+
+    fun dragMove(at: ViewportPoint) = drag(BrowserInputRequest.Type.move, at)
+
+    fun dragUp(at: ViewportPoint) = drag(BrowserInputRequest.Type.up, at)
+
+    private fun drag(type: BrowserInputRequest.Type, at: ViewportPoint) {
+        val tab = _state.value.tab ?: return
+        drags.add(BrowserInputRequest(tab = tab, type = type, x = at.x, y = at.y))
+    }
+
     fun type(text: String) {
         if (text.isNotEmpty()) send(BrowserInputRequest.Type.text, text = text)
     }
@@ -192,12 +210,14 @@ class BrowserViewModel @Inject constructor(
         val profile = profile() ?: return
         val tab = _state.value.tab ?: return
         val request = BrowserInputRequest(tab = tab, type = type, x = x, y = y, dy = dy, text = text, key = key, url = url)
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) { repository.input(profile, request) }
-            } catch (e: Exception) {
-                _state.update { it.copy(inputError = userMessage(e)) }
-            }
+        viewModelScope.launch { input(profile, request) }
+    }
+
+    private suspend fun input(profile: ConnectionProfile, request: BrowserInputRequest) {
+        try {
+            withContext(Dispatchers.IO) { repository.input(profile, request) }
+        } catch (e: Exception) {
+            _state.update { it.copy(inputError = userMessage(e)) }
         }
     }
 

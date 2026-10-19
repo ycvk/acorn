@@ -4,8 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -42,8 +42,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -69,8 +73,9 @@ import io.ycvk.acorn.core.ui.rememberHaptics
 
 /**
  * The agent's own browser, live: the owner signs in to sites here so the agent
- * can use them. A tap on the picture taps the page, dragging scrolls it, and
- * the bar at the bottom types into the focused field.
+ * can use them. A tap on the picture taps the page, a swipe up or down scrolls
+ * it, a drag drags on it, and the bar at the bottom types into the focused
+ * field.
  */
 @Composable
 fun BrowserScreen(openUrl: String?, onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel()) {
@@ -114,7 +119,14 @@ fun BrowserScreen(openUrl: String?, onBack: () -> Unit, viewModel: BrowserViewMo
         ) {
             val frame = state.frame
             when {
-                frame != null -> Frame(frame, onTap = viewModel::tap, onScroll = viewModel::scroll)
+                frame != null -> Frame(
+                    frame,
+                    onTap = viewModel::tap,
+                    onScroll = viewModel::scroll,
+                    onDragDown = viewModel::dragDown,
+                    onDragMove = viewModel::dragMove,
+                    onDragUp = viewModel::dragUp,
+                )
                 state.status is BrowserStatus.Failed -> ErrorState((state.status as BrowserStatus.Failed).message, onRetry = { viewModel.start(null) })
                 state.status == BrowserStatus.NoTabs -> EmptyState(AcornIcons.Globe, "浏览器没有打开的页面", "在上面输入网址打开一个页面")
                 else -> EmptyState(AcornIcons.Globe, "正在连接 Agent 的浏览器", "画面出来后，点哪里就点网页的哪里")
@@ -197,8 +209,24 @@ private fun AddressBar(enabled: Boolean, onOpen: (String) -> Boolean) {
     }
 }
 
+/**
+ * The page's picture. How a touch starts decides what it does: lifted before
+ * it moves past the touch slop, it taps; moving past the slop mostly up or
+ * down, it scrolls the page by as much once lifted; moving past the slop
+ * mostly sideways, or held still for the long-press timeout, it drags. A drag
+ * presses the page's mouse where the finger went down, moves it with the
+ * finger and releases it where the finger lifts, so a slider follows the
+ * finger.
+ */
 @Composable
-private fun Frame(frame: ShownFrame, onTap: (ViewportPoint) -> Unit, onScroll: (ViewportPoint, Double) -> Unit) {
+private fun Frame(
+    frame: ShownFrame,
+    onTap: (ViewportPoint) -> Unit,
+    onScroll: (ViewportPoint, Double) -> Unit,
+    onDragDown: (ViewportPoint) -> Unit,
+    onDragMove: (ViewportPoint) -> Unit,
+    onDragUp: (ViewportPoint) -> Unit,
+) {
     val haptics = rememberHaptics()
     Image(
         bitmap = frame.image,
@@ -207,23 +235,64 @@ private fun Frame(frame: ShownFrame, onTap: (ViewportPoint) -> Unit, onScroll: (
         modifier = Modifier
             .aspectRatio(frame.width.toFloat() / frame.height.toFloat())
             .pointerInput(frame.width, frame.height) {
-                detectTapGestures { offset ->
-                    haptics.tick()
-                    onTap(viewportPoint(offset.x, offset.y, size.width.toFloat(), size.height.toFloat(), frame.width, frame.height))
+                fun point(at: Offset) = viewportPoint(at.x, at.y, size.width.toFloat(), size.height.toFloat(), frame.width, frame.height)
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    var at = down.position
+                    val touch = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        var decided: Touch? = null
+                        while (decided == null) {
+                            val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+                            if (change == null || !change.pressed) {
+                                decided = Touch.Tap
+                            } else {
+                                at = change.position
+                                decided = movedTouch(at.x - down.position.x, at.y - down.position.y, viewConfiguration.touchSlop)
+                            }
+                        }
+                        decided
+                    } ?: Touch.Drag
+                    when (touch) {
+                        Touch.Tap -> {
+                            haptics.tick()
+                            onTap(point(at))
+                        }
+                        Touch.Scroll -> {
+                            val lifted = follow(down.id, at)
+                            onScroll(point(down.position), scrollDistance(lifted.y - down.position.y, size.height.toFloat(), frame.height))
+                        }
+                        Touch.Drag -> {
+                            haptics.longPress()
+                            onDragDown(point(down.position))
+                            if (at != down.position) onDragMove(point(at))
+                            // A gesture cut short, as when the frame changes size, still releases the mouse.
+                            try {
+                                at = follow(down.id, at) {
+                                    at = it
+                                    onDragMove(point(it))
+                                }
+                            } finally {
+                                onDragUp(point(at))
+                            }
+                        }
+                    }
                 }
-            }
-            .pointerInput(frame.width, frame.height) {
-                var dragged = 0f
-                var at = ViewportPoint(frame.width / 2.0, frame.height / 2.0)
-                detectVerticalDragGestures(
-                    onDragStart = { offset ->
-                        dragged = 0f
-                        at = viewportPoint(offset.x, offset.y, size.width.toFloat(), size.height.toFloat(), frame.width, frame.height)
-                    },
-                    onDragEnd = { if (dragged != 0f) onScroll(at, scrollDistance(dragged, size.height.toFloat(), frame.height)) },
-                ) { _, amount -> dragged += amount }
             },
     )
+}
+
+/** Follows pointer [id] from [from] until it lifts, calling [onMove] as it moves; returns where it lifted. */
+private suspend fun AwaitPointerEventScope.follow(id: PointerId, from: Offset, onMove: (Offset) -> Unit = {}): Offset {
+    var at = from
+    while (true) {
+        val change = awaitPointerEvent().changes.firstOrNull { it.id == id } ?: return at
+        if (!change.pressed) return change.position
+        if (change.positionChanged()) {
+            change.consume()
+            at = change.position
+            onMove(at)
+        }
+    }
 }
 
 @Composable

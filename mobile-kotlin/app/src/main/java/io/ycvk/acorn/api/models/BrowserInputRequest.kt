@@ -31,9 +31,9 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param tab 
- * @param type 
- * @param x x of a point in a frame, for tap and scroll.
- * @param y y of a point in a frame, for tap and scroll.
+ * @param type `down`, `move` and `up` drag on the page: the left mouse button presses at a point, moves with the button held and releases. Each is its own request, sent in order; the button stays pressed between them.
+ * @param x x of a point in a frame, for tap, scroll, down, move and up.
+ * @param y y of a point in a frame, for tap, scroll, down, move and up.
  * @param dy Scroll distance in a frame's units; positive scrolls down.
  * @param text Text to type into the focused field.
  * @param key 
@@ -46,14 +46,15 @@ data class BrowserInputRequest (
     @Json(name = "tab")
     val tab: kotlin.String,
 
+    /* `down`, `move` and `up` drag on the page: the left mouse button presses at a point, moves with the button held and releases. Each is its own request, sent in order; the button stays pressed between them. */
     @Json(name = "type")
     val type: BrowserInputRequest.Type,
 
-    /* x of a point in a frame, for tap and scroll. */
+    /* x of a point in a frame, for tap, scroll, down, move and up. */
     @Json(name = "x")
     val x: kotlin.Double? = null,
 
-    /* y of a point in a frame, for tap and scroll. */
+    /* y of a point in a frame, for tap, scroll, down, move and up. */
     @Json(name = "y")
     val y: kotlin.Double? = null,
 
@@ -75,14 +76,17 @@ data class BrowserInputRequest (
 ) {
 
     /**
-     * 
+     * `down`, `move` and `up` drag on the page: the left mouse button presses at a point, moves with the button held and releases. Each is its own request, sent in order; the button stays pressed between them.
      *
-     * Values: tap,scroll,text,key,navigate,back,reload
+     * Values: tap,scroll,down,move,up,text,key,navigate,back,reload
      */
     @JsonClass(generateAdapter = false)
     enum class Type(val value: kotlin.String) {
         @Json(name = "tap") tap("tap"),
         @Json(name = "scroll") scroll("scroll"),
+        @Json(name = "down") down("down"),
+        @Json(name = "move") move("move"),
+        @Json(name = "up") up("up"),
         @Json(name = "text") text("text"),
         @Json(name = "key") key("key"),
         @Json(name = "navigate") navigate("navigate"),
