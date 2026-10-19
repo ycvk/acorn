@@ -24,7 +24,7 @@ ARG NODE_SHA256_ARM64=fef00bb4d36e1c50104a9775a10359beee98f162b4104dd12472c75065
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		bash bc ca-certificates chromium curl file fonts-noto-cjk gawk git jq less openssh-client \
-		procps python3 python3-pip python3-venv rsync sudo unzip wget xvfb xz-utils zip \
+		procps python3 python3-pip python3-venv rsync sudo unzip wget xdotool xvfb xz-utils zip \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& useradd --create-home --uid 1000 --shell /bin/bash agent \
 	&& echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent \

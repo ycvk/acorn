@@ -35,8 +35,9 @@ type Frame struct {
 	Height int    `json:"height"`
 }
 
-// Input is one thing the owner does in the view: tap or scroll at viewport
-// coordinates, type text, press a key, or navigate.
+// Input is one thing the owner does in the view: tap, scroll or drag at
+// viewport coordinates, type text, press a key, or navigate. A drag is a down,
+// any number of moves and an up, each its own Input.
 type Input struct {
 	Tab  string  `json:"tab"`
 	Type string  `json:"type"`
@@ -84,6 +85,11 @@ var keys = map[string]int{"Enter": 13, "Backspace": 8, "Tab": 9, "Escape": 27, "
 type View struct {
 	devtools string
 	http     *http.Client
+	// screenshot is held while a stream takes a screenshot and while an input
+	// at a point is performed. A screenshot of a phone-sized view lays the
+	// page out again at its pixel size until it is taken, and a point given
+	// meanwhile lands at the wrong scale.
+	screenshot sync.Mutex
 }
 
 // NewView talks to the DevTools endpoint at devtools, such as
@@ -194,7 +200,7 @@ func (v *View) Stream(ctx context.Context, tab string, viewport Viewport, send f
 	defer ticker.Stop()
 	var last string
 	for {
-		raw, err := conn.call(ctx, "Page.captureScreenshot", map[string]any{"format": "jpeg", "quality": 70})
+		raw, err := v.capture(ctx, conn)
 		if err != nil {
 			return err
 		}
@@ -224,6 +230,21 @@ func (v *View) Stream(ctx context.Context, tab string, viewport Viewport, send f
 	}
 }
 
+// screenshotTimeout bounds one screenshot, which inputs at a point wait for.
+const screenshotTimeout = 10 * time.Second
+
+func (v *View) capture(ctx context.Context, conn *cdpConn) (json.RawMessage, error) {
+	v.screenshot.Lock()
+	defer v.screenshot.Unlock()
+	shotCtx, cancel := context.WithTimeout(ctx, screenshotTimeout)
+	defer cancel()
+	raw, err := conn.call(shotCtx, "Page.captureScreenshot", map[string]any{"format": "jpeg", "quality": 70})
+	if err != nil && ctx.Err() == nil && shotCtx.Err() != nil {
+		return nil, fmt.Errorf("screenshot: no image after %s", screenshotTimeout)
+	}
+	return raw, err
+}
+
 // frameOf sizes a base64 JPEG screenshot taken at scale device pixels per
 // CSS pixel.
 func frameOf(data string, scale int) (Frame, error) {
@@ -238,8 +259,10 @@ func frameOf(data string, scale int) (Frame, error) {
 	return Frame{JPEG: data, Width: cfg.Width / scale, Height: cfg.Height / scale}, nil
 }
 
-// Do performs one input on its tab. Taps and scrolls arrive in the stream's
-// coordinates and are moved onto the page first.
+// Do performs one input on its tab. Inputs at a point arrive in the stream's
+// coordinates and are moved onto the page first. Each input attaches anew; the
+// browser keeps a drag's button pressed between a down and its up although
+// they arrive on different DevTools sessions.
 func (v *View) Do(ctx context.Context, in Input) error {
 	commands, err := inputCommands(in)
 	if err != nil {
@@ -253,7 +276,9 @@ func (v *View) Do(ctx context.Context, in Input) error {
 	if in.Type == "back" {
 		return goBack(ctx, conn)
 	}
-	if in.Type == "tap" || in.Type == "scroll" {
+	if pointed[in.Type] {
+		v.screenshot.Lock()
+		defer v.screenshot.Unlock()
 		viewport, err := visualViewport(ctx, conn)
 		if err != nil {
 			return err
@@ -305,6 +330,9 @@ func (v cssVisualViewport) toPage(in Input) Input {
 	return in
 }
 
+// pointed are the inputs at a point in the stream.
+var pointed = map[string]bool{"tap": true, "scroll": true, "down": true, "move": true, "up": true}
+
 type command struct {
 	method string
 	params map[string]any
@@ -329,6 +357,15 @@ func inputCommands(in Input) ([]command, error) {
 		}, nil
 	case "scroll":
 		return []command{mouse("mouseWheel", map[string]any{"deltaX": 0, "deltaY": in.DY})}, nil
+	case "down":
+		return []command{
+			mouse("mouseMoved", nil),
+			mouse("mousePressed", map[string]any{"button": "left", "buttons": 1, "clickCount": 1}),
+		}, nil
+	case "move":
+		return []command{mouse("mouseMoved", map[string]any{"button": "left", "buttons": 1})}, nil
+	case "up":
+		return []command{mouse("mouseReleased", map[string]any{"button": "left", "buttons": 0, "clickCount": 1})}, nil
 	case "text":
 		if in.Text == "" {
 			return nil, errors.New("text input needs text")

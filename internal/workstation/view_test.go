@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -22,7 +23,7 @@ import (
 
 // fakeDevTools serves /json/list and a DevTools socket per page that answers
 // every command and records it. Screenshots return shots in turn, repeating
-// the last.
+// the last, and a non-nil hold delays their replies until it closes.
 type fakeDevTools struct {
 	server *httptest.Server
 	mu     sync.Mutex
@@ -30,6 +31,7 @@ type fakeDevTools struct {
 	params []map[string]any
 	shots  []string
 	taken  int
+	hold   chan struct{}
 }
 
 // testShot is a base64 JPEG of width by height pixels in one gray level.
@@ -88,7 +90,11 @@ func newFakeDevTools(t *testing.T) *fakeDevTools {
 				result["data"] = f.shots[min(f.taken, len(f.shots)-1)]
 				f.taken++
 			}
+			hold := f.hold
 			f.mu.Unlock()
+			if msg.Method == "Page.captureScreenshot" && hold != nil {
+				<-hold
+			}
 			switch msg.Method {
 			case "Page.getNavigationHistory":
 				result = map[string]any{"currentIndex": 1, "entries": []map[string]any{{"id": 7}, {"id": 8}}}
@@ -236,6 +242,88 @@ func TestViewInput(t *testing.T) {
 	}
 	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "navigate", URL: "javascript:alert(1)"}); err == nil || !strings.Contains(err.Error(), "http(s) URL") {
 		t.Fatalf("navigate err = %v", err)
+	}
+}
+
+func TestViewDrag(t *testing.T) {
+	client, devtools := newViewClient(t)
+	for _, in := range []Input{{Tab: "T1", Type: "down", X: 100, Y: 200}, {Tab: "T1", Type: "move", X: 140, Y: 200}, {Tab: "T1", Type: "up", X: 180, Y: 200}} {
+		if err := client.BrowserInput(t.Context(), in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	calls, params := devtools.recorded()
+	want := []string{"Page.getLayoutMetrics", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Page.getLayoutMetrics", "Input.dispatchMouseEvent", "Page.getLayoutMetrics", "Input.dispatchMouseEvent"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %v", calls)
+	}
+	// Each point lands at offset + point / scale, as a tap does.
+	for i, w := range map[int]map[string]any{
+		2: {"type": "mousePressed", "x": float64(210), "y": float64(420), "buttons": float64(1)},
+		4: {"type": "mouseMoved", "x": float64(290), "y": float64(420), "buttons": float64(1)},
+		6: {"type": "mouseReleased", "x": float64(370), "y": float64(420), "buttons": float64(0)},
+	} {
+		for k, v := range w {
+			if params[i][k] != v {
+				t.Fatalf("params[%d] = %v, want %s %v", i, params[i], k, v)
+			}
+		}
+	}
+}
+
+func TestInputCommandsForDrags(t *testing.T) {
+	at := func(kind string, extra map[string]any) command {
+		params := map[string]any{"type": kind, "x": 3.5, "y": 7.0}
+		for k, v := range extra {
+			params[k] = v
+		}
+		return command{"Input.dispatchMouseEvent", params}
+	}
+	for kind, want := range map[string][]command{
+		"down": {at("mouseMoved", nil), at("mousePressed", map[string]any{"button": "left", "buttons": 1, "clickCount": 1})},
+		"move": {at("mouseMoved", map[string]any{"button": "left", "buttons": 1})},
+		"up":   {at("mouseReleased", map[string]any{"button": "left", "buttons": 0, "clickCount": 1})},
+	} {
+		got, err := inputCommands(Input{Type: kind, X: 3.5, Y: 7})
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s = %+v err %v", kind, got, err)
+		}
+	}
+}
+
+func TestViewInputAtAPointWaitsForAScreenshot(t *testing.T) {
+	client, devtools := newViewClient(t)
+	hold := make(chan struct{})
+	devtools.mu.Lock()
+	devtools.shots = []string{testShot(t, 824, 1400, 40)}
+	devtools.hold = hold
+	devtools.mu.Unlock()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	body, err := client.BrowserFrames(ctx, "T1", Viewport{Width: 412, Height: 700})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer body.Close()
+	for {
+		if calls, _ := devtools.recorded(); len(calls) > 0 && calls[len(calls)-1] == "Page.captureScreenshot" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	moved := make(chan error, 1)
+	go func() { moved <- client.BrowserInput(ctx, Input{Tab: "T1", Type: "move", X: 100, Y: 200}) }()
+	time.Sleep(200 * time.Millisecond)
+	if calls, _ := devtools.recorded(); calls[len(calls)-1] != "Page.captureScreenshot" {
+		t.Fatalf("calls = %v, want the move to wait for the screenshot", calls)
+	}
+	close(hold)
+	if err := <-moved; err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := devtools.recorded()
+	if !slices.Contains(calls, "Input.dispatchMouseEvent") {
+		t.Fatalf("calls = %v", calls)
 	}
 }
 

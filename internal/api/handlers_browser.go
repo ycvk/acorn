@@ -39,7 +39,7 @@ type BrowserInputRequest struct {
 	URL  string  `json:"url,omitempty"`
 }
 
-var browserInputTypes = map[string]bool{"tap": true, "scroll": true, "text": true, "key": true, "navigate": true, "back": true, "reload": true}
+var browserInputTypes = map[string]bool{"tap": true, "scroll": true, "down": true, "move": true, "up": true, "text": true, "key": true, "navigate": true, "back": true, "reload": true}
 
 func (s *Server) handleBrowserTabs(w http.ResponseWriter, r *http.Request) {
 	if !s.browserReady(w, r) {
@@ -72,7 +72,7 @@ func (s *Server) handleBrowserInput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !browserInputTypes[req.Type] {
-		s.respondBadRequest(w, r, "type must be tap, scroll, text, key, navigate, back or reload")
+		s.respondBadRequest(w, r, "type must be tap, scroll, down, move, up, text, key, navigate, back or reload")
 		return
 	}
 	if err := s.browser.BrowserInput(r.Context(), workstation.Input(req)); err != nil {
