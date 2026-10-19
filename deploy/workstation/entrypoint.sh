@@ -18,11 +18,13 @@ socket=/tmp/.X11-unix/X99
 # does. That breaks the owner's drags; over the tab strip it stays out of the
 # page. Without -noreset the display would reset, pointer included, when
 # xdotool disconnects as its only client.
+# The workstation has no GPU, only Mesa's software renderer, and Chromium
+# blocklists WebGL there; --ignore-gpu-blocklist gives pages WebGL on it.
 args=(
 	workstation serve --home "$home" --chromium /usr/bin/chromium --devtools http://127.0.0.1:9222
 	--keep "browser-daemon=exec bsk daemon start --foreground --daemon-idle 8760h"
 	--keep "display=rm -f /tmp/.X99-lock $socket; exec Xvfb $display -screen 0 1280x900x24 -nolisten tcp -noreset"
-	--keep "browser=until [ -S $socket ]; do sleep 0.2; done; rm -f $profile/SingletonLock $profile/SingletonSocket $profile/SingletonCookie; DISPLAY=$display xdotool mousemove 0 0 && DISPLAY=$display exec chromium --no-sandbox --disable-dev-shm-usage --no-first-run --no-default-browser-check --hide-crash-restore-bubble --window-position=0,0 --window-size=1280,900 --remote-debugging-port=9222 --user-data-dir=$profile --load-extension=/opt/browserskill/extension about:blank"
+	--keep "browser=until [ -S $socket ]; do sleep 0.2; done; rm -f $profile/SingletonLock $profile/SingletonSocket $profile/SingletonCookie; DISPLAY=$display xdotool mousemove 0 0 && DISPLAY=$display exec chromium --no-sandbox --disable-dev-shm-usage --no-first-run --no-default-browser-check --hide-crash-restore-bubble --ignore-gpu-blocklist --window-position=0,0 --window-size=1280,900 --remote-debugging-port=9222 --user-data-dir=$profile --load-extension=/opt/browserskill/extension about:blank"
 )
 
 exec /usr/local/bin/acorn "${args[@]}"
