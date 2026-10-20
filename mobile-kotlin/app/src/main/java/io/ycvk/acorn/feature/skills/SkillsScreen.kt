@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Text
@@ -27,11 +27,12 @@ import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.ListRow
-import io.ycvk.acorn.core.ui.ListSection
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.groupItem
 import java.time.OffsetDateTime
 
 /** Every skill Acorn has, in use first, with whether the next conversation lists it. */
@@ -76,17 +77,21 @@ private fun SkillList(items: List<SkillSummary>, onOpenSkill: (String) -> Unit) 
             )
         }
         if (inUse.isNotEmpty()) {
-            item { ListSection("在用", count = inUse.size) }
-            items(inUse, key = { "use:" + it.name }) { skill ->
-                SkillRow(skill, now, onClick = { onOpenSkill(skill.name) })
-                Hairline(inset = if (skill.name == inUse.last().name) 0.dp else ScreenPadding)
+            item { SectionLabel("在用", count = inUse.size) }
+            itemsIndexed(inUse, key = { _, it -> "use:" + it.name }) { index, skill ->
+                Column(Modifier.groupItem(index, inUse.size)) {
+                    SkillRow(skill, now, onClick = { onOpenSkill(skill.name) })
+                    if (index < inUse.lastIndex) Hairline(inset = ScreenPadding)
+                }
             }
         }
         if (retired.isNotEmpty()) {
-            item { ListSection("已停用", count = retired.size) }
-            items(retired, key = { "retired:" + it.name }) { skill ->
-                SkillRow(skill, now, onClick = { onOpenSkill(skill.name) })
-                Hairline(inset = if (skill.name == retired.last().name) 0.dp else ScreenPadding)
+            item { SectionLabel("已停用", count = retired.size) }
+            itemsIndexed(retired, key = { _, it -> "retired:" + it.name }) { index, skill ->
+                Column(Modifier.groupItem(index, retired.size)) {
+                    SkillRow(skill, now, onClick = { onOpenSkill(skill.name) })
+                    if (index < retired.lastIndex) Hairline(inset = ScreenPadding)
+                }
             }
         }
     }

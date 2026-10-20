@@ -25,12 +25,20 @@ object AcornTheme {
         @Composable @ReadOnlyComposable get() = LocalAcornType.current
 }
 
-/** Tight corners: chips and fields, buttons and blocks, cards and menus, sheets and dialogs. */
+/** The corner of cards and grouped lists, also used by effects that trace a card's edge. */
+val CardRadius = 20.dp
+
+/**
+ * Soft, nested corners: tags and code, tiles and wells, menus and fields,
+ * cards, sheets and dialogs. Buttons, chips and bars are pills. A shape inside
+ * another keeps the outer radius minus the gap between them.
+ */
 object AcornShapes {
-    val small = RoundedCornerShape(6.dp)
-    val medium = RoundedCornerShape(8.dp)
-    val large = RoundedCornerShape(10.dp)
-    val sheet = RoundedCornerShape(12.dp)
+    val small = RoundedCornerShape(8.dp)
+    val medium = RoundedCornerShape(12.dp)
+    val large = RoundedCornerShape(16.dp)
+    val card = RoundedCornerShape(CardRadius)
+    val sheet = RoundedCornerShape(28.dp)
     val pill = RoundedCornerShape(percent = 50)
 }
 
@@ -51,7 +59,7 @@ fun AcornTheme(
                 extraSmall = AcornShapes.small,
                 small = AcornShapes.small,
                 medium = AcornShapes.medium,
-                large = AcornShapes.large,
+                large = AcornShapes.card,
                 extraLarge = AcornShapes.sheet,
             ),
         ) {
@@ -95,8 +103,8 @@ private fun materialColors(c: AcornColors) = if (c.isDark) {
 }
 
 private fun materialTypography(t: AcornType) = Typography(
-    displayLarge = t.largeTitle,
-    displayMedium = t.largeTitle,
+    displayLarge = t.display,
+    displayMedium = t.display,
     displaySmall = t.largeTitle,
     headlineLarge = t.title,
     headlineMedium = t.title,

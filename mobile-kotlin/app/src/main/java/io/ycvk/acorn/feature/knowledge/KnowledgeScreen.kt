@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +41,7 @@ import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.SwipeToDelete
 import io.ycvk.acorn.core.ui.Tag
+import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.feature.memory.MemoryList
@@ -64,7 +65,7 @@ fun KnowledgeScreen(
             options = listOf("笔记", "记忆"),
             selected = section,
             onSelect = { section = it },
-            modifier = Modifier.padding(start = ScreenPadding - 4.dp, end = ScreenPadding, bottom = 10.dp),
+            modifier = Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 12.dp),
         )
         when (section) {
             0 -> NoteList(viewModel, onNoteClick)
@@ -83,8 +84,7 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        SearchField(query, viewModel::onQueryChange, "搜索笔记", Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 10.dp))
-        Hairline()
+        SearchField(query, viewModel::onQueryChange, "搜索笔记", Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 14.dp))
         deleteError?.let {
             InlineError("没能删除：$it", Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp), action = "知道了", onAction = viewModel::clearDeleteError)
         }
@@ -104,13 +104,13 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
             is KnowledgeContent.Items -> {
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now(zone)
-                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
-                    items(content.notes, key = { it.path }) { note ->
-                        Column(Modifier.animateItem()) {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                    itemsIndexed(content.notes, key = { _, it -> it.path }) { index, note ->
+                        Column(Modifier.animateItem().groupItem(index, content.notes.size)) {
                             SwipeToDelete(onDelete = { pendingDelete = note }) {
                                 NoteRow(note, listTime(note.updatedAt, today, zone), onClick = { onNoteClick(note.path) })
                             }
-                            Hairline(inset = ScreenPadding + 29.dp)
+                            if (index < content.notes.lastIndex) Hairline(inset = ScreenPadding + 29.dp)
                         }
                     }
                 }
