@@ -120,7 +120,7 @@ dependencies {
     implementation("com.squareup.moshi:moshi:1.15.2")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.2")
 
-    // EncryptedSharedPreferences
+    // COMPAT: reads the connection earlier builds kept in EncryptedSharedPreferences — remove with core/auth/LegacyConnection.kt.
     implementation("androidx.security:security-crypto:1.1.0")
 
     // Push notifications (FCM)
