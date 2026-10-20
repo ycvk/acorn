@@ -31,7 +31,7 @@ import io.ycvk.acorn.api.models.DeviceListResponse
 import io.ycvk.acorn.api.models.ErrorResponse
 import io.ycvk.acorn.api.models.PairDeviceRequest
 import io.ycvk.acorn.api.models.PairDeviceResponse
-import io.ycvk.acorn.api.models.PushTokenRequest
+import io.ycvk.acorn.api.models.PushInstallationRequest
 
 import com.squareup.moshi.Json
 
@@ -273,10 +273,10 @@ open class DevicesApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     }
 
     /**
-     * PUT /v1/devices/self/push-token
-     * Register this device&#39;s FCM token for push notifications
+     * PUT /v1/devices/self/push-installation
+     * Register this device&#39;s Firebase installation ID for push notifications
      * 
-     * @param pushTokenRequest 
+     * @param pushInstallationRequest 
      * @return void
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
@@ -285,8 +285,8 @@ open class DevicesApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
      * @throws ServerException If the API returns a server error response
      */
     @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientSetPushToken(pushTokenRequest: PushTokenRequest) : Unit {
-        val localVarResponse = clientSetPushTokenWithHttpInfo(pushTokenRequest = pushTokenRequest)
+    fun clientSetPushInstallation(pushInstallationRequest: PushInstallationRequest) : Unit {
+        val localVarResponse = clientSetPushInstallationWithHttpInfo(pushInstallationRequest = pushInstallationRequest)
 
         return when (localVarResponse.responseType) {
             ResponseType.Success -> Unit
@@ -304,31 +304,31 @@ open class DevicesApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     }
 
     /**
-     * PUT /v1/devices/self/push-token
-     * Register this device&#39;s FCM token for push notifications
+     * PUT /v1/devices/self/push-installation
+     * Register this device&#39;s Firebase installation ID for push notifications
      * 
-     * @param pushTokenRequest 
+     * @param pushInstallationRequest 
      * @return ApiResponse<Unit?>
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
      */
     @Throws(IllegalStateException::class, IOException::class)
-    fun clientSetPushTokenWithHttpInfo(pushTokenRequest: PushTokenRequest) : ApiResponse<Unit?> {
-        val localVariableConfig = clientSetPushTokenRequestConfig(pushTokenRequest = pushTokenRequest)
+    fun clientSetPushInstallationWithHttpInfo(pushInstallationRequest: PushInstallationRequest) : ApiResponse<Unit?> {
+        val localVariableConfig = clientSetPushInstallationRequestConfig(pushInstallationRequest = pushInstallationRequest)
 
-        return request<PushTokenRequest, Unit>(
+        return request<PushInstallationRequest, Unit>(
             localVariableConfig
         )
     }
 
     /**
-     * To obtain the request config of the operation clientSetPushToken
+     * To obtain the request config of the operation clientSetPushInstallation
      *
-     * @param pushTokenRequest 
+     * @param pushInstallationRequest 
      * @return RequestConfig
      */
-    fun clientSetPushTokenRequestConfig(pushTokenRequest: PushTokenRequest) : RequestConfig<PushTokenRequest> {
-        val localVariableBody = pushTokenRequest
+    fun clientSetPushInstallationRequestConfig(pushInstallationRequest: PushInstallationRequest) : RequestConfig<PushInstallationRequest> {
+        val localVariableBody = pushInstallationRequest
         val localVariableQuery: MultiValueMap = mutableMapOf()
         val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
         localVariableHeaders["Content-Type"] = "application/json"
@@ -336,7 +336,7 @@ open class DevicesApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
 
         return RequestConfig(
             method = RequestMethod.PUT,
-            path = "/v1/devices/self/push-token",
+            path = "/v1/devices/self/push-installation",
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -41,27 +42,32 @@ func DeviceFromContext(ctx context.Context) (*DeviceAuthContext, bool) {
 	return device, ok && device != nil
 }
 
-// PushTokenRequest registers the calling device's FCM token.
-type PushTokenRequest struct {
-	Token string `json:"token"`
+// PushInstallationRequest registers the Firebase installation ID under which
+// the calling device's app is registered with FCM.
+type PushInstallationRequest struct {
+	FID string `json:"fid"`
 }
 
-func (s *Server) handleSetPushToken(w http.ResponseWriter, r *http.Request) {
+// firebaseInstallationID matches the 22 base64url characters of a Firebase
+// installation ID, whose first four bits are 0111.
+var firebaseInstallationID = regexp.MustCompile(`^[cdef][A-Za-z0-9_-]{21}$`)
+
+func (s *Server) handleSetPushInstallation(w http.ResponseWriter, r *http.Request) {
 	device, ok := DeviceFromContext(r.Context())
 	if !ok {
-		s.respondInternalError(w, r, errors.New("push token request reached the handler without an authenticated device"))
+		s.respondInternalError(w, r, errors.New("push installation request reached the handler without an authenticated device"))
 		return
 	}
-	var req PushTokenRequest
+	var req PushInstallationRequest
 	if err := decodeJSONBody(r, &req); err != nil {
 		s.respondBadRequest(w, r, err.Error())
 		return
 	}
-	if strings.TrimSpace(req.Token) == "" {
-		s.respondBadRequest(w, r, "token is required")
+	if !firebaseInstallationID.MatchString(req.FID) {
+		s.respondBadRequest(w, r, "fid must be a Firebase installation ID")
 		return
 	}
-	if err := s.deviceAuth.SetPushToken(r.Context(), device.Device.DeviceID, strings.TrimSpace(req.Token)); err != nil {
+	if err := s.deviceAuth.SetPushInstallation(r.Context(), device.Device.DeviceID, req.FID); err != nil {
 		s.respondInternalError(w, r, err)
 		return
 	}

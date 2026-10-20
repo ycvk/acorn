@@ -128,7 +128,7 @@ func (h *pushHarness) open(t *testing.T, cfg *config.Config) *Container {
 // briefingOff keeps the morning briefing out of tests about commitments.
 const briefingOff = "briefing:\n  at: \"\"\nthinking:\n  night_at: \"\"\n"
 
-func registerPushToken(t *testing.T, c *Container, token string) {
+func registerPushInstallation(t *testing.T, c *Container, fid string) {
 	t.Helper()
 	ctx := context.Background()
 	code, err := c.DeviceAuth().CreatePairingCode(ctx, time.Minute)
@@ -139,8 +139,8 @@ func registerPushToken(t *testing.T, c *Container, token string) {
 	if err != nil {
 		t.Fatalf("pair device: %v", err)
 	}
-	if err := c.DeviceAuth().SetPushToken(ctx, paired.Device.DeviceID, token); err != nil {
-		t.Fatalf("set push token: %v", err)
+	if err := c.DeviceAuth().SetPushInstallation(ctx, paired.Device.DeviceID, fid); err != nil {
+		t.Fatalf("set push installation: %v", err)
 	}
 }
 
@@ -233,7 +233,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	ctx := context.Background()
 
 	first := harness.open(t, cfg)
-	registerPushToken(t, first, "device-token-1")
+	registerPushInstallation(t, first, "fid_phone")
 	thread, err := first.threads.CreateThread(ctx, "x")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
@@ -300,7 +300,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 		t.Fatalf("fcm messages = %v, want 1", sent)
 	}
 	data, _ := sent[0]["data"].(map[string]any)
-	if sent[0]["token"] != "device-token-1" || data["thread_id"] != thread.ID || data["run_id"] != woken.RunID {
+	if sent[0]["fid"] != "fid_phone" || data["thread_id"] != thread.ID || data["run_id"] != woken.RunID {
 		t.Fatalf("fcm message = %v, want thread %s run %s", sent[0], thread.ID, woken.RunID)
 	}
 	item, err := second.store.LoadCommitment(ctx, 1)
@@ -335,7 +335,7 @@ func TestNotificationInQuietHoursWaitsForTheirEnd(t *testing.T) {
 	ctx := context.Background()
 	c := harness.open(t, cfg)
 	defer func() { _ = c.Close() }()
-	registerPushToken(t, c, "device-token-1")
+	registerPushInstallation(t, c, "fid_phone")
 	thread, err := c.threads.CreateThread(ctx, "quiet")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)

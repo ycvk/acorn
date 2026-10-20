@@ -15,7 +15,7 @@ func TestInterruptedRunPushesItsPendingAction(t *testing.T) {
 	cfg := writeTestConfig(t, server.URL, "approval:\n  require:\n    - recall\n"+briefingOff+extra)
 	c := harness.open(t, cfg)
 	defer func() { _ = c.Close() }()
-	registerPushToken(t, c, "tok_phone")
+	registerPushInstallation(t, c, "fid_phone")
 
 	ctx := context.Background()
 	thread, err := c.threads.CreateThread(ctx, "approval")

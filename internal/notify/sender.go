@@ -13,13 +13,13 @@ import (
 var (
 	// ErrRateLimited means the hourly notification cap is reached.
 	ErrRateLimited = errors.New("notification limit for the last hour reached")
-	// ErrNoPushToken means no paired device has registered for push.
-	ErrNoPushToken = errors.New("no device has registered for push notifications")
+	// ErrNoPushInstallation means no paired device has registered for push.
+	ErrNoPushInstallation = errors.New("no device has registered for push notifications")
 )
 
-// Pusher sends one message to one device token.
+// Pusher sends one message to one app installation.
 type Pusher interface {
-	Send(ctx context.Context, token string, msg Message) error
+	Send(ctx context.Context, fid string, msg Message) error
 }
 
 // QuietHours is a daily window, as offsets from local midnight. Start after
@@ -92,12 +92,12 @@ func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notifica
 	if sent >= s.cfg.MaxPerHour {
 		return core.Notification{}, fmt.Errorf("%w (%d per hour)", ErrRateLimited, s.cfg.MaxPerHour)
 	}
-	tokens, err := s.cfg.Store.ListPushTokens(ctx)
+	installations, err := s.cfg.Store.ListPushInstallations(ctx)
 	if err != nil {
 		return core.Notification{}, err
 	}
-	if len(tokens) == 0 {
-		return core.Notification{}, ErrNoPushToken
+	if len(installations) == 0 {
+		return core.Notification{}, ErrNoPushInstallation
 	}
 	n.CreatedAt = now
 	n.SendAfter = now
@@ -112,7 +112,7 @@ func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notifica
 	if quiet {
 		return queued, nil
 	}
-	return s.deliver(ctx, queued, tokens)
+	return s.deliver(ctx, queued, installations)
 }
 
 // FlushDue delivers queued notifications whose time has come.
@@ -124,43 +124,44 @@ func (s *Sender) FlushDue(ctx context.Context) error {
 	if len(due) == 0 {
 		return nil
 	}
-	tokens, err := s.cfg.Store.ListPushTokens(ctx)
+	installations, err := s.cfg.Store.ListPushInstallations(ctx)
 	if err != nil {
 		return err
 	}
 	var errs []error
 	for _, n := range due {
-		if _, err := s.deliver(ctx, n, tokens); err != nil {
+		if _, err := s.deliver(ctx, n, installations); err != nil {
 			errs = append(errs, fmt.Errorf("notification %d: %w", n.ID, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// deliver sends n to every token. A token FCM no longer knows is removed. The
-// notification counts as sent when at least one device received it.
-func (s *Sender) deliver(ctx context.Context, n core.Notification, tokens []core.PushToken) (core.Notification, error) {
+// deliver sends n to every installation. An installation FCM no longer knows
+// is removed. The notification counts as sent when at least one device
+// received it.
+func (s *Sender) deliver(ctx context.Context, n core.Notification, installations []core.PushInstallation) (core.Notification, error) {
 	msg := Message{Title: n.Title, Body: n.Body, ThreadID: n.ThreadID, RunID: n.RunID, ActionID: n.ActionID, BrowserURL: n.BrowserURL}
 	delivered := 0
 	var errs []error
-	for _, token := range tokens {
-		err := s.cfg.Pusher.Send(ctx, token.Token, msg)
+	for _, installation := range installations {
+		err := s.cfg.Pusher.Send(ctx, installation.FID, msg)
 		switch {
 		case err == nil:
 			delivered++
-		case errors.Is(err, ErrTokenUnregistered):
-			if delErr := s.cfg.Store.DeletePushToken(ctx, token.DeviceID); delErr != nil {
+		case errors.Is(err, ErrUnregistered):
+			if delErr := s.cfg.Store.DeletePushInstallation(ctx, installation.DeviceID); delErr != nil {
 				errs = append(errs, delErr)
 			}
-			errs = append(errs, fmt.Errorf("device %s: %w", token.DeviceID, err))
+			errs = append(errs, fmt.Errorf("device %s: %w", installation.DeviceID, err))
 		default:
-			errs = append(errs, fmt.Errorf("device %s: %w", token.DeviceID, err))
+			errs = append(errs, fmt.Errorf("device %s: %w", installation.DeviceID, err))
 		}
 	}
 	now := s.cfg.Clock()
 	if delivered == 0 {
 		if len(errs) == 0 {
-			errs = append(errs, ErrNoPushToken)
+			errs = append(errs, ErrNoPushInstallation)
 		}
 		cause := errors.Join(errs...)
 		if err := s.cfg.Store.FinishNotification(ctx, n.ID, core.NotificationFailed, flatten(cause), now); err != nil {

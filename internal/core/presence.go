@@ -36,19 +36,20 @@ type Notification struct {
 	SentAt     time.Time
 }
 
-// PushToken is a device's FCM registration token.
-type PushToken struct {
+// PushInstallation is the Firebase installation ID (FID) under which a
+// device's app is registered with FCM.
+type PushInstallation struct {
 	DeviceID  string
-	Token     string
+	FID       string
 	UpdatedAt time.Time
 }
 
-// NotificationStore persists push tokens and notification delivery records.
+// NotificationStore persists push installations and notification delivery records.
 type NotificationStore interface {
-	SetPushToken(ctx context.Context, deviceID, token string) error
-	// ListPushTokens returns tokens of devices that are not revoked.
-	ListPushTokens(ctx context.Context) ([]PushToken, error)
-	DeletePushToken(ctx context.Context, deviceID string) error
+	SetPushInstallation(ctx context.Context, deviceID, fid string) error
+	// ListPushInstallations returns installations of devices that are not revoked.
+	ListPushInstallations(ctx context.Context) ([]PushInstallation, error)
+	DeletePushInstallation(ctx context.Context, deviceID string) error
 	QueueNotification(ctx context.Context, n Notification) (Notification, error)
 	ListDueNotifications(ctx context.Context, now time.Time) ([]Notification, error)
 	FinishNotification(ctx context.Context, id int64, status NotificationStatus, errText string, at time.Time) error

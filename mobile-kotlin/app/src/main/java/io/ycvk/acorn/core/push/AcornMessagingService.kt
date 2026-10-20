@@ -18,8 +18,8 @@ class AcornMessagingService : FirebaseMessagingService() {
     @Inject lateinit var pushManager: PushManager
     @Inject lateinit var approvals: ApprovalNotifications
 
-    override fun onNewToken(token: String) {
-        pushManager.onNewToken(token)
+    override fun onRegistered(installationId: String) {
+        pushManager.onRegistered(installationId)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {

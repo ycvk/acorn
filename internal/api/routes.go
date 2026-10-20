@@ -107,7 +107,7 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Use(s.requireDeviceAuth)
 			r.Get("/devices", s.handleListDevices)
 			r.Delete("/devices/{device_id}", s.handleRevokeDevice)
-			r.Put("/devices/self/push-token", s.handleSetPushToken)
+			r.Put("/devices/self/push-installation", s.handleSetPushInstallation)
 			r.Route("/threads", func(r chi.Router) {
 				r.Get("/", s.handleClientListThreads)
 				r.Post("/", s.handleClientCreateThread)

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,64 +11,77 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// SetPushToken binds token to deviceID. An FCM token names one app install,
-// so it moves off any device that held it before: re-pairing the same phone
-// must not deliver every notification twice.
-func (s *Store) SetPushToken(ctx context.Context, deviceID, token string) (err error) {
-	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(token) == "" {
-		return errors.New("set push token: device id and token are required")
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("set push token for %s: begin: %w", deviceID, err)
-	}
-	defer rollbackOnErr(tx, &err, "set push token")
-	if _, err := tx.ExecContext(ctx, `DELETE FROM push_tokens WHERE token = ? AND device_id <> ?`, token, deviceID); err != nil {
-		return fmt.Errorf("set push token for %s: release from other devices: %w", deviceID, err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO push_tokens(device_id, token, updated_at) VALUES(?, ?, ?)
-		 ON CONFLICT(device_id) DO UPDATE SET token = excluded.token, updated_at = excluded.updated_at`,
-		deviceID, token, formatTimestamp(time.Now().UTC())); err != nil {
-		return fmt.Errorf("set push token for %s: %w", deviceID, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("set push token for %s: commit: %w", deviceID, err)
+// registerPushByInstallation (17 to 18) replaces push_tokens with
+// push_installations. FCM addresses an app by its Firebase installation ID,
+// which a registration token is not, so the tokens are dropped; each app
+// registers its installation ID again when it next starts.
+func registerPushByInstallation(ctx context.Context, tx *sql.Tx) error {
+	for _, statement := range []string{`DROP TABLE push_tokens`, pushInstallationsTable} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (s *Store) ListPushTokens(ctx context.Context) ([]core.PushToken, error) {
+// SetPushInstallation binds fid to deviceID. An FID names one app install,
+// so it moves off any device that held it before: re-pairing the same phone
+// must not deliver every notification twice.
+func (s *Store) SetPushInstallation(ctx context.Context, deviceID, fid string) (err error) {
+	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(fid) == "" {
+		return errors.New("set push installation: device id and fid are required")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("set push installation for %s: begin: %w", deviceID, err)
+	}
+	defer rollbackOnErr(tx, &err, "set push installation")
+	if _, err := tx.ExecContext(ctx, `DELETE FROM push_installations WHERE fid = ? AND device_id <> ?`, fid, deviceID); err != nil {
+		return fmt.Errorf("set push installation for %s: release from other devices: %w", deviceID, err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO push_installations(device_id, fid, updated_at) VALUES(?, ?, ?)
+		 ON CONFLICT(device_id) DO UPDATE SET fid = excluded.fid, updated_at = excluded.updated_at`,
+		deviceID, fid, formatTimestamp(time.Now().UTC())); err != nil {
+		return fmt.Errorf("set push installation for %s: %w", deviceID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("set push installation for %s: commit: %w", deviceID, err)
+	}
+	return nil
+}
+
+func (s *Store) ListPushInstallations(ctx context.Context) ([]core.PushInstallation, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT p.device_id, p.token, p.updated_at FROM push_tokens p
+		`SELECT p.device_id, p.fid, p.updated_at FROM push_installations p
 		 JOIN devices d ON d.device_id = p.device_id
 		 WHERE d.revoked_at = '' ORDER BY p.device_id ASC`)
 	if err != nil {
-		return nil, fmt.Errorf("list push tokens: %w", err)
+		return nil, fmt.Errorf("list push installations: %w", err)
 	}
-	var tokens []core.PushToken
+	var installations []core.PushInstallation
 	err = scanRows(rows, func(scan func(...any) error) error {
 		var (
-			t       core.PushToken
+			p       core.PushInstallation
 			updated string
 		)
-		if err := scan(&t.DeviceID, &t.Token, &updated); err != nil {
+		if err := scan(&p.DeviceID, &p.FID, &updated); err != nil {
 			return err
 		}
 		var err error
-		t.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "push_tokens.updated_at")
-		tokens = append(tokens, t)
+		p.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "push_installations.updated_at")
+		installations = append(installations, p)
 		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list push tokens: %w", err)
+		return nil, fmt.Errorf("list push installations: %w", err)
 	}
-	return tokens, nil
+	return installations, nil
 }
 
-func (s *Store) DeletePushToken(ctx context.Context, deviceID string) error {
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM push_tokens WHERE device_id = ?`, deviceID); err != nil {
-		return fmt.Errorf("delete push token for %s: %w", deviceID, err)
+func (s *Store) DeletePushInstallation(ctx context.Context, deviceID string) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM push_installations WHERE device_id = ?`, deviceID); err != nil {
+		return fmt.Errorf("delete push installation for %s: %w", deviceID, err)
 	}
 	return nil
 }

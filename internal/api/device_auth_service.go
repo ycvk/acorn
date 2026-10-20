@@ -53,29 +53,30 @@ type DeviceView struct {
 }
 
 type DeviceAuthService struct {
-	store      core.IdentityStore
-	pushTokens PushTokenStore
-	now        func() time.Time
-	rand       io.Reader
+	store             core.IdentityStore
+	pushInstallations PushInstallationStore
+	now               func() time.Time
+	rand              io.Reader
 }
 
-// PushTokenStore stores a device's FCM registration token.
-type PushTokenStore interface {
-	SetPushToken(ctx context.Context, deviceID, token string) error
+// PushInstallationStore stores the Firebase installation ID of a device's app.
+type PushInstallationStore interface {
+	SetPushInstallation(ctx context.Context, deviceID, fid string) error
 }
 
-// WithPushTokens enables push token registration.
-func (s *DeviceAuthService) WithPushTokens(store PushTokenStore) *DeviceAuthService {
-	s.pushTokens = store
+// WithPushInstallations enables push registration.
+func (s *DeviceAuthService) WithPushInstallations(store PushInstallationStore) *DeviceAuthService {
+	s.pushInstallations = store
 	return s
 }
 
-// SetPushToken records the FCM token of an authenticated device.
-func (s *DeviceAuthService) SetPushToken(ctx context.Context, deviceID, token string) error {
-	if s.pushTokens == nil {
-		return errors.New("device auth service has no push token store")
+// SetPushInstallation records the Firebase installation ID of an
+// authenticated device's app.
+func (s *DeviceAuthService) SetPushInstallation(ctx context.Context, deviceID, fid string) error {
+	if s.pushInstallations == nil {
+		return errors.New("device auth service has no push installation store")
 	}
-	return s.pushTokens.SetPushToken(ctx, deviceID, token)
+	return s.pushInstallations.SetPushInstallation(ctx, deviceID, fid)
 }
 
 func NewDeviceAuthService(store core.IdentityStore) *DeviceAuthService {

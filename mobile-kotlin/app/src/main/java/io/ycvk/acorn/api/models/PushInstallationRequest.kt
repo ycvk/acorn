@@ -30,14 +30,15 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param token 
+ * @param fid Firebase installation ID the app registered with FCM.
  */
 
 
-data class PushTokenRequest (
+data class PushInstallationRequest (
 
-    @Json(name = "token")
-    val token: kotlin.String
+    /* Firebase installation ID the app registered with FCM. */
+    @Json(name = "fid")
+    val fid: kotlin.String
 
 ) {
 
