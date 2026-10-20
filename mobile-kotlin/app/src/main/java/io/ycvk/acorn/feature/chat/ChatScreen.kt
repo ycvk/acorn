@@ -1,5 +1,6 @@
 package io.ycvk.acorn.feature.chat
 
+import android.content.ClipData
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -84,13 +85,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.core.sse.ActivityItem
 import io.ycvk.acorn.core.sse.ActivityKind
@@ -735,12 +736,13 @@ private val ComposerShape = RoundedCornerShape(ComposerRadius)
 
 @Composable
 private fun rememberCopy(): (String) -> Unit {
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val context = LocalContext.current
     val haptics = rememberHaptics()
-    return remember(clipboard, context) {
+    val scope = rememberCoroutineScope()
+    return remember(clipboard, context, scope) {
         { text: String ->
-            clipboard.setText(AnnotatedString(text))
+            scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Acorn", text))) }
             haptics.confirm()
             // Android 13+ shows its own clipboard confirmation.
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
