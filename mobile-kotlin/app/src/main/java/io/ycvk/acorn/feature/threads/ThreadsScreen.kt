@@ -1,7 +1,6 @@
 package io.ycvk.acorn.feature.threads
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,23 +43,25 @@ import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
+import io.ycvk.acorn.core.ui.DayGroup
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.ListRow
-import io.ycvk.acorn.core.ui.ListSection
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.PageHeader
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
-import io.ycvk.acorn.core.ui.DayGroup
 import io.ycvk.acorn.core.ui.Status
 import io.ycvk.acorn.core.ui.StatusGlyph
 import io.ycvk.acorn.core.ui.SwipeToDelete
 import io.ycvk.acorn.core.ui.clockTime
 import io.ycvk.acorn.core.ui.dayGroup
+import io.ycvk.acorn.core.ui.groupItem
+import io.ycvk.acorn.core.ui.hairline
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.rememberHaptics
@@ -86,10 +87,9 @@ fun ThreadsScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         PageHeader("对话") {
-            IconAction(AcornIcons.Compose, "新对话", onNewChat)
+            IconAction(AcornIcons.Compose, "新对话", onNewChat, filled = true)
         }
-        SearchField(query, { query = it }, "搜索对话", Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 10.dp))
-        Hairline()
+        SearchField(query, { query = it }, "搜索对话", Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 4.dp))
         error?.let {
             InlineError(it, Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp), action = "知道了", onAction = viewModel::dismissError)
         }
@@ -154,11 +154,11 @@ private fun ThreadList(
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val groups = threads.groupBy { dayGroup(it.updatedAt, today, zone) }.toSortedMap()
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         groups.forEach { (group, items) ->
-            item(key = "group:${group.name}") { ListSection(group.label, Modifier.animateItem(), count = items.size) }
-            items(items, key = { it.id }) { thread ->
-                Column(Modifier.animateItem()) {
+            item(key = "group:${group.name}") { SectionLabel(group.label, Modifier.animateItem(), count = items.size) }
+            itemsIndexed(items, key = { _, it -> it.id }) { index, thread ->
+                Column(Modifier.animateItem().groupItem(index, items.size)) {
                     SwipeToDelete(onDelete = { onDelete(thread) }) {
                         ThreadRow(
                             thread = thread,
@@ -167,8 +167,7 @@ private fun ThreadList(
                             onDelete = { onDelete(thread) },
                         )
                     }
-                    // A group's last line runs full width, so the next group's band starts on a whole edge.
-                    Hairline(inset = if (thread.id == items.last().id) 0.dp else ScreenPadding + 28.dp)
+                    if (index < items.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
                 }
             }
         }
@@ -225,18 +224,18 @@ private fun threadStateLabel(state: Thread.State): String? = when (state) {
     Thread.State.new, Thread.State.completed -> null
 }
 
-/** A bordered search input with a tight radius. */
+/** A search input on a pill. */
 @Composable
 fun SearchField(value: String, onValueChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
     val colors = AcornTheme.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(36.dp)
-            .clip(AcornShapes.medium)
-            .background(colors.surfaceMuted.copy(alpha = 0.6f))
-            .border(1.dp, colors.line, AcornShapes.medium)
-            .padding(start = 10.dp, end = 2.dp),
+            .height(42.dp)
+            .clip(AcornShapes.pill)
+            .background(colors.surface)
+            .hairline(AcornShapes.pill)
+            .padding(start = 14.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(AcornIcons.Search, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(16.dp))

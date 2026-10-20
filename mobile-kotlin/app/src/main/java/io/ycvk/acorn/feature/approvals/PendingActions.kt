@@ -42,12 +42,15 @@ import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.theme.CardRadius
+import io.ycvk.acorn.core.ui.BeamPalette
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.SheetHandle
 import io.ycvk.acorn.core.ui.SheetShape
 import io.ycvk.acorn.core.ui.ago
+import io.ycvk.acorn.core.ui.borderBeam
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.chat.toolLabel
 
@@ -106,10 +109,11 @@ fun ApprovalCard(
 ) {
     val colors = AcornTheme.colors
     val haptics = rememberHaptics()
+    // A warm light rides the card for as long as the decision waits on the owner.
     Panel(
-        modifier = modifier,
+        modifier = modifier.borderBeam(true, CardRadius, BeamPalette.Sunset, period = 3200),
         onClick = onOpen,
-        contentPadding = PaddingValues(14.dp),
+        contentPadding = PaddingValues(16.dp),
     ) {
         Row {
             StatusGlyph(Status.Waiting, Modifier.padding(top = 2.dp))

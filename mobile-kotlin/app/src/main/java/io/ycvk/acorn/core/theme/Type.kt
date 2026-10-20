@@ -9,12 +9,14 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
- * One sans family throughout (Noto Sans CJK on most devices), set compact
- * with slightly tight tracking; hierarchy comes from weight and grey steps.
+ * One sans family throughout (Noto Sans CJK on most devices). Display sizes
+ * run large and tightly tracked, as on an editorial page; body text stays
+ * compact and hierarchy below the titles comes from weight and grey steps.
  * Figures are tabular so times and counts line up, and mono marks metadata.
  */
 @Immutable
 data class AcornType(
+    val display: TextStyle,
     val largeTitle: TextStyle,
     val title: TextStyle,
     val headline: TextStyle,
@@ -44,8 +46,9 @@ private fun sans(size: Double, line: Int, weight: FontWeight = FontWeight.Normal
 )
 
 internal val DefaultType = AcornType(
-    largeTitle = sans(22.0, 28, FontWeight.SemiBold, -0.02),
-    title = sans(18.0, 24, FontWeight.SemiBold, -0.015),
+    display = sans(32.0, 38, FontWeight.SemiBold, -0.035),
+    largeTitle = sans(26.0, 32, FontWeight.SemiBold, -0.03),
+    title = sans(19.0, 26, FontWeight.SemiBold, -0.02),
     headline = sans(15.0, 20, FontWeight.Medium, -0.01),
     body = sans(15.0, 22, tracking = -0.005),
     reading = sans(15.0, 24, tracking = -0.005),

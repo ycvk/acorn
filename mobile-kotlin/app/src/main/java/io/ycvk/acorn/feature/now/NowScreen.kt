@@ -15,11 +15,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -51,17 +56,17 @@ import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
-import io.ycvk.acorn.core.ui.AcornMark
 import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
-import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.EmptyState
+import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.IconAction
+import io.ycvk.acorn.core.ui.IconTile
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.ListRow
 import io.ycvk.acorn.core.ui.OnReturnToForeground
-import io.ycvk.acorn.core.ui.PageHeader
+import io.ycvk.acorn.core.ui.OrbState
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SectionLabel
@@ -69,7 +74,9 @@ import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Status
 import io.ycvk.acorn.core.ui.StatusGlyph
 import io.ycvk.acorn.core.ui.Tag
+import io.ycvk.acorn.core.ui.ThinkingOrb
 import io.ycvk.acorn.core.ui.ago
+import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.weekdayName
@@ -121,19 +128,12 @@ fun NowScreen(
                 contentPadding = PaddingValues(bottom = 96.dp),
             ) {
                 item(key = "header") {
-                    PageHeader("今天") {
-                        IconAction(AcornIcons.Globe, "Agent 的浏览器", onBrowser)
-                        IconAction(AcornIcons.Settings, "设置", onSettings)
-                    }
-                    Column(modifier = Modifier.padding(start = ScreenPadding, end = ScreenPadding, top = 6.dp, bottom = 16.dp)) {
-                        Text(greeting(LocalTime.now(zone)), style = AcornTheme.type.largeTitle, color = AcornTheme.colors.ink)
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "${today.monthValue}月${today.dayOfMonth}日 ${weekdayName(today.dayOfWeek)}",
-                            style = AcornTheme.type.footnote,
-                            color = AcornTheme.colors.inkSoft,
-                        )
-                    }
+                    Hero(
+                        greeting = greeting(LocalTime.now(zone)),
+                        date = "${today.monthValue}月${today.dayOfMonth}日 · ${weekdayName(today.dayOfWeek)}",
+                        onBrowser = onBrowser,
+                        onSettings = onSettings,
+                    )
                 }
                 listOfNotNull(actionError, approvalError).forEach { message ->
                     item(key = "error:$message") {
@@ -209,6 +209,29 @@ fun NowScreen(
     }
 }
 
+/** The page's opening: the date and round actions, then the greeting beside Acorn's orb, listening. */
+@Composable
+private fun Hero(greeting: String, date: String, onBrowser: () -> Unit, onSettings: () -> Unit) {
+    val colors = AcornTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(start = ScreenPadding + 4.dp, end = ScreenPadding - 2.dp, bottom = 8.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().height(60.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(date, style = AcornTheme.type.eyebrow, color = colors.inkSoft, modifier = Modifier.weight(1f))
+            IconAction(AcornIcons.Globe, "Agent 的浏览器", onBrowser, filled = true)
+            Spacer(Modifier.width(8.dp))
+            IconAction(AcornIcons.Settings, "设置", onSettings, filled = true)
+        }
+        Row(modifier = Modifier.padding(top = 2.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(greeting, style = AcornTheme.type.display, color = colors.ink, modifier = Modifier.weight(1f))
+            ThinkingOrb(OrbState.Listening, size = 64.dp, speed = 0.35f)
+        }
+    }
+}
+
 fun greeting(now: LocalTime): String = when (now.hour) {
     in 5..10 -> "早上好"
     in 11..12 -> "中午好"
@@ -249,30 +272,30 @@ private fun LazyListScope.nowSections(
 
     if (now.commitments.isNotEmpty()) {
         item(key = "commitments:label") { SectionLabel("接下来", count = now.commitments.size) }
-        items(now.commitments, key = { "commitment:${it.id}" }) { commitment ->
-            Column(Modifier.animateItem()) {
+        itemsIndexed(now.commitments, key = { _, it -> "commitment:${it.id}" }) { index, commitment ->
+            Column(Modifier.animateItem().groupItem(index, now.commitments.size)) {
                 CommitmentRow(commitment, wakeTime(commitment.wakeAt, today, zone), onCancel = { onCancel(commitment) })
-                Hairline(inset = ScreenPadding + 63.dp)
+                if (index < now.commitments.lastIndex) Hairline(inset = ScreenPadding + 63.dp)
             }
         }
     }
 
     if (now.concerns.isNotEmpty()) {
         item(key = "concerns:label") { SectionLabel("正在跟进", count = now.concerns.size) }
-        items(now.concerns, key = { "concern:${it.id}" }) { concern ->
-            Column(Modifier.animateItem()) {
+        itemsIndexed(now.concerns, key = { _, it -> "concern:${it.id}" }) { index, concern ->
+            Column(Modifier.animateItem().groupItem(index, now.concerns.size)) {
                 ConcernRow(concern, onClick = { onThreadClick(concern.threadId) })
-                Hairline(inset = ScreenPadding + 28.dp)
+                if (index < now.concerns.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
             }
         }
     }
 
     if (now.watches.isNotEmpty()) {
         item(key = "watches:label") { SectionLabel("追踪", count = now.watches.size) }
-        items(now.watches, key = { "watch:${it.id}" }) { watch ->
-            Column(Modifier.animateItem()) {
+        itemsIndexed(now.watches, key = { _, it -> "watch:${it.id}" }) { index, watch ->
+            Column(Modifier.animateItem().groupItem(index, now.watches.size)) {
                 WatchRow(watch, onPause = { onPause(watch.id) }, onResume = { onResume(watch.id) })
-                Hairline(inset = ScreenPadding + 28.dp)
+                if (index < now.watches.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
             }
         }
     }
@@ -282,18 +305,22 @@ private fun LazyListScope.nowSections(
 private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>, onClick: () -> Unit) {
     val colors = AcornTheme.colors
     val preview = AcornTheme.type.callout
-    Panel(modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 12.dp), onClick = onClick) {
+    Panel(modifier = Modifier.padding(horizontal = ScreenPadding), onClick = onClick, contentPadding = PaddingValues(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "早安 · ${briefing.date.monthValue}月${briefing.date.dayOfMonth}日",
-                style = AcornTheme.type.headline.copy(fontWeight = FontWeight.SemiBold),
-                color = colors.ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(ago(briefing.finishedAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
+            IconTile(size = 36.dp) {
+                Icon(Icons.Outlined.WbSunny, contentDescription = null, tint = colors.warning, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "早安 · ${briefing.date.monthValue}月${briefing.date.dayOfMonth}日",
+                    style = AcornTheme.type.headline.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(ago(briefing.finishedAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
+            }
         }
         sections.take(4).forEach { section ->
             Spacer(Modifier.height(12.dp))
@@ -303,7 +330,7 @@ private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>,
             }
             Text(section.text, style = preview, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("阅读全文", style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = colors.accent)
             Spacer(Modifier.width(2.dp))
@@ -435,34 +462,39 @@ private fun MenuItem(text: String, danger: Boolean = false, onClick: () -> Unit)
     AcornMenuItem(text, onClick, danger = danger)
 }
 
-/** The entry to a new conversation, floating above the tab bar. */
+/** The entry to a new conversation, a pill floating above the tab bar. */
 @Composable
 private fun AskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AcornTheme.colors
-    val shape = AcornShapes.large
+    val shape = AcornShapes.pill
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .fillMaxWidth()
             .background(Brush.verticalGradient(listOf(Color.Transparent, colors.canvas.copy(alpha = 0.92f), colors.canvas)))
-            .padding(start = ScreenPadding, end = ScreenPadding, top = 24.dp, bottom = 12.dp),
+            .padding(start = ScreenPadding, end = ScreenPadding, top = 28.dp, bottom = 14.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .pressScale(interaction, 0.98f)
                 .raised(shape)
-                .height(46.dp)
+                .height(54.dp)
                 .clip(shape)
                 .background(colors.surface)
                 .clickable(interaction, LocalIndication.current, onClick = onClick)
-                .padding(start = 11.dp, end = 14.dp),
+                .padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AcornMark(size = 22.dp)
-            Spacer(Modifier.width(10.dp))
+            ThinkingOrb(OrbState.Thinking, size = 22.dp, animated = false)
+            Spacer(Modifier.width(12.dp))
             Text("问点什么，或者交给 Acorn 去做", style = AcornTheme.type.callout, color = colors.inkFaint, modifier = Modifier.weight(1f))
-            Icon(AcornIcons.ArrowUp, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(16.dp))
+            Box(
+                modifier = Modifier.size(38.dp).background(colors.surfaceMuted, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(AcornIcons.ArrowUp, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(17.dp))
+            }
         }
     }
 }

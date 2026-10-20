@@ -1,6 +1,8 @@
 package io.ycvk.acorn.core.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -27,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -47,13 +50,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
@@ -62,13 +68,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -79,6 +92,7 @@ import io.ycvk.acorn.R
 import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.theme.CardRadius
 
 val ScreenPadding = 16.dp
 
@@ -92,20 +106,46 @@ fun Hairline(modifier: Modifier = Modifier, inset: Dp = 0.dp) {
     )
 }
 
-/** The Acorn mark on an accent tile: the app's signature in headers and as the agent's avatar. */
+/** The Acorn mark on a graphite tile, as on the pairing screen. */
 @Composable
 fun AcornMark(modifier: Modifier = Modifier, size: Dp = 24.dp) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .background(AcornTheme.colors.accent, RoundedCornerShape(size * 0.27f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(painterResource(R.drawable.ic_acorn), contentDescription = null, tint = AcornTheme.colors.onAccent, modifier = Modifier.size(size * 0.58f))
+    IconTile(modifier = modifier, size = size) {
+        Icon(painterResource(R.drawable.ic_acorn), contentDescription = null, tint = AcornTheme.colors.ink, modifier = Modifier.size(size * 0.5f))
     }
 }
 
-/** Tab root bar: the Acorn mark, the page title and trailing actions. */
+/**
+ * A small tile that frames an icon: a soft top-lit gradient inside a hairline,
+ * the way a physical key catches light from above.
+ */
+@Composable
+fun IconTile(modifier: Modifier = Modifier, size: Dp = 36.dp, content: @Composable () -> Unit) {
+    val colors = AcornTheme.colors
+    val shape = RoundedCornerShape(size * 0.3f)
+    val fill = if (colors.isDark) listOf(colors.surfaceMuted, colors.surface) else listOf(colors.surface, colors.surfaceMuted)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .background(Brush.verticalGradient(fill))
+            .hairline(shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+/**
+ * A 1px edge that catches light at the top and fades toward the bottom, for
+ * cards and tiles; it reads as a bevel in dark mode and a plain rule in light.
+ */
+fun Modifier.hairline(shape: Shape): Modifier = composed {
+    val colors = AcornTheme.colors
+    val edge = if (colors.isDark) Brush.verticalGradient(listOf(colors.lineStrong, colors.line)) else SolidColor(colors.line)
+    border(1.dp, edge, shape)
+}
+
+/** Tab root bar: a large page title and trailing round actions. */
 @Composable
 fun PageHeader(
     title: String,
@@ -116,14 +156,12 @@ fun PageHeader(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .height(52.dp)
-            .padding(start = ScreenPadding, end = 6.dp),
+            .height(64.dp)
+            .padding(start = ScreenPadding + 2.dp, end = ScreenPadding - 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AcornMark()
-        Spacer(Modifier.width(10.dp))
-        Text(title, style = AcornTheme.type.title, color = AcornTheme.colors.ink, modifier = Modifier.weight(1f))
-        Row(verticalAlignment = Alignment.CenterVertically, content = trailing)
+        Text(title, style = AcornTheme.type.largeTitle, color = AcornTheme.colors.ink, modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = trailing)
     }
 }
 
@@ -163,10 +201,10 @@ fun TopBar(
             }
             actions()
         }
-        Hairline()
     }
 }
 
+/** A round icon button; [filled] sets it on a raised disc, as the actions in a page header. */
 @Composable
 fun IconAction(
     icon: ImageVector,
@@ -175,18 +213,21 @@ fun IconAction(
     modifier: Modifier = Modifier,
     tint: Color = AcornTheme.colors.inkSoft,
     enabled: Boolean = true,
+    filled: Boolean = false,
 ) {
+    val colors = AcornTheme.colors
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .size(40.dp)
             .pressScale(interaction, 0.9f)
-            .clip(AcornShapes.medium)
+            .clip(CircleShape)
+            .then(if (filled) Modifier.background(colors.surface).hairline(CircleShape) else Modifier)
             .clickable(interaction, LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
             .alpha(if (enabled) 1f else 0.4f),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = contentDescription, tint = if (filled) colors.ink else tint, modifier = Modifier.size(if (filled) 18.dp else 20.dp))
     }
 }
 
@@ -197,7 +238,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, count: Int? = null
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = ScreenPadding + 2.dp, end = ScreenPadding, top = 24.dp, bottom = 8.dp),
+            .padding(start = ScreenPadding + 6.dp, end = ScreenPadding + 2.dp, top = 26.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, style = AcornTheme.type.eyebrow, color = colors.inkSoft, modifier = Modifier.weight(1f, fill = false))
@@ -210,26 +251,21 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, count: Int? = null
     }
 }
 
-/** A grey band that opens a group in a flat list, with an optional count. */
-@Composable
-fun ListSection(text: String, modifier: Modifier = Modifier, count: Int? = null) {
-    val colors = AcornTheme.colors
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.surfaceMuted)
-                .padding(horizontal = ScreenPadding, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text, style = AcornTheme.type.eyebrow, color = colors.inkSoft)
-            count?.let {
-                Spacer(Modifier.width(8.dp))
-                Text("$it", style = AcornTheme.type.caption, color = colors.inkFaint)
-            }
-        }
-        Hairline()
-    }
+/**
+ * One row's slice of a grouped card in a lazy list: the first row rounds the
+ * top corners, the last the bottom, and the rows between sit flush.
+ */
+fun Modifier.groupItem(index: Int, count: Int): Modifier = composed {
+    val radius = CardRadius
+    val shape = RoundedCornerShape(
+        topStart = if (index == 0) radius else 0.dp,
+        topEnd = if (index == 0) radius else 0.dp,
+        bottomStart = if (index == count - 1) radius else 0.dp,
+        bottomEnd = if (index == count - 1) radius else 0.dp,
+    )
+    padding(horizontal = ScreenPadding)
+        .clip(shape)
+        .background(AcornTheme.colors.surface)
 }
 
 @Composable
@@ -295,23 +331,23 @@ fun StatusGlyph(status: Status, modifier: Modifier = Modifier) {
     }
 }
 
-/** A bordered card in the flow of a page; tinted cards drop the rule. */
+/** A card in the flow of a page, lit along its top edge; tinted cards drop the edge. */
 @Composable
 fun Panel(
     modifier: Modifier = Modifier,
     color: Color = AcornTheme.colors.surface,
     onClick: (() -> Unit)? = null,
-    contentPadding: PaddingValues = PaddingValues(14.dp),
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = AcornTheme.colors
-    val shape = AcornShapes.large
+    val shape = AcornShapes.card
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
             .background(color)
-            .border(1.dp, if (color == colors.surface) colors.line else color, shape)
+            .then(if (color == colors.surface) Modifier.hairline(shape) else Modifier)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(contentPadding),
         content = content,
@@ -343,8 +379,8 @@ fun ListRow(
                     Modifier
                 },
             )
-            .heightIn(min = 52.dp)
-            .padding(horizontal = ScreenPadding, vertical = 11.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = ScreenPadding, vertical = 13.dp),
         verticalAlignment = verticalAlignment,
     ) {
         leading?.let {
@@ -365,7 +401,7 @@ fun ListRow(
 fun SwipeToDelete(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-    background: Color = AcornTheme.colors.canvas,
+    background: Color = AcornTheme.colors.surface,
     content: @Composable () -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -402,7 +438,7 @@ fun SwipeToDelete(
     }
 }
 
-/** Danger is a bordered destructive action; Destructive fills it, for the confirming step. */
+/** Danger is a soft destructive action; Destructive fills it, for the confirming step. */
 enum class ButtonKind { Primary, Secondary, Quiet, Danger, Destructive }
 
 @Composable
@@ -419,25 +455,23 @@ fun AcornButton(
     val colors = AcornTheme.colors
     val (container, content) = when (kind) {
         ButtonKind.Primary -> colors.accent to colors.onAccent
-        ButtonKind.Secondary -> colors.surface to colors.ink
+        ButtonKind.Secondary -> colors.surfaceMuted to colors.ink
         ButtonKind.Quiet -> Color.Transparent to colors.accent
-        ButtonKind.Danger -> colors.surface to colors.danger
+        ButtonKind.Danger -> colors.dangerSoft to colors.danger
         ButtonKind.Destructive -> colors.danger to colors.onAccent
     }
-    val bordered = kind == ButtonKind.Secondary || kind == ButtonKind.Danger
-    val shape = AcornShapes.medium
+    val shape = AcornShapes.pill
     val active = enabled && !loading
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
-            .pressScale(interaction, 0.97f)
-            .height(if (compact) 32.dp else 40.dp)
+            .pressScale(interaction, 0.96f)
+            .height(if (compact) 34.dp else 44.dp)
             .alpha(if (enabled) 1f else 0.4f)
             .clip(shape)
             .background(container)
-            .then(if (bordered) Modifier.border(1.dp, colors.lineStrong, shape) else Modifier)
             .clickable(interaction, LocalIndication.current, enabled = active, role = Role.Button, onClick = onClick)
-            .padding(horizontal = if (compact) 12.dp else 16.dp),
+            .padding(horizontal = if (compact) 14.dp else 20.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
@@ -475,16 +509,10 @@ fun EmptyState(
             .padding(horizontal = 40.dp, vertical = 56.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .border(1.dp, colors.line, AcornShapes.large)
-                .background(colors.surface, AcornShapes.large),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(20.dp))
+        IconTile(size = 48.dp) {
+            Icon(icon, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(22.dp))
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(18.dp))
         Text(title, style = AcornTheme.type.headline.copy(fontWeight = FontWeight.SemiBold), color = colors.ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(6.dp))
         Text(body, style = AcornTheme.type.footnote, color = colors.inkSoft, textAlign = TextAlign.Center)
@@ -513,10 +541,10 @@ fun InlineError(message: String, modifier: Modifier = Modifier, action: String? 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(AcornShapes.medium)
+            .clip(AcornShapes.large)
             .background(colors.dangerSoft)
-            .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
-            .heightIn(min = 40.dp),
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(message, style = AcornTheme.type.footnote, color = colors.danger, modifier = Modifier.weight(1f))
@@ -526,9 +554,9 @@ fun InlineError(message: String, modifier: Modifier = Modifier, action: String? 
                 style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium),
                 color = colors.danger,
                 modifier = Modifier
-                    .clip(AcornShapes.small)
+                    .clip(AcornShapes.pill)
                     .clickable(onClick = onAction)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             )
         }
     }
@@ -573,14 +601,14 @@ fun SkeletonRows(modifier: Modifier = Modifier, rows: Int = 6) {
                         Modifier
                             .fillMaxWidth(if (index % 2 == 0) 0.55f else 0.4f)
                             .height(12.dp)
-                            .background(colors.surfaceMuted, AcornShapes.small),
+                            .background(colors.surfaceMuted, AcornShapes.pill),
                     )
                     Spacer(Modifier.height(8.dp))
                     Box(
                         Modifier
                             .fillMaxWidth(if (index % 3 == 0) 0.9f else 0.75f)
                             .height(10.dp)
-                            .background(colors.surfaceMuted, AcornShapes.small),
+                            .background(colors.surfaceMuted, AcornShapes.pill),
                     )
                 }
             }
@@ -593,7 +621,7 @@ fun SkeletonRows(modifier: Modifier = Modifier, rows: Int = 6) {
 @Composable
 fun Tag(text: String, modifier: Modifier = Modifier, color: Color = AcornTheme.colors.inkSoft, container: Color? = null) {
     val colors = AcornTheme.colors
-    val shape = RoundedCornerShape(5.dp)
+    val shape = AcornShapes.pill
     Text(
         text,
         style = AcornTheme.type.caption.copy(fontSize = 11.5.sp, fontWeight = FontWeight.Medium),
@@ -602,43 +630,76 @@ fun Tag(text: String, modifier: Modifier = Modifier, color: Color = AcornTheme.c
         modifier = modifier
             .clip(shape)
             .then(if (container != null) Modifier.background(container) else Modifier.border(1.dp, colors.line, shape))
-            .padding(horizontal = 6.dp, vertical = 1.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
     )
 }
 
-/** View switches as small pills; the selected one is filled and outlined. */
+/** View switches on a pill track; a raised thumb glides to the selected one. */
 @Composable
 fun SegmentedControl(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
     val haptics = rememberHaptics()
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        options.forEachIndexed { index, label ->
-            ViewPill(label, index == selected, role = Role.Tab) {
-                if (index != selected) haptics.tick()
-                onSelect(index)
+    val density = LocalDensity.current
+    val bounds = remember(options) { mutableStateMapOf<Int, Pair<Float, Float>>() }
+    val target = bounds[selected]
+    val thumbX by animateDpAsState(with(density) { (target?.first ?: 0f).toDp() }, AcornMotion.glide(), label = "segment_x")
+    val thumbW by animateDpAsState(with(density) { (target?.second ?: 0f).toDp() }, AcornMotion.glide(), label = "segment_w")
+    Box(
+        modifier = modifier
+            .clip(AcornShapes.pill)
+            .background(colors.surfaceMuted)
+            .padding(3.dp),
+    ) {
+        if (target != null) {
+            Box(
+                Modifier
+                    .offset(x = thumbX)
+                    .width(thumbW)
+                    .height(30.dp)
+                    .shadow(if (colors.isDark) 0.dp else 2.dp, AcornShapes.pill, clip = false)
+                    .background(if (colors.isDark) colors.lineStrong else colors.surface, AcornShapes.pill),
+            )
+        }
+        Row {
+            options.forEachIndexed { index, label ->
+                val tint by animateColorAsState(if (index == selected) colors.ink else colors.inkSoft, AcornMotion.standard(AcornMotion.SHORT), label = "segment_tint")
+                Box(
+                    modifier = Modifier
+                        .onPlaced { bounds[index] = it.positionInParent().x to it.size.width.toFloat() }
+                        .height(30.dp)
+                        .clip(AcornShapes.pill)
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) {
+                            if (index != selected) haptics.tick()
+                            onSelect(index)
+                        }
+                        .semantics { this.selected = index == selected }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(label, style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = tint)
+                }
             }
         }
     }
 }
 
-/** A small selectable pill, for narrowing a list. */
+/** A selectable pill for narrowing a list; the selected one is filled with ink. */
 @Composable
 fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    ViewPill(text, selected, modifier, Role.RadioButton, onClick)
-}
-
-@Composable
-private fun ViewPill(text: String, selected: Boolean, modifier: Modifier = Modifier, role: Role, onClick: () -> Unit) {
     val colors = AcornTheme.colors
-    val shape = AcornShapes.small
+    val shape = AcornShapes.pill
+    val fill by animateColorAsState(if (selected) colors.ink else Color.Transparent, AcornMotion.standard(AcornMotion.SHORT), label = "filter_fill")
+    val tint by animateColorAsState(if (selected) colors.canvas else colors.inkSoft, AcornMotion.standard(AcornMotion.SHORT), label = "filter_tint")
     Text(
         text,
         style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium),
-        color = if (selected) colors.ink else colors.inkSoft,
+        color = tint,
         modifier = modifier
             .clip(shape)
-            .then(if (selected) Modifier.background(colors.surfaceMuted).border(1.dp, colors.line, shape) else Modifier)
-            .clickable(role = role, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .background(fill)
+            .then(if (selected) Modifier else Modifier.border(1.dp, colors.line, shape))
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }
 
@@ -651,7 +712,7 @@ fun AcornMenu(expanded: Boolean, onDismiss: () -> Unit, content: @Composable Col
         shape = AcornShapes.large,
         containerColor = AcornTheme.colors.surface,
         tonalElevation = 0.dp,
-        shadowElevation = 8.dp,
+        shadowElevation = 12.dp,
         border = BorderStroke(1.dp, AcornTheme.colors.line),
         content = content,
     )
@@ -680,4 +741,4 @@ fun SheetHandle() {
 }
 
 /** Bottom sheets round only their top corners. */
-val SheetShape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+val SheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)

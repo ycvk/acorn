@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.Text
@@ -38,6 +38,7 @@ import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
+import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.feature.threads.SearchField
 import java.time.LocalDate
@@ -57,15 +58,14 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         SearchField(query, viewModel::onQueryChange, "搜索记忆", Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 8.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = ScreenPadding - 4.dp, end = ScreenPadding, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = ScreenPadding, end = ScreenPadding, top = 4.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             FilterPill("全部", kind == null, { viewModel.selectKind(null) })
             MemorySummary.Kind.entries.forEach { option ->
                 FilterPill(kindLabel(option), kind == option, { viewModel.selectKind(option) })
             }
         }
-        Hairline()
         when (val content = memoryListContent(load, query, kind, limit)) {
             MemoryListContent.Loading -> SkeletonRows()
             is MemoryListContent.Failed -> ErrorState(content.message, onRetry = viewModel::refresh)
@@ -82,11 +82,11 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit) {
             is MemoryListContent.Items -> {
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now(zone)
-                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
-                    items(content.memories, key = { it.id }) { memory ->
-                        Column(Modifier.animateItem()) {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                    itemsIndexed(content.memories, key = { _, it -> it.id }) { index, memory ->
+                        Column(Modifier.animateItem().groupItem(index, content.memories.size)) {
                             MemoryRow(memory, listTime(memory.updatedAt, today, zone), onClick = { onMemoryClick(memory.id) })
-                            Hairline(inset = ScreenPadding)
+                            if (index < content.memories.lastIndex) Hairline(inset = ScreenPadding)
                         }
                     }
                     if (content.canLoadMore) {

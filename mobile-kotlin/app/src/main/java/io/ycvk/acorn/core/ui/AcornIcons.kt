@@ -89,10 +89,6 @@ object AcornIcons {
             stroke = 1.6f,
         )
     }
-    val Person by lazy { icon("person", "M12 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0 -7z M5 19.5c0.8 -3.2 3.6 -5 7 -5s6.2 1.8 7 5") }
-    val Attach by lazy {
-        icon("attach", "M15.5 7.5l-6.4 6.4a1.8 1.8 0 0 0 2.5 2.5l6.6 -6.6a3.4 3.4 0 0 0 -4.8 -4.8l-6.8 6.8a5 5 0 0 0 7.1 7.1l5.8 -5.8")
-    }
 
     private fun icon(name: String, data: String, stroke: Float = 1.8f, filled: Boolean = false): ImageVector =
         ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)

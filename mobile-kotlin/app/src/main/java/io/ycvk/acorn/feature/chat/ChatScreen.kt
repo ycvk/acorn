@@ -8,13 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.StartOffset
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,7 +19,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,10 +26,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -87,7 +80,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -95,11 +87,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.core.sse.ActivityItem
@@ -113,24 +103,27 @@ import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
-import io.ycvk.acorn.core.ui.AcornMark
 import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.OnReturnToForeground
+import io.ycvk.acorn.core.ui.OrbState
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.ThinkingOrb
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.borderBeam
+import io.ycvk.acorn.core.ui.hairline
+import io.ycvk.acorn.core.ui.metalRing
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.rememberHaptics
+import io.ycvk.acorn.core.ui.shimmer
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
 import io.ycvk.acorn.feature.knowledge.AttachmentImage
-import kotlin.math.PI
-import kotlin.math.sin
 import kotlinx.coroutines.launch
 
 @Composable
@@ -262,7 +255,7 @@ fun ChatScreen(
                     .nestedScroll(scrollConnection),
                 state = listState,
                 contentPadding = PaddingValues(start = ScreenPadding, end = ScreenPadding, top = 16.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
                 if (messages.isEmpty() && !streaming && currentThread == null) {
                     item(key = "__welcome__") { Welcome(Modifier.fillParentMaxHeight(0.8f)) }
@@ -338,9 +331,9 @@ fun ChatScreen(
                 Box(
                     modifier = Modifier
                         .pressScale(interaction, 0.9f)
-                        .raised(AcornShapes.medium)
-                        .size(34.dp)
-                        .clip(AcornShapes.medium)
+                        .raised(CircleShape)
+                        .size(38.dp)
+                        .clip(CircleShape)
                         .background(colors.surface)
                         .clickable(interaction, LocalIndication.current) {
                             follow = true
@@ -423,10 +416,10 @@ private fun Welcome(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        AcornMark(size = 36.dp)
-        Spacer(Modifier.height(16.dp))
-        Text("想让我做点什么？", style = AcornTheme.type.title.copy(fontSize = 17.sp), color = colors.ink)
-        Spacer(Modifier.height(6.dp))
+        ThinkingOrb(OrbState.Listening, size = 72.dp, speed = 0.45f)
+        Spacer(Modifier.height(20.dp))
+        Text("想让我做点什么？", style = AcornTheme.type.title, color = colors.ink)
+        Spacer(Modifier.height(8.dp))
         Text(
             "问问题、记一个约定、让我盯着某个网页，\n或者把要整理的东西交给我。",
             style = AcornTheme.type.footnote,
@@ -452,47 +445,32 @@ private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Wander -> Icons.Outlined.Lightbulb
 }
 
-/** Who is speaking: a small avatar and a name, above the message indented under it. */
-@Composable
-private fun Speaker(acorn: Boolean) {
-    val colors = AcornTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (acorn) {
-            AcornMark(size = 20.dp)
-        } else {
-            Box(
-                Modifier
-                    .size(20.dp)
-                    .background(colors.surfaceMuted, AcornShapes.small)
-                    .border(1.dp, colors.line, AcornShapes.small),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(AcornIcons.Person, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(13.dp))
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(if (acorn) "Acorn" else "你", style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.ink)
-    }
-}
-
-private val MessageIndent = 28.dp
+/** The owner's words on a soft bubble at the right, its corner toward the edge kept tight. */
+private val UserBubbleShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 6.dp, bottomStart = 20.dp)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(text: String, modifier: Modifier = Modifier, files: @Composable () -> Unit = {}) {
+    val colors = AcornTheme.colors
     val copy = rememberCopy()
-    Column(modifier = modifier.fillMaxWidth()) {
-        Speaker(acorn = false)
-        Column(modifier = Modifier.padding(start = MessageIndent, top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            files()
-            if (text.isNotEmpty()) {
-                Text(
-                    text = text,
-                    style = AcornTheme.type.body,
-                    color = AcornTheme.colors.ink,
-                    modifier = Modifier.combinedClickable(onClick = {}, onLongClick = { copy(text) }),
-                )
-            }
+    Column(
+        modifier = modifier.fillMaxWidth().padding(start = 48.dp),
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        files()
+        if (text.isNotEmpty()) {
+            Text(
+                text = text,
+                style = AcornTheme.type.body,
+                color = colors.ink,
+                modifier = Modifier
+                    .clip(UserBubbleShape)
+                    .background(if (colors.isDark) colors.surfaceMuted else colors.surface)
+                    .hairline(UserBubbleShape)
+                    .combinedClickable(onClick = {}, onLongClick = { copy(text) })
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+            )
         }
     }
 }
@@ -508,10 +486,7 @@ private fun AssistantMessage(
 ) {
     val colors = AcornTheme.colors
     val copy = rememberCopy()
-    Column(modifier = modifier.fillMaxWidth()) {
-        Speaker(acorn = true)
-        Spacer(Modifier.height(6.dp))
-        Column(modifier = Modifier.padding(start = MessageIndent)) {
+    Column(modifier = modifier.fillMaxWidth().padding(end = 8.dp)) {
         if (steps.isNotEmpty()) {
             ToolSteps(steps, streaming)
             Spacer(Modifier.height(8.dp))
@@ -522,8 +497,14 @@ private fun AssistantMessage(
         }
         if (text.isNotBlank()) {
             SelectionContainer { Markdown(text) }
-        } else if (streaming && steps.none { it.status == StepStatus.Running }) {
-            TypingDots()
+        }
+        // While no step runs, the orb at the foot of the reply shows whether Acorn is still thinking or already writing.
+        if (streaming && steps.none { it.status == StepStatus.Running }) {
+            RunStatus(
+                state = if (text.isBlank()) OrbState.Thinking else OrbState.Composing,
+                label = if (text.isBlank()) "正在思考" else "正在回复",
+                modifier = Modifier.padding(top = if (text.isBlank()) 2.dp else 10.dp),
+            )
         }
         files()
         if (!streaming && text.isNotBlank()) {
@@ -538,7 +519,16 @@ private fun AssistantMessage(
                     .size(30.dp),
             )
         }
-        }
+    }
+}
+
+/** What a running reply is doing: its orb beside a label a light passes over. */
+@Composable
+private fun RunStatus(state: OrbState, label: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        ThinkingOrb(state, size = 22.dp)
+        Spacer(Modifier.width(10.dp))
+        Text(label, style = AcornTheme.type.footnote, color = AcornTheme.colors.inkSoft, modifier = Modifier.shimmer(true))
     }
 }
 
@@ -573,37 +563,6 @@ private fun Reasoning(reasoning: String) {
     }
 }
 
-/** Three dots rise and fall in turn until the first words arrive. */
-@Composable
-private fun TypingDots() {
-    val transition = rememberInfiniteTransition(label = "typing")
-    Row(modifier = Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(3) { i ->
-            val phase by transition.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    tween(1100, easing = AcornMotion.standard),
-                    RepeatMode.Restart,
-                    initialStartOffset = StartOffset(i * 160),
-                ),
-                label = "dot_$i",
-            )
-            // One smooth rise and fall in the first half of each cycle, rest in the second.
-            val lift = if (phase < 0.5f) sin(phase * 2f * PI.toFloat()) else 0f
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .graphicsLayer {
-                        translationY = -lift * 5.dp.toPx()
-                        alpha = 0.35f + 0.65f * lift.coerceAtLeast(0f)
-                    }
-                    .background(AcornTheme.colors.accent, CircleShape),
-            )
-        }
-    }
-}
-
 /** What started a run when the owner didn't type it: a wake, or something shared from the phone. */
 @Composable
 private fun InputNote(
@@ -624,10 +583,10 @@ private fun InputNote(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(AcornShapes.medium)
-                .background(colors.surfaceMuted.copy(alpha = 0.5f))
-                .border(1.dp, colors.line, AcornShapes.medium)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .clip(AcornShapes.large)
+                .background(colors.well)
+                .hairline(AcornShapes.large)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             if (text.isNotEmpty()) {
                 Text(text, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 12)
@@ -669,7 +628,7 @@ private fun Composer(
     val haptics = rememberHaptics()
     val focus = remember { FocusRequester() }
     LaunchedEffect(autoFocus) { if (autoFocus) focus.requestFocus() }
-    val shape = AcornShapes.large
+    val shape = ComposerShape
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -677,8 +636,9 @@ private fun Composer(
             .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
             .clip(shape)
             .background(colors.surface)
-            .border(1.dp, colors.lineStrong, shape)
-            .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
+            .hairline(shape)
+            .borderBeam(streaming, ComposerRadius)
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 8.dp),
     ) {
         Box(
             modifier = Modifier
@@ -703,7 +663,7 @@ private fun Composer(
         Row(verticalAlignment = Alignment.CenterVertically) {
             var attachMenu by remember { mutableStateOf(false) }
             Box {
-                IconAction(AcornIcons.Attach, "添加图片或文件", { attachMenu = true }, modifier = Modifier.offset(x = (-8).dp).size(32.dp))
+                IconAction(AcornIcons.Plus, "添加图片或文件", { attachMenu = true }, filled = true, modifier = Modifier.offset(x = (-8).dp).size(36.dp))
                 AcornMenu(expanded = attachMenu, onDismiss = { attachMenu = false }) {
                     AcornMenuItem("图片", onClick = {
                         attachMenu = false
@@ -720,7 +680,7 @@ private fun Composer(
             val fill by animateColorAsState(
                 when {
                     streaming -> colors.ink
-                    canSend -> colors.accent
+                    canSend -> if (colors.isDark) colors.surfaceMuted else colors.ink
                     else -> colors.surfaceMuted
                 },
                 AcornMotion.standard(AcornMotion.SHORT),
@@ -730,8 +690,9 @@ private fun Composer(
             Box(
                 modifier = Modifier
                     .pressScale(interaction, 0.9f)
-                    .size(30.dp)
-                    .clip(AcornShapes.small)
+                    .size(36.dp)
+                    .then(if (canSend && !streaming) Modifier.metalRing(true) else Modifier)
+                    .clip(CircleShape)
                     .background(fill)
                     .clickable(interaction, LocalIndication.current, enabled = streaming || canSend) {
                         if (streaming) {
@@ -756,14 +717,21 @@ private fun Composer(
                     Icon(
                         if (running) AcornIcons.Stop else AcornIcons.ArrowUp,
                         contentDescription = if (running) "停止" else "发送",
-                        tint = if (running) colors.canvas else if (canSend) colors.onAccent else colors.inkFaint,
-                        modifier = Modifier.size(if (running) 18.dp else 16.dp),
+                        tint = when {
+                            running -> colors.canvas
+                            canSend -> if (colors.isDark) colors.ink else colors.canvas
+                            else -> colors.inkFaint
+                        },
+                        modifier = Modifier.size(if (running) 18.dp else 17.dp),
                     )
                 }
             }
         }
     }
 }
+
+private val ComposerRadius = 24.dp
+private val ComposerShape = RoundedCornerShape(ComposerRadius)
 
 @Composable
 private fun rememberCopy(): (String) -> Unit {
@@ -790,7 +758,7 @@ private fun RunFailure(detail: String, onDismiss: () -> Unit, modifier: Modifier
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(AcornShapes.large)
+            .clip(AcornShapes.card)
             .background(colors.dangerSoft)
             .clickable { expanded = !expanded }
             .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 12.dp),

@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +41,9 @@ import io.ycvk.acorn.core.sse.ToolStep
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornIcons
+import io.ycvk.acorn.core.ui.OrbState
+import io.ycvk.acorn.core.ui.ThinkingOrb
+import io.ycvk.acorn.core.ui.shimmer
 
 /** What a tool does, in the words the owner would use. */
 fun toolLabel(name: String): String = when (name) {
@@ -82,6 +84,20 @@ fun toolLabel(name: String): String = when (name) {
     else -> name
 }
 
+/** The orb a running tool shows: looking things up, working on the machine, reaching a skill, reasoning or writing down. */
+fun toolOrb(name: String): OrbState = when {
+    name.startsWith("mcp__") -> OrbState.Connecting
+    else -> when (name) {
+        "recall", "memory_read", "knowledge_read", "knowledge_search", "knowledge_list", "watch_list",
+        "web_search", "web_fetch", "artifact_read", "artifact_list", "tool_search" -> OrbState.Searching
+        "shell", "files", "browser", "send_file", "skill_inspect" -> OrbState.Working
+        "skill", "skill_write", "skill_import", "skill_retire", "watch_create", "watch_update" -> OrbState.Connecting
+        "think", "concern", "settle", "schedule_wake", "ask_operator", "notify_owner" -> OrbState.Solving
+        "keep", "memory_correct", "memory_forget", "knowledge_write", "knowledge_edit", "artifact_write" -> OrbState.Weaving
+        else -> OrbState.Working
+    }
+}
+
 /** The step's detail line; a tool search names the tools it loads. */
 fun stepDetail(step: ToolStep): String = when {
     step.toolName == "tool_search" && step.summary.startsWith("select:") ->
@@ -107,7 +123,7 @@ fun ToolSteps(steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Mo
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (running != null) {
-                CircularProgressIndicator(color = colors.accent, strokeWidth = 1.5.dp, modifier = Modifier.size(13.dp))
+                ThinkingOrb(toolOrb(running.toolName), size = 18.dp)
                 Spacer(Modifier.width(8.dp))
                 val detail = stepDetail(running)
                 Text(
@@ -116,7 +132,7 @@ fun ToolSteps(steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Mo
                     color = colors.inkSoft,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f, fill = false).shimmer(true),
                 )
             } else {
                 Icon(
@@ -157,7 +173,7 @@ private fun StepRow(step: ToolStep, streaming: Boolean) {
         Box(modifier = Modifier.padding(top = 2.dp).size(15.dp), contentAlignment = Alignment.Center) {
             when {
                 step.status == StepStatus.Failed -> Icon(Icons.Outlined.ErrorOutline, contentDescription = "出错", tint = colors.danger, modifier = Modifier.size(15.dp))
-                step.status == StepStatus.Running && streaming -> CircularProgressIndicator(color = colors.accent, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
+                step.status == StepStatus.Running && streaming -> ThinkingOrb(toolOrb(step.toolName), size = 15.dp)
                 step.status == StepStatus.Running -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = colors.line, modifier = Modifier.size(15.dp))
                 else -> Icon(Icons.Outlined.CheckCircle, contentDescription = "完成", tint = colors.inkFaint, modifier = Modifier.size(15.dp))
             }
