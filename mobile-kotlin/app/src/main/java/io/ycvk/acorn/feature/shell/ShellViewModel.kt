@@ -8,8 +8,10 @@ import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.push.DeepLinks
 import io.ycvk.acorn.core.push.PushManager
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 enum class Tab { Today, Threads, Knowledge }
 
@@ -71,6 +72,7 @@ sealed interface Page {
 @HiltViewModel
 class ShellViewModel @Inject constructor(
     val authController: AuthController,
+    val localNetwork: LocalNetworkAccess,
     private val pushManager: PushManager,
     private val deepLinks: DeepLinks,
 ) : ViewModel() {
@@ -134,6 +136,9 @@ class ShellViewModel @Inject constructor(
     fun selectTab(tab: Tab) {
         _tab.value = tab
     }
+
+    /** Whether the paired server is on the LAN and the owner has not allowed nearby devices. */
+    suspend fun needsLocalNetwork(): Boolean = getConnectionProfile()?.let { localNetwork.needsPermission(it.serverUrl) } ?: false
 
     /** Registers this device for push; call after the notification permission prompt. */
     fun registerPush() {

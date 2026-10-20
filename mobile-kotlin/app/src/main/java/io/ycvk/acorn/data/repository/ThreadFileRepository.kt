@@ -66,7 +66,7 @@ class ThreadFileRepository @Inject constructor(@ApplicationContext private val c
             .post(multipart)
             .build()
         client.newCall(request).execute().use { response ->
-            val text = response.body?.string().orEmpty()
+            val text = response.body.string()
             requireSuccess(response, text)
             return Serializer.moshi.adapter(ThreadFile::class.java).fromJson(text)
                 ?: throw IOException("the server answered the upload without a file")
@@ -84,9 +84,9 @@ class ThreadFileRepository @Inject constructor(@ApplicationContext private val c
             .header("Authorization", "Bearer ${profile.accessToken}")
             .build()
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) requireSuccess(response, response.body?.string().orEmpty())
+            if (!response.isSuccessful) requireSuccess(response, response.body.string())
             val partial = File(dir, ".partial")
-            partial.outputStream().use { out -> response.body!!.byteStream().copyTo(out) }
+            partial.outputStream().use { out -> response.body.byteStream().copyTo(out) }
             if (partial.length() != file.sizeBytes) {
                 partial.delete()
                 throw IOException("download of ${file.name} ended at ${partial.length()} of ${file.sizeBytes} bytes")

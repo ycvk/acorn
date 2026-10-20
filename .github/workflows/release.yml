@@ -135,7 +135,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-37.2 build-tools;37.0.0'
 
       - name: Install openapi-generator-cli
         run: npm install -g @openapitools/openapi-generator-cli

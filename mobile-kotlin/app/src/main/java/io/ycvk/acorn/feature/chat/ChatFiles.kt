@@ -40,8 +40,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import coil.compose.SubcomposeAsyncImage
-import coil.request.ImageRequest
+import coil3.compose.SubcomposeAsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
@@ -157,7 +160,7 @@ private fun ThreadImage(threadId: String, file: FileView, profile: ConnectionPro
     val request = remember(threadId, file.id, profile) {
         ImageRequest.Builder(context)
             .data("${profile.serverUrl.trimEnd('/')}/v1/threads/$threadId/files/${file.id}")
-            .addHeader("Authorization", "Bearer ${profile.accessToken}")
+            .httpHeaders(NetworkHeaders.Builder().set("Authorization", "Bearer ${profile.accessToken}").build())
             .crossfade(true)
             .build()
     }

@@ -1,6 +1,8 @@
 package io.ycvk.acorn.feature.pairing
 
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -26,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,16 +48,19 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.PairingState
+import io.ycvk.acorn.core.net.LocalNetworkAccess
+import io.ycvk.acorn.core.net.LocalNetworkDenied
 import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornMark
 import io.ycvk.acorn.core.ui.InlineError
+import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @Composable
-fun PairingScreen(authController: AuthController) {
+fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAccess) {
     val pairingState by authController.pairingState.collectAsStateWithLifecycle()
 
     LaunchedEffect(pairingState) {
@@ -70,10 +76,19 @@ fun PairingScreen(authController: AuthController) {
     val pairing = pairingState is PairingState.Pairing
     val errorMessage = urlError ?: (pairingState as? PairingState.Error)?.message
     val canPair = serverUrl.isNotBlank() && pairingCode.isNotBlank() && deviceName.isNotBlank()
+    val pair = { authController.pair(serverUrl.trim(), pairingCode.trim(), deviceName.trim()) }
+    val askLocalNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) pair() else urlError = LocalNetworkDenied
+    }
+    val scope = rememberCoroutineScope()
     val connect = {
         focus.clearFocus()
         urlError = serverUrlProblem(serverUrl.trim())
-        if (urlError == null) authController.pair(serverUrl.trim(), pairingCode.trim(), deviceName.trim())
+        if (urlError == null) {
+            scope.launch {
+                if (localNetwork.needsPermission(serverUrl.trim())) askLocalNetwork.launch(LocalNetworkAccess.PERMISSION) else pair()
+            }
+        }
     }
     val colors = AcornTheme.colors
 

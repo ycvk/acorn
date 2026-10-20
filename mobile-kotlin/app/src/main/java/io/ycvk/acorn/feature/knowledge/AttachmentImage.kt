@@ -14,8 +14,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
-import coil.request.ImageRequest
+import coil3.compose.SubcomposeAsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
@@ -37,7 +40,7 @@ fun AttachmentImage(
     val request = remember(path, profile) {
         ImageRequest.Builder(context)
             .data(attachmentUrl(profile.serverUrl, path))
-            .addHeader("Authorization", "Bearer ${profile.accessToken}")
+            .httpHeaders(NetworkHeaders.Builder().set("Authorization", "Bearer ${profile.accessToken}").build())
             .crossfade(true)
             .build()
     }

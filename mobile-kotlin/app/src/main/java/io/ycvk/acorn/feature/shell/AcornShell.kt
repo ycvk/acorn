@@ -1,8 +1,11 @@
 package io.ycvk.acorn.feature.shell
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,8 +45,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,13 +62,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.core.auth.AuthState
+import io.ycvk.acorn.core.net.LocalNetworkAccess
+import io.ycvk.acorn.core.net.LocalNetworkDenied
 import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
+import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.browser.BrowserScreen
@@ -83,6 +93,7 @@ import io.ycvk.acorn.feature.skills.SkillScreen
 import io.ycvk.acorn.feature.skills.SkillsScreen
 import io.ycvk.acorn.feature.skills.SkillsViewModel
 import io.ycvk.acorn.feature.threads.ThreadsScreen
+import kotlinx.coroutines.launch
 
 @Composable
 fun AcornShell(
@@ -96,7 +107,7 @@ fun AcornShell(
                 strokeWidth = 2.dp,
                 modifier = Modifier.size(24.dp).align(Alignment.Center),
             )
-            is AuthState.Disconnected -> PairingScreen(authController = shellViewModel.authController)
+            is AuthState.Disconnected -> PairingScreen(authController = shellViewModel.authController, localNetwork = shellViewModel.localNetwork)
             is AuthState.Connected -> ConnectedShell(shellViewModel)
         }
     }
@@ -113,10 +124,11 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     val skillsViewModel: SkillsViewModel = hiltViewModel()
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         shellViewModel.registerPush()
     }
-    LaunchedEffect(Unit) {
+    val askNotifications = {
         val needsPrompt = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         if (needsPrompt) {
@@ -124,6 +136,32 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
         } else {
             shellViewModel.registerPush()
         }
+    }
+    // A server on the LAN is asked for first; a refusal is explained until the owner allows it in settings.
+    var localNetworkDenied by remember { mutableStateOf(false) }
+    val localNetworkPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        localNetworkDenied = !granted
+        askNotifications()
+    }
+    LaunchedEffect(Unit) {
+        if (shellViewModel.needsLocalNetwork()) localNetworkPermission.launch(LocalNetworkAccess.PERMISSION) else askNotifications()
+    }
+    OnReturnToForeground {
+        if (localNetworkDenied) scope.launch { localNetworkDenied = shellViewModel.needsLocalNetwork() }
+    }
+    if (localNetworkDenied) {
+        AcornDialog(
+            title = "连不到局域网里的服务器",
+            body = LocalNetworkDenied,
+            confirm = "去设置",
+            dismiss = "稍后",
+            onConfirm = {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                )
+            },
+            onDismiss = { localNetworkDenied = false },
+        )
     }
 
     BackHandler(enabled = pages.isNotEmpty()) { shellViewModel.back() }

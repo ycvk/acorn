@@ -87,7 +87,7 @@ class NotificationQueueTest {
         val delivery = NotificationDelivery(queue, { current }, { setOf("bank") }, { true }) { profile, _ ->
             sentTo += profile
             current = ConnectionProfile("https://other.example", "other", "other-token")
-            queue.selectOwner(current!!.notificationOwner())
+            queue.selectOwner(current.notificationOwner())
         }
         delivery.flush()
         assertEquals(listOf(connection), sentTo)

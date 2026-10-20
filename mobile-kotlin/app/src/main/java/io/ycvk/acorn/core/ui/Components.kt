@@ -52,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -93,6 +94,7 @@ import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.theme.CardRadius
+import kotlinx.coroutines.launch
 
 val ScreenPadding = 16.dp
 
@@ -405,15 +407,8 @@ fun SwipeToDelete(
     content: @Composable () -> Unit,
 ) {
     val haptics = rememberHaptics()
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                haptics.longPress()
-                onDelete()
-            }
-            false
-        },
-    )
+    val scope = rememberCoroutineScope()
+    val state = rememberSwipeToDismissBoxState()
     val armed = state.targetValue == SwipeToDismissBoxValue.EndToStart
     val iconScale by animateFloatAsState(if (armed) 1.15f else 0.85f, AcornMotion.pop(), label = "swipe_icon")
     // Painted only mid-swipe, so a resting row never shows red at its edges.
@@ -422,6 +417,13 @@ fun SwipeToDelete(
         state = state,
         enableDismissFromStartToEnd = false,
         modifier = modifier,
+        onDismiss = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                haptics.longPress()
+                onDelete()
+            }
+            scope.launch { state.reset() }
+        },
         backgroundContent = {
             Box(
                 modifier = Modifier
