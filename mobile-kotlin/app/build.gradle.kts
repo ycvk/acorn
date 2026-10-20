@@ -101,6 +101,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
 
+    // Liquid glass: blur, lens refraction and highlights drawn from a copy of what lies behind.
+    implementation("io.github.kyant0:backdrop:2.0.1")
+
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
 

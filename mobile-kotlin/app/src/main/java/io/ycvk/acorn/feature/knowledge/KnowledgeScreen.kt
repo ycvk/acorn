@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +58,7 @@ fun KnowledgeScreen(
     memoryViewModel: MemoryViewModel,
     onNoteClick: (String) -> Unit,
     onMemoryClick: (String) -> Unit,
+    bottomInset: Dp,
 ) {
     var section by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier = Modifier.fillMaxSize()) {
@@ -68,14 +70,14 @@ fun KnowledgeScreen(
             modifier = Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 12.dp),
         )
         when (section) {
-            0 -> NoteList(viewModel, onNoteClick)
-            else -> MemoryList(memoryViewModel, onMemoryClick)
+            0 -> NoteList(viewModel, onNoteClick, bottomInset)
+            else -> MemoryList(memoryViewModel, onMemoryClick, bottomInset)
         }
     }
 }
 
 @Composable
-private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Unit) {
+private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Unit, bottomInset: Dp) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val load by viewModel.load.collectAsStateWithLifecycle()
     val deleteError by viewModel.deleteError.collectAsStateWithLifecycle()
@@ -104,7 +106,7 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
             is KnowledgeContent.Items -> {
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now(zone)
-                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
                     itemsIndexed(content.notes, key = { _, it -> it.path }) { index, note ->
                         Column(Modifier.animateItem().groupItem(index, content.notes.size)) {
                             SwipeToDelete(onDelete = { pendingDelete = note }) {

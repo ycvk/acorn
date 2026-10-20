@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -95,6 +96,7 @@ fun NowScreen(
     onNewChat: () -> Unit,
     onSettings: () -> Unit,
     onBrowser: () -> Unit,
+    bottomInset: Dp,
     viewModel: NowViewModel = hiltViewModel(),
     approvals: ApprovalsViewModel = hiltViewModel(),
 ) {
@@ -125,7 +127,7 @@ fun NowScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 96.dp),
+                contentPadding = PaddingValues(bottom = bottomInset + 96.dp),
             ) {
                 item(key = "header") {
                     Hero(
@@ -179,7 +181,7 @@ fun NowScreen(
                 }
             }
         }
-        AskBar(onClick = onNewChat, modifier = Modifier.align(Alignment.BottomCenter))
+        AskBar(onClick = onNewChat, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
     }
 
     selected?.let { detail ->

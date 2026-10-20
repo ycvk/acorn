@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,7 +47,7 @@ import java.time.ZoneId
 
 /** What Acorn remembers about the owner: search, a kind filter and the list. */
 @Composable
-fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit) {
+fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, bottomInset: Dp) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val kind by viewModel.kind.collectAsStateWithLifecycle()
     val limit by viewModel.limit.collectAsStateWithLifecycle()
@@ -82,7 +83,7 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit) {
             is MemoryListContent.Items -> {
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now(zone)
-                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
                     itemsIndexed(content.memories, key = { _, it -> it.id }) { index, memory ->
                         Column(Modifier.animateItem().groupItem(index, content.memories.size)) {
                             MemoryRow(memory, listTime(memory.updatedAt, today, zone), onClick = { onMemoryClick(memory.id) })

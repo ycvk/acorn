@@ -10,38 +10,24 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,29 +38,23 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.net.LocalNetworkDenied
 import io.ycvk.acorn.core.theme.AcornMotion
-import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
-import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.OnReturnToForeground
-import io.ycvk.acorn.core.ui.raised
-import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.browser.BrowserScreen
 import io.ycvk.acorn.feature.chat.ChatScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeScreen
@@ -190,23 +170,26 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                     tab = tab,
                     pendingCount = pendingCount,
                     onSelect = shellViewModel::selectTab,
-                ) { current ->
+                ) { current, barInset ->
                     when (current) {
                         Tab.Today -> NowScreen(
                             onThreadClick = { shellViewModel.open(Page.Chat(it)) },
                             onNewChat = newChat,
                             onSettings = { shellViewModel.open(Page.Settings) },
                             onBrowser = { shellViewModel.open(Page.Browser()) },
+                            bottomInset = barInset,
                         )
                         Tab.Threads -> ThreadsScreen(
                             onThreadClick = { shellViewModel.open(Page.Chat(it)) },
                             onNewChat = newChat,
+                            bottomInset = barInset,
                         )
                         Tab.Knowledge -> KnowledgeScreen(
                             viewModel = knowledgeViewModel,
                             memoryViewModel = memoryViewModel,
                             onNoteClick = { shellViewModel.open(Page.Note(it)) },
                             onMemoryClick = { shellViewModel.open(Page.Memory(it)) },
+                            bottomInset = barInset,
                         )
                     }
                 }
@@ -257,145 +240,53 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     }
 }
 
+/**
+ * The tab pages under a floating bar of liquid glass. The pages are drawn into
+ * the glass's backdrop over the canvas, and each page learns how much of its
+ * bottom the bar covers so its last rows can scroll clear of it.
+ */
 @Composable
 private fun Tabs(
     tab: Tab,
     pendingCount: Int,
     onSelect: (Tab) -> Unit,
-    content: @Composable (Tab) -> Unit,
+    content: @Composable (Tab, Dp) -> Unit,
 ) {
     val saveable = rememberSaveableStateHolder()
-    Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(1f)) {
+    val canvas = AcornTheme.colors.canvas
+    val backdrop = rememberLayerBackdrop {
+        drawRect(canvas)
+        drawContent()
+    }
+    val density = LocalDensity.current
+    var barInset by remember { mutableStateOf(0.dp) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             AnimatedContent(
                 targetState = tab,
                 transitionSpec = { fadeIn(AcornMotion.enter(AcornMotion.SHORT)) togetherWith fadeOut(AcornMotion.exit(100)) },
                 label = "tabs",
             ) { current ->
-                saveable.SaveableStateProvider(current.name) { content(current) }
+                saveable.SaveableStateProvider(current.name) { content(current, barInset) }
             }
-            // Lists scroll under the transparent status bar; keep its icons on the canvas.
-            Spacer(
-                Modifier
-                    .fillMaxWidth()
-                    .windowInsetsTopHeight(WindowInsets.statusBars)
-                    .background(AcornTheme.colors.canvas),
-            )
         }
-        TabBar(tab = tab, pendingCount = pendingCount, onSelect = onSelect)
-    }
-}
-
-/**
- * The tabs on a floating capsule: a raised pill glides under the selected tab
- * and the Today tab carries the count of decisions waiting.
- */
-@Composable
-private fun TabBar(tab: Tab, pendingCount: Int, onSelect: (Tab) -> Unit) {
-    val haptics = rememberHaptics()
-    val colors = AcornTheme.colors
-    val shape = AcornShapes.pill
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.canvas)
-            .navigationBarsPadding()
-            .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 10.dp),
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier
+        // Lists scroll under the transparent status bar; keep its icons on the canvas.
+        Spacer(
+            Modifier
                 .fillMaxWidth()
-                .raised(shape, elevation = 10.dp)
-                .clip(shape)
-                .background(colors.surface)
-                .padding(5.dp),
-        ) {
-            val slot = maxWidth / Tab.entries.size
-            val index = Tab.entries.indexOf(tab)
-            val x by animateDpAsState(slot * index, AcornMotion.glide(), label = "tab_pill")
-            Box(
-                Modifier
-                    .offset(x = x)
-                    .width(slot)
-                    .height(52.dp)
-                    .background(colors.surfaceMuted, shape),
-            )
-            Row(modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Tab.entries.forEach { item ->
-                    val (label, icon) = when (item) {
-                        Tab.Today -> "今天" to AcornIcons.Today
-                        Tab.Threads -> "对话" to AcornIcons.Threads
-                        Tab.Knowledge -> "知识" to AcornIcons.Knowledge
-                    }
-                    TabItem(
-                        label = label,
-                        icon = icon,
-                        selected = item == tab,
-                        badge = if (item == Tab.Today) pendingCount else 0,
-                        onClick = {
-                            if (item != tab) haptics.tick()
-                            onSelect(item)
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TabItem(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    badge: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = AcornTheme.colors
-    val tint by animateColorAsState(if (selected) colors.ink else colors.inkFaint, AcornMotion.standard(AcornMotion.SHORT), label = "tab_tint")
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .clip(AcornShapes.pill)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Tab,
-                onClick = onClick,
-            )
-            .semantics { this.selected = selected },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(21.dp))
-            androidx.compose.animation.AnimatedVisibility(
-                visible = badge > 0,
-                enter = scaleIn(AcornMotion.pop()) + fadeIn(),
-                exit = scaleOut(AcornMotion.exit()) + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 12.dp, y = (-5).dp),
-            ) {
-                Text(
-                    if (badge > 9) "9+" else badge.toString(),
-                    style = AcornTheme.type.caption.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, lineHeight = 14.sp),
-                    color = colors.onAccent,
-                    modifier = Modifier
-                        .background(colors.surface, AcornShapes.pill)
-                        .padding(1.5.dp)
-                        .background(colors.accent, AcornShapes.pill)
-                        .padding(horizontal = 5.dp),
-                )
-            }
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(
-            label,
-            style = AcornTheme.type.caption.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Medium),
-            color = tint,
+                .windowInsetsTopHeight(WindowInsets.statusBars)
+                .background(canvas),
+        )
+        GlassTabBar(
+            tab = tab,
+            pendingCount = pendingCount,
+            backdrop = backdrop,
+            onSelect = onSelect,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { barInset = with(density) { it.height.toDp() } }
+                .navigationBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 10.dp),
         )
     }
 }

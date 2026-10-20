@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -73,6 +74,7 @@ import java.time.ZoneId
 fun ThreadsScreen(
     onThreadClick: (String) -> Unit,
     onNewChat: () -> Unit,
+    bottomInset: Dp,
     viewModel: ThreadsViewModel = hiltViewModel(),
 ) {
     val threads by viewModel.threads.collectAsStateWithLifecycle()
@@ -110,6 +112,7 @@ fun ThreadsScreen(
                 ThreadsContent.Items -> ThreadList(
                     threads = threads.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) },
                     query = query,
+                    bottomInset = bottomInset,
                     onThreadClick = onThreadClick,
                     onDelete = { pendingDelete = it },
                 )
@@ -144,6 +147,7 @@ fun threadTitle(thread: Thread): String = thread.title.takeIf { it.isNotBlank() 
 private fun ThreadList(
     threads: List<Thread>,
     query: String,
+    bottomInset: Dp,
     onThreadClick: (String) -> Unit,
     onDelete: (Thread) -> Unit,
 ) {
@@ -154,7 +158,7 @@ private fun ThreadList(
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val groups = threads.groupBy { dayGroup(it.updatedAt, today, zone) }.toSortedMap()
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
         groups.forEach { (group, items) ->
             item(key = "group:${group.name}") { SectionLabel(group.label, Modifier.animateItem(), count = items.size) }
             itemsIndexed(items, key = { _, it -> it.id }) { index, thread ->
