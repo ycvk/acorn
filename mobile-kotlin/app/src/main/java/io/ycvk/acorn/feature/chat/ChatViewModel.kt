@@ -17,11 +17,12 @@ import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
-import io.ycvk.acorn.core.sse.RunEventProjection
-import io.ycvk.acorn.core.sse.RunEventStreamClient
 import io.ycvk.acorn.core.sse.RunStatus
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.ThreadFileRepository
+import io.ycvk.acorn.feature.live.FollowedRun
+import io.ycvk.acorn.feature.live.RunFollower
+import io.ycvk.acorn.feature.live.RunUpdate
 import io.ycvk.acorn.feature.views.ViewActionPress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -31,7 +32,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.net.Uri
-import okhttp3.sse.EventSource
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -45,11 +45,12 @@ import javax.inject.Inject
  *   a run completes. A new conversation has no thread until its first message.
  * - [chatState] is the transient streaming view: assistant text/reasoning deltas,
  *   pending activities. Reset on every new run and folded into [messages] once
- *   the run reaches a terminal event.
+ *   the run reaches a terminal event. The thread's run is read from [RunFollower],
+ *   which keeps following runs started here after the screen is gone.
  */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    private val projection: RunEventProjection,
+    private val follower: RunFollower,
     private val authController: AuthController,
     private val files: ThreadFileRepository,
 ) : ViewModel() {
@@ -93,30 +94,40 @@ class ChatViewModel @Inject constructor(
     private val _pinning = MutableStateFlow<String?>(null)
     val pinning: StateFlow<String?> = _pinning.asStateFlow()
 
-    private var eventSource: EventSource? = null
     private var streamingRunId: String? = null
-    private val streamGeneration = java.util.concurrent.atomic.AtomicLong(0)
 
-    /** Reconnects since the stream last delivered an event. */
-    private var reconnects = 0
+    /** Bumped when the thread changes or reloads, so an older check of the inbox is dropped. */
+    private val loadGeneration = java.util.concurrent.atomic.AtomicLong(0)
+
+    init {
+        viewModelScope.launch { follower.updates.collect(::onRunUpdate) }
+    }
 
     /** Opens a thread, or a new conversation when [threadId] is null. */
     fun loadThread(threadId: String?) {
-        streamGeneration.incrementAndGet()  // invalidate any in-flight SSE callbacks
-        eventSource?.cancel()
-        eventSource = null
+        loadGeneration.incrementAndGet()
+        _threadId.value?.let(follower::unwatch)
         _threadId.value = threadId
         _threadTitle.value = null
         _messages.value = emptyList()  // clear stale messages immediately
         _attachments.value = emptyList()
         _chatState.value = ChatState()
         _error.value = null
-        reconnects = 0
+        streamingRunId = null
         if (threadId == null) return
+        follower.watch(threadId)
         loadMessages(threadId)
         loadThreadTitle(threadId)
-        reconnectActiveRun(threadId)
+        val followed = followedRun(threadId)
+        if (followed != null) {
+            streamingRunId = followed.runId
+            _chatState.value = followed.state
+        } else {
+            reconnectActiveRun(threadId)
+        }
     }
+
+    private fun followedRun(threadId: String): FollowedRun? = follower.runs.value.values.firstOrNull { it.threadId == threadId }
 
     /**
      * Follows the thread's run when the server still has one going or waiting
@@ -127,14 +138,15 @@ class ChatViewModel @Inject constructor(
      */
     private fun reconnectActiveRun(threadId: String) {
         val profile = getConnectionProfile() ?: return
-        val gen = streamGeneration.get()
+        val gen = loadGeneration.get()
         viewModelScope.launch {
             val inbox = fetchInbox(profile, gen) ?: return@launch
-            if (_threadId.value != threadId || streamGeneration.get() != gen) return@launch
+            if (_threadId.value != threadId || loadGeneration.get() != gen) return@launch
             val runId = runToFollow(inbox.activeRuns, inbox.pendingActions, threadId)
             if (runId != null) {
                 _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
-                streamEvents(profile, runId, threadId)
+                streamingRunId = runId
+                follower.follow(profile, runId, threadId, _threadTitle.value, live = false)
             } else {
                 _chatState.value = ChatState()
                 loadMessages(threadId)
@@ -144,14 +156,14 @@ class ChatViewModel @Inject constructor(
 
     /** The inbox while [gen] is current; null once superseded or failed, the failure reported. */
     private suspend fun fetchInbox(profile: ConnectionProfile, gen: Long): InboxResponse? = try {
-        withRetries({ streamGeneration.get() == gen }) {
+        withRetries({ loadGeneration.get() == gen }) {
             withContext(Dispatchers.IO) {
                 ApiClient.accessToken = profile.accessToken
                 ClientApi(basePath = profile.serverUrl).clientGetInbox()
             }
         }
     } catch (e: Exception) {
-        if (streamGeneration.get() == gen) connectionLost(e)
+        if (loadGeneration.get() == gen) connectionLost(e)
         null
     }
 
@@ -234,22 +246,23 @@ class ChatViewModel @Inject constructor(
         // Optimistic user bubble + fresh streaming state.
         val bubble = ChatMessage.User(text, attachments.map { it.view() })
         _messages.value = _messages.value + bubble
-        streamGeneration.incrementAndGet()  // cancel any pending reconnectActiveRun
-        eventSource?.cancel()
-        eventSource = null
+        loadGeneration.incrementAndGet()  // cancel any pending reconnectActiveRun
         _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
         _error.value = null
+        val title = threadTitleFor(text.ifBlank { attachments.firstOrNull { !it.photo }?.name ?: "图片" })
+        // Shown as sending now, while the app is in front and its Live Update may start.
+        val sendKey = follower.beginSend(_threadTitle.value ?: title)
 
         viewModelScope.launch {
             try {
                 // A new conversation keeps its thread even when the first run fails, so a retry lands in it.
-                val title = threadTitleFor(text.ifBlank { attachments.firstOrNull { !it.photo }?.name ?: "图片" })
                 val threadId = existing ?: withContext(Dispatchers.IO) {
                     ApiClient.accessToken = profile.accessToken
                     ClientApi(basePath = profile.serverUrl).clientCreateThread(CreateThreadRequest(title = title)).id
                 }.also {
                     _threadId.value = it
                     _threadTitle.value = title
+                    follower.watch(it)
                 }
                 val fileIds = attachments.mapIndexed { index, attachment ->
                     _uploading.value = if (attachments.size == 1) "正在上传 ${attachment.name}" else "正在上传 ${index + 1}/${attachments.size}：${attachment.name}"
@@ -263,9 +276,10 @@ class ChatViewModel @Inject constructor(
                         createRunRequest = CreateRunRequest(input = text.ifBlank { null }, fileIds = fileIds.ifEmpty { null }),
                     ).id
                 }
-                reconnects = 0
-                streamEvents(profile, runId, threadId)
+                streamingRunId = runId
+                follower.follow(profile, runId, threadId, _threadTitle.value ?: title, live = true, sendKey = sendKey)
             } catch (e: Exception) {
+                follower.endSend(sendKey)
                 _uploading.value = null
                 _messages.value = _messages.value - bubble
                 _chatState.value = ChatState()
@@ -291,6 +305,7 @@ class ChatViewModel @Inject constructor(
         if (_sendingAction.value != null || _chatState.value.isStreaming) return
         _sendingAction.value = press.id
         _error.value = null
+        val sendKey = follower.beginSend(_threadTitle.value ?: "Acorn")
         viewModelScope.launch {
             try {
                 val sent = withContext(Dispatchers.IO) {
@@ -305,14 +320,13 @@ class ChatViewModel @Inject constructor(
                         ),
                     )
                 }
+                follower.follow(profile, sent.run.id, threadId, _threadTitle.value, live = true, sendKey = sendKey)
                 if (_threadId.value != threadId) return@launch
                 _messages.value = withView(_messages.value, sent.view) + ChatMessage.User(sent.text)
-                eventSource?.cancel()
-                eventSource = null
                 _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
-                reconnects = 0
-                streamEvents(profile, sent.run.id, threadId)
+                streamingRunId = sent.run.id
             } catch (e: Exception) {
+                follower.endSend(sendKey)
                 if (_threadId.value != threadId) return@launch
                 _error.value = "没发出去：${userMessage(e)}"
                 loadMessages(threadId)
@@ -356,14 +370,19 @@ class ChatViewModel @Inject constructor(
      */
     fun refresh() {
         val threadId = _threadId.value ?: return
-        streamGeneration.incrementAndGet()
-        eventSource?.cancel()
-        eventSource = null
-        _chatState.value = ChatState()
+        loadGeneration.incrementAndGet()
         _error.value = null
-        reconnects = 0
         loadMessages(threadId)
-        reconnectActiveRun(threadId)
+        val followed = followedRun(threadId)
+        when {
+            // Its Live Update service kept it current in the background.
+            followed != null && followed.live && followed.running -> Unit
+            followed != null -> follower.restart(followed.runId)
+            else -> {
+                _chatState.value = ChatState()
+                reconnectActiveRun(threadId)
+            }
+        }
     }
 
     fun consumeRestoredInput() {
@@ -395,6 +414,7 @@ class ChatViewModel @Inject constructor(
     fun interruptRun() {
         val profile = getConnectionProfile() ?: return
         val runId = streamingRunId ?: return
+        follower.stopping(runId, true)
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -402,6 +422,7 @@ class ChatViewModel @Inject constructor(
                     ClientApi(basePath = profile.serverUrl).clientInterruptRun(runId)
                 }
             } catch (e: Exception) {
+                follower.stopping(runId, false)
                 _error.value = "没能停下：${userMessage(e)}"
             }
         }
@@ -442,63 +463,33 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun streamEvents(profile: ConnectionProfile, runId: String, threadId: String) {
-        val gen = streamGeneration.incrementAndGet()
-        streamingRunId = runId
-        val sseClient = RunEventStreamClient(
-            baseUrl = profile.serverUrl,
-            accessToken = profile.accessToken,
-        )
-        eventSource = sseClient.streamRunEvents(
-            runId = runId,
-            afterSeq = 0,
-            onEvent = { packet ->
-                if (streamGeneration.get() != gen) return@streamRunEvents
-                reconnects = 0
-                _chatState.value = projection.apply(_chatState.value, packet)
-                if (packet is RunEventPacket.ViewUpdated) _messages.value = withView(_messages.value, packet.event.`data`.view)
-                // On a terminal event, fold the streamed assistant text into the
-                // persisted message list and clear the streaming bubble so the
-                // finalized message is the only copy shown.
-                if (packet is RunEventPacket.RunCompleted || packet is RunEventPacket.RunFailed) {
-                    val finalText = _chatState.value.assistantText
-                    val finalReasoning = _chatState.value.assistantReasoning.ifBlank { null }
-                    if (finalText.isNotBlank() && awaitsReply(_messages.value)) {
-                        _messages.value = _messages.value +
-                            ChatMessage.Assistant(finalText, finalReasoning, _chatState.value.steps, views = _chatState.value.views)
-                    }
-                    _chatState.value = ChatState(runStatus = _chatState.value.runStatus, failure = _chatState.value.failure)
-                    // The stored messages carry what the stream does not: the files sent with them.
-                    loadMessages(threadId)
-                }
-            },
-            // Streams we already cancelled (e.g. loadThread) report nothing.
-            onError = { t -> if (streamGeneration.get() == gen) streamLost(threadId, t) },
-            onClosed = {
-                if (streamGeneration.get() == gen && !_chatState.value.runStatus.isFinal()) {
-                    streamLost(threadId, IOException("the server closed the stream before the run ended"))
-                }
-            },
-        )
-    }
-
     /**
-     * The stream ended before its run did. After a pause the thread is checked
-     * again and followed if the run is still going; past the retries the owner
-     * is told, and the header no longer claims a run it cannot see.
+     * Reflects the thread's run as the follower reads it. On a terminal event
+     * the streamed reply folds into the message list and the streaming bubble
+     * clears, so the finalized message is the only copy shown; a run whose
+     * stream could not be kept leaves the header no longer claiming it.
      */
-    private fun streamLost(threadId: String, cause: Throwable) {
-        eventSource = null
-        val wait = reconnectDelayMs(reconnects++)
-        if (wait == null) {
-            connectionLost(cause)
+    private fun onRunUpdate(update: RunUpdate) {
+        val threadId = _threadId.value ?: return
+        if (update.run.threadId != threadId) return
+        update.lost?.let {
+            connectionLost(it)
             return
         }
-        _chatState.value = _chatState.value.copy(isStreaming = false)
-        val gen = streamGeneration.incrementAndGet()
-        viewModelScope.launch {
-            delay(wait)
-            if (streamGeneration.get() == gen && _threadId.value == threadId) reconnectActiveRun(threadId)
+        streamingRunId = update.run.runId
+        val state = update.run.state
+        _chatState.value = state
+        val packet = update.packet
+        if (packet is RunEventPacket.ViewUpdated) _messages.value = withView(_messages.value, packet.event.`data`.view)
+        if (update.ended) {
+            val finalText = state.assistantText
+            if (finalText.isNotBlank() && awaitsReply(_messages.value)) {
+                _messages.value = _messages.value +
+                    ChatMessage.Assistant(finalText, state.assistantReasoning.ifBlank { null }, state.steps, views = state.views)
+            }
+            _chatState.value = ChatState(runStatus = state.runStatus, failure = state.failure)
+            // The stored messages carry what the stream does not: the files sent with them.
+            loadMessages(threadId)
         }
     }
 
@@ -514,8 +505,7 @@ class ChatViewModel @Inject constructor(
         (authController.authState.value as? AuthState.Connected)?.profile
 
     override fun onCleared() {
-        streamGeneration.incrementAndGet()
-        eventSource?.cancel()
+        _threadId.value?.let(follower::unwatch)
         super.onCleared()
     }
 }
@@ -542,8 +532,6 @@ fun awaitsReply(messages: List<ChatMessage>): Boolean = when (val last = message
 
 /** How long to wait before reconnect [attempt] (from 0), or null once the retries are spent. */
 fun reconnectDelayMs(attempt: Int): Long? = if (attempt < 3) 1_000L shl attempt else null
-
-private fun RunStatus.isFinal() = this == RunStatus.Completed || this == RunStatus.Failed
 
 /** A new thread is titled by the first line of its first message. */
 fun threadTitleFor(text: String): String {

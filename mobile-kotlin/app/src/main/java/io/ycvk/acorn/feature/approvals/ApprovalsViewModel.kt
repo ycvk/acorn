@@ -12,6 +12,7 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.feature.live.RunFollower
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,7 @@ import javax.inject.Inject
 class ApprovalsViewModel @Inject constructor(
     private val authController: AuthController,
     private val notifications: ApprovalNotifications,
+    private val follower: RunFollower,
 ) : ViewModel() {
 
     private val _pendingActions = MutableStateFlow<List<PendingActionSummary>>(emptyList())
@@ -79,9 +81,15 @@ class ApprovalsViewModel @Inject constructor(
         }
     }
 
-    /** Sends [request] as the decision on [actionId]; its shape depends on the action's kind, see [optionRequest]. */
+    /**
+     * Sends [request] as the decision on [actionId]; its shape depends on the
+     * action's kind, see [optionRequest]. The run it resumes shows as a Live
+     * Update until it ends or waits again.
+     */
     fun decideAction(actionId: String, request: DecidePendingActionRequest) {
         val profile = getConnectionProfile() ?: return
+        val run = _pendingActions.value.firstOrNull { it.actionId == actionId }?.let { it.runId to it.threadId }
+            ?: _selectedAction.value?.takeIf { it.actionId == actionId }?.let { it.runId to it.threadId }
         _deciding.value = actionId
         _error.value = null
         viewModelScope.launch {
@@ -90,6 +98,7 @@ class ApprovalsViewModel @Inject constructor(
                     ApiClient.accessToken = profile.accessToken
                     ClientApi(basePath = profile.serverUrl).clientDecidePendingAction(actionId, request)
                 }
+                run?.let { (runId, threadId) -> follower.follow(profile, runId, threadId, title = null, live = true, decided = actionId) }
                 _selectedAction.value = null
                 notifications.cancel(actionId)
                 loadPendingActions() // refresh list

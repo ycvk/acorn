@@ -15,7 +15,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | [0009](0009-background-work-on-concerns.md) | 后台把关切推进到成品 | Accepted | 2026-10-17 |
 | [0010](0010-package-tools-and-triggers.md) | 技能包带上工具与触发器 | Accepted | 2026-10-17 |
 | [0011](0011-views-in-replies.md) | 回复里的界面 | Accepted | 2026-10-21 |
-| [0012](0012-live-updates-for-runs.md) | 进行中的 run 在 App 外可见 | Proposed | 2026-10-21 |
+| [0012](0012-live-updates-for-runs.md) | 进行中的 run 在 App 外可见 | Accepted | 2026-10-21 |
 
 ## Status 约定
 

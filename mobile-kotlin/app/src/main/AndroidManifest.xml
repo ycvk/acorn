@@ -4,6 +4,10 @@
     <!-- A self-hosted server on the LAN; Android 17 blocks the local network without it. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Runs started from this phone show as Live Updates while a foreground service follows them. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -74,6 +78,10 @@
         <meta-data
             android:name="firebase_messaging_installation_id_enabled"
             android:value="true" />
+        <service
+            android:name=".feature.live.RunFollowService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <service
             android:name=".core.push.AcornMessagingService"
             android:exported="false">

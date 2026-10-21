@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.share
 
 import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.feature.live.RunFollower
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -36,6 +37,7 @@ class ShareViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val authController: AuthController,
     private val captures: CaptureRepository,
+    private val follower: RunFollower,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ShareState>(ShareState.Loading)
@@ -62,21 +64,27 @@ class ShareViewModel @Inject constructor(
         }
         val content = editing.content
         _state.value = ShareState.Sending(content)
+        // Shown as sending while the sheet is still in front, so its Live Update can start.
+        val sendKey = follower.beginSend(content.subject?.takeIf { it.isNotBlank() } ?: "分享的内容")
         viewModelScope.launch {
-            _state.value = try {
-                withContext(Dispatchers.IO) { sendCapture(profile, content, note) }
+            val next = try {
+                withContext(Dispatchers.IO) { sendCapture(profile, content, note, sendKey) }
             } catch (e: Exception) {
                 ShareState.Editing(content, userMessage(e))
             }
+            if (next !is ShareState.Sent) follower.endSend(sendKey)
+            _state.value = next
         }
     }
 
-    private fun sendCapture(profile: ConnectionProfile, content: SharedContent, note: String): ShareState {
+    /** Sends the capture; the run it starts shows as a Live Update until it ends. */
+    private fun sendCapture(profile: ConnectionProfile, content: SharedContent, note: String, sendKey: String): ShareState {
         val image = content.imageUri?.let { uri ->
             copyImage(Uri.parse(uri)) ?: return ShareState.Editing(content, "图片超过 10 MiB，没法发送。")
         }
         try {
             val accepted = captures.send(profile, captureText(content.text, note), content.subject, image)
+            follower.follow(profile, accepted.runId, accepted.threadId, title = null, live = true, sendKey = sendKey)
             return ShareState.Sent(accepted.threadId)
         } finally {
             image?.delete()

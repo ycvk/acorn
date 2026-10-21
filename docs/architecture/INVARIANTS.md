@@ -238,6 +238,9 @@
   - `internal/wire/view_panels_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
+- **只有这台手机发起或批准的 run 在后台跟随**：run 的事件流只由 `RunFollower` 持有，断线后从最后读到的事件接着读；为 owner 刚做的决定而跟随的 run 在这个决定的事件之前不显示，重放里更早的等待不会结束它。这类 run 运行时显示为 Live Update，结束、等 owner 或被 owner 停止时消失；App 不在前台时完成与失败留一条通知，owner 停止的不留。
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/RunFollowerTest.kt`
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/LiveStatusTest.kt`
 
 ## 约定、唤醒与追踪
 
