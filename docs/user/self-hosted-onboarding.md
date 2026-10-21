@@ -423,6 +423,8 @@ files:
 
 When an answer is several items with the same fields or numbers worth comparing, such as what changed across releases, a reading list or a trend, the agent shows it as a view under its reply: tables, lists of cards, links, badges, images from the conversation or the knowledge base, and bar or line charts, drawn by the app in its own style. The backend checks every view before it is shown, including that its links pass the same web policy as the agent's fetches, and views are deleted with their conversation.
 
+A view can also offer next steps as buttons or a list to pick from, for example 整理成笔记 after the agent reads a long article. Pressing a button or sending a choice puts it in the conversation as your message, the button's words or 选了：… with what you picked, and the agent starts on it. Each button and choice can be sent once; afterwards the view shows what you chose. The agent can update a view it showed earlier, and the app redraws it in place.
+
 ## 13. Watches and the Morning Briefing
 
 Ask the agent to keep an eye on something and it creates a watch: "follow the Go blog", "tell me when golang/go has a new release", "watch the price on this page and tell me right away when it drops". The backend checks each watch on its own schedule (hourly by default, at least every 15 minutes) and only involves the model when something is new. The first check of a watch is the baseline, so what is already there is not reported.

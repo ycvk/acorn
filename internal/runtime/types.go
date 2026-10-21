@@ -83,6 +83,7 @@ type RuntimeDeps struct {
 	Commitments        core.CommitmentStore
 	Attachments        core.AttachmentReader
 	Files              core.ThreadFiles
+	Views              ThreadViewLister
 	// Uploads and Work are nil when no workstation is configured.
 	Uploads     UploadHost
 	Work        WorkHost

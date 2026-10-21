@@ -53,6 +53,14 @@ type noThreadViews struct{}
 
 func (noThreadViews) ThreadViews(context.Context, string) ([]core.ThreadView, error) { return nil, nil }
 
+func (noThreadViews) ThreadView(_ context.Context, _, viewID string) (core.ThreadView, error) {
+	return core.ThreadView{}, fmt.Errorf("%w: %s", core.ErrThreadViewNotFound, viewID)
+}
+
+func (noThreadViews) SendViewAction(context.Context, core.ViewActionWrite) (core.SessionMessageRecord, core.ViewAction, error) {
+	return core.SessionMessageRecord{}, core.ViewAction{}, errors.New("no thread views in this test")
+}
+
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
 	threads, err := NewThreadService(store, noThreadFiles{}, noThreadViews{}, noThreadMemory{}, noForgetBarrier)

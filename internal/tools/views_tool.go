@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,9 +14,12 @@ import (
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
-// ViewStore keeps the views show_view shows and records each on its run.
+// ViewStore keeps the views show_view shows and update_view replaces, and
+// records each on its run.
 type ViewStore interface {
 	SaveThreadView(ctx context.Context, in core.ThreadViewWrite) (core.ThreadView, error)
+	ThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error)
+	UpdateThreadView(ctx context.Context, in core.ThreadViewUpdate) (core.ThreadView, error)
 	AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error)
 }
 
@@ -51,6 +55,18 @@ type ShowViewOutput struct {
 	Note   string `json:"note"`
 }
 
+type UpdateViewInput struct {
+	ViewID     string           `json:"view_id" jsonschema:"required" jsonschema_description:"Id show_view returned for a view in this conversation."`
+	Title      string           `json:"title,omitempty" jsonschema_description:"New title; leave out to keep the current one."`
+	Components []map[string]any `json:"components,omitempty" jsonschema_description:"All the view's components again, flat; leave out to keep the current ones."`
+	Data       map[string]any   `json:"data,omitempty" jsonschema_description:"The whole data object again; leave out to keep the current data."`
+}
+
+type UpdateViewOutput struct {
+	ViewID string `json:"view_id"`
+	Note   string `json:"note"`
+}
+
 func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 	description := "Show the owner a view under your reply: tables, lists, charts, cards, links and images drawn by the app from the catalog in the views skill. Load the views skill before the first view. A view that fails its checks is not shown, and the result lists what to fix."
 	return inferProgressTool("show_view", description, func(ctx context.Context, input ShowViewInput, _ ToolProgressEmitter) (ShowViewOutput, error) {
@@ -77,6 +93,46 @@ func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 			return ShowViewOutput{}, fmt.Errorf("append view.shown event: %w", err)
 		}
 		return ShowViewOutput{ViewID: view.ID, Note: "The owner sees the view under your reply; the reply should say what it shows instead of repeating it."}, nil
+	})
+}
+
+func buildUpdateViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
+	description := "Replace the title, components or data of a view shown earlier in this conversation, such as newer numbers in its table; what you leave out stays. The whole view is checked again, and the buttons and choices the owner already sent stay sent."
+	return inferProgressTool("update_view", description, func(ctx context.Context, input UpdateViewInput, _ ToolProgressEmitter) (UpdateViewOutput, error) {
+		sessionID, runID := strings.TrimSpace(deps.Context.CurrentSessionID(ctx)), strings.TrimSpace(deps.Context.CurrentRunID(ctx))
+		if sessionID == "" || runID == "" {
+			return UpdateViewOutput{}, errors.New("update_view needs the current conversation and run")
+		}
+		current, err := deps.Store.ThreadView(ctx, sessionID, strings.TrimSpace(input.ViewID))
+		if err != nil {
+			return UpdateViewOutput{}, err
+		}
+		title, components, data := current.Title, input.Components, input.Data
+		if strings.TrimSpace(input.Title) != "" {
+			title = input.Title
+		}
+		if components == nil {
+			if err := json.Unmarshal(current.Components, &components); err != nil {
+				return UpdateViewOutput{}, fmt.Errorf("stored view components: %w", err)
+			}
+		}
+		if data == nil {
+			if err := json.Unmarshal(current.Data, &data); err != nil {
+				return UpdateViewOutput{}, fmt.Errorf("stored view data: %w", err)
+			}
+		}
+		checked, err := views.Check(ctx, title, components, data, &viewReferences{deps: deps, sessionID: sessionID})
+		if err != nil {
+			return UpdateViewOutput{}, err
+		}
+		updated, err := deps.Store.UpdateThreadView(ctx, core.ThreadViewUpdate{SessionID: sessionID, ViewID: current.ID, Title: checked.Title, Components: checked.Components, Data: checked.Data})
+		if err != nil {
+			return UpdateViewOutput{}, err
+		}
+		if _, err := deps.Store.AppendEvent(ctx, runID, "view.updated", core.ViewShownData{View: core.ViewDataOf(updated)}); err != nil {
+			return UpdateViewOutput{}, fmt.Errorf("append view.updated event: %w", err)
+		}
+		return UpdateViewOutput{ViewID: updated.ID, Note: "The owner sees the view's new content where it was shown."}, nil
 	})
 }
 

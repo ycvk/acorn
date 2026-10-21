@@ -223,6 +223,12 @@
   - `internal/tools/views_tool_test.go`
   - `internal/store/thread_views_test.go`
   - `internal/wire/thread_views_e2e_test.go`
+- **视图动作是 owner 的一条消息，只发一次**：App 只发组件 id、List 里的位置与选中的选项 id，后端从存着的视图解析动作：不是 `Button` 或 `ChoicePicker` 的组件、位置不对、不在声明里的选项、单选时选了多个都以 400 拒绝，动作名、选项文字与 context 都取自视图。登记动作与写 owner 消息在同一事务里，主键是（视图, 组件 id 加位置），重复发返回 409 且不多写消息、不多起 run；之后按 owner 发消息的规则起 run，模型在这条消息旁看到视图 id、组件、动作名、选项与 context。`update_view` 只能改本对话的视图，整个视图重新校验，写 `view.updated` 事件，已发的动作保留；删除对话一并删除动作。
+  - `internal/views/actions_test.go`
+  - `internal/runtime/view_actions_test.go`
+  - `internal/store/thread_views_test.go`
+  - `internal/tools/views_tool_test.go`
+  - `internal/wire/thread_view_actions_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 

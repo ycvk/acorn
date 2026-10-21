@@ -10,6 +10,7 @@ import io.ycvk.acorn.api.models.CreateThreadRequest
 import io.ycvk.acorn.api.models.InboxResponse
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.api.models.RunSummary
+import io.ycvk.acorn.api.models.SendViewActionRequest
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -20,6 +21,7 @@ import io.ycvk.acorn.core.sse.RunEventStreamClient
 import io.ycvk.acorn.core.sse.RunStatus
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.ThreadFileRepository
+import io.ycvk.acorn.feature.views.ViewActionPress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,6 +83,10 @@ class ChatViewModel @Inject constructor(
     /** Ids of the files being downloaded to open or save. */
     private val _fileBusy = MutableStateFlow<Set<String>>(emptySet())
     val fileBusy: StateFlow<Set<String>> = _fileBusy.asStateFlow()
+
+    /** The [ViewActionPress.id] of the view action whose request is out. */
+    private val _sendingAction = MutableStateFlow<String?>(null)
+    val sendingAction: StateFlow<String?> = _sendingAction.asStateFlow()
 
     private var eventSource: EventSource? = null
     private var streamingRunId: String? = null
@@ -266,6 +272,52 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
+     * Sends what the owner pressed or chose in a view. The server records it
+     * as their message and starts a run on it; the view comes back with the
+     * action marked as sent. A refused action reloads the thread, so a view
+     * sent from elsewhere shows it.
+     */
+    fun sendViewAction(press: ViewActionPress) {
+        val profile = getConnectionProfile() ?: run {
+            _error.value = "还没有连接服务器"
+            return
+        }
+        val threadId = _threadId.value ?: return
+        if (_sendingAction.value != null || _chatState.value.isStreaming) return
+        _sendingAction.value = press.id
+        _error.value = null
+        viewModelScope.launch {
+            try {
+                val sent = withContext(Dispatchers.IO) {
+                    ApiClient.accessToken = profile.accessToken
+                    ClientApi(basePath = profile.serverUrl).clientSendViewAction(
+                        threadId = threadId,
+                        viewId = press.viewId,
+                        sendViewActionRequest = SendViewActionRequest(
+                            componentId = press.componentId,
+                            scope = press.scope.ifEmpty { null },
+                            selected = press.selected.ifEmpty { null },
+                        ),
+                    )
+                }
+                if (_threadId.value != threadId) return@launch
+                _messages.value = withView(_messages.value, sent.view) + ChatMessage.User(sent.text)
+                eventSource?.cancel()
+                eventSource = null
+                _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                reconnects = 0
+                streamEvents(profile, sent.run.id, threadId)
+            } catch (e: Exception) {
+                if (_threadId.value != threadId) return@launch
+                _error.value = "没发出去：${userMessage(e)}"
+                loadMessages(threadId)
+            } finally {
+                _sendingAction.value = null
+            }
+        }
+    }
+
+    /**
      * Brings the thread up to date after the app was in the background: the
      * stream may have been cut and the run may have moved on. A run still
      * going is streamed again from its start.
@@ -372,6 +424,7 @@ class ChatViewModel @Inject constructor(
                 if (streamGeneration.get() != gen) return@streamRunEvents
                 reconnects = 0
                 _chatState.value = projection.apply(_chatState.value, packet)
+                if (packet is RunEventPacket.ViewUpdated) _messages.value = withView(_messages.value, packet.event.`data`.view)
                 // On a terminal event, fold the streamed assistant text into the
                 // persisted message list and clear the streaming bubble so the
                 // finalized message is the only copy shown.

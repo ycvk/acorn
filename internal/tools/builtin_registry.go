@@ -210,7 +210,7 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "watch_list":
 		needs = watchDeps
 		build = func() (einotool.BaseTool, error) { return buildWatchListTool(deps.Watch) }
-	case "show_view":
+	case "show_view", "update_view":
 		needs = []nativeToolDep{
 			{"Views.Store", deps.Views.Store != nil},
 			{"Views.Files", deps.Views.Files != nil},
@@ -218,7 +218,12 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 			{"Views.Links", deps.Views.Links != nil},
 			{"Views.Context", deps.Views.Context != nil},
 		}
-		build = func() (einotool.BaseTool, error) { return buildShowViewTool(deps.Views) }
+		build = func() (einotool.BaseTool, error) {
+			if name == "update_view" {
+				return buildUpdateViewTool(deps.Views)
+			}
+			return buildShowViewTool(deps.Views)
+		}
 	default:
 		return nil, fmt.Errorf("no factory for native tool %q", name)
 	}

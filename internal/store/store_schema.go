@@ -82,6 +82,7 @@ var schemaRequiredTables = map[string][]string{
 	"phone_notifications":       {"id", "device_id", "notification_key", "package", "app", "title", "text", "posted_at", "received_at"},
 	"thread_files":              {"file_id", "session_id", "message_id", "run_id", "origin", "name", "mime_type", "size_bytes", "sha256", "created_at"},
 	"thread_views":              {"view_id", "session_id", "run_id", "title", "catalog", "components_json", "data_json", "created_at"},
+	"thread_view_actions":       {"view_id", "action_key", "session_id", "component_id", "scope_json", "name", "selected_json", "context_json", "message_id", "created_at"},
 	"run_processes":             {"run_id", "process"},
 }
 

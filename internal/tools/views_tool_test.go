@@ -16,14 +16,32 @@ import (
 )
 
 type viewStoreFake struct {
-	saved  []core.ThreadViewWrite
-	events []string
-	shown  []core.ViewShownData
+	saved   []core.ThreadViewWrite
+	updated []core.ThreadViewUpdate
+	stored  map[string]core.ThreadView
+	events  []string
+	shown   []core.ViewShownData
 }
 
 func (f *viewStoreFake) SaveThreadView(_ context.Context, in core.ThreadViewWrite) (core.ThreadView, error) {
 	f.saved = append(f.saved, in)
 	return core.ThreadView{ID: "view_1", SessionID: in.SessionID, RunID: in.RunID, Title: in.Title, Catalog: in.Catalog, Components: in.Components, Data: in.Data, CreatedAt: time.Unix(1, 0).UTC()}, nil
+}
+
+func (f *viewStoreFake) ThreadView(_ context.Context, sessionID, viewID string) (core.ThreadView, error) {
+	view, ok := f.stored[viewID]
+	if !ok || view.SessionID != sessionID {
+		return core.ThreadView{}, core.ErrThreadViewNotFound
+	}
+	return view, nil
+}
+
+func (f *viewStoreFake) UpdateThreadView(_ context.Context, in core.ThreadViewUpdate) (core.ThreadView, error) {
+	f.updated = append(f.updated, in)
+	view := f.stored[in.ViewID]
+	view.Title, view.Components, view.Data = in.Title, in.Components, in.Data
+	f.stored[in.ViewID] = view
+	return view, nil
 }
 
 func (f *viewStoreFake) AppendEvent(_ context.Context, runID, kind string, payload any) (core.EventRecord, error) {
@@ -126,6 +144,40 @@ func TestShowViewRejectsWhatItCannotDraw(t *testing.T) {
 				t.Fatalf("a rejected view left saved = %v events = %v", store.saved, store.events)
 			}
 		})
+	}
+}
+
+func TestUpdateViewReplacesWhatItIsGivenAndChecksTheWhole(t *testing.T) {
+	store := &viewStoreFake{stored: map[string]core.ThreadView{"view_7": {
+		ID: "view_7", SessionID: "thread_eino", Title: "eino",
+		Components: json.RawMessage(`[{"id":"root","component":"Table","columns":["版本"],"rows":{"path":"/releases"}}]`),
+		Data:       json.RawMessage(`{"releases":[["v0.9.21"]]}`),
+		Actions:    []core.ViewAction{{Key: "save", ComponentID: "save"}},
+	}}}
+	tool, err := buildUpdateViewTool(ViewToolDeps{Store: store, Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}, Context: fixedArtifactContext{runID: "run_2", sessionID: "thread_eino"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	update := tool.(einotool.InvokableTool)
+
+	if _, err := update.InvokableRun(context.Background(), `{"view_id": "view_7", "data": {"releases": [["v0.9.22"], ["v0.9.21"]]}}`); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.updated) != 1 || store.updated[0].Title != "eino" || !strings.Contains(string(store.updated[0].Components), `"Table"`) || string(store.updated[0].Data) != `{"releases":[["v0.9.22"],["v0.9.21"]]}` {
+		t.Fatalf("updated = %+v", store.updated)
+	}
+	if len(store.events) != 1 || store.events[0] != "run_2 view.updated" || len(store.shown[0].View.Actions) != 1 {
+		t.Fatalf("events = %v shown = %+v", store.events, store.shown)
+	}
+
+	if _, err := update.InvokableRun(context.Background(), `{"view_id": "view_7", "data": {"releases": "gone"}}`); !errors.Is(err, views.ErrInvalidView) || !strings.Contains(err.Error(), "rows must be an array") {
+		t.Fatalf("an update the view cannot draw err = %v", err)
+	}
+	if _, err := update.InvokableRun(context.Background(), `{"view_id": "view_8", "title": "t"}`); !errors.Is(err, core.ErrThreadViewNotFound) {
+		t.Fatalf("a view not in this conversation err = %v", err)
+	}
+	if len(store.updated) != 1 || len(store.events) != 1 {
+		t.Fatalf("rejected updates left updated = %v events = %v", store.updated, store.events)
 	}
 }
 

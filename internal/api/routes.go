@@ -120,6 +120,7 @@ func (s *Server) registerRoutes(router chi.Router) {
 					r.Post("/runs", s.handleClientCreateRun)
 					r.Post("/files", s.handleUploadThreadFile)
 					r.Get("/files/{file_id}", s.handleGetThreadFile)
+					r.Post("/views/{view_id}/actions", s.handleSendViewAction)
 				})
 			})
 			r.Post("/runs/{run_id}:interrupt", s.handleClientInterruptRun)

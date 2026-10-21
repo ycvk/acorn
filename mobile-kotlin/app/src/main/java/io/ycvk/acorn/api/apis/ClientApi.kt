@@ -43,12 +43,14 @@ import io.ycvk.acorn.api.models.PendingActionListResponse
 import io.ycvk.acorn.api.models.Run
 import io.ycvk.acorn.api.models.RunDetail
 import io.ycvk.acorn.api.models.RunEvent
+import io.ycvk.acorn.api.models.SendViewActionRequest
 import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.ThreadListResponse
 import io.ycvk.acorn.api.models.ToolListResponse
 import io.ycvk.acorn.api.models.UpdateThreadRequest
+import io.ycvk.acorn.api.models.ViewActionResponse
 
 import com.squareup.moshi.Json
 
@@ -1749,6 +1751,86 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.POST,
             path = "/v1/watches/{watch_id}:resume".replace("{"+"watch_id"+"}", encodeURIComponent(watchId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/threads/{thread_id}/views/{view_id}/actions
+     * Send what the owner pressed or chose in a view as their message
+     * Names a Button or ChoicePicker of the view, the item of each List it is drawn for, and for a choice the option ids picked. The backend resolves the action against the stored view, records the owner&#39;s message (the button&#39;s label, or the chosen options) and starts a run on it, like a message the owner typed. Each action of a view, that is each component per List item, is sent once. 
+     * @param threadId 
+     * @param viewId 
+     * @param sendViewActionRequest 
+     * @return ViewActionResponse
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientSendViewAction(threadId: kotlin.String, viewId: kotlin.String, sendViewActionRequest: SendViewActionRequest) : ViewActionResponse {
+        val localVarResponse = clientSendViewActionWithHttpInfo(threadId = threadId, viewId = viewId, sendViewActionRequest = sendViewActionRequest)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as ViewActionResponse
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/threads/{thread_id}/views/{view_id}/actions
+     * Send what the owner pressed or chose in a view as their message
+     * Names a Button or ChoicePicker of the view, the item of each List it is drawn for, and for a choice the option ids picked. The backend resolves the action against the stored view, records the owner&#39;s message (the button&#39;s label, or the chosen options) and starts a run on it, like a message the owner typed. Each action of a view, that is each component per List item, is sent once. 
+     * @param threadId 
+     * @param viewId 
+     * @param sendViewActionRequest 
+     * @return ApiResponse<ViewActionResponse?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientSendViewActionWithHttpInfo(threadId: kotlin.String, viewId: kotlin.String, sendViewActionRequest: SendViewActionRequest) : ApiResponse<ViewActionResponse?> {
+        val localVariableConfig = clientSendViewActionRequestConfig(threadId = threadId, viewId = viewId, sendViewActionRequest = sendViewActionRequest)
+
+        return request<SendViewActionRequest, ViewActionResponse>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientSendViewAction
+     *
+     * @param threadId 
+     * @param viewId 
+     * @param sendViewActionRequest 
+     * @return RequestConfig
+     */
+    fun clientSendViewActionRequestConfig(threadId: kotlin.String, viewId: kotlin.String, sendViewActionRequest: SendViewActionRequest) : RequestConfig<SendViewActionRequest> {
+        val localVariableBody = sendViewActionRequest
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/threads/{thread_id}/views/{view_id}/actions".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())).replace("{"+"view_id"+"}", encodeURIComponent(viewId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

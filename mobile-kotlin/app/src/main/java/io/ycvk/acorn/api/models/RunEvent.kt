@@ -39,6 +39,7 @@ import io.ycvk.acorn.api.models.ClientToolCallFailedEvent
 import io.ycvk.acorn.api.models.ClientToolCallStartedEvent
 import io.ycvk.acorn.api.models.ClientToolCallSucceededEvent
 import io.ycvk.acorn.api.models.ClientViewShownEvent
+import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
 import io.ycvk.acorn.api.models.ViewShownData
 
 import com.squareup.moshi.Json

@@ -135,6 +135,21 @@ type MessageDTO struct {
 	Views     []core.ViewData   `json:"views,omitempty"`
 }
 
+// SendViewActionRequest is what the owner pressed or chose in a view.
+type SendViewActionRequest struct {
+	ComponentID string   `json:"component_id"`
+	Scope       []int    `json:"scope,omitempty"`
+	Selected    []string `json:"selected,omitempty"`
+}
+
+// ViewActionResponse is the run a view action started, the owner's message
+// it sent, and the view with the action marked as sent.
+type ViewActionResponse struct {
+	Run  RunDTO        `json:"run"`
+	Text string        `json:"text"`
+	View core.ViewData `json:"view"`
+}
+
 // ThreadFileDTO describes a file in a thread.
 type ThreadFileDTO struct {
 	ID        string    `json:"id"`

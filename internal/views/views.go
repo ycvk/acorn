@@ -68,6 +68,9 @@ const (
 	propPoints                   // chart points {label, value}, written out or a path
 	propURL                      // a web address, or a path to one
 	propImage                    // a file id or attachment path, or a path to one
+	propAction                   // what pressing a button or choosing sends: {name, context}
+	propOptions                  // choices {id, label}, written out or a path
+	propBool                     // true or false, written out
 )
 
 type propSpec struct {
@@ -111,7 +114,28 @@ var catalog = map[string]map[string]propSpec{
 		"points":  {kind: propPoints, required: true},
 		"unit":    {kind: propText},
 	},
+	"Button": {
+		"label":   {kind: propText, required: true},
+		"action":  {kind: propAction, required: true},
+		"variant": {kind: propEnum, values: []string{"primary", "quiet"}},
+	},
+	"ChoicePicker": {
+		"label":    {kind: propText},
+		"options":  {kind: propOptions, required: true},
+		"multiple": {kind: propBool},
+		"submit":   {kind: propText, required: true},
+		"action":   {kind: propAction, required: true},
+	},
 }
+
+// Limits on what an action carries.
+const (
+	maxOptions = 20
+	// MaxActionRunes caps the text an action sends as the owner's message.
+	MaxActionRunes = 500
+)
+
+var actionName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 var componentID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
@@ -345,6 +369,12 @@ func (c *checker) checkStatic(at string, n *node, name string, prop propSpec, va
 		if _, ok := bindingPath(value); !ok {
 			c.add(fmt.Sprintf(`%s: %s must be {"path": ...} pointing at an array in data`, at, name))
 		}
+	case propBool:
+		if _, ok := value.(bool); !ok {
+			c.add(fmt.Sprintf("%s: %s must be true or false", at, name))
+		}
+	case propAction:
+		c.checkAction(at, name, value)
 	default:
 		if path, ok := bindingPath(value); ok {
 			if !validPath(path) {
@@ -352,6 +382,38 @@ func (c *checker) checkStatic(at string, n *node, name string, prop propSpec, va
 			}
 		} else if obj, isObject := value.(map[string]any); isObject {
 			c.add(fmt.Sprintf(`%s: %s: an object here must be exactly {"path": "..."}, got keys %s`, at, name, strings.Join(sortedKeys(obj), ", ")))
+		}
+	}
+}
+
+// checkAction checks an action's shape: a name the agent recognises when it
+// comes back, and context values written out or bound to the data.
+func (c *checker) checkAction(at, name string, value any) {
+	action, ok := value.(map[string]any)
+	if !ok {
+		c.add(fmt.Sprintf(`%s: %s must be {"name": "...", "context": {...}}`, at, name))
+		return
+	}
+	for _, key := range sortedKeys(action) {
+		if key != "name" && key != "context" {
+			c.add(fmt.Sprintf("%s: %s has no property %q; it takes name and context", at, name, key))
+		}
+	}
+	if actionNameText, isString := action["name"].(string); !isString || !actionName.MatchString(actionNameText) {
+		c.add(fmt.Sprintf("%s: %s name must start with a lowercase letter and hold only lowercase letters, digits and _", at, name))
+	}
+	raw, present := action["context"]
+	if !present {
+		return
+	}
+	context, isObject := raw.(map[string]any)
+	if !isObject {
+		c.add(fmt.Sprintf("%s: %s context must be an object", at, name))
+		return
+	}
+	for _, key := range sortedKeys(context) {
+		if path, bound := bindingPath(context[key]); bound && !validPath(path) {
+			c.add(fmt.Sprintf("%s: %s context %s: path %q is not a JSON Pointer", at, name, key, path))
 		}
 	}
 }
@@ -419,6 +481,10 @@ func (c *checker) walk(id string, scopes []any, where string) {
 			c.checkRows(at, name, value, n.columns, scopes)
 		case propPoints:
 			c.checkPoints(at, name, value, scopes)
+		case propOptions:
+			c.resolveOptions(at, name, value, scopes)
+		case propAction:
+			c.resolveContext(at, name, value, scopes)
 		case propItems:
 			items, ok := c.resolveArray(at, name, value, scopes)
 			if !ok {

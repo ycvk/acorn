@@ -23,21 +23,24 @@ type threadForgetter interface {
 type ThreadService struct {
 	store       core.SessionStore
 	files       core.ThreadFiles
-	views       threadViewLister
+	views       threadViewStore
 	forgetter   threadForgetter
 	barrier     func(context.Context, core.MemoryExclusion, string) error
 	newThreadID func() string
 }
 
-// threadViewLister lists the views runs showed in a thread, oldest first.
-type threadViewLister interface {
+// threadViewStore keeps the views runs showed in a thread and the actions
+// the owner sends from them.
+type threadViewStore interface {
 	ThreadViews(ctx context.Context, sessionID string) ([]core.ThreadView, error)
+	ThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error)
+	SendViewAction(ctx context.Context, in core.ViewActionWrite) (core.SessionMessageRecord, core.ViewAction, error)
 }
 
 // NewThreadService constructs a ThreadService backed by the given store and
 // the files and views of its threads. Deleting a thread forgets it through
 // forgetter, then waits at barrier for the executions that saw it to stop.
-func NewThreadService(store core.SessionStore, files core.ThreadFiles, views threadViewLister, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
+func NewThreadService(store core.SessionStore, files core.ThreadFiles, views threadViewStore, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
 	if store == nil || files == nil || views == nil || forgetter == nil || barrier == nil {
 		return nil, errors.New("thread service: store, files, views, forgetter and barrier are required")
 	}

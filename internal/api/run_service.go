@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/views"
 )
 
 var (
@@ -201,6 +203,57 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input str
 			return nil, err
 		}
 	}
+	return s.startRun(ctx, threadID, skillID, message, wake, scheduled)
+}
+
+// SendViewAction sends what the owner pressed or chose in a view of the
+// thread as their message and starts a run on it. The action is resolved
+// against the stored view, and each action of a view is sent once.
+func (s *RunService) SendViewAction(ctx context.Context, threadID, viewID string, req views.ActionRequest) (*ViewActionResult, error) {
+	if s == nil || s.threads == nil {
+		return nil, errors.New("client service is not initialized")
+	}
+	view, err := s.threads.views.ThreadView(ctx, threadID, viewID)
+	if err != nil {
+		return nil, err
+	}
+	action, err := views.ResolveAction(view.Components, view.Data, req)
+	if err != nil {
+		return nil, err
+	}
+	carried, err := json.Marshal(action.Context)
+	if err != nil {
+		return nil, fmt.Errorf("view action context: %w", err)
+	}
+	write := core.ViewActionWrite{ViewID: view.ID, SessionID: threadID, Key: action.Key, ComponentID: action.ComponentID, Scope: action.Scope, Name: action.Name, Text: action.Text, Context: carried}
+	for _, option := range action.Selected {
+		write.Selected = append(write.Selected, core.ViewOption{ID: option.ID, Label: option.Label})
+	}
+	message, _, err := s.threads.views.SendViewAction(ctx, write)
+	if err != nil {
+		return nil, err
+	}
+	run, err := s.startRun(ctx, threadID, "", &message, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	sent, err := s.threads.views.ThreadView(ctx, threadID, viewID)
+	if err != nil {
+		return nil, err
+	}
+	return &ViewActionResult{Run: *run, Text: message.Content, View: core.ViewDataOf(sent)}, nil
+}
+
+// ViewActionResult is the run a view action started, the owner's message it
+// sent, and the view with the action marked as sent.
+type ViewActionResult struct {
+	Run  Run
+	Text string
+	View core.ViewData
+}
+
+// startRun starts a run bound to message.
+func (s *RunService) startRun(ctx context.Context, threadID, skillID string, message *core.SessionMessageRecord, wake string, scheduled *core.ScheduledWake) (*Run, error) {
 	runID := strings.TrimSpace(s.newRunID())
 	if runID == "" {
 		return nil, errors.New("client run id is empty")
