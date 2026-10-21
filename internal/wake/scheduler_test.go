@@ -116,6 +116,7 @@ type harness struct {
 	sched   *Scheduler
 	now     time.Time
 	data    *store.Store
+	panels  *fakePanels
 }
 
 func newHarness(t *testing.T, limit int) *harness {

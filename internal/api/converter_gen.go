@@ -5,6 +5,7 @@ package api
 
 import (
 	jsontext "encoding/json/jsontext"
+	"time"
 
 	core "github.com/ycvk/acorn/internal/core"
 )
@@ -166,7 +167,9 @@ func (c *ConverterImpl) coreViewDataToCoreViewData(source core.ViewData) core.Vi
 	coreViewData.Catalog = source.Catalog
 	coreViewData.Components = c.jsontextValueToJsontextValue(source.Components)
 	coreViewData.Data = c.jsontextValueToJsontextValue(source.Data)
+	coreViewData.Source = source.Source
 	coreViewData.CreatedAt = TimeToTime(source.CreatedAt)
+	coreViewData.PinnedAt = c.pTimeTimeToPTimeTime(source.PinnedAt)
 	if source.Actions != nil {
 		coreViewData.Actions = make([]core.ViewActionData, len(source.Actions))
 		for i := 0; i < len(source.Actions); i++ {
@@ -222,6 +225,14 @@ func (c *ConverterImpl) messageDTOsFromDomain(source []Message) []MessageDTO {
 		}
 	}
 	return apiMessageDTOList
+}
+func (c *ConverterImpl) pTimeTimeToPTimeTime(source *time.Time) *time.Time {
+	var pTimeTime *time.Time
+	if source != nil {
+		timeTime := TimeToTime((*source))
+		pTimeTime = &timeTime
+	}
+	return pTimeTime
 }
 func (c *ConverterImpl) pendingActionOptionDTOsFromDomain(source []PendingActionOption) []PendingActionOptionDTO {
 	var apiPendingActionOptionDTOList []PendingActionOptionDTO

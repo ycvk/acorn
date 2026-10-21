@@ -243,11 +243,30 @@ func (c *checker) add(problem string) {
 }
 
 func (c *checker) err() error {
-	more := ""
-	if len(c.problems) == maxProblems {
-		more = "\n- (more problems may follow)"
+	return &CheckError{Problems: c.problems}
+}
+
+// CheckError lists the problems of a view that failed its checks; it is an
+// ErrInvalidView.
+type CheckError struct {
+	Problems []string
+}
+
+func (e *CheckError) Error() string {
+	return fmt.Sprintf("%v; fix these and call show_view again:\n%s", ErrInvalidView, e.List())
+}
+
+func (e *CheckError) Unwrap() error {
+	return ErrInvalidView
+}
+
+// List is the problems one per line, noting when more may follow.
+func (e *CheckError) List() string {
+	list := "- " + strings.Join(e.Problems, "\n- ")
+	if len(e.Problems) == maxProblems {
+		list += "\n- (more problems may follow)"
 	}
-	return fmt.Errorf("%w; fix these and call show_view again:\n- %s%s", ErrInvalidView, strings.Join(c.problems, "\n- "), more)
+	return list
 }
 
 // checkStructure checks ids, component types, properties that do not depend

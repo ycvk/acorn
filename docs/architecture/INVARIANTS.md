@@ -229,6 +229,13 @@
   - `internal/store/thread_views_test.go`
   - `internal/tools/views_tool_test.go`
   - `internal/wire/thread_view_actions_e2e_test.go`
+- **面板只由 owner 固定，触发器数据只喂给固定的视图**：固定与取消固定只经 owner 的 `/v1` 端点；`/v1/now` 的 `panels` 按固定时间列出，删除对话一并去掉。`show_view` 的 `source` 必须是在用技能的触发器。触发器的输出行是事件或 `{"view_data": {...}}`，其余失败；`view_data` 只替换以该触发器为 source 且仍固定、组件未变的视图的数据，先按组件完整校验（路径、行宽、链接 policy、图片），不调用模型；画不出的数据不写入，这次运行记为失败，同次输出的事件照常登记。
+  - `internal/skills/manifest_test.go`
+  - `internal/views/panels_test.go`
+  - `internal/store/thread_views_test.go`
+  - `internal/wake/triggers_test.go`
+  - `internal/tools/views_tool_test.go`
+  - `internal/wire/view_panels_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 

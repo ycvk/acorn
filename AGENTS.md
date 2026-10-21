@@ -70,6 +70,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 - agent 经 `show_view`(toolsearch 按需加载,配 `views` 技能)在回复下给 owner 一块界面:A2UI v0.9 形状的平铺组件加数据,组件只来自 `internal/views` 的目录。后端校验结构、数据路径、链接与图片后存进 SQLite,写 `view.shown` 事件,线程消息按 run 列出;没通过的视图不保存,问题作为 tool result 回给模型。App 用自己的组件渲染,不执行代码,不认识的组件显示占位。删除对话一并删除视图。
 - `update_view` 按 id 替换本对话里某个视图的标题、组件或数据,整个视图重新校验后写 `view.updated` 事件。
+- owner 经 `POST /v1/threads/{thread_id}/views/{view_id}:pin`/`:unpin` 把视图固定到今天页或取下,`/v1/now` 按固定时间列出 `panels`,点面板回到所在对话。`show_view` 可带 `source`(在用技能包的触发器 `skill/trigger`);视图固定期间,该触发器输出的每行 `{"view_data": {...}}` 按视图组件完整校验后替换数据,不调用模型;数据画不出时视图保留原数据,这次运行记为触发器失败,同次输出的事件照常登记。没固定的视图不接收触发器数据。
 - `Button` 与 `ChoicePicker` 带 `action`。App 经 `POST /v1/threads/{thread_id}/views/{view_id}/actions` 只发组件 id、List 里的位置与选中的选项 id;后端从存着的视图解析出动作,同一事务里登记动作并写一条 owner 消息(按钮文字或「选了：A、C」),再按 owner 发消息的规则起 run。模型在这条消息旁看到视图 id、组件、动作名、选项与动作的 context。每个动作只能发一次,重复发返回 409;视图里没有的组件或选项返回 400。
 
 ### 推送与手机通知

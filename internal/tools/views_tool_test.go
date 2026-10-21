@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/views"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
@@ -70,6 +72,12 @@ func (f attachmentsFake) ReadAttachment(_ context.Context, rel string) (core.Att
 	return core.Attachment{MIME: mime}, nil
 }
 
+type triggersFake []skills.PackageTrigger
+
+func (f triggersFake) Triggers(context.Context) ([]skills.PackageTrigger, error) {
+	return f, nil
+}
+
 type linkPolicyFake struct{}
 
 func (linkPolicyFake) Validate(_ context.Context, raw string) (webaccess.ValidatedURL, error) {
@@ -83,13 +91,16 @@ func showViewTool(t *testing.T, store *viewStoreFake, runID string) einotool.Inv
 	t.Helper()
 	tool, err := buildShowViewTool(ViewToolDeps{
 		Store: store,
-		Files: viewFilesFake{files: []core.ThreadFile{
-			{ID: "file_0123456789abcdef0123456789abcdef", MIME: "image/png"},
-			{ID: "file_ffffffffffffffffffffffffffffffff", MIME: "text/plain"},
-		}},
-		Attachments: attachmentsFake{"attachments/2026/cover.jpg": "image/jpeg"},
-		Links:       linkPolicyFake{},
-		Context:     fixedArtifactContext{runID: runID, sessionID: "thread_eino", callID: "call_1"},
+		Sources: views.Sources{
+			Files: viewFilesFake{files: []core.ThreadFile{
+				{ID: "file_0123456789abcdef0123456789abcdef", MIME: "image/png"},
+				{ID: "file_ffffffffffffffffffffffffffffffff", MIME: "text/plain"},
+			}},
+			Attachments: attachmentsFake{"attachments/2026/cover.jpg": "image/jpeg"},
+			Links:       linkPolicyFake{},
+		},
+		Triggers: triggersFake{{Trigger: skills.Trigger{Name: "check"}, Skill: "repo-releases"}},
+		Context:  fixedArtifactContext{runID: runID, sessionID: "thread_eino", callID: "call_1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +165,7 @@ func TestUpdateViewReplacesWhatItIsGivenAndChecksTheWhole(t *testing.T) {
 		Data:       json.RawMessage(`{"releases":[["v0.9.21"]]}`),
 		Actions:    []core.ViewAction{{Key: "save", ComponentID: "save"}},
 	}}}
-	tool, err := buildUpdateViewTool(ViewToolDeps{Store: store, Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}, Context: fixedArtifactContext{runID: "run_2", sessionID: "thread_eino"}})
+	tool, err := buildUpdateViewTool(ViewToolDeps{Store: store, Sources: views.Sources{Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: fixedArtifactContext{runID: "run_2", sessionID: "thread_eino"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,5 +203,24 @@ func TestShowViewLoadsOnDemand(t *testing.T) {
 	spec, ok := ConfiguredLocalSpec("show_view")
 	if !ok || spec.Loading.Mode != core.ToolLoadingModeDeferred {
 		t.Fatalf("show_view spec = %+v, %v", spec, ok)
+	}
+}
+
+// TestShowViewTakesATriggerOfASkillInUseAsItsSource checks that a view names
+// the trigger that feeds it while pinned, and only a trigger that exists.
+func TestShowViewTakesATriggerOfASkillInUseAsItsSource(t *testing.T) {
+	store := &viewStoreFake{}
+	tool := showViewTool(t, store, "run_repos")
+	view := `{"title": "eino 最新版本", "components": [{"id": "root", "component": "Text", "text": {"path": "/latest"}}], "data": {"latest": "v0.9.21"}, "source": "%s"}`
+	out, err := tool.InvokableRun(context.Background(), fmt.Sprintf(view, "repo-releases/check"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(store.saved) != 1 || store.saved[0].Source != "repo-releases/check" || !strings.Contains(out, "pins it to the now page") {
+		t.Fatalf("saved = %+v out = %s", store.saved, out)
+	}
+	_, err = tool.InvokableRun(context.Background(), fmt.Sprintf(view, "repo-releases/hourly"))
+	if err == nil || !strings.Contains(err.Error(), "the triggers are repo-releases/check") || len(store.saved) != 1 {
+		t.Fatalf("unknown source err = %v, saved %d", err, len(store.saved))
 	}
 }

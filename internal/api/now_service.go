@@ -19,10 +19,11 @@ type nowStore interface {
 	LoadWatch(ctx context.Context, id int64) (*core.Watch, error)
 	UpdateWatch(ctx context.Context, w core.Watch) error
 	LatestRoutineOutput(ctx context.Context, routine string) (core.RoutineOutput, error)
+	Panels(ctx context.Context) ([]core.Panel, error)
 }
 
-// NowService serves the now page: the latest briefing, what is coming up,
-// what the agent is working on and the watches.
+// NowService serves the now page: the latest briefing, the views the owner
+// pinned, what is coming up, what the agent is working on and the watches.
 type NowService struct {
 	store nowStore
 	clock func() time.Time
@@ -38,6 +39,7 @@ func NewNowService(store nowStore, clock func() time.Time) (*NowService, error) 
 // NowResponse is GET /v1/now.
 type NowResponse struct {
 	Briefing    *NowBriefingDTO    `json:"briefing,omitempty"`
+	Panels      []NowPanelDTO      `json:"panels"`
 	Commitments []NowCommitmentDTO `json:"commitments"`
 	Concerns    []NowConcernDTO    `json:"concerns"`
 	Watches     []NowWatchDTO      `json:"watches"`
@@ -50,6 +52,15 @@ type NowBriefingDTO struct {
 	Date       string    `json:"date"`
 	Body       string    `json:"body"`
 	FinishedAt time.Time `json:"finished_at"`
+}
+
+// NowPanelDTO is a view pinned to the now page, with its conversation and
+// when its content last changed.
+type NowPanelDTO struct {
+	ThreadID    string        `json:"thread_id"`
+	ThreadTitle string        `json:"thread_title"`
+	View        core.ViewData `json:"view"`
+	UpdatedAt   time.Time     `json:"updated_at"`
 }
 
 // NowCommitmentDTO is a scheduled or due commitment with the occurrences that
@@ -120,7 +131,11 @@ func (s *NowService) Load(ctx context.Context) (NowResponse, error) {
 	if err != nil {
 		return NowResponse{}, fmt.Errorf("list watches: %w", err)
 	}
-	out := NowResponse{Concerns: nowConcerns(concerns), Watches: nowWatches(watches)}
+	panels, err := s.store.Panels(ctx)
+	if err != nil {
+		return NowResponse{}, fmt.Errorf("list panels: %w", err)
+	}
+	out := NowResponse{Panels: nowPanels(panels), Concerns: nowConcerns(concerns), Watches: nowWatches(watches)}
 	if briefing.RunID != "" {
 		out.Briefing = &NowBriefingDTO{ThreadID: briefing.ThreadID, RunID: briefing.RunID, Date: briefing.Slot, Body: briefing.Text, FinishedAt: briefing.FinishedAt.UTC()}
 	}
@@ -172,6 +187,14 @@ func nowCommitments(commitments []core.Commitment, occurrences []core.Commitment
 		out[i].Occurrences = append(out[i].Occurrences, NowOccurrenceDTO{ID: o.ID, DueAt: o.DueAt.UTC(), State: o.State, RunID: o.RunID})
 	}
 	return out, nil
+}
+
+func nowPanels(panels []core.Panel) []NowPanelDTO {
+	out := make([]NowPanelDTO, 0, len(panels))
+	for _, p := range panels {
+		out = append(out, NowPanelDTO{ThreadID: p.View.SessionID, ThreadTitle: p.ThreadTitle, View: core.ViewDataOf(p.View), UpdatedAt: p.View.UpdatedAt.UTC()})
+	}
+	return out
 }
 
 func nowConcerns(concerns []core.MemoryConcern) []NowConcernDTO {

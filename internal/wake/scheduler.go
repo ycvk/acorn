@@ -81,6 +81,7 @@ type Scheduler struct {
 	cfg           Config
 	notifications NotificationFlusher
 	triggers      TriggerRunner
+	panels        PanelFeeder
 
 	mu     sync.Mutex
 	warned map[string]string // commitment or watch -> local day already warned about the limit
@@ -138,10 +139,11 @@ func (s *Scheduler) WithNotifications(flusher NotificationFlusher) *Scheduler {
 	return s
 }
 
-// WithTriggers makes each tick fire the due triggers of skill packages.
-// Without a workstation there is nothing to run them on.
-func (s *Scheduler) WithTriggers(triggers TriggerRunner) *Scheduler {
-	s.triggers = triggers
+// WithTriggers makes each tick fire the due triggers of skill packages and
+// feed their view_data lines to panels. Without a workstation there is
+// nothing to run them on.
+func (s *Scheduler) WithTriggers(triggers TriggerRunner, panels PanelFeeder) *Scheduler {
+	s.triggers, s.panels = triggers, panels
 	return s
 }
 

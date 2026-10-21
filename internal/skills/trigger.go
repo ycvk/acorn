@@ -102,33 +102,33 @@ func (r *TriggerRunner) Triggers(ctx context.Context) ([]PackageTrigger, error) 
 	return r.library.Triggers(ctx)
 }
 
-// Fire runs a trigger's command and returns the events it printed. The host
+// Fire runs a trigger's command and returns what it printed. The host
 // gets the trigger's package first when it holds another revision; the
 // command gets the package's secrets as environment variables.
-func (r *TriggerRunner) Fire(ctx context.Context, t PackageTrigger) ([]Event, error) {
+func (r *TriggerRunner) Fire(ctx context.Context, t PackageTrigger) (Output, error) {
 	env, missing, err := r.library.secretEnv(ctx, Spec{Name: t.Skill, Secrets: t.Secrets})
 	if err != nil {
-		return nil, err
+		return Output{}, err
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("%w: %s", ErrMissingSecrets, strings.Join(missing, ", "))
+		return Output{}, fmt.Errorf("%w: %s", ErrMissingSecrets, strings.Join(missing, ", "))
 	}
 	if err := r.place(ctx, t); err != nil {
-		return nil, err
+		return Output{}, err
 	}
 	result, err := r.host.RunTrigger(ctx, TriggerRun{Skill: t.Skill, Hash: t.Hash, Trigger: t.Name, Env: env, TimeoutSeconds: r.timeoutSeconds, MaxOutputBytes: r.maxOutputBytes})
 	if err != nil {
-		return nil, err
+		return Output{}, err
 	}
 	switch {
 	case result.TimedOut:
-		return nil, fmt.Errorf("the command timed out after %d seconds", r.timeoutSeconds)
+		return Output{}, fmt.Errorf("the command timed out after %d seconds", r.timeoutSeconds)
 	case result.ExitCode != 0:
-		return nil, fmt.Errorf("the command exited with status %d: %s", result.ExitCode, tail(result.Stderr, 300))
+		return Output{}, fmt.Errorf("the command exited with status %d: %s", result.ExitCode, tail(result.Stderr, 300))
 	case result.StdoutTruncated:
-		return nil, fmt.Errorf("the command printed more than %d bytes", r.maxOutputBytes/2)
+		return Output{}, fmt.Errorf("the command printed more than %d bytes", r.maxOutputBytes/2)
 	}
-	return ParseEvents(result.Stdout)
+	return ParseOutput(result.Stdout)
 }
 
 // place puts the trigger's package on the host unless the host holds it.
@@ -169,38 +169,55 @@ const (
 	maxEventTextBytes = 8 << 10
 )
 
-// ParseEvents reads a trigger command's output: each non-blank line is an
-// event {"key": "...", "text": "..."}. A line that is not an event, or an
-// event repeated in one output, fails the run.
-func ParseEvents(stdout string) ([]Event, error) {
-	var events []Event
+// Output is what a trigger's command printed: its events, and the view_data
+// lines in order, each replacing the data of the pinned views the trigger
+// feeds.
+type Output struct {
+	Events   []Event
+	ViewData []map[string]any
+}
+
+// ParseOutput reads a trigger command's output: each non-blank line is an
+// event {"key": "...", "text": "..."} or view data {"view_data": {...}}. A
+// line that is neither, or an event repeated in one output, fails the run.
+func ParseOutput(stdout string) (Output, error) {
+	var out Output
 	seen := map[string]bool{}
 	for i, line := range strings.Split(stdout, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(line), &fields); err == nil && len(fields) == 1 && fields["view_data"] != nil {
+			var data map[string]any
+			if err := json.Unmarshal(fields["view_data"], &data); err != nil || data == nil {
+				return Output{}, fmt.Errorf("output line %d: view_data must be a JSON object", i+1)
+			}
+			out.ViewData = append(out.ViewData, data)
+			continue
+		}
 		var e Event
 		decoder := json.NewDecoder(bytes.NewReader([]byte(line)))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&e); err != nil || decoder.More() {
-			return nil, fmt.Errorf(`output line %d is not an event {"key": "...", "text": "..."}: %s`, i+1, tail(line, 200))
+			return Output{}, fmt.Errorf(`output line %d is neither an event {"key": "...", "text": "..."} nor {"view_data": {...}}: %s`, i+1, tail(line, 200))
 		}
 		e.Key, e.Text = strings.TrimSpace(e.Key), strings.TrimSpace(e.Text)
 		switch {
 		case e.Key == "" || e.Text == "":
-			return nil, fmt.Errorf("output line %d: an event needs a key and a text", i+1)
+			return Output{}, fmt.Errorf("output line %d: an event needs a key and a text", i+1)
 		case len(e.Key) > maxEventKeyBytes:
-			return nil, fmt.Errorf("output line %d: the key is longer than %d bytes", i+1, maxEventKeyBytes)
+			return Output{}, fmt.Errorf("output line %d: the key is longer than %d bytes", i+1, maxEventKeyBytes)
 		case len(e.Text) > maxEventTextBytes:
-			return nil, fmt.Errorf("output line %d: the text is longer than %d bytes", i+1, maxEventTextBytes)
+			return Output{}, fmt.Errorf("output line %d: the text is longer than %d bytes", i+1, maxEventTextBytes)
 		case seen[e.Key]:
-			return nil, fmt.Errorf("output line %d repeats the key %q", i+1, e.Key)
+			return Output{}, fmt.Errorf("output line %d repeats the key %q", i+1, e.Key)
 		}
 		seen[e.Key] = true
-		events = append(events, e)
+		out.Events = append(out.Events, e)
 	}
-	return events, nil
+	return out, nil
 }
 
 // tail keeps the end of a command's output, where errors usually are.

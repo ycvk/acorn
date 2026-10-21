@@ -10,8 +10,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/views"
-	"github.com/ycvk/acorn/internal/webaccess"
 )
 
 // ViewStore keeps the views show_view shows and update_view replaces, and
@@ -23,31 +23,26 @@ type ViewStore interface {
 	AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error)
 }
 
-// ViewFiles lists a conversation's files, which a view's images may show.
-type ViewFiles interface {
-	ThreadFiles(ctx context.Context, sessionID string) ([]core.ThreadFile, error)
+// TriggerLister lists the triggers of the skills in use, whose view_data
+// lines may feed a pinned view.
+type TriggerLister interface {
+	Triggers(ctx context.Context) ([]skills.PackageTrigger, error)
 }
 
-// LinkPolicy checks a web address before the owner is sent to it.
-type LinkPolicy interface {
-	Validate(ctx context.Context, raw string) (webaccess.ValidatedURL, error)
-}
-
-// ViewToolDeps are what show_view needs: the store, the conversation's files
-// and the knowledge attachments a view's images may show, and the policy its
-// links pass.
+// ViewToolDeps are what show_view and update_view need: the store, what a
+// view may point to, the triggers that may feed it, and the current run.
 type ViewToolDeps struct {
-	Store       ViewStore
-	Files       ViewFiles
-	Attachments core.AttachmentReader
-	Links       LinkPolicy
-	Context     core.ToolCallContextBridge
+	Store    ViewStore
+	Sources  views.Sources
+	Triggers TriggerLister
+	Context  core.ToolCallContextBridge
 }
 
 type ShowViewInput struct {
 	Title      string           `json:"title" jsonschema:"required" jsonschema_description:"One line naming what the view shows, at most 80 characters."`
 	Components []map[string]any `json:"components" jsonschema:"required" jsonschema_description:"Components from the catalog in the views skill, flat: each has id and component, containers list their children's ids, and one has id root."`
 	Data       map[string]any   `json:"data,omitempty" jsonschema_description:"JSON object that the components' path values point into."`
+	Source     string           `json:"source,omitempty" jsonschema_description:"A trigger of a skill package in use, as skill/trigger, whose view_data lines replace the data while the owner keeps the view pinned to the now page. Leave out for a view only you update."`
 }
 
 type ShowViewOutput struct {
@@ -74,7 +69,13 @@ func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 		if sessionID == "" || runID == "" {
 			return ShowViewOutput{}, errors.New("show_view needs the current conversation and run")
 		}
-		checked, err := views.Check(ctx, input.Title, input.Components, input.Data, &viewReferences{deps: deps, sessionID: sessionID})
+		source := strings.TrimSpace(input.Source)
+		if source != "" {
+			if err := checkViewSource(ctx, deps.Triggers, source); err != nil {
+				return ShowViewOutput{}, err
+			}
+		}
+		checked, err := views.Check(ctx, input.Title, input.Components, input.Data, deps.Sources.For(sessionID))
 		if err != nil {
 			return ShowViewOutput{}, err
 		}
@@ -85,6 +86,7 @@ func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 			Catalog:    views.Catalog,
 			Components: checked.Components,
 			Data:       checked.Data,
+			Source:     source,
 		})
 		if err != nil {
 			return ShowViewOutput{}, err
@@ -92,7 +94,11 @@ func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 		if _, err := deps.Store.AppendEvent(ctx, runID, "view.shown", core.ViewShownData{View: core.ViewDataOf(view)}); err != nil {
 			return ShowViewOutput{}, fmt.Errorf("append view.shown event: %w", err)
 		}
-		return ShowViewOutput{ViewID: view.ID, Note: "The owner sees the view under your reply; the reply should say what it shows instead of repeating it."}, nil
+		note := "The owner sees the view under your reply; the reply should say what it shows instead of repeating it."
+		if source != "" {
+			note += " Once the owner pins it to the now page, each view_data line " + source + " prints replaces its data."
+		}
+		return ShowViewOutput{ViewID: view.ID, Note: note}, nil
 	})
 }
 
@@ -121,7 +127,7 @@ func buildUpdateViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 				return UpdateViewOutput{}, fmt.Errorf("stored view data: %w", err)
 			}
 		}
-		checked, err := views.Check(ctx, title, components, data, &viewReferences{deps: deps, sessionID: sessionID})
+		checked, err := views.Check(ctx, title, components, data, deps.Sources.For(sessionID))
 		if err != nil {
 			return UpdateViewOutput{}, err
 		}
@@ -136,49 +142,21 @@ func buildUpdateViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 	})
 }
 
-// viewReferences checks a view's links with the link policy and its images
-// against the conversation's files and the knowledge attachments.
-type viewReferences struct {
-	deps      ViewToolDeps
-	sessionID string
-	files     map[string]core.ThreadFile
-}
-
-func (r *viewReferences) Link(ctx context.Context, url string) error {
-	_, err := r.deps.Links.Validate(ctx, url)
-	return err
-}
-
-func (r *viewReferences) Image(ctx context.Context, ref string) error {
-	var mime string
-	switch {
-	case strings.HasPrefix(ref, "file_"):
-		if r.files == nil {
-			files, err := r.deps.Files.ThreadFiles(ctx, r.sessionID)
-			if err != nil {
-				return err
-			}
-			r.files = make(map[string]core.ThreadFile, len(files))
-			for _, file := range files {
-				r.files[file.ID] = file
-			}
-		}
-		file, ok := r.files[ref]
-		if !ok {
-			return fmt.Errorf("%s is not a file of this conversation", ref)
-		}
-		mime = file.MIME
-	case strings.HasPrefix(ref, "attachments/"):
-		attachment, err := r.deps.Attachments.ReadAttachment(ctx, ref)
-		if err != nil {
-			return fmt.Errorf("knowledge attachment %s cannot be read: %w", ref, err)
-		}
-		mime = attachment.MIME
-	default:
-		return fmt.Errorf("%q is neither a file id of this conversation (file_...) nor a knowledge attachment path (attachments/...)", ref)
+// checkViewSource accepts source when it names a trigger of a skill in use.
+func checkViewSource(ctx context.Context, triggers TriggerLister, source string) error {
+	listed, err := triggers.Triggers(ctx)
+	if err != nil {
+		return fmt.Errorf("list triggers: %w", err)
 	}
-	if !strings.HasPrefix(mime, "image/") {
-		return fmt.Errorf("%s is %s, not an image", ref, mime)
+	ids := make([]string, 0, len(listed))
+	for _, t := range listed {
+		if t.ID() == source {
+			return nil
+		}
+		ids = append(ids, t.ID())
 	}
-	return nil
+	if len(ids) == 0 {
+		return fmt.Errorf("source %q is not a trigger: no skill in use has triggers", source)
+	}
+	return fmt.Errorf("source %q is not a trigger of a skill in use; the triggers are %s", source, strings.Join(ids, ", "))
 }

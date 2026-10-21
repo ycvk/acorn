@@ -14,7 +14,8 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// threadViewsTable is shared with the migration that adds it.
+// threadViewsTable is shared with the migrations that add and rebuild it.
+// pinned_at is empty for a view not pinned to the now page.
 const threadViewsTable = `CREATE TABLE IF NOT EXISTS thread_views (
     view_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
@@ -23,7 +24,10 @@ const threadViewsTable = `CREATE TABLE IF NOT EXISTS thread_views (
     catalog TEXT NOT NULL,
     components_json TEXT NOT NULL,
     data_json TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    source TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    pinned_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_thread_views_session ON thread_views(session_id, created_at);`
 
@@ -44,7 +48,10 @@ const threadViewActionsTable = `CREATE TABLE IF NOT EXISTS thread_view_actions (
 );
 CREATE INDEX IF NOT EXISTS idx_thread_view_actions_session ON thread_view_actions(session_id, created_at);`
 
-const threadViewColumns = `view_id, session_id, run_id, title, catalog, components_json, data_json, created_at`
+const threadViewColumns = `view_id, session_id, run_id, title, catalog, components_json, data_json, source, created_at, updated_at, pinned_at`
+
+// prefixedThreadViewColumns names the columns for queries that join sessions.
+var prefixedThreadViewColumns = "thread_views." + strings.ReplaceAll(threadViewColumns, ", ", ", thread_views.")
 
 const threadViewActionColumns = `view_id, action_key, session_id, component_id, scope_json, name, selected_json, context_json, message_id, created_at`
 
@@ -69,6 +76,7 @@ func (s *Store) SaveThreadView(ctx context.Context, in core.ThreadViewWrite) (co
 	if _, err := rand.Read(raw[:]); err != nil {
 		return core.ThreadView{}, fmt.Errorf("thread view id: %w", err)
 	}
+	now := time.Now().UTC()
 	view := core.ThreadView{
 		ID:         "view_" + hex.EncodeToString(raw[:]),
 		SessionID:  in.SessionID,
@@ -77,10 +85,13 @@ func (s *Store) SaveThreadView(ctx context.Context, in core.ThreadViewWrite) (co
 		Catalog:    in.Catalog,
 		Components: in.Components,
 		Data:       in.Data,
-		CreatedAt:  time.Now().UTC(),
+		Source:     strings.TrimSpace(in.Source),
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
-	if _, err := s.db.ExecContext(ctx, `INSERT INTO thread_views (`+threadViewColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		view.ID, view.SessionID, view.RunID, view.Title, view.Catalog, string(view.Components), string(view.Data), formatTimestamp(view.CreatedAt)); err != nil {
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO thread_views (`+threadViewColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
+		view.ID, view.SessionID, view.RunID, view.Title, view.Catalog, string(view.Components), string(view.Data), view.Source,
+		formatTimestamp(view.CreatedAt), formatTimestamp(view.UpdatedAt)); err != nil {
 		return core.ThreadView{}, fmt.Errorf("save thread view: %w", err)
 	}
 	return view, nil
@@ -92,8 +103,8 @@ func (s *Store) UpdateThreadView(ctx context.Context, in core.ThreadViewUpdate) 
 	if strings.TrimSpace(in.Title) == "" || len(in.Components) == 0 || len(in.Data) == 0 {
 		return core.ThreadView{}, errors.New("a thread view update needs a title, components and data")
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE thread_views SET title = ?, components_json = ?, data_json = ? WHERE view_id = ? AND session_id = ?`,
-		in.Title, string(in.Components), string(in.Data), in.ViewID, in.SessionID)
+	result, err := s.db.ExecContext(ctx, `UPDATE thread_views SET title = ?, components_json = ?, data_json = ?, updated_at = ? WHERE view_id = ? AND session_id = ?`,
+		in.Title, string(in.Components), string(in.Data), formatTimestamp(time.Now().UTC()), in.ViewID, in.SessionID)
 	if err != nil {
 		return core.ThreadView{}, fmt.Errorf("update thread view %s: %w", in.ViewID, err)
 	}
@@ -105,6 +116,109 @@ func (s *Store) UpdateThreadView(ctx context.Context, in core.ThreadViewUpdate) 
 		return core.ThreadView{}, fmt.Errorf("%w: %s in thread %s", core.ErrThreadViewNotFound, in.ViewID, in.SessionID)
 	}
 	return s.ThreadView(ctx, in.SessionID, in.ViewID)
+}
+
+// PinThreadView pins a view of the thread to the now page. A view already
+// pinned keeps its place.
+func (s *Store) PinThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error) {
+	return s.setThreadViewPin(ctx, sessionID, viewID, `CASE WHEN pinned_at = '' THEN ? ELSE pinned_at END`, formatTimestamp(time.Now().UTC()))
+}
+
+// UnpinThreadView takes a view of the thread off the now page; the view stays
+// in its conversation.
+func (s *Store) UnpinThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error) {
+	return s.setThreadViewPin(ctx, sessionID, viewID, `?`, "")
+}
+
+func (s *Store) setThreadViewPin(ctx context.Context, sessionID, viewID, value, at string) (core.ThreadView, error) {
+	result, err := s.db.ExecContext(ctx, `UPDATE thread_views SET pinned_at = `+value+` WHERE view_id = ? AND session_id = ?`, at, viewID, sessionID)
+	if err != nil {
+		return core.ThreadView{}, fmt.Errorf("pin thread view %s: %w", viewID, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return core.ThreadView{}, fmt.Errorf("pin thread view %s: %w", viewID, err)
+	}
+	if changed == 0 {
+		return core.ThreadView{}, fmt.Errorf("%w: %s in thread %s", core.ErrThreadViewNotFound, viewID, sessionID)
+	}
+	return s.ThreadView(ctx, sessionID, viewID)
+}
+
+// Panels lists the views pinned to the now page in the order they were
+// pinned, each with its actions and its conversation's title.
+func (s *Store) Panels(ctx context.Context) ([]core.Panel, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+prefixedThreadViewColumns+`, sessions.title FROM thread_views
+		JOIN sessions ON sessions.session_id = thread_views.session_id
+		WHERE thread_views.pinned_at <> '' ORDER BY thread_views.pinned_at, thread_views.view_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list panels: %w", err)
+	}
+	panels := []core.Panel{}
+	err = scanRows(rows, func(scan func(...any) error) error {
+		var title string
+		view, err := scanThreadView(func(dest ...any) error { return scan(append(dest, &title)...) })
+		if err != nil {
+			return err
+		}
+		panels = append(panels, core.Panel{View: view, ThreadTitle: title})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list panels: %w", err)
+	}
+	actions, err := s.viewActionsWhere(ctx, `view_id IN (SELECT view_id FROM thread_views WHERE pinned_at <> '')`)
+	if err != nil {
+		return nil, err
+	}
+	byView := map[string][]core.ViewAction{}
+	for _, action := range actions {
+		byView[action.ViewID] = append(byView[action.ViewID], action)
+	}
+	for i := range panels {
+		panels[i].View.Actions = byView[panels[i].View.ID]
+	}
+	return panels, nil
+}
+
+// FedPanels lists the pinned views whose data the trigger source replaces.
+func (s *Store) FedPanels(ctx context.Context, source string) ([]core.ThreadView, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+threadViewColumns+` FROM thread_views WHERE source = ? AND pinned_at <> '' ORDER BY pinned_at, view_id`, source)
+	if err != nil {
+		return nil, fmt.Errorf("list panels fed by %s: %w", source, err)
+	}
+	views := []core.ThreadView{}
+	err = scanRows(rows, func(scan func(...any) error) error {
+		view, err := scanThreadView(scan)
+		if err != nil {
+			return err
+		}
+		views = append(views, view)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list panels fed by %s: %w", source, err)
+	}
+	return views, nil
+}
+
+// FeedThreadView replaces the data of a pinned view with data checked against
+// components. It reports false and changes nothing when the view meanwhile
+// got other components, was unpinned or deleted.
+func (s *Store) FeedThreadView(ctx context.Context, viewID string, components, data json.RawMessage) (bool, error) {
+	if len(data) == 0 {
+		return false, errors.New("a thread view feed needs its data")
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE thread_views SET data_json = ?, updated_at = ? WHERE view_id = ? AND components_json = ? AND pinned_at <> ''`,
+		string(data), formatTimestamp(time.Now().UTC()), viewID, string(components))
+	if err != nil {
+		return false, fmt.Errorf("feed thread view %s: %w", viewID, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("feed thread view %s: %w", viewID, err)
+	}
+	return changed == 1, nil
 }
 
 // ThreadView loads a view of the thread with the actions sent from it.
@@ -164,15 +278,23 @@ func (s *Store) ThreadViews(ctx context.Context, sessionID string) ([]core.Threa
 
 func scanThreadView(scan func(...any) error) (core.ThreadView, error) {
 	var view core.ThreadView
-	var components, data, created string
-	if err := scan(&view.ID, &view.SessionID, &view.RunID, &view.Title, &view.Catalog, &components, &data, &created); err != nil {
+	var components, data, created, updated, pinned string
+	if err := scan(&view.ID, &view.SessionID, &view.RunID, &view.Title, &view.Catalog, &components, &data, &view.Source, &created, &updated, &pinned); err != nil {
 		return core.ThreadView{}, err
 	}
-	at, err := parseTimestamp(fixedTimestampLayout, created, "thread_views.created_at")
-	if err != nil {
+	var err error
+	if view.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "thread_views.created_at"); err != nil {
 		return core.ThreadView{}, err
 	}
-	view.Components, view.Data, view.CreatedAt = []byte(components), []byte(data), at
+	if view.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "thread_views.updated_at"); err != nil {
+		return core.ThreadView{}, err
+	}
+	if pinned != "" {
+		if view.PinnedAt, err = parseTimestamp(fixedTimestampLayout, pinned, "thread_views.pinned_at"); err != nil {
+			return core.ThreadView{}, err
+		}
+	}
+	view.Components, view.Data = []byte(components), []byte(data)
 	return view, nil
 }
 
@@ -245,7 +367,11 @@ func (s *Store) SendViewAction(ctx context.Context, in core.ViewActionWrite) (co
 
 // ViewActions lists the actions sent from a thread's views, oldest first.
 func (s *Store) ViewActions(ctx context.Context, sessionID string) ([]core.ViewAction, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+threadViewActionColumns+` FROM thread_view_actions WHERE session_id = ? ORDER BY created_at, message_id`, sessionID)
+	return s.viewActionsWhere(ctx, `session_id = ?`, sessionID)
+}
+
+func (s *Store) viewActionsWhere(ctx context.Context, where string, args ...any) ([]core.ViewAction, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+threadViewActionColumns+` FROM thread_view_actions WHERE `+where+` ORDER BY created_at, message_id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list view actions: %w", err)
 	}
@@ -296,4 +422,24 @@ func addThreadViews(ctx context.Context, tx *sql.Tx) error {
 func addViewActions(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, threadViewActionsTable)
 	return err
+}
+
+// addViewPanels (20 to 21) records the trigger that feeds a view, when its
+// content last changed and when the owner pinned it to the now page. The
+// table is rebuilt from threadViewsTable so its stored definition matches a
+// new database.
+func addViewPanels(ctx context.Context, tx *sql.Tx) error {
+	for _, statement := range []string{
+		`DROP INDEX IF EXISTS idx_thread_views_session`,
+		`ALTER TABLE thread_views RENAME TO thread_views_v20`,
+		threadViewsTable,
+		`INSERT INTO thread_views(view_id, session_id, run_id, title, catalog, components_json, data_json, created_at, updated_at)
+			SELECT view_id, session_id, run_id, title, catalog, components_json, data_json, created_at, created_at FROM thread_views_v20`,
+		`DROP TABLE thread_views_v20`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
 }

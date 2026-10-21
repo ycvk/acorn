@@ -3,6 +3,7 @@ package wake
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -13,13 +14,32 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-// fakeTriggers serves a fixed list of triggers and scripted outputs.
+// fakeTriggers serves a fixed list of triggers and scripted outputs: events
+// per firing, and view data every firing prints.
 type fakeTriggers struct {
 	mu       sync.Mutex
 	triggers []skills.PackageTrigger
 	outputs  map[string][][]skills.Event
+	viewData map[string][]map[string]any
 	failures map[string]error
 	fired    []string
+}
+
+// fakePanels records what each trigger fed, refusing it with fail.
+type fakePanels struct {
+	mu   sync.Mutex
+	fed  []string
+	fail error
+}
+
+func (f *fakePanels) Feed(_ context.Context, source string, data map[string]any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.fail != nil {
+		return f.fail
+	}
+	f.fed = append(f.fed, fmt.Sprintf("%s %v", source, data))
+	return nil
 }
 
 func (f *fakeTriggers) Triggers(context.Context) ([]skills.PackageTrigger, error) {
@@ -28,19 +48,19 @@ func (f *fakeTriggers) Triggers(context.Context) ([]skills.PackageTrigger, error
 	return slices.Clone(f.triggers), nil
 }
 
-func (f *fakeTriggers) Fire(_ context.Context, t skills.PackageTrigger) ([]skills.Event, error) {
+func (f *fakeTriggers) Fire(_ context.Context, t skills.PackageTrigger) (skills.Output, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.fired = append(f.fired, t.ID())
 	if err := f.failures[t.ID()]; err != nil {
-		return nil, err
+		return skills.Output{}, err
 	}
-	outputs := f.outputs[t.ID()]
-	if len(outputs) == 0 {
-		return nil, nil
+	out := skills.Output{ViewData: f.viewData[t.ID()]}
+	if outputs := f.outputs[t.ID()]; len(outputs) > 0 {
+		f.outputs[t.ID()] = outputs[1:]
+		out.Events = outputs[0]
 	}
-	f.outputs[t.ID()] = outputs[1:]
-	return outputs[0], nil
+	return out, nil
 }
 
 func (f *fakeTriggers) firedCount() int {
@@ -56,8 +76,9 @@ func packageTrigger(skill, name string, deliver skills.Deliver) skills.PackageTr
 func newTriggerHarness(t *testing.T, limit int, briefing Briefing, triggers ...skills.PackageTrigger) (*harness, *fakeTriggers) {
 	t.Helper()
 	h := newHarnessWith(t, limit, briefing)
-	f := &fakeTriggers{triggers: triggers, outputs: map[string][][]skills.Event{}, failures: map[string]error{}}
-	h.sched.WithTriggers(f)
+	f := &fakeTriggers{triggers: triggers, outputs: map[string][][]skills.Event{}, viewData: map[string][]map[string]any{}, failures: map[string]error{}}
+	h.panels = &fakePanels{}
+	h.sched.WithTriggers(f, h.panels)
 	return h, f
 }
 
@@ -98,7 +119,7 @@ func TestTriggerSlotsFireOnceAndQuietCommandsCallNoModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other.WithTriggers(f)
+	other.WithTriggers(f, h.panels)
 	if err := other.Tick(context.Background()); err != nil || f.firedCount() != 1 {
 		t.Fatalf("the other scheduler fired the taken slot: %d, %v", f.firedCount(), err)
 	}
@@ -259,5 +280,38 @@ func TestRetiredSkillsAndMissingSecretsStopTriggers(t *testing.T) {
 	}
 	if states, err := h.data.ListTriggers(context.Background()); err != nil || len(states) != 0 {
 		t.Fatalf("schedules of retired skills stay: %+v, %v", states, err)
+	}
+}
+
+// TestViewDataFeedsPanelsWithoutAModel checks that a trigger's view_data
+// lines go to the panels it feeds without waking the agent, and that data a
+// panel rejects counts as the trigger's failure while the events printed with
+// it still count.
+func TestViewDataFeedsPanelsWithoutAModel(t *testing.T) {
+	h, f := newTriggerHarness(t, 20, Briefing{}, packageTrigger("repo-releases", "check", skills.DeliverImmediate))
+	f.viewData["repo-releases/check"] = []map[string]any{{"latest": "v0.9.21"}, {"latest": "v0.9.22"}}
+	h.at(9, 7)
+	h.tick(t)
+	h.at(9, 30)
+	h.tick(t)
+	if !slices.Equal(h.panels.fed, []string{"repo-releases/check map[latest:v0.9.21]", "repo-releases/check map[latest:v0.9.22]"}) {
+		t.Fatalf("fed = %v", h.panels.fed)
+	}
+	if len(h.runs.starts) != 0 || len(h.store.events) != 0 {
+		t.Fatalf("view data woke the agent: %v %v", h.runs.starts, h.store.events)
+	}
+
+	h.panels.fail = errors.New(`view_data does not fit the pinned view "eino 最新版本"`)
+	f.outputs["repo-releases/check"] = [][]skills.Event{{{Key: "v0.9.23", Text: "eino v0.9.23 released"}}}
+	h.at(10, 0)
+	if err := h.sched.Tick(context.Background()); err == nil || !strings.Contains(err.Error(), "does not fit the pinned view") {
+		t.Fatalf("tick err = %v", err)
+	}
+	states, err := h.data.ListTriggers(context.Background())
+	if err != nil || len(states) != 1 || states[0].Failures != 1 || !strings.Contains(states[0].LastError, "does not fit the pinned view") {
+		t.Fatalf("states = %+v, %v", states, err)
+	}
+	if len(h.runs.starts) != 1 || !strings.Contains(h.runs.starts[0], "- v0.9.23") {
+		t.Fatalf("the events printed with rejected view data did not count: %v", h.runs.starts)
 	}
 }
