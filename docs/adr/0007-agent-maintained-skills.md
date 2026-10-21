@@ -1,7 +1,7 @@
 ---
 adr: 0007
 title: agent 维护自己的技能
-status: Proposed
+status: Accepted
 date: 2026-10-12
 supersedes: []
 ---
