@@ -1,7 +1,7 @@
 ---
 adr: 0010
 title: 技能包带上工具与触发器
-status: Proposed
+status: Accepted
 date: 2026-10-17
 supersedes: []
 ---
@@ -29,11 +29,7 @@ triggers:
     schedule: "*/30 * * * *"
     run: scripts/check_price.py
     deliver: immediate
-  - name: issues
-    webhook: true
-    run: scripts/github_issue.py
-    deliver: digest
-secrets: [GITHUB_WEBHOOK_SECRET]
+secrets: [PRICE_API_KEY]
 ```
 
 ### 工具：工作机里的 MCP 服务器
@@ -50,15 +46,9 @@ secrets: [GITHUB_WEBHOOK_SECRET]
 
 ### 触发器
 
-触发器有两种：`schedule` 按 owner 时区的 cron 表达式运行，语法与约定的周期相同；`webhook` 在收到入站请求时运行。每个触发器以 `run` 指定包里的一个命令，在工作机上以包目录为工作目录执行，受 `workstation.command_timeout_seconds` 约束。命令的每一行标准输出是一个事件 `{"key": "...", "text": "..."}`；没有输出表示没有新情况，不调用模型。事件按（包, 触发器, key）唯一，同一个 key 只处理一次。确定性的检查放在命令里，模型只在有事件时被调用，与追踪项的做法一致。
+触发器按 `schedule` 里 owner 时区的 cron 表达式运行，语法与约定的周期相同。每个触发器以 `run` 指定包里的一个命令，在工作机上以包目录为工作目录执行，受 `workstation.command_timeout_seconds` 约束。命令的每一行标准输出是一个事件 `{"key": "...", "text": "..."}`；没有输出表示没有新情况，不调用模型。事件按（包, 触发器, key）唯一，同一个 key 只处理一次。确定性的检查放在命令里，模型只在有事件时被调用，与追踪项的做法一致。
 
-schedule 触发器的每个时间点按（触发器, 时刻）认领一次，与例行唤醒相同。命令连续 5 次失败时触发器标为 failing，出现在早安卡的 System health 里，之后按追踪项的退避重试。
-
-### 入站事件
-
-每个 webhook 触发器有一个地址 `/v1/hooks/<token>`。token 随机生成，SQLite 只存哈希；它在包的各个 revision 之间保持不变，owner 用 `acorn skills hooks <skill>` 查看，用 `--rotate` 更换。请求正文不超过 1 MiB，每个触发器每小时至多 60 次，超出以 429 拒绝；技能停用后返回 404。请求先落库并回 202，调度器在下一次 tick（30 秒内）把正文经标准输入、请求头经环境变量交给触发器命令，签名校验由包的命令自己做，例如用包的密钥校验 GitHub 的 `X-Hub-Signature-256`。没有 `run` 的 webhook 触发器把正文文本作为一个事件。
-
-这个地址本身就是凭据。除配对接口与 `/healthz` 之外，它是唯一不要求设备 token 的入口。
+触发器的每个时间点按（触发器, 时刻）认领一次，与例行唤醒相同。命令连续 5 次失败时触发器标为 failing，出现在早安卡的 System health 里，之后按追踪项的退避重试。
 
 ### 事件送达
 
@@ -68,7 +58,7 @@ schedule 触发器的每个时间点按（触发器, 时刻）认领一次，与
 
 ### 边界变化
 
-本决定扩展 ADR 0007：技能包除了操作流程与脚本，还可以提供工具和触发器。本决定扩展 ADR 0003 的感知：四种追踪源之外，外部事件经包的触发器与 `/v1/hooks` 进入 Acorn。设备鉴权的例外从配对与 `/healthz` 扩展到 `/v1/hooks/<token>`。
+本决定扩展 ADR 0007：技能包除了操作流程与脚本，还可以提供工具和触发器。本决定扩展 ADR 0003 的感知：四种追踪源之外，外部世界的变化经包的触发器进入 Acorn。
 
 ## 分期
 
@@ -76,13 +66,12 @@ schedule 触发器的每个时间点按（触发器, 时刻）认领一次，与
 |---|---|---|
 | S1 | `acorn-package.yaml` 与 `mcp`；工作机镜像加入 uv 与 Node.js；工作机运行、守护并以 streamable HTTP 暴露包的 MCP 服务器；backend 按在用的包登记 provider；包的密钥与 `acorn skills secret set` | owner 指给 agent 一个带清单的公开 MCP 服务器包（例如官方的 fetch 服务器），审批显示启动命令，批准后在新对话里调用它的工具，没有改配置也没有重启；需要密钥的包在 owner 设好密钥前不列出，`acorn doctor` 说明缺哪个；停用后工具消失 |
 | S2 | schedule 触发器、事件去重、immediate 与 digest 送达、failing 进入 System health | agent 写一个每 30 分钟检查某个公开接口的包：数值没变时没有模型调用；越过阈值时在包的对话里起 run 并推送一次，同一事件不重复；当日预算用完后的事件出现在次日早安卡里 |
-| S3 | `/v1/hooks/<token>`、请求落库与限流、交给触发器命令、`acorn skills hooks` | 给一个 GitHub 仓库配上包给出的 webhook 地址，新开的 issue 在一分钟内于包的对话里被处理；签名不对的请求被包的命令丢弃，不起 run；停用技能后地址返回 404 |
 
 ## 代价
 
 - 包的 MCP 服务器与触发器命令和 agent 的 `shell` 以同一个用户运行在工作机上，agent 读得到它们的环境变量，包括密钥。
 - `uvx`、`npx` 这类命令在启动时从包管理器拉代码，审批只显示命令，拉下来的代码没有经过审批；导入前判断来源可信仍是 owner 的事。技能包 8 MiB 的上限也意味着依赖大多在工作机上首次启动时安装。
 - 默认的 `mcp__*` 审批让包的每次工具调用都要批准；规则里 require 优先于 allow，owner 想放开某个包，需要把 require 里的 `mcp__*` 收窄。
-- webhook 地址泄露后，任何人都能在每日预算内叫醒 agent，直到 owner 更换 token。外部事件的正文进入模型输入，提示注入的防线仍是审批与审查。
+- 触发器事件的正文来自外部，进入模型输入，提示注入的防线仍是审批与审查。
 - 每个在用的 MCP 服务器是工作机上一个常驻进程，2 GB 内存的服务器能同时跑的数量有限。
 - 触发器的 run 与约定、追踪项共享每日唤醒预算，触发频繁的包会挤占其他自主唤醒，多出的事件落到早安卡。

@@ -1,7 +1,7 @@
 ---
 adr: 0011
 title: 回复里的界面
-status: Proposed
+status: Accepted
 date: 2026-10-21
 supersedes: []
 ---
