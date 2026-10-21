@@ -284,13 +284,13 @@ fun fitColumns(natural: List<Float>, available: Float): List<Float> {
     return natural.map { width -> width - (width - MIN_WRAPPED_COLUMN).coerceAtLeast(0f) * cut / spare }
 }
 
-/** How narrow a column of long text gets before the table scrolls instead. */
-const val MIN_WRAPPED_COLUMN = 120f
+/** How narrow a column of long text gets before the table scrolls instead; four such columns fit a phone. */
+const val MIN_WRAPPED_COLUMN = 96f
 
 /** A column wide enough for its longest line, within limits; CJK characters count double. */
 fun columnWidth(texts: List<String>): Dp {
     val longest = texts.maxOfOrNull { text -> text.sumOf { if (it.code >= 0x2E80) 2 else 1 }.toInt() } ?: 0
-    return (longest * 7 + 20).coerceIn(72, 240).dp
+    return (longest * 7 + 20).coerceIn(56, 240).dp
 }
 
 /** Bars side by side with their labels and values, scaled to the largest value. */

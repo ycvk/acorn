@@ -87,7 +87,7 @@ class ViewTreeTest {
 
     @Test
     fun `columns are as wide as their text within limits`() {
-        assertEquals(72, columnWidth(listOf("a")).value.toInt())
+        assertEquals(56, columnWidth(listOf("a")).value.toInt())
         assertEquals(111, columnWidth(listOf("summarization")).value.toInt())
         assertEquals(240, columnWidth(listOf("长".repeat(40))).value.toInt())
     }
@@ -98,11 +98,13 @@ class ViewTreeTest {
         // 72 + 72 + 230 wants 374 in 300: only the wide column gives way.
         assertEquals(listOf(72f, 72f, 156f), fitColumns(listOf(72f, 72f, 230f), 300f))
         // Two wide columns share the cut by how far each is above the minimum.
-        assertEquals(listOf(135f, 165f), fitColumns(listOf(160f, 240f), 300f))
-        // Columns that are all narrow already keep their widths and scroll.
-        assertEquals(listOf(100f, 100f, 100f, 100f), fitColumns(listOf(100f, 100f, 100f, 100f), 300f))
-        // When wrapping is not enough, the wide columns stop at the minimum.
-        assertEquals(listOf(120f, 120f, 100f), fitColumns(listOf(200f, 200f, 100f), 300f))
+        assertEquals(listOf(121f, 171f), fitColumns(listOf(146f, 246f), 292f))
+        // When wrapping is not enough, the wide columns stop at the minimum and the table scrolls.
+        assertEquals(listOf(96f, 96f, 96f), fitColumns(listOf(196f, 196f, 96f), 250f))
+        // Columns at the minimum already keep their widths.
+        assertEquals(listOf(96f, 96f, 96f, 96f), fitColumns(listOf(96f, 96f, 96f, 96f), 300f))
+        // The four-column comparison the real model wrote fits a phone once its long columns wrap.
+        assertEquals(336f, fitColumns(listOf(69f, 56f, 240f, 210f), 336f).sum(), 0.01f)
     }
 
     @Test
