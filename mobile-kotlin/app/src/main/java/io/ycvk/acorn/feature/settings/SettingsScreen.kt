@@ -53,7 +53,9 @@ import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.theme.ThemeMode
 import io.ycvk.acorn.core.ui.SectionLabel
+import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.data.repository.ownerNameDraft
 
@@ -74,6 +76,7 @@ fun SettingsScreen(
     val ownerName by viewModel.ownerName.collectAsStateWithLifecycle()
     val savingName by viewModel.savingName.collectAsStateWithLifecycle()
     val nameError by viewModel.nameError.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     var editingName by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadSettings() }
@@ -112,6 +115,23 @@ fun SettingsScreen(
                 SettingRow("人格", "它是谁、怎么说话", onClick = onOpenPersona)
                 Hairline(inset = 16.dp)
                 SettingRow("技能", "它会做的事和技能包", onClick = onOpenSkills)
+            }
+
+            SettingsGroup("外观") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .padding(start = 16.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("主题", style = AcornTheme.type.callout, color = colors.ink, modifier = Modifier.weight(1f))
+                    SegmentedControl(
+                        options = ThemeMode.entries.map { it.label },
+                        selected = themeMode.ordinal,
+                        onSelect = { viewModel.setThemeMode(ThemeMode.entries[it]) },
+                    )
+                }
             }
 
             SettingsGroup("推送通知") {

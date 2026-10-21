@@ -7,6 +7,7 @@ import io.ycvk.acorn.core.push.PushManager
 import javax.inject.Inject
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.notifications.NotificationUploader
+import io.ycvk.acorn.core.theme.ThemePreference
 
 @HiltAndroidApp
 class AcornApp : Application() {
@@ -14,9 +15,11 @@ class AcornApp : Application() {
     @Inject lateinit var authController: AuthController
     @Inject lateinit var notificationUploader: NotificationUploader
     @Inject lateinit var approvalNotifications: ApprovalNotifications
+    @Inject lateinit var themePreference: ThemePreference
 
     override fun onCreate() {
         super.onCreate()
+        themePreference.tellSystem()
         pushManager.initialize()
         approvalNotifications.createChannel()
         notificationUploader.initialize()

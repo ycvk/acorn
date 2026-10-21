@@ -1,7 +1,6 @@
 package io.ycvk.acorn.core.theme
 
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -44,7 +43,7 @@ object AcornShapes {
 
 @Composable
 fun AcornTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean,
     content: @Composable () -> Unit,
 ) {
     val colors = if (darkTheme) DarkColors else LightColors
