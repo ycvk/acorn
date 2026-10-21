@@ -6,16 +6,23 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.getValue
 import androidx.core.content.IntentCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.theme.ThemePreference
+import io.ycvk.acorn.core.theme.isDark
+import javax.inject.Inject
 
 /** The system share target: a sheet over the sharing app that sends a capture. */
 @AndroidEntryPoint
 class ShareActivity : ComponentActivity() {
     private val viewModel: ShareViewModel by viewModels()
+    @Inject lateinit var themePreference: ThemePreference
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,7 +37,8 @@ class ShareActivity : ComponentActivity() {
             ),
         )
         setContent {
-            AcornTheme {
+            val mode by themePreference.mode.collectAsStateWithLifecycle()
+            AcornTheme(darkTheme = mode.isDark(isSystemInDarkTheme())) {
                 ShareSheet(
                     viewModel = viewModel,
                     onClose = ::finish,

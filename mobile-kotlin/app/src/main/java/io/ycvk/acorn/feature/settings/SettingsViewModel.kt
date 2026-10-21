@@ -12,6 +12,8 @@ import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.push.PushStatus
+import io.ycvk.acorn.core.theme.ThemeMode
+import io.ycvk.acorn.core.theme.ThemePreference
 import io.ycvk.acorn.data.repository.OwnerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import javax.inject.Inject
 
 /**
@@ -31,7 +34,19 @@ class SettingsViewModel @Inject constructor(
 	private val authController: AuthController,
 	private val pushManager: PushManager,
     private val ownerRepository: OwnerRepository,
+    private val themePreference: ThemePreference,
 ) : ViewModel() {
+
+    /** The app's theme: with the system, or always light or dark. */
+    val themeMode: StateFlow<ThemeMode> = themePreference.mode
+
+    fun setThemeMode(mode: ThemeMode) {
+        try {
+            themePreference.set(mode)
+        } catch (e: IOException) {
+            _error.value = "没能保存主题：${userMessage(e)}"
+        }
+    }
 
 	val pushStatus: StateFlow<PushStatus> = pushManager.status
 
