@@ -11,8 +11,12 @@ import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.push.DeepLinks
 import io.ycvk.acorn.core.push.PushManager
+import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.data.repository.OwnerRepository
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,13 +73,36 @@ sealed interface Page {
     }
 }
 
+/** Whether the owner has told Acorn what to call them; the app opens only once they have. */
+sealed interface OwnerGate {
+    data object Checking : OwnerGate
+    data object Unnamed : OwnerGate
+    data object Named : OwnerGate
+
+    /** The name could not be read, so it is not known whether one is set. */
+    data class Failed(val message: String) : OwnerGate
+}
+
+fun ownerGateFor(name: String): OwnerGate = if (name.isBlank()) OwnerGate.Unnamed else OwnerGate.Named
+
 @HiltViewModel
 class ShellViewModel @Inject constructor(
     val authController: AuthController,
     val localNetwork: LocalNetworkAccess,
     private val pushManager: PushManager,
     private val deepLinks: DeepLinks,
+    private val ownerRepository: OwnerRepository,
 ) : ViewModel() {
+
+    private val _ownerGate = MutableStateFlow<OwnerGate>(OwnerGate.Checking)
+    val ownerGate: StateFlow<OwnerGate> = _ownerGate.asStateFlow()
+    private var ownerCheck: Job? = null
+
+    private val _savingName = MutableStateFlow(false)
+    val savingName: StateFlow<Boolean> = _savingName.asStateFlow()
+
+    private val _nameError = MutableStateFlow<String?>(null)
+    val nameError: StateFlow<String?> = _nameError.asStateFlow()
 
     private val _tab = MutableStateFlow(Tab.Today)
     val tab: StateFlow<Tab> = _tab.asStateFlow()
@@ -107,6 +134,9 @@ class ShellViewModel @Inject constructor(
                     _pendingCount.value = 0
                     _pages.value = emptyList()
                     _tab.value = Tab.Today
+                    ownerCheck?.cancel()
+                    _ownerGate.value = OwnerGate.Checking
+                    _nameError.value = null
                 }
             }
         }
@@ -132,6 +162,46 @@ class ShellViewModel @Inject constructor(
 
     private fun getConnectionProfile(): ConnectionProfile? =
         (authController.authState.value as? AuthState.Connected)?.profile
+
+    /**
+     * Reads what Acorn calls the owner, unless that is already known. Call it
+     * once the server can be reached, after the nearby devices prompt.
+     */
+    fun checkOwner() {
+        val profile = getConnectionProfile() ?: return
+        val gate = _ownerGate.value
+        if (gate == OwnerGate.Named || gate == OwnerGate.Unnamed || ownerCheck?.isActive == true) return
+        _ownerGate.value = OwnerGate.Checking
+        ownerCheck = viewModelScope.launch {
+            _ownerGate.value = try {
+                ownerGateFor(withContext(Dispatchers.IO) { ownerRepository.current(profile) }.name)
+            } catch (e: CancellationException) {
+                // Disconnecting cancels the check and has already reset the gate.
+                throw e
+            } catch (e: Exception) {
+                OwnerGate.Failed(userMessage(e))
+            }
+        }
+    }
+
+    fun saveOwnerName(name: String) {
+        val profile = getConnectionProfile() ?: return
+        _savingName.value = true
+        _nameError.value = null
+        viewModelScope.launch {
+            try {
+                _ownerGate.value = ownerGateFor(withContext(Dispatchers.IO) { ownerRepository.setName(profile, name) }.name)
+            } catch (e: Exception) {
+                _nameError.value = userMessage(e)
+            } finally {
+                _savingName.value = false
+            }
+        }
+    }
+
+    fun disconnect() {
+        authController.disconnect()
+    }
 
     fun selectTab(tab: Tab) {
         _tab.value = tab

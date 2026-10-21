@@ -20,3 +20,9 @@ class OwnerRepository @Inject constructor() {
         return OwnerApi(basePath = profile.serverUrl)
     }
 }
+
+/** The longest name the server keeps for the owner. */
+const val OWNER_NAME_MAX_LENGTH = 40
+
+/** What the name field keeps of [input]: no line breaks or other control characters, at most [OWNER_NAME_MAX_LENGTH]. */
+fun ownerNameDraft(input: String): String = input.filterNot(Char::isISOControl).take(OWNER_NAME_MAX_LENGTH)

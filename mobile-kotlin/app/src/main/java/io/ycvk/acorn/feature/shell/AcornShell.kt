@@ -95,13 +95,9 @@ fun AcornShell(
 
 @Composable
 private fun ConnectedShell(shellViewModel: ShellViewModel) {
-    val tab by shellViewModel.tab.collectAsStateWithLifecycle()
-    val pages by shellViewModel.pages.collectAsStateWithLifecycle()
-    val pendingCount by shellViewModel.pendingCount.collectAsStateWithLifecycle()
-    val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
-    val memoryViewModel: MemoryViewModel = hiltViewModel()
-    val personaViewModel: PersonaViewModel = hiltViewModel()
-    val skillsViewModel: SkillsViewModel = hiltViewModel()
+    val ownerGate by shellViewModel.ownerGate.collectAsStateWithLifecycle()
+    val savingName by shellViewModel.savingName.collectAsStateWithLifecycle()
+    val nameError by shellViewModel.nameError.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -122,12 +118,19 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     val localNetworkPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         localNetworkDenied = !granted
         askNotifications()
+        shellViewModel.checkOwner()
     }
     LaunchedEffect(Unit) {
-        if (shellViewModel.needsLocalNetwork()) localNetworkPermission.launch(LocalNetworkAccess.PERMISSION) else askNotifications()
+        if (shellViewModel.needsLocalNetwork()) {
+            localNetworkPermission.launch(LocalNetworkAccess.PERMISSION)
+        } else {
+            askNotifications()
+            shellViewModel.checkOwner()
+        }
     }
     OnReturnToForeground {
         if (localNetworkDenied) scope.launch { localNetworkDenied = shellViewModel.needsLocalNetwork() }
+        if (shellViewModel.ownerGate.value is OwnerGate.Failed) shellViewModel.checkOwner()
     }
     if (localNetworkDenied) {
         AcornDialog(
@@ -143,6 +146,37 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
             onDismiss = { localNetworkDenied = false },
         )
     }
+
+    AnimatedContent(
+        targetState = ownerGate,
+        transitionSpec = { fadeIn(AcornMotion.enter(AcornMotion.MEDIUM)) togetherWith fadeOut(AcornMotion.exit(AcornMotion.SHORT)) },
+        contentKey = { it::class },
+        label = "owner_gate",
+    ) { gate ->
+        when (gate) {
+            OwnerGate.Checking -> Box(modifier = Modifier.fillMaxSize()) {
+                CircularProgressIndicator(
+                    color = AcornTheme.colors.inkFaint,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(24.dp).align(Alignment.Center),
+                )
+            }
+            OwnerGate.Unnamed -> OwnerNameScreen(saving = savingName, error = nameError, onSave = shellViewModel::saveOwnerName)
+            is OwnerGate.Failed -> OwnerCheckFailedScreen(gate.message, onRetry = shellViewModel::checkOwner, onDisconnect = shellViewModel::disconnect)
+            OwnerGate.Named -> Pages(shellViewModel)
+        }
+    }
+}
+
+@Composable
+private fun Pages(shellViewModel: ShellViewModel) {
+    val tab by shellViewModel.tab.collectAsStateWithLifecycle()
+    val pages by shellViewModel.pages.collectAsStateWithLifecycle()
+    val pendingCount by shellViewModel.pendingCount.collectAsStateWithLifecycle()
+    val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
+    val memoryViewModel: MemoryViewModel = hiltViewModel()
+    val personaViewModel: PersonaViewModel = hiltViewModel()
+    val skillsViewModel: SkillsViewModel = hiltViewModel()
 
     BackHandler(enabled = pages.isNotEmpty()) { shellViewModel.back() }
 

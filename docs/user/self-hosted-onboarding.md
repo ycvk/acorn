@@ -322,14 +322,14 @@ acorn persona set my-persona.md
 
 Every save is a new revision on top of the one it replaces and fails when the persona changed in the meantime. A persona is trimmed, must not be empty and holds at most 8 KiB, because it goes into every model call. The agent cannot change it; preferences you tell it in conversation become memories.
 
-Tell Acorn what to call you in the app, under 设置 → Acorn → 怎么称呼你, or on the server:
+The app asks what Acorn should call you when it first connects and opens only once you answer. Change the name later in the app, under 设置 → Acorn → 怎么称呼你, or on the server:
 
 ```bash
 acorn owner set 温遥
 acorn owner show
 ```
 
-The name tells the agent it is you when shared material, notifications or memories name you, and facts it learns about you are written with it. It holds at most 40 characters on one line; `acorn owner set ""` leaves you unnamed. The next conversation uses a new name; facts already written keep theirs.
+The name tells the agent it is you when shared material, notifications or memories name you, and facts it learns about you are written with it. It holds at most 40 characters on one line; `acorn owner set ""` leaves you unnamed, and the app asks again the next time it opens. The next conversation uses a new name; facts already written keep theirs.
 
 Set your timezone so the agent reads and schedules times the way you say them:
 

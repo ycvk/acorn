@@ -82,7 +82,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Saves [name] as what Acorn calls the owner; an empty name leaves them unnamed. */
+    /** Saves [name] as what Acorn calls the owner. */
     fun saveOwnerName(name: String, onSaved: () -> Unit) {
         val profile = profile ?: return
         _savingName.value = true
