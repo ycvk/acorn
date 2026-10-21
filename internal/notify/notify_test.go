@@ -37,12 +37,12 @@ func TestFCMSendBuildsMessage(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	if err := c.Send(context.Background(), "tok_1", Message{Title: "提醒", Body: "该看 X 了", ThreadID: "thread_1", RunID: "run_1"}); err != nil {
+	if err := c.Send(context.Background(), "fid_1", Message{Title: "提醒", Body: "该看 X 了", ThreadID: "thread_1", RunID: "run_1"}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	msg := got["message"]
-	if msg["token"] != "tok_1" {
-		t.Fatalf("token = %v", msg["token"])
+	if msg["fid"] != "fid_1" || msg["token"] != nil {
+		t.Fatalf("target = fid %v token %v, want fid fid_1", msg["fid"], msg["token"])
 	}
 	if n := msg["notification"].(map[string]any); n["title"] != "提醒" || n["body"] != "该看 X 了" {
 		t.Fatalf("notification = %v", n)
@@ -50,7 +50,7 @@ func TestFCMSendBuildsMessage(t *testing.T) {
 	if d := msg["data"].(map[string]any); d["thread_id"] != "thread_1" || d["run_id"] != "run_1" || d["browser_url"] != nil {
 		t.Fatalf("data = %v", d)
 	}
-	if err := c.Send(context.Background(), "tok_1", Message{Title: "需要登录", Body: "在浏览器里登录 GitHub", ThreadID: "thread_1", RunID: "run_1", BrowserURL: "https://github.com/login"}); err != nil {
+	if err := c.Send(context.Background(), "fid_1", Message{Title: "需要登录", Body: "在浏览器里登录 GitHub", ThreadID: "thread_1", RunID: "run_1", BrowserURL: "https://github.com/login"}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if d := got["message"]["data"].(map[string]any); d["thread_id"] != "thread_1" || d["browser_url"] != "https://github.com/login" {
@@ -117,8 +117,8 @@ func TestFCMSendSurfacesFailures(t *testing.T) {
 		want   error
 		calls  int
 	}{
-		{"unregistered", http.StatusNotFound, `{"error":{"status":"NOT_FOUND"}}`, ErrTokenUnregistered, 1},
-		{"unregistered detail", http.StatusBadRequest, `{"error":{"details":[{"errorCode":"UNREGISTERED"}]}}`, ErrTokenUnregistered, 1},
+		{"unregistered", http.StatusNotFound, `{"error":{"status":"NOT_FOUND"}}`, ErrUnregistered, 1},
+		{"unregistered detail", http.StatusBadRequest, `{"error":{"details":[{"errorCode":"UNREGISTERED"}]}}`, ErrUnregistered, 1},
 		{"bad request", http.StatusBadRequest, `{"error":"bad"}`, nil, 1},
 		{"server down", http.StatusInternalServerError, `oops`, nil, fcmMaxAttempts},
 	} {
@@ -142,34 +142,34 @@ func TestFCMSendSurfacesFailures(t *testing.T) {
 
 // memNotifications is an in-memory core.NotificationStore.
 type memNotifications struct {
-	mu     sync.Mutex
-	tokens map[string]string
-	notes  []core.Notification
+	mu    sync.Mutex
+	fids  map[string]string
+	notes []core.Notification
 }
 
-func (m *memNotifications) SetPushToken(_ context.Context, deviceID, token string) error {
+func (m *memNotifications) SetPushInstallation(_ context.Context, deviceID, fid string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.tokens[deviceID] = token
+	m.fids[deviceID] = fid
 	return nil
 }
 
-func (m *memNotifications) ListPushTokens(context.Context) ([]core.PushToken, error) {
+func (m *memNotifications) ListPushInstallations(context.Context) ([]core.PushInstallation, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	var out []core.PushToken
+	var out []core.PushInstallation
 	for _, id := range []string{"dev_a", "dev_b"} {
-		if token, ok := m.tokens[id]; ok {
-			out = append(out, core.PushToken{DeviceID: id, Token: token})
+		if fid, ok := m.fids[id]; ok {
+			out = append(out, core.PushInstallation{DeviceID: id, FID: fid})
 		}
 	}
 	return out, nil
 }
 
-func (m *memNotifications) DeletePushToken(_ context.Context, deviceID string) error {
+func (m *memNotifications) DeletePushInstallation(_ context.Context, deviceID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.tokens, deviceID)
+	delete(m.fids, deviceID)
 	return nil
 }
 
@@ -218,13 +218,13 @@ type recordingPusher struct {
 	errs map[string]error
 }
 
-func (p *recordingPusher) Send(_ context.Context, token string, msg Message) error {
+func (p *recordingPusher) Send(_ context.Context, fid string, msg Message) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if err := p.errs[token]; err != nil {
+	if err := p.errs[fid]; err != nil {
 		return err
 	}
-	p.sent = append(p.sent, token+":"+msg.Title)
+	p.sent = append(p.sent, fid+":"+msg.Title)
 	return nil
 }
 
@@ -242,7 +242,7 @@ func newSenderHarness(t *testing.T, quiet QuietHours) *senderHarness {
 		t.Fatal(err)
 	}
 	h := &senderHarness{
-		store:  &memNotifications{tokens: map[string]string{"dev_a": "tok_a"}},
+		store:  &memNotifications{fids: map[string]string{"dev_a": "fid_a"}},
 		pusher: &recordingPusher{errs: map[string]error{}},
 		now:    time.Date(2026, 10, 5, 4, 0, 0, 0, time.UTC), // 12:00 Shanghai
 	}
@@ -324,25 +324,25 @@ func TestQuietHoursWindows(t *testing.T) {
 
 func TestNotifyFailsWithoutDevices(t *testing.T) {
 	h := newSenderHarness(t, QuietHours{})
-	h.store.tokens = map[string]string{}
-	if _, err := h.sender.Notify(context.Background(), core.Notification{Title: "t", Body: "b"}); !errors.Is(err, ErrNoPushToken) {
+	h.store.fids = map[string]string{}
+	if _, err := h.sender.Notify(context.Background(), core.Notification{Title: "t", Body: "b"}); !errors.Is(err, ErrNoPushInstallation) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
-func TestDeliverDropsUnregisteredTokens(t *testing.T) {
+func TestDeliverDropsUnregisteredInstallations(t *testing.T) {
 	h := newSenderHarness(t, QuietHours{})
 	ctx := context.Background()
-	h.store.tokens["dev_b"] = "tok_b"
-	h.pusher.errs["tok_a"] = ErrTokenUnregistered
+	h.store.fids["dev_b"] = "fid_b"
+	h.pusher.errs["fid_a"] = ErrUnregistered
 	n, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"})
 	if err != nil || n.Status != core.NotificationSent || len(h.pusher.sent) != 1 {
 		t.Fatalf("notify = %+v err=%v sent=%v", n, err, h.pusher.sent)
 	}
-	if _, ok := h.store.tokens["dev_a"]; ok {
-		t.Fatal("unregistered token must be deleted")
+	if _, ok := h.store.fids["dev_a"]; ok {
+		t.Fatal("unregistered installation must be deleted")
 	}
-	h.pusher.errs["tok_b"] = errors.New("fcm down")
+	h.pusher.errs["fid_b"] = errors.New("fcm down")
 	_, err = h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"})
 	if err == nil || !strings.Contains(err.Error(), "fcm down") {
 		t.Fatalf("all-failed notify = %v", err)
@@ -361,7 +361,7 @@ func TestFCMSendsPendingActionsAsData(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	if err := c.Send(context.Background(), "tok_1", Message{Title: "发送邮件", Body: "给张三", ThreadID: "thread_1", RunID: "run_1", ActionID: "action_1"}); err != nil {
+	if err := c.Send(context.Background(), "fid_1", Message{Title: "发送邮件", Body: "给张三", ThreadID: "thread_1", RunID: "run_1", ActionID: "action_1"}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	msg := got["message"]

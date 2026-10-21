@@ -19,7 +19,7 @@ import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.R
 import io.ycvk.acorn.api.apis.DevicesApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
-import io.ycvk.acorn.api.models.PushTokenRequest
+import io.ycvk.acorn.api.models.PushInstallationRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.SecureStore
 import kotlinx.coroutines.CoroutineScope
@@ -35,8 +35,9 @@ import javax.inject.Singleton
 
 /**
  * Owns push notifications: initializes Firebase from build settings, sends the
- * FCM token to the paired server, and shows notifications while the app is in
- * the foreground. All network work runs on [Dispatchers.IO].
+ * Firebase installation ID FCM registered this app under to the paired server,
+ * and shows notifications while the app is in the foreground. All network work
+ * runs on [Dispatchers.IO].
  */
 @Singleton
 class PushManager @Inject constructor(
@@ -73,8 +74,11 @@ class PushManager @Inject constructor(
         )
     }
 
-    /** Fetches the FCM token and registers it for the paired device. */
-    fun register(profile: ConnectionProfile) {
+    /**
+     * Registers this app with FCM; call it for a paired device. FCM answers
+     * with the installation ID through [onRegistered], which uploads it.
+     */
+    fun register() {
         if (settings.missing().isNotEmpty()) return
         if (!hasPermission()) {
             _status.value = PushStatus.PermissionDenied
@@ -83,21 +87,22 @@ class PushManager @Inject constructor(
         _status.value = PushStatus.Registering
         scope.launch {
             try {
-                val token = FirebaseMessaging.getInstance().token.await()
-                upload(profile, token)
-                _status.value = PushStatus.Registered
+                FirebaseMessaging.getInstance().register().await()
             } catch (e: Exception) {
                 _status.value = PushStatus.Failed(e.message ?: e.javaClass.simpleName)
             }
         }
     }
 
-    /** FCM rotated the token; register it if this device is paired. */
-    fun onNewToken(token: String) {
+    /**
+     * FCM registered this app under [fid]: after [register], on app start, and
+     * when the installation ID changes. Uploads it if this device is paired.
+     */
+    fun onRegistered(fid: String) {
         val profile = secureStore.getConnection() ?: return
         scope.launch {
             try {
-                upload(profile, token)
+                upload(profile, fid)
                 _status.value = PushStatus.Registered
             } catch (e: Exception) {
                 _status.value = PushStatus.Failed(e.message ?: e.javaClass.simpleName)
@@ -132,9 +137,9 @@ class PushManager @Inject constructor(
             .notify(System.currentTimeMillis().toInt(), notification)
     }
 
-    private fun upload(profile: ConnectionProfile, token: String) {
+    private fun upload(profile: ConnectionProfile, fid: String) {
         ApiClient.accessToken = profile.accessToken
-        DevicesApi(basePath = profile.serverUrl).clientSetPushToken(PushTokenRequest(token = token))
+        DevicesApi(basePath = profile.serverUrl).clientSetPushInstallation(PushInstallationRequest(fid = fid))
     }
 
     private fun hasPermission(): Boolean =

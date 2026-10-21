@@ -36,7 +36,7 @@ class SettingsViewModel @Inject constructor(
 	val pushStatus: StateFlow<PushStatus> = pushManager.status
 
 	fun retryPush() {
-		profile?.let(pushManager::register)
+		if (profile != null) pushManager.register()
 	}
 
 	private val _systemStatus = MutableStateFlow<SystemStatus?>(null)

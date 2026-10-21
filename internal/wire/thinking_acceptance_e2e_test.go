@@ -96,7 +96,7 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig+"thinking:\n  night_at: \"\"\n")
 	c := h.open(t, cfg)
 	defer c.Close()
-	registerPushToken(t, c, "phone")
+	registerPushInstallation(t, c, "fid_phone")
 	client := newPairedClient(t, c)
 	batch := api.PhoneNotificationBatch{Notifications: []api.PhoneNotificationInput{{Key: "bank", Package: "bank", App: "Bank", Title: "支付提醒", Text: "支出 2799 元", PostedAt: start}, {Key: "ad", Package: "shop", App: "Shop", Title: "广告", Text: "大促销", PostedAt: start}}}
 	body, err := json.Marshal(batch)

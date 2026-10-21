@@ -101,20 +101,20 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /v1/devices/self/push-token:
+  /v1/devices/self/push-installation:
     put:
       tags: [devices]
-      summary: Register this device's FCM token for push notifications
-      operationId: clientSetPushToken
+      summary: Register this device's Firebase installation ID for push notifications
+      operationId: clientSetPushInstallation
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PushTokenRequest'
+              $ref: '#/components/schemas/PushInstallationRequest'
       responses:
         '204':
-          description: Push token stored
+          description: Push installation stored
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':
@@ -3445,14 +3445,15 @@ components:
           minimum: 0
           description: Number of newly inserted entries.
 
-    PushTokenRequest:
+    PushInstallationRequest:
       type: object
       additionalProperties: false
-      required: [token]
+      required: [fid]
       properties:
-        token:
+        fid:
           type: string
-          minLength: 1
+          pattern: '^[cdef][A-Za-z0-9_-]{21}$'
+          description: Firebase installation ID the app registered with FCM.
 
     CaptureRequest:
       type: object

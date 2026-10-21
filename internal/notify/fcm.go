@@ -16,8 +16,8 @@ import (
 	"golang.org/x/oauth2/jwt"
 )
 
-// ErrTokenUnregistered means FCM no longer knows the device token.
-var ErrTokenUnregistered = errors.New("push token is no longer registered")
+// ErrUnregistered means FCM no longer knows the device's installation.
+var ErrUnregistered = errors.New("push installation is no longer registered")
 
 const fcmScope = "https://www.googleapis.com/auth/firebase.messaging"
 
@@ -33,12 +33,13 @@ type Message struct {
 	BrowserURL string
 }
 
-// payload is the FCM message for msg. A pending action goes as data only, so
-// the app always builds the notification itself and can attach the action's
-// controls; title and body stay in the data for when it cannot load the action.
-func payload(token string, msg Message) map[string]any {
+// payload is the FCM message for msg, addressed to the app installation fid.
+// A pending action goes as data only, so the app always builds the
+// notification itself and can attach the action's controls; title and body
+// stay in the data for when it cannot load the action.
+func payload(fid string, msg Message) map[string]any {
 	message := map[string]any{
-		"token":   token,
+		"fid":     fid,
 		"android": map[string]string{"priority": "high"},
 	}
 	if msg.ActionID != "" {
@@ -102,11 +103,11 @@ func newFCMClient(client *http.Client, endpoint string) *FCMClient {
 
 const fcmMaxAttempts = 3
 
-// Send delivers msg to one device token. 429 and 5xx responses are retried
-// with backoff; the last failure is returned. A token FCM no longer knows
-// yields ErrTokenUnregistered.
-func (c *FCMClient) Send(ctx context.Context, token string, msg Message) error {
-	body, err := json.Marshal(payload(token, msg))
+// Send delivers msg to the app installation fid. 429 and 5xx responses are
+// retried with backoff; the last failure is returned. An installation FCM no
+// longer knows yields ErrUnregistered.
+func (c *FCMClient) Send(ctx context.Context, fid string, msg Message) error {
+	body, err := json.Marshal(payload(fid, msg))
 	if err != nil {
 		return fmt.Errorf("fcm: encode message: %w", err)
 	}
@@ -151,7 +152,7 @@ func (c *FCMClient) post(ctx context.Context, body []byte) (retry bool, err erro
 	case resp.StatusCode == http.StatusOK:
 		return false, nil
 	case resp.StatusCode == http.StatusNotFound || strings.Contains(string(respBody), "UNREGISTERED"):
-		return false, ErrTokenUnregistered
+		return false, ErrUnregistered
 	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
 		return true, fmt.Errorf("fcm: status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	default:

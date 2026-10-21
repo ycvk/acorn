@@ -61,7 +61,7 @@ var schemaRequiredTables = map[string][]string{
 	"artifacts":                 {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
 	"agent_checkpoints":         {"checkpoint_id", "data", "updated_at"},
 	"context_snapshots":         {"hash", "content", "created_at"},
-	"push_tokens":               {"device_id", "token", "updated_at"},
+	"push_installations":        {"device_id", "fid", "updated_at"},
 	"notifications":             {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at", "action_id", "browser_url"},
 	"knowledge_notes":           {"path", "title", "tags", "source", "body", "revision", "created_at", "updated_at"},
 	"knowledge_revisions":       {"path", "revision", "title", "tags", "source", "body", "body_sha256", "run_id", "at"},

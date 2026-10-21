@@ -88,7 +88,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	c := harness.open(t, cfg)
 	defer c.Close()
 	ctx := context.Background()
-	registerPushToken(t, c, "fcm_phone")
+	registerPushInstallation(t, c, "fid_phone")
 
 	thread, err := c.threads.CreateThread(ctx, "watch")
 	if err != nil {

@@ -10,44 +10,67 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func TestPushTokensFollowDeviceRevocation(t *testing.T) {
+func TestPushInstallationsFollowDeviceRevocation(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	for _, id := range []string{"dev_a", "dev_b"} {
 		if err := s.SaveDevice(ctx, &core.Device{DeviceID: id, Name: id, Platform: "android", TokenHash: "hash_" + id, CreatedAt: time.Now()}); err != nil {
 			t.Fatalf("save device: %v", err)
 		}
-		if err := s.SetPushToken(ctx, id, "fcm_"+id); err != nil {
-			t.Fatalf("set token: %v", err)
+		if err := s.SetPushInstallation(ctx, id, "fid_"+id); err != nil {
+			t.Fatalf("set installation: %v", err)
 		}
 	}
-	if err := s.SetPushToken(ctx, "dev_a", "fcm_a2"); err != nil {
-		t.Fatalf("replace token: %v", err)
+	if err := s.SetPushInstallation(ctx, "dev_a", "fid_a2"); err != nil {
+		t.Fatalf("replace installation: %v", err)
 	}
 	if err := s.RevokeDevice(ctx, "dev_b", time.Now()); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	tokens, err := s.ListPushTokens(ctx)
-	if err != nil || len(tokens) != 1 || tokens[0].Token != "fcm_a2" {
-		t.Fatalf("tokens = %+v err=%v", tokens, err)
+	installations, err := s.ListPushInstallations(ctx)
+	if err != nil || len(installations) != 1 || installations[0].FID != "fid_a2" {
+		t.Fatalf("installations = %+v err=%v", installations, err)
 	}
 }
 
-func TestPushTokenBelongsToLatestDevice(t *testing.T) {
+func TestPushInstallationBelongsToLatestDevice(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	// The same phone paired twice: the app keeps one FCM token across pairings.
+	// The same phone paired twice: the app keeps one installation across pairings.
 	for _, id := range []string{"dev_old", "dev_new"} {
 		if err := s.SaveDevice(ctx, &core.Device{DeviceID: id, Name: id, Platform: "android", TokenHash: "hash_" + id, CreatedAt: time.Now()}); err != nil {
 			t.Fatalf("save device: %v", err)
 		}
-		if err := s.SetPushToken(ctx, id, "fcm_phone"); err != nil {
-			t.Fatalf("set token: %v", err)
+		if err := s.SetPushInstallation(ctx, id, "fid_phone"); err != nil {
+			t.Fatalf("set installation: %v", err)
 		}
 	}
-	tokens, err := s.ListPushTokens(ctx)
-	if err != nil || len(tokens) != 1 || tokens[0].DeviceID != "dev_new" {
-		t.Fatalf("tokens = %+v err=%v, want the token once, on the latest device", tokens, err)
+	installations, err := s.ListPushInstallations(ctx)
+	if err != nil || len(installations) != 1 || installations[0].DeviceID != "dev_new" {
+		t.Fatalf("installations = %+v err=%v, want the installation once, on the latest device", installations, err)
+	}
+}
+
+func TestV18UpgradeDropsRegistrationTokens(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	if _, err := raw.Exec(readLayout(t, 17) + `PRAGMA user_version = 17;
+		INSERT INTO devices(device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at)
+		VALUES('dev_phone', 'phone', 'android', 'hash_phone', '2026-10-20T00:00:00.000000000Z', '', '');
+		INSERT INTO push_tokens(device_id, token, updated_at) VALUES('dev_phone', 'legacy:token', '2026-10-20T00:00:00.000000000Z');`); err != nil {
+		t.Fatalf("build v17: %v", err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	installations, err := s.ListPushInstallations(context.Background())
+	if err != nil || len(installations) != 0 {
+		t.Fatalf("installations after upgrade = %+v err=%v, want none until the app registers", installations, err)
 	}
 }
 

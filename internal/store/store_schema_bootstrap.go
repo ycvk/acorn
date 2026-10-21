@@ -108,11 +108,7 @@ CREATE TABLE IF NOT EXISTS context_snapshots (
     created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS push_tokens (
-    device_id TEXT PRIMARY KEY,
-    token TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
+` + pushInstallationsTable + `
 
 ` + notificationsTable + `
 
@@ -360,6 +356,14 @@ const personaTable = `CREATE TABLE IF NOT EXISTS persona_revisions (
 const ownerTable = `CREATE TABLE IF NOT EXISTS owner (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     name TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);`
+
+// pushInstallationsTable is shared with the migration that adds it. Each row
+// holds the Firebase installation ID FCM delivers a device's pushes to.
+const pushInstallationsTable = `CREATE TABLE IF NOT EXISTS push_installations (
+    device_id TEXT PRIMARY KEY,
+    fid TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );`
 

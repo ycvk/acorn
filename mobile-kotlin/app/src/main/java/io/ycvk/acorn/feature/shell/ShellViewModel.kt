@@ -142,7 +142,7 @@ class ShellViewModel @Inject constructor(
 
     /** Registers this device for push; call after the notification permission prompt. */
     fun registerPush() {
-        getConnectionProfile()?.let(pushManager::register)
+        if (getConnectionProfile() != null) pushManager.register()
     }
 
     fun open(page: Page) {

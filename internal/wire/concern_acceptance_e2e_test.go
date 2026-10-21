@@ -142,7 +142,7 @@ func TestWanderDeliversAnOutcomeThatOnlyTheOwnerResolves(t *testing.T) {
 	c := h.open(t, cfg)
 	defer c.Close()
 	client := newPairedClient(t, c)
-	registerPushToken(t, c, "tok_phone")
+	registerPushInstallation(t, c, "fid_phone")
 
 	thread, err := c.threads.CreateThread(ctx, "X 的版本变化")
 	if err != nil {

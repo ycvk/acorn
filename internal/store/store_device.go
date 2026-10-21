@@ -192,8 +192,8 @@ func (s *Store) RevokeDevice(ctx context.Context, deviceID string, revokedAt tim
 		return core.ErrDeviceNotFound
 	}
 	// A revoked device must not receive pushes.
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM push_tokens WHERE device_id = ?`, deviceID); err != nil {
-		return fmt.Errorf("revoke device push token: %w", err)
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM push_installations WHERE device_id = ?`, deviceID); err != nil {
+		return fmt.Errorf("revoke device push installation: %w", err)
 	}
 	return nil
 }
