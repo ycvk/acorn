@@ -23,8 +23,8 @@ func (s *Store) ThreadMemorySourceIDs(ctx context.Context, sessionID string) ([]
 }
 
 // DeleteThread removes a thread with what its runs left behind: messages,
-// files, runs, events, pending actions, checkpoints, notifications, artifacts
-// and the context snapshots no other run used. The thread's memory sources stay,
+// files, views, runs, events, pending actions, checkpoints, notifications,
+// artifacts and the context snapshots no other run used. The thread's memory sources stay,
 // so the exclusions that forget them keep holding.
 func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
 	var paths, files []string
@@ -44,6 +44,9 @@ func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
 		}
 		var err error
 		if paths, err = purgeThread(ctx, tx, sessionID); err != nil {
+			return err
+		}
+		if err := purgeThreadViews(ctx, tx, sessionID); err != nil {
 			return err
 		}
 		files, err = purgeThreadFiles(ctx, tx, sessionID)

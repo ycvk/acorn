@@ -421,6 +421,8 @@ files:
   max_send_mib: 100    # largest file the agent can send you; 1 to 1024
 ```
 
+When an answer is several items with the same fields or numbers worth comparing, such as what changed across releases, a reading list or a trend, the agent shows it as a view under its reply: tables, lists of cards, links, badges, images from the conversation or the knowledge base, and bar or line charts, drawn by the app in its own style. The backend checks every view before it is shown, including that its links pass the same web policy as the agent's fetches, and views are deleted with their conversation.
+
 ## 13. Watches and the Morning Briefing
 
 Ask the agent to keep an eye on something and it creates a watch: "follow the Go blog", "tell me when golang/go has a new release", "watch the price on this page and tell me right away when it drops". The backend checks each watch on its own schedule (hourly by default, at least every 15 minutes) and only involves the model when something is new. The first check of a watch is the baseline, so what is already there is not reported.

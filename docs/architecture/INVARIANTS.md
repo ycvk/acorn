@@ -98,7 +98,7 @@
 - **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
-- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
+- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
@@ -218,6 +218,11 @@
   - `internal/store/thread_files_test.go`
   - `internal/core/thread_file_test.go`
   - `internal/wire/thread_files_e2e_test.go`
+- **视图经后端校验后挂在回复上**：`show_view` 经 toolsearch 按需加载，`internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里的 Markdown 链接）、不是本对话图片文件或知识库图片附件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
+  - `internal/views/views_test.go`
+  - `internal/tools/views_tool_test.go`
+  - `internal/store/thread_views_test.go`
+  - `internal/wire/thread_views_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 

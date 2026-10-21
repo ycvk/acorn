@@ -2986,12 +2986,17 @@ components:
           type: array
           description: |
             Files an owner message sent, or files the run behind an assistant
-            message sent the owner, oldest first. A run that sent files but
-            has no stored reply, because it failed, was stopped or is still
-            going, is listed right after its input as an assistant message
-            with empty text whose id is the run id.
+            message sent the owner, oldest first. A run that sent files or
+            showed views but has no stored reply, because it failed, was
+            stopped or is still going, is listed right after its input as an
+            assistant message with empty text whose id is the run id.
           items:
             $ref: '#/components/schemas/ThreadFile'
+        views:
+          type: array
+          description: Views the run behind an assistant message showed the owner, oldest first.
+          items:
+            $ref: '#/components/schemas/View'
 
     ThreadFile:
       type: object
@@ -3113,6 +3118,7 @@ components:
         - $ref: '#/components/schemas/ClientToolCallStartedEvent'
         - $ref: '#/components/schemas/ClientToolCallSucceededEvent'
         - $ref: '#/components/schemas/ClientToolCallFailedEvent'
+        - $ref: '#/components/schemas/ClientViewShownEvent'
       discriminator:
         propertyName: type
         mapping:
@@ -3131,6 +3137,7 @@ components:
           tool.call.started: '#/components/schemas/ClientToolCallStartedEvent'
           tool.call.succeeded: '#/components/schemas/ClientToolCallSucceededEvent'
           tool.call.failed: '#/components/schemas/ClientToolCallFailedEvent'
+          view.shown: '#/components/schemas/ClientViewShownEvent'
 
     RunEventBase:
       type: object
@@ -3314,6 +3321,17 @@ components:
               const: tool.call.failed
             data:
               $ref: '#/components/schemas/ToolCallData'
+
+    ClientViewShownEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: view.shown
+            data:
+              $ref: '#/components/schemas/ViewShownData'
 
     RunStartedData:
       type: object
@@ -4017,6 +4035,48 @@ components:
         error:
           type: string
           description: Set on tool.call.failed; at most 300 characters.
+
+    ViewShownData:
+      type: object
+      additionalProperties: false
+      required: [view]
+      properties:
+        view:
+          $ref: '#/components/schemas/View'
+
+    View:
+      type: object
+      additionalProperties: false
+      required: [id, title, catalog, components, data, created_at]
+      description: |
+        A view the agent showed the owner under its reply. `components` is
+        flat: each has an `id` and a `component` type from the catalog named
+        by `catalog`, containers list their children's ids, and the one with
+        id `root` is drawn first. A value is either written out or
+        `{"path": ...}`, a JSON Pointer into `data`; inside a List's template,
+        a path without a leading slash is relative to the item. The backend
+        checked every component, path, link and image before storing the
+        view, so the app draws it as it is and shows a component type it does
+        not know as a placeholder.
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        catalog:
+          type: string
+          description: The catalog version, `acorn.views.v1`.
+        components:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        data:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
 
     ToolApprovalData:
       type: object

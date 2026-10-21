@@ -132,6 +132,7 @@ type MessageDTO struct {
 	RunID     string            `json:"run_id,omitempty"`
 	Steps     []ToolStepDTO     `json:"steps,omitempty"`
 	Files     []ThreadFileDTO   `json:"files,omitempty"`
+	Views     []core.ViewData   `json:"views,omitempty"`
 }
 
 // ThreadFileDTO describes a file in a thread.

@@ -38,7 +38,8 @@ import io.ycvk.acorn.api.models.ClientToolApprovalPendingEvent
 import io.ycvk.acorn.api.models.ClientToolCallFailedEvent
 import io.ycvk.acorn.api.models.ClientToolCallStartedEvent
 import io.ycvk.acorn.api.models.ClientToolCallSucceededEvent
-import io.ycvk.acorn.api.models.ToolCallData
+import io.ycvk.acorn.api.models.ClientViewShownEvent
+import io.ycvk.acorn.api.models.ViewShownData
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -68,7 +69,7 @@ interface RunEvent {
     @Json(name = "type")
     val type: kotlin.Any?
     @Json(name = "data")
-    val `data`: ToolCallData
+    val `data`: ViewShownData
 
 }
 

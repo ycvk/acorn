@@ -26,6 +26,7 @@ package io.ycvk.acorn.api.models
 import io.ycvk.acorn.api.models.MessageContent
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.ToolStep
+import io.ycvk.acorn.api.models.View
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -40,7 +41,8 @@ import com.squareup.moshi.JsonClass
  * @param createdAt 
  * @param runId 
  * @param steps Tool calls the run behind an assistant message made, in the order they started.
- * @param files Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id. 
+ * @param files Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files or showed views but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id. 
+ * @param views Views the run behind an assistant message showed the owner, oldest first.
  */
 
 
@@ -69,9 +71,13 @@ data class Message (
     @Json(name = "steps")
     val steps: kotlin.collections.List<ToolStep>? = null,
 
-    /* Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id.  */
+    /* Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files or showed views but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id.  */
     @Json(name = "files")
-    val files: kotlin.collections.List<ThreadFile>? = null
+    val files: kotlin.collections.List<ThreadFile>? = null,
+
+    /* Views the run behind an assistant message showed the owner, oldest first. */
+    @Json(name = "views")
+    val views: kotlin.collections.List<View>? = null
 
 ) {
 

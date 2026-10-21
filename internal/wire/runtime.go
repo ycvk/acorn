@@ -19,6 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/watch"
+	"github.com/ycvk/acorn/internal/webaccess"
 )
 
 type containerRuntimeDeps struct {
@@ -173,6 +174,13 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Context:  ctxBridge,
 			Clock:    options.clock,
 			Location: ownerLoc,
+		},
+		Views: tools.ViewToolDeps{
+			Store:       db,
+			Files:       db,
+			Attachments: vault,
+			Links:       webaccess.URLPolicy{AllowPrivateNetworks: cfg.WebAccess.AllowPrivateNetworks},
+			Context:     ctxBridge,
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
