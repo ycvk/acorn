@@ -14,6 +14,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | [0008](0008-persona-in-app.md) | 人格存进 SQLite，owner 在 App 里编辑 | Accepted | 2026-10-15 |
 | [0009](0009-background-work-on-concerns.md) | 后台把关切推进到成品 | Accepted | 2026-10-17 |
 | [0010](0010-package-tools-and-triggers.md) | 技能包带上工具与触发器 | Proposed | 2026-10-17 |
+| [0011](0011-views-in-replies.md) | 回复里的界面 | Proposed | 2026-10-21 |
 
 ## Status 约定
 
