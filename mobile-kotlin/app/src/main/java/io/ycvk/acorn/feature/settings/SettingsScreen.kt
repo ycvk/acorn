@@ -55,6 +55,7 @@ import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.data.repository.ownerNameDraft
 
 @Composable
 fun SettingsScreen(
@@ -190,9 +191,9 @@ fun SettingsScreen(
     editingName?.let { draft ->
         AcornDialog(
             title = "Acorn 怎么称呼你",
-            body = "Acorn 会这样称呼你，记下关于你的事时也用这个名字，从下一次对话起生效。留空就不设称呼。",
+            body = "Acorn 会这样称呼你，记下关于你的事时也用这个名字，从下一次对话起生效。",
             confirm = "保存",
-            confirmEnabled = !savingName,
+            confirmEnabled = !savingName && draft.isNotBlank(),
             confirmLoading = savingName,
             dismissEnabled = !savingName,
             onConfirm = { viewModel.saveOwnerName(draft) { editingName = null } },
@@ -205,7 +206,7 @@ fun SettingsScreen(
         ) {
             BasicTextField(
                 value = draft,
-                onValueChange = { editingName = it.filterNot(Char::isISOControl).take(OWNER_NAME_MAX_LENGTH) },
+                onValueChange = { editingName = ownerNameDraft(it) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 textStyle = AcornTheme.type.callout.copy(color = colors.ink),
@@ -242,9 +243,6 @@ fun SettingsScreen(
         )
     }
 }
-
-/** The longest name the server keeps for the owner. */
-private const val OWNER_NAME_MAX_LENGTH = 40
 
 /** "device_85995e25…66b0": enough to recognise a device without the whole id. */
 fun shortId(id: String): String = if (id.length > 20) id.take(15) + "…" + id.takeLast(4) else id

@@ -4,10 +4,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,8 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -31,14 +26,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,11 +40,10 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.PairingState
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.net.LocalNetworkDenied
-import io.ycvk.acorn.core.theme.AcornMotion
-import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornMark
+import io.ycvk.acorn.core.ui.FormField
 import io.ycvk.acorn.core.ui.InlineError
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -114,7 +103,7 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
         )
         Spacer(Modifier.height(36.dp))
 
-        Field(
+        FormField(
             label = "服务器地址",
             value = serverUrl,
             onValueChange = {
@@ -127,7 +116,7 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
             onImeAction = { focus.moveFocus(FocusDirection.Down) },
         )
         Spacer(Modifier.height(18.dp))
-        Field(
+        FormField(
             label = "配对码",
             value = pairingCode,
             onValueChange = { pairingCode = it.uppercase() },
@@ -143,7 +132,7 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
             onImeAction = { focus.moveFocus(FocusDirection.Down) },
         )
         Spacer(Modifier.height(18.dp))
-        Field(
+        FormField(
             label = "设备名称",
             value = deviceName,
             onValueChange = { deviceName = it },
@@ -184,50 +173,5 @@ fun serverUrlProblem(url: String): String? {
         "服务器地址格式不对，应该像 https://acorn.example.com"
     } else {
         null
-    }
-}
-
-@Composable
-private fun Field(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    enabled: Boolean,
-    keyboard: KeyboardOptions,
-    onImeAction: () -> Unit,
-    textStyle: TextStyle = AcornTheme.type.body,
-) {
-    val colors = AcornTheme.colors
-    var focused by rememberSaveable { mutableStateOf(false) }
-    val edge by animateColorAsState(if (focused) colors.accent else colors.lineStrong, AcornMotion.standard(AcornMotion.SHORT), label = "field_edge")
-    Column {
-        Text(label, style = AcornTheme.type.eyebrow, color = colors.inkSoft)
-        Spacer(Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(AcornShapes.medium)
-                .background(colors.surface)
-                .border(if (focused) 1.5.dp else 1.dp, edge, AcornShapes.medium)
-                .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (value.isEmpty()) Text(placeholder, style = textStyle, color = colors.inkFaint)
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                enabled = enabled,
-                singleLine = true,
-                textStyle = textStyle.copy(color = colors.ink),
-                cursorBrush = SolidColor(colors.accent),
-                keyboardOptions = keyboard,
-                keyboardActions = KeyboardActions(onAny = { onImeAction() }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { focused = it.isFocused },
-            )
-        }
     }
 }
