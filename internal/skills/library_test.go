@@ -225,7 +225,7 @@ func TestBuiltInSkillsShipWithTheirFiles(t *testing.T) {
 	for _, pkg := range builtIn {
 		byName[pkg.Spec.Name] = pkg
 	}
-	for _, name := range []string{"browser", "browser-skill", "capability-recall", "capture-to-note", "morning-briefing", "night-reflection", "skill-creator", "wander", "web-browser-research"} {
+	for _, name := range []string{"browser", "browser-skill", "capability-recall", "capture-to-note", "morning-briefing", "night-reflection", "skill-creator", "views", "wander", "web-browser-research"} {
 		if _, ok := byName[name]; !ok {
 			t.Errorf("built-in skill %s is missing", name)
 		}

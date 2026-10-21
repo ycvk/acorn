@@ -1,5 +1,7 @@
 package io.ycvk.acorn.core.sse
 
+import io.ycvk.acorn.api.models.View
+
 /**
  * Projects a stream of [RunEventPacket]s into [ChatState] for a chat screen.
  *
@@ -117,6 +119,12 @@ class RunEventProjection {
                 steps = state.steps.finish(packet.event.`data`.toolCallId, packet.event.`data`.toolName, StepStatus.Failed, packet.event.`data`.error),
             )
 
+            // A replayed stream repeats events; a view is shown once.
+            is RunEventPacket.ViewShown -> {
+                val view = packet.event.`data`.view
+                if (state.views.any { it.id == view.id }) state else state.copy(views = state.views + view)
+            }
+
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }
@@ -157,6 +165,8 @@ data class ChatState(
     val failure: String? = null,
     /** Tool calls of the current run, in the order they started. */
     val steps: List<ToolStep> = emptyList(),
+    /** Views the current run showed, in order. */
+    val views: List<View> = emptyList(),
 )
 
 enum class RunStatus { Idle, Running, Completed, Failed, Interrupted }

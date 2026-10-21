@@ -125,6 +125,7 @@ import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
 import io.ycvk.acorn.feature.knowledge.AttachmentImage
+import io.ycvk.acorn.feature.views.ViewCards
 import kotlinx.coroutines.launch
 
 @Composable
@@ -268,6 +269,7 @@ fun ChatScreen(
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
                         }
                         is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, streaming = false, modifier = itemModifier) {
+                            ViewCards(message.views, currentThread, viewModel.connection(), Modifier.padding(top = 10.dp))
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, Modifier.padding(top = 8.dp))
                         }
                         is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier)
@@ -280,7 +282,7 @@ fun ChatScreen(
                         }
                     }
                 }
-                if (streaming || chatState.assistantText.isNotBlank() || chatState.steps.isNotEmpty()) {
+                if (streaming || chatState.assistantText.isNotBlank() || chatState.steps.isNotEmpty() || chatState.views.isNotEmpty()) {
                     item(key = "__streaming__") {
                         AssistantMessage(
                             text = chatState.assistantText,
@@ -288,7 +290,9 @@ fun ChatScreen(
                             steps = chatState.steps,
                             streaming = streaming,
                             modifier = rowAnimation(),
-                        )
+                        ) {
+                            ViewCards(chatState.views, currentThread, viewModel.connection(), Modifier.padding(top = 10.dp))
+                        }
                     }
                 }
                 val activities = chatState.activities.filter { it.kind == ActivityKind.ResumeRequested || threadPending.isEmpty() }
@@ -483,7 +487,7 @@ private fun AssistantMessage(
     steps: List<ToolStep>,
     streaming: Boolean,
     modifier: Modifier = Modifier,
-    files: @Composable () -> Unit = {},
+    handedOver: @Composable () -> Unit = {},
 ) {
     val colors = AcornTheme.colors
     val copy = rememberCopy()
@@ -507,7 +511,7 @@ private fun AssistantMessage(
                 modifier = Modifier.padding(top = if (text.isBlank()) 2.dp else 10.dp),
             )
         }
-        files()
+        handedOver()
         if (!streaming && text.isNotBlank()) {
             IconAction(
                 AcornIcons.Copy,

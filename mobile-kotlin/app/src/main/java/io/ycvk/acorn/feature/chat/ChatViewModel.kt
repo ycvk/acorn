@@ -334,7 +334,7 @@ class ChatViewModel @Inject constructor(
                     }
                 } ?: return@launch
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty()) }
+                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty()) }
             } catch (e: Exception) {
                 if (_threadId.value == threadId) _error.value = userMessage(e)
             }
@@ -380,7 +380,7 @@ class ChatViewModel @Inject constructor(
                     val finalReasoning = _chatState.value.assistantReasoning.ifBlank { null }
                     if (finalText.isNotBlank() && awaitsReply(_messages.value)) {
                         _messages.value = _messages.value +
-                            ChatMessage.Assistant(finalText, finalReasoning, _chatState.value.steps)
+                            ChatMessage.Assistant(finalText, finalReasoning, _chatState.value.steps, views = _chatState.value.views)
                     }
                     _chatState.value = ChatState(runStatus = _chatState.value.runStatus, failure = _chatState.value.failure)
                     // The stored messages carry what the stream does not: the files sent with them.
@@ -445,8 +445,8 @@ fun runToFollow(activeRuns: List<RunSummary>, pendingActions: List<PendingAction
 
 /**
  * Whether a finished run's streamed reply still belongs at the end of
- * [messages]: the last one is the run's input, or the files the run sent
- * before it replied. A listed reply was persisted by loadMessages before the
+ * [messages]: the last one is the run's input, or the files and views the run
+ * handed over before it replied. A listed reply was persisted by loadMessages before the
  * stream's terminal event arrived.
  */
 fun awaitsReply(messages: List<ChatMessage>): Boolean = when (val last = messages.lastOrNull()) {

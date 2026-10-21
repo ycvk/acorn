@@ -23,21 +23,28 @@ type threadForgetter interface {
 type ThreadService struct {
 	store       core.SessionStore
 	files       core.ThreadFiles
+	views       threadViewLister
 	forgetter   threadForgetter
 	barrier     func(context.Context, core.MemoryExclusion, string) error
 	newThreadID func() string
 }
 
+// threadViewLister lists the views runs showed in a thread, oldest first.
+type threadViewLister interface {
+	ThreadViews(ctx context.Context, sessionID string) ([]core.ThreadView, error)
+}
+
 // NewThreadService constructs a ThreadService backed by the given store and
-// the files of its threads. Deleting a thread forgets it through forgetter,
-// then waits at barrier for the executions that saw it to stop.
-func NewThreadService(store core.SessionStore, files core.ThreadFiles, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
-	if store == nil || files == nil || forgetter == nil || barrier == nil {
-		return nil, errors.New("thread service: store, files, forgetter and barrier are required")
+// the files and views of its threads. Deleting a thread forgets it through
+// forgetter, then waits at barrier for the executions that saw it to stop.
+func NewThreadService(store core.SessionStore, files core.ThreadFiles, views threadViewLister, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
+	if store == nil || files == nil || views == nil || forgetter == nil || barrier == nil {
+		return nil, errors.New("thread service: store, files, views, forgetter and barrier are required")
 	}
 	return &ThreadService{
 		store:       store,
 		files:       files,
+		views:       views,
 		forgetter:   forgetter,
 		barrier:     barrier,
 		newThreadID: newThreadID,
@@ -268,6 +275,14 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 			attached[file.MessageID] = append(attached[file.MessageID], threadFileInfo(file))
 		}
 	}
+	views, err := s.views.ThreadViews(ctx, threadID)
+	if err != nil {
+		return nil, err
+	}
+	shown := map[string][]core.ViewData{}
+	for _, view := range views {
+		shown[view.RunID] = append(shown[view.RunID], core.ViewDataOf(view))
+	}
 	messages := make([]Message, 0, len(records))
 	for _, record := range records {
 		message, err := projectMessage(record)
@@ -280,12 +295,13 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 				return nil, err
 			}
 			message.Files = sent[record.RunID]
+			message.Views = shown[record.RunID]
 		case "user":
 			message.Files = attached[record.ID]
 		}
 		messages = append(messages, message)
-		if isRunInput(record) && !replied[record.RunID] && len(sent[record.RunID]) > 0 {
-			messages = append(messages, unrepliedRunMessage(record, sent[record.RunID]))
+		if isRunInput(record) && !replied[record.RunID] && (len(sent[record.RunID]) > 0 || len(shown[record.RunID]) > 0) {
+			messages = append(messages, unrepliedRunMessage(record, sent[record.RunID], shown[record.RunID]))
 		}
 	}
 	return messages, nil
@@ -300,18 +316,26 @@ func isRunInput(record core.SessionMessageRecord) bool {
 }
 
 // unrepliedRunMessage is the assistant message of a run that sent the owner
-// files but stored no reply, because it failed, was stopped or is still
-// going. It has no text, takes the run id as its id and follows the run's
-// input.
-func unrepliedRunMessage(input core.SessionMessageRecord, files []ThreadFileInfo) Message {
+// files or showed views but stored no reply, because it failed, was stopped
+// or is still going. It has no text, takes the run id as its id, follows the
+// run's input and is dated by the last thing the run handed over.
+func unrepliedRunMessage(input core.SessionMessageRecord, files []ThreadFileInfo, views []core.ViewData) Message {
+	var last time.Time
+	if len(files) > 0 {
+		last = files[len(files)-1].CreatedAt
+	}
+	if len(views) > 0 && views[len(views)-1].CreatedAt.After(last) {
+		last = views[len(views)-1].CreatedAt
+	}
 	return Message{
 		ID:        input.RunID,
 		ThreadID:  input.SessionID,
 		Role:      "assistant",
 		Content:   MessageContent{Type: "text"},
-		CreatedAt: files[len(files)-1].CreatedAt,
+		CreatedAt: last,
 		RunID:     input.RunID,
 		Files:     files,
+		Views:     views,
 	}
 }
 
@@ -487,6 +511,8 @@ type Message struct {
 	// Files are what an owner message sent, or what the run behind an
 	// assistant message sent the owner.
 	Files []ThreadFileInfo
+	// Views are what the run behind an assistant message showed the owner.
+	Views []core.ViewData
 }
 
 // ThreadFileInfo describes a file in a thread.

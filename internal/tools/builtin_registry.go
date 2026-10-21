@@ -72,6 +72,7 @@ type NativeToolDeps struct {
 	Knowledge       KnowledgeToolDeps
 	Skills          SkillToolDeps
 	Watch           WatchToolDeps
+	Views           ViewToolDeps
 }
 
 type nativeToolDep struct {
@@ -209,6 +210,15 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "watch_list":
 		needs = watchDeps
 		build = func() (einotool.BaseTool, error) { return buildWatchListTool(deps.Watch) }
+	case "show_view":
+		needs = []nativeToolDep{
+			{"Views.Store", deps.Views.Store != nil},
+			{"Views.Files", deps.Views.Files != nil},
+			{"Views.Attachments", deps.Views.Attachments != nil},
+			{"Views.Links", deps.Views.Links != nil},
+			{"Views.Context", deps.Views.Context != nil},
+		}
+		build = func() (einotool.BaseTool, error) { return buildShowViewTool(deps.Views) }
 	default:
 		return nil, fmt.Errorf("no factory for native tool %q", name)
 	}

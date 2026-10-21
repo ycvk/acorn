@@ -3,6 +3,12 @@
 
 package api
 
+import (
+	jsontext "encoding/json/jsontext"
+
+	core "github.com/ycvk/acorn/internal/core"
+)
+
 type ConverterImpl struct{}
 
 func (c *ConverterImpl) apiArtifactSummaryToApiArtifactSummaryDTO(source ArtifactSummary) ArtifactSummaryDTO {
@@ -135,6 +141,26 @@ func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []SystemToolCapa
 	}
 	return apiCapabilitiesToolDTOList
 }
+func (c *ConverterImpl) coreViewDataToCoreViewData(source core.ViewData) core.ViewData {
+	var coreViewData core.ViewData
+	coreViewData.ID = source.ID
+	coreViewData.Title = source.Title
+	coreViewData.Catalog = source.Catalog
+	coreViewData.Components = c.jsontextValueToJsontextValue(source.Components)
+	coreViewData.Data = c.jsontextValueToJsontextValue(source.Data)
+	coreViewData.CreatedAt = TimeToTime(source.CreatedAt)
+	return coreViewData
+}
+func (c *ConverterImpl) jsontextValueToJsontextValue(source jsontext.Value) jsontext.Value {
+	var jsontextValue jsontext.Value
+	if source != nil {
+		jsontextValue = make(jsontext.Value, len(source))
+		for i := 0; i < len(source); i++ {
+			jsontextValue[i] = source[i]
+		}
+	}
+	return jsontextValue
+}
 func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 	var apiMessageDTO MessageDTO
 	apiMessageDTO.ID = source.ID
@@ -153,6 +179,12 @@ func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 		apiMessageDTO.Files = make([]ThreadFileDTO, len(source.Files))
 		for j := 0; j < len(source.Files); j++ {
 			apiMessageDTO.Files[j] = c.threadFileDTOFromDomain(source.Files[j])
+		}
+	}
+	if source.Views != nil {
+		apiMessageDTO.Views = make([]core.ViewData, len(source.Views))
+		for k := 0; k < len(source.Views); k++ {
+			apiMessageDTO.Views[k] = c.coreViewDataToCoreViewData(source.Views[k])
 		}
 	}
 	return apiMessageDTO

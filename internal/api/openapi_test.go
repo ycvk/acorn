@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -435,6 +436,26 @@ func TestProjectToolApprovalEvents(t *testing.T) {
 	}
 	if got := decided.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.Decision != "decline" {
 		t.Fatalf("decided data = %+v", got)
+	}
+}
+
+func TestProjectViewShownEvent(t *testing.T) {
+	shown, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 5, Kind: "view.shown", Payload: map[string]any{
+		"view": map[string]any{
+			"id": "view_1", "title": "eino", "catalog": "acorn.views.v1", "created_at": "2026-10-21T06:00:00Z",
+			"components": []any{map[string]any{"id": "root", "component": "Text", "text": "五个版本"}},
+			"data":       map[string]any{},
+		},
+	}})
+	if err != nil {
+		t.Fatalf("project view.shown: %v", err)
+	}
+	got := shown.Data.(core.ViewShownData).View
+	if got.ID != "view_1" || got.Catalog != "acorn.views.v1" || string(got.Components) != `[{"component":"Text","id":"root","text":"五个版本"}]` || string(got.Data) != `{}` || got.CreatedAt.IsZero() {
+		t.Fatalf("view = %+v (components %s)", got, got.Components)
+	}
+	if _, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 6, Kind: "view.shown", Payload: map[string]any{}}); !errors.Is(err, ErrClientProjectionFailed) {
+		t.Fatalf("view.shown without a view err = %v", err)
 	}
 }
 

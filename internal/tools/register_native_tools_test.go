@@ -23,7 +23,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "notify_owner", "recall", "schedule_wake", "settle", "skill_import", "skill_inspect", "skill_retire", "skill_write", "think", "watch_create", "watch_list", "watch_update"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "notify_owner", "recall", "schedule_wake", "settle", "show_view", "skill_import", "skill_inspect", "skill_retire", "skill_write", "think", "watch_create", "watch_list", "watch_update"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()
@@ -43,6 +43,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Location: time.UTC},
 		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Location: time.UTC},
 		Watch:           WatchToolDeps{Store: &toolWatchStore{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Location: time.UTC},
+		Views:           ViewToolDeps{Store: &viewStoreFake{}, Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}, Context: bridge},
 	}
 }
 

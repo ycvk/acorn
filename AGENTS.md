@@ -66,6 +66,10 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 - owner 在 App 里发给 agent 的文件与 agent 经 `send_file` 从工作机发给 owner 的文件存为 `{storage_dir}/files/<file_id>`,在 SQLite 里按对话登记,内容不变。owner 先上传,run 随 owner 的消息发送它们;消息可以只有文件。模型直接看到支持的图片,所有文件在 run 前复制到工作机的 `~/uploads/<file_id>/<文件名>`,不再属于任何对话的副本同时删除。大小上限是 `files.max_upload_mib` 与 `files.max_send_mib`。
 
+### 视图
+
+- agent 经 `show_view`(toolsearch 按需加载,配 `views` 技能)在回复下给 owner 一块界面:A2UI v0.9 形状的平铺组件加数据,组件只来自 `internal/views` 的目录。后端校验结构、数据路径、链接与图片后存进 SQLite,写 `view.shown` 事件,线程消息按 run 列出;没通过的视图不保存,问题作为 tool result 回给模型。App 用自己的组件渲染,不执行代码,不认识的组件显示占位。删除对话一并删除视图。
+
 ### 推送与手机通知
 
 - `notify_owner` 经 FCM 按设备登记的 Firebase installation ID(FID)推送,受每小时上限与免打扰约束;设备吊销时删除其 FID。

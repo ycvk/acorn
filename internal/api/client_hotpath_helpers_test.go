@@ -48,9 +48,14 @@ func (noThreadFiles) AttachThreadFiles(context.Context, string, int64, []string)
 
 func (noThreadFiles) OwnerThreadFileIDs(context.Context) ([]string, error) { return nil, nil }
 
+// noThreadViews is a thread view store holding no views.
+type noThreadViews struct{}
+
+func (noThreadViews) ThreadViews(context.Context, string) ([]core.ThreadView, error) { return nil, nil }
+
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
-	threads, err := NewThreadService(store, noThreadFiles{}, noThreadMemory{}, noForgetBarrier)
+	threads, err := NewThreadService(store, noThreadFiles{}, noThreadViews{}, noThreadMemory{}, noForgetBarrier)
 	if err != nil {
 		panic(err)
 	}
