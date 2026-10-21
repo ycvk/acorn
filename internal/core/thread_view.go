@@ -25,8 +25,16 @@ type ThreadView struct {
 	// Components is the JSON array of components, one of them with id root.
 	Components json.RawMessage
 	// Data is the JSON object the components' paths point into.
-	Data      json.RawMessage
+	Data json.RawMessage
+	// Source names the package trigger, as skill/trigger, whose view_data
+	// lines replace the data while the view is pinned; empty for none.
+	Source    string
 	CreatedAt time.Time
+	// UpdatedAt is when the content last changed.
+	UpdatedAt time.Time
+	// PinnedAt is when the owner pinned the view to the now page; zero when
+	// it is not pinned.
+	PinnedAt time.Time
 	// Actions are the buttons and choices the owner already sent, oldest first.
 	Actions []ViewAction
 }
@@ -39,6 +47,14 @@ type ThreadViewWrite struct {
 	Catalog    string
 	Components json.RawMessage
 	Data       json.RawMessage
+	Source     string
+}
+
+// Panel is a view the owner pinned to the now page, with the title of the
+// conversation it belongs to.
+type Panel struct {
+	View        ThreadView
+	ThreadTitle string
 }
 
 // ThreadViewUpdate is checked content replacing a view's.
@@ -100,7 +116,9 @@ type ViewData struct {
 	Catalog    string           `json:"catalog"`
 	Components json.RawMessage  `json:"components"`
 	Data       json.RawMessage  `json:"data"`
+	Source     string           `json:"source,omitempty"`
 	CreatedAt  time.Time        `json:"created_at"`
+	PinnedAt   *time.Time       `json:"pinned_at,omitempty"`
 	Actions    []ViewActionData `json:"actions,omitempty"`
 }
 
@@ -114,7 +132,11 @@ type ViewActionData struct {
 
 // ViewDataOf is the client form of view.
 func ViewDataOf(view ThreadView) ViewData {
-	data := ViewData{ID: view.ID, Title: view.Title, Catalog: view.Catalog, Components: view.Components, Data: view.Data, CreatedAt: view.CreatedAt}
+	data := ViewData{ID: view.ID, Title: view.Title, Catalog: view.Catalog, Components: view.Components, Data: view.Data, Source: view.Source, CreatedAt: view.CreatedAt}
+	if !view.PinnedAt.IsZero() {
+		pinned := view.PinnedAt
+		data.PinnedAt = &pinned
+	}
 	for _, action := range view.Actions {
 		sent := ViewActionData{ComponentID: action.ComponentID, Scope: append([]int{}, action.Scope...), CreatedAt: action.CreatedAt}
 		for _, option := range action.Selected {

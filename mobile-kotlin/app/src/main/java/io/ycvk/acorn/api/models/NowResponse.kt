@@ -26,6 +26,7 @@ package io.ycvk.acorn.api.models
 import io.ycvk.acorn.api.models.NowBriefing
 import io.ycvk.acorn.api.models.NowCommitment
 import io.ycvk.acorn.api.models.NowConcern
+import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowWatch
 
 import com.squareup.moshi.Json
@@ -34,6 +35,7 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
+ * @param panels Views the owner pinned, in the order they were pinned.
  * @param commitments 
  * @param concerns 
  * @param watches 
@@ -42,6 +44,10 @@ import com.squareup.moshi.JsonClass
 
 
 data class NowResponse (
+
+    /* Views the owner pinned, in the order they were pinned. */
+    @Json(name = "panels")
+    val panels: kotlin.collections.List<NowPanel>,
 
     @Json(name = "commitments")
     val commitments: kotlin.collections.List<NowCommitment>,

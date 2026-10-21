@@ -29,7 +29,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * A view the agent showed the owner under its reply. `components` is flat: each has an `id` and a `component` type from the catalog named by `catalog`, containers list their children's ids, and the one with id `root` is drawn first. A value is either written out or `{\"path\": ...}`, a JSON Pointer into `data`; inside a List's template, a path without a leading slash is relative to the item. The backend checked every component, path, link and image before storing the view, so the app draws it as it is and shows a component type it does not know as a placeholder. A Button or ChoicePicker is sent through `POST /v1/threads/{thread_id}/views/{view_id}/actions`; `actions` lists the ones already sent, which the app shows as chosen. A later run may replace the view's content (`view.updated`). 
+ * A view the agent showed the owner under its reply. `components` is flat: each has an `id` and a `component` type from the catalog named by `catalog`, containers list their children's ids, and the one with id `root` is drawn first. A value is either written out or `{\"path\": ...}`, a JSON Pointer into `data`; inside a List's template, a path without a leading slash is relative to the item. The backend checked every component, path, link and image before storing the view, so the app draws it as it is and shows a component type it does not know as a placeholder. A Button or ChoicePicker is sent through `POST /v1/threads/{thread_id}/views/{view_id}/actions`; `actions` lists the ones already sent, which the app shows as chosen. A later run may replace the view's content (`view.updated`). `pinned_at` is set while the owner keeps the view pinned to the now page. 
  *
  * @param id 
  * @param title 
@@ -37,6 +37,8 @@ import com.squareup.moshi.JsonClass
  * @param components 
  * @param `data` 
  * @param createdAt 
+ * @param source The package trigger, as skill/trigger, whose `view_data` lines replace `data` while the view is pinned.
+ * @param pinnedAt When the owner pinned the view to the now page; absent when it is not pinned.
  * @param actions Buttons and choices of the view the owner already sent, oldest first.
  */
 
@@ -61,6 +63,14 @@ data class View (
 
     @Json(name = "created_at")
     val createdAt: java.time.OffsetDateTime,
+
+    /* The package trigger, as skill/trigger, whose `view_data` lines replace `data` while the view is pinned. */
+    @Json(name = "source")
+    val source: kotlin.String? = null,
+
+    /* When the owner pinned the view to the now page; absent when it is not pinned. */
+    @Json(name = "pinned_at")
+    val pinnedAt: java.time.OffsetDateTime? = null,
 
     /* Buttons and choices of the view the owner already sent, oldest first. */
     @Json(name = "actions")

@@ -410,6 +410,60 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/threads/{thread_id}/views/{view_id}:pin:
+    post:
+      tags: [client]
+      summary: Pin a view to the now page as a panel
+      description: |
+        Lists the view under `panels` on the now page; a tap on the panel
+        returns to its conversation. Pinning a pinned view keeps its place.
+        While pinned, a view whose `source` names a package trigger takes the
+        data of each `view_data` line the trigger prints.
+      operationId: clientPinView
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+        - $ref: '#/components/parameters/ViewID'
+      responses:
+        '200':
+          description: The view, pinned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/View'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/ViewNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/threads/{thread_id}/views/{view_id}:unpin:
+    post:
+      tags: [client]
+      summary: Take a view off the now page
+      description: The view stays in its conversation; a trigger no longer feeds it.
+      operationId: clientUnpinView
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+        - $ref: '#/components/parameters/ViewID'
+      responses:
+        '200':
+          description: The view, not pinned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/View'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/ViewNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/runs/{run_id}:
     get:
       tags: [client]
@@ -3686,10 +3740,15 @@ components:
     NowResponse:
       type: object
       additionalProperties: false
-      required: [commitments, concerns, watches]
+      required: [panels, commitments, concerns, watches]
       properties:
         briefing:
           $ref: '#/components/schemas/NowBriefing'
+        panels:
+          type: array
+          description: Views the owner pinned, in the order they were pinned.
+          items:
+            $ref: '#/components/schemas/NowPanel'
         commitments:
           type: array
           items:
@@ -3702,6 +3761,23 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NowWatch'
+
+    NowPanel:
+      type: object
+      additionalProperties: false
+      description: A view pinned to the now page, with the conversation it belongs to.
+      required: [thread_id, thread_title, view, updated_at]
+      properties:
+        thread_id:
+          type: string
+        thread_title:
+          type: string
+        view:
+          $ref: '#/components/schemas/View'
+        updated_at:
+          type: string
+          format: date-time
+          description: When the view's content last changed, by the agent or its trigger.
 
     NowBriefing:
       type: object
@@ -4147,7 +4223,8 @@ components:
         not know as a placeholder. A Button or ChoicePicker is sent through
         `POST /v1/threads/{thread_id}/views/{view_id}/actions`; `actions`
         lists the ones already sent, which the app shows as chosen. A later
-        run may replace the view's content (`view.updated`).
+        run may replace the view's content (`view.updated`). `pinned_at` is
+        set while the owner keeps the view pinned to the now page.
       properties:
         id:
           type: string
@@ -4164,9 +4241,16 @@ components:
         data:
           type: object
           additionalProperties: true
+        source:
+          type: string
+          description: The package trigger, as skill/trigger, whose `view_data` lines replace `data` while the view is pinned.
         created_at:
           type: string
           format: date-time
+        pinned_at:
+          type: string
+          format: date-time
+          description: When the owner pinned the view to the now page; absent when it is not pinned.
         actions:
           type: array
           description: Buttons and choices of the view the owner already sent, oldest first.

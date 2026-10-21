@@ -50,6 +50,7 @@ import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.ThreadListResponse
 import io.ycvk.acorn.api.models.ToolListResponse
 import io.ycvk.acorn.api.models.UpdateThreadRequest
+import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.api.models.ViewActionResponse
 
 import com.squareup.moshi.Json
@@ -1688,6 +1689,82 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
+     * POST /v1/threads/{thread_id}/views/{view_id}:pin
+     * Pin a view to the now page as a panel
+     * Lists the view under &#x60;panels&#x60; on the now page; a tap on the panel returns to its conversation. Pinning a pinned view keeps its place. While pinned, a view whose &#x60;source&#x60; names a package trigger takes the data of each &#x60;view_data&#x60; line the trigger prints. 
+     * @param threadId 
+     * @param viewId 
+     * @return View
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientPinView(threadId: kotlin.String, viewId: kotlin.String) : View {
+        val localVarResponse = clientPinViewWithHttpInfo(threadId = threadId, viewId = viewId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as View
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/threads/{thread_id}/views/{view_id}:pin
+     * Pin a view to the now page as a panel
+     * Lists the view under &#x60;panels&#x60; on the now page; a tap on the panel returns to its conversation. Pinning a pinned view keeps its place. While pinned, a view whose &#x60;source&#x60; names a package trigger takes the data of each &#x60;view_data&#x60; line the trigger prints. 
+     * @param threadId 
+     * @param viewId 
+     * @return ApiResponse<View?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientPinViewWithHttpInfo(threadId: kotlin.String, viewId: kotlin.String) : ApiResponse<View?> {
+        val localVariableConfig = clientPinViewRequestConfig(threadId = threadId, viewId = viewId)
+
+        return request<Unit, View>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientPinView
+     *
+     * @param threadId 
+     * @param viewId 
+     * @return RequestConfig
+     */
+    fun clientPinViewRequestConfig(threadId: kotlin.String, viewId: kotlin.String) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/threads/{thread_id}/views/{view_id}:pin".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())).replace("{"+"view_id"+"}", encodeURIComponent(viewId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
      * POST /v1/watches/{watch_id}:resume
      * Resume a watch
      * Checks the watch right away and clears its failures.
@@ -1831,6 +1908,82 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.POST,
             path = "/v1/threads/{thread_id}/views/{view_id}/actions".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())).replace("{"+"view_id"+"}", encodeURIComponent(viewId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/threads/{thread_id}/views/{view_id}:unpin
+     * Take a view off the now page
+     * The view stays in its conversation; a trigger no longer feeds it.
+     * @param threadId 
+     * @param viewId 
+     * @return View
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientUnpinView(threadId: kotlin.String, viewId: kotlin.String) : View {
+        val localVarResponse = clientUnpinViewWithHttpInfo(threadId = threadId, viewId = viewId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as View
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/threads/{thread_id}/views/{view_id}:unpin
+     * Take a view off the now page
+     * The view stays in its conversation; a trigger no longer feeds it.
+     * @param threadId 
+     * @param viewId 
+     * @return ApiResponse<View?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientUnpinViewWithHttpInfo(threadId: kotlin.String, viewId: kotlin.String) : ApiResponse<View?> {
+        val localVariableConfig = clientUnpinViewRequestConfig(threadId = threadId, viewId = viewId)
+
+        return request<Unit, View>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientUnpinView
+     *
+     * @param threadId 
+     * @param viewId 
+     * @return RequestConfig
+     */
+    fun clientUnpinViewRequestConfig(threadId: kotlin.String, viewId: kotlin.String) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/threads/{thread_id}/views/{view_id}:unpin".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())).replace("{"+"view_id"+"}", encodeURIComponent(viewId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

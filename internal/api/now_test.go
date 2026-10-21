@@ -27,6 +27,11 @@ type nowStoreFake struct {
 	settleErr   error
 	briefing    core.RoutineOutput
 	routine     string
+	panels      []core.Panel
+}
+
+func (f *nowStoreFake) Panels(context.Context) ([]core.Panel, error) {
+	return f.panels, nil
 }
 
 func (f *nowStoreFake) ListCommitments(context.Context, bool) ([]core.Commitment, error) {
@@ -106,6 +111,9 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 			{ID: 2, Name: "price", Kind: core.WatchWeb, Mode: core.WatchModeImmediate, Status: core.WatchFailing, Interval: 30 * time.Minute, NextCheckAt: nowTestTime, LastCheckedAt: nowTestTime, LastError: "selector matched nothing", Failures: 3},
 		},
 		briefing: core.RoutineOutput{Slot: "2026-10-11", ThreadID: "thread_briefings", RunID: "run_briefing", Text: "## 今天\n交房租", FinishedAt: nowTestTime},
+		panels: []core.Panel{{ThreadTitle: "仓库版本", View: core.ThreadView{ID: "view_1", SessionID: "thread_repos", Title: "eino 最新版本", Catalog: "acorn.views.v1",
+			Components: []byte(`[{"id":"root","component":"Text","text":{"path":"/latest"}}]`), Data: []byte(`{"latest":"v0.9.22"}`), Source: "repo-releases/check",
+			CreatedAt: nowTestTime.Add(-2 * time.Hour), UpdatedAt: nowTestTime.Add(-time.Minute), PinnedAt: nowTestTime.Add(-time.Hour)}}},
 	}
 	router := newNowRouter(t, store)
 
@@ -118,6 +126,10 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 	want := NowBriefingDTO{ThreadID: "thread_briefings", RunID: "run_briefing", Date: "2026-10-11", Body: "## 今天\n交房租", FinishedAt: nowTestTime}
 	if store.routine != "briefing" || got.Briefing == nil || *got.Briefing != want {
 		t.Fatalf("briefing = %+v from routine %q", got.Briefing, store.routine)
+	}
+	if len(got.Panels) != 1 || got.Panels[0].ThreadID != "thread_repos" || got.Panels[0].ThreadTitle != "仓库版本" || !got.Panels[0].UpdatedAt.Equal(nowTestTime.Add(-time.Minute)) ||
+		got.Panels[0].View.Source != "repo-releases/check" || got.Panels[0].View.PinnedAt == nil || string(got.Panels[0].View.Data) != `{"latest":"v0.9.22"}` {
+		t.Fatalf("panels = %+v", got.Panels)
 	}
 	if len(got.Commitments) != 2 || len(got.Commitments[0].Occurrences) != 1 || got.Commitments[0].Occurrences[0].RunID != "run_x" {
 		t.Fatalf("commitments = %+v", got.Commitments)
@@ -146,7 +158,7 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 func TestNowWithoutBriefingOmitsIt(t *testing.T) {
 	router := newNowRouter(t, &nowStoreFake{})
 	rec := performClientRequest(router, http.MethodGet, "/v1/now", "")
-	if rec.Code != http.StatusOK || rec.Body.String() != `{"commitments":[],"concerns":[],"watches":[]}` {
+	if rec.Code != http.StatusOK || rec.Body.String() != `{"panels":[],"commitments":[],"concerns":[],"watches":[]}` {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }

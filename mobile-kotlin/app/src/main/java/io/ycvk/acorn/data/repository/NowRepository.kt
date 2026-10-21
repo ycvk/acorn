@@ -18,6 +18,8 @@ class NowRepository @Inject constructor() {
 
     fun resumeWatch(profile: ConnectionProfile, id: Long) = api(profile).clientResumeWatch(id)
 
+    fun unpinView(profile: ConnectionProfile, threadId: String, viewId: String) = api(profile).clientUnpinView(threadId, viewId)
+
     private fun api(profile: ConnectionProfile): ClientApi {
         ApiClient.accessToken = profile.accessToken
         return ClientApi(basePath = profile.serverUrl)

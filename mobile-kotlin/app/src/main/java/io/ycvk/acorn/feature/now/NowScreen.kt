@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -50,9 +51,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.NowBriefing
 import io.ycvk.acorn.api.models.NowCommitment
 import io.ycvk.acorn.api.models.NowConcern
+import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.api.models.NowWatch
 import io.ycvk.acorn.api.models.PendingActionSummary
+import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
@@ -84,6 +87,8 @@ import io.ycvk.acorn.core.ui.weekdayName
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
+import io.ycvk.acorn.feature.views.ViewActions
+import io.ycvk.acorn.feature.views.ViewCard
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
@@ -173,7 +178,9 @@ fun NowScreen(
                         pending = pending,
                         today = today,
                         zone = zone,
+                        profile = viewModel.connection(),
                         onThreadClick = onThreadClick,
+                        onUnpin = viewModel::unpinView,
                         onCancel = { cancelling = it },
                         onPause = viewModel::pauseWatch,
                         onResume = viewModel::resumeWatch,
@@ -248,13 +255,15 @@ private fun LazyListScope.nowSections(
     pending: List<PendingActionSummary>,
     today: LocalDate,
     zone: ZoneId,
+    profile: ConnectionProfile?,
     onThreadClick: (String) -> Unit,
+    onUnpin: (NowPanel) -> Unit,
     onCancel: (NowCommitment) -> Unit,
     onPause: (Long) -> Unit,
     onResume: (Long) -> Unit,
 ) {
     val briefing = now.briefing
-    val nothing = briefing == null && pending.isEmpty() && now.commitments.isEmpty() &&
+    val nothing = briefing == null && pending.isEmpty() && now.panels.isEmpty() && now.commitments.isEmpty() &&
         now.concerns.isEmpty() && now.watches.isEmpty()
     if (nothing) {
         item(key = "empty") {
@@ -270,6 +279,13 @@ private fun LazyListScope.nowSections(
     if (briefing != null) {
         item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
         item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onThreadClick(briefing.threadId) }) }
+    }
+
+    if (now.panels.isNotEmpty()) {
+        item(key = "panels:label") { SectionLabel("面板", count = now.panels.size) }
+        items(now.panels, key = { "panel:${it.view.id}" }) { panel ->
+            PanelCard(panel, profile, onOpen = { onThreadClick(panel.threadId) }, onUnpin = { onUnpin(panel) })
+        }
     }
 
     if (now.commitments.isNotEmpty()) {
@@ -339,6 +355,35 @@ private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>,
             Icon(AcornIcons.ChevronRight, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
         }
     }
+}
+
+/**
+ * A view the owner pinned, drawn as in its conversation under the name of
+ * that conversation and when it last changed. A tap anywhere on it, its
+ * buttons and choices included, opens the conversation; the pin takes it off.
+ */
+@Composable
+private fun LazyItemScope.PanelCard(panel: NowPanel, profile: ConnectionProfile?, onOpen: () -> Unit, onUnpin: () -> Unit) {
+    val actions = ViewActions(
+        idle = true,
+        sending = null,
+        picks = emptyMap(),
+        onPick = { _, _ -> onOpen() },
+        onSend = { onOpen() },
+        pinning = null,
+        onPin = { onUnpin() },
+    )
+    ViewCard(
+        view = panel.view,
+        threadId = panel.threadId,
+        profile = profile,
+        actions = actions,
+        meta = panelMeta(panel, OffsetDateTime.now()),
+        onOpen = onOpen,
+        modifier = Modifier
+            .animateItem()
+            .padding(horizontal = ScreenPadding, vertical = 6.dp),
+    )
 }
 
 @Composable

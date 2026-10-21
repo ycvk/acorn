@@ -1,6 +1,6 @@
 ---
 name: views
-description: Show results the owner reads better as a table, list, chart or cards than as prose, and offer next steps as buttons or choices; the app draws the view under your reply. Use for comparisons, version changes, reading lists, timelines, numbers over time and "what next" choices (表格, 对比, 列表, 图表, 按钮, 选项).
+description: Show results the owner reads better as a table, list, chart or cards than as prose, and offer next steps as buttons or choices; the app draws the view under your reply, and the owner can pin it to the now page as a panel a package trigger keeps current. Use for comparisons, version changes, reading lists, timelines, numbers over time, "what next" choices and live panels (表格, 对比, 列表, 图表, 按钮, 选项, 面板, 固定到今天).
 metadata:
   acorn-requires-tools: show_view
 ---
@@ -98,6 +98,34 @@ with `List items: […]` for a button inside a List and `Chosen: id (label), …
 ## Updating a view
 
 `update_view` takes the `view_id` that `show_view` returned and replaces the view's title, components or data, each given whole; what you leave out stays. The changed view is checked like a new one and the app redraws it where it is. Use it when the view's content changes, for example a status Badge after the work it offered is done. Actions the owner already sent stay sent.
+
+## Panels
+
+The owner can pin any view to the now page, where it stays as a panel; a tap on it opens this conversation. `update_view` changes a panel like any view.
+
+For a panel that follows something on its own, such as the latest release of a repository the owner tracks, give `show_view` a `source`: a trigger of a skill package in use, as `skill/trigger`. While the owner keeps the view pinned, each line `{"view_data": {...}}` that trigger's command prints replaces the view's whole data, checked like a new view, without calling you. Data the view cannot draw fails the trigger, and the panel keeps its data.
+
+Write the trigger first (the skill-creator skill describes packages and their triggers): each run it prints the view's whole data, with the paths the components use, and events only for what should wake you. Then show the view with its `source`, and tell the owner they can pin it.
+
+```json
+{
+  "title": "eino 最新版本",
+  "source": "repo-releases/check",
+  "components": [
+    {"id": "root", "component": "Column", "children": ["version", "date", "notes"]},
+    {"id": "version", "component": "Text", "variant": "title", "text": {"path": "/latest"}},
+    {"id": "date", "component": "Text", "variant": "caption", "text": {"path": "/published"}},
+    {"id": "notes", "component": "Link", "label": "发布说明", "url": {"path": "/url"}}
+  ],
+  "data": {"latest": "v0.9.21", "published": "10-15", "url": "https://github.com/cloudwego/eino/releases/tag/v0.9.21"}
+}
+```
+
+The trigger `check` of the package `repo-releases` then prints a line such as:
+
+```
+{"view_data": {"latest": "v0.9.22", "published": "10-21", "url": "https://github.com/cloudwego/eino/releases/tag/v0.9.22"}}
+```
 
 ## When it fails
 

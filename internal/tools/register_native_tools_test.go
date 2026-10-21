@@ -11,6 +11,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 	corestore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/views"
 )
 
 type stubOperatorStore struct{}
@@ -43,7 +44,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Location: time.UTC},
 		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Location: time.UTC},
 		Watch:           WatchToolDeps{Store: &toolWatchStore{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Location: time.UTC},
-		Views:           ViewToolDeps{Store: &viewStoreFake{}, Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}, Context: bridge},
+		Views:           ViewToolDeps{Store: &viewStoreFake{}, Sources: views.Sources{Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: bridge},
 	}
 }
 

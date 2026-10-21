@@ -318,7 +318,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		container.wake = container.wake.WithNotifications(deps.notifier)
 	}
 	if err == nil && deps.triggers != nil {
-		container.wake = container.wake.WithTriggers(deps.triggers)
+		container.wake = container.wake.WithTriggers(deps.triggers, deps.panels)
 	}
 	if err != nil {
 		return nil, err

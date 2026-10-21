@@ -61,6 +61,14 @@ func (noThreadViews) SendViewAction(context.Context, core.ViewActionWrite) (core
 	return core.SessionMessageRecord{}, core.ViewAction{}, errors.New("no thread views in this test")
 }
 
+func (noThreadViews) PinThreadView(_ context.Context, _, viewID string) (core.ThreadView, error) {
+	return core.ThreadView{}, fmt.Errorf("%w: %s", core.ErrThreadViewNotFound, viewID)
+}
+
+func (noThreadViews) UnpinThreadView(_ context.Context, _, viewID string) (core.ThreadView, error) {
+	return core.ThreadView{}, fmt.Errorf("%w: %s", core.ErrThreadViewNotFound, viewID)
+}
+
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
 	threads, err := NewThreadService(store, noThreadFiles{}, noThreadViews{}, noThreadMemory{}, noForgetBarrier)

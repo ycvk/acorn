@@ -1,5 +1,7 @@
 package io.ycvk.acorn.feature.now
 
+import io.ycvk.acorn.api.models.NowPanel
+import io.ycvk.acorn.api.models.View
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -16,6 +18,22 @@ class NowLabelsTest {
         assertEquals(WakeTime("明天", "07:30"), wakeTime(OffsetDateTime.parse("2026-10-11T23:30:00Z"), today, shanghai))
         assertEquals(WakeTime("10月14日", "09:00"), wakeTime(OffsetDateTime.parse("2026-10-14T01:00:00Z"), today, shanghai))
         assertEquals(WakeTime("10月10日", "23:00"), wakeTime(OffsetDateTime.parse("2026-10-10T15:00:00Z"), today, shanghai))
+    }
+
+    @Test
+    fun `a panel names its conversation and when its content last changed`() {
+        val view = View(
+            id = "view_1",
+            title = "eino 最新版本",
+            catalog = "acorn.views.v1",
+            components = emptyList(),
+            `data` = emptyMap(),
+            createdAt = OffsetDateTime.parse("2026-10-21T01:00:00Z"),
+        )
+        val now = OffsetDateTime.parse("2026-10-21T09:00:00Z")
+        val panel = NowPanel(threadId = "thread_repos", threadTitle = "仓库版本", view = view, updatedAt = now.minusMinutes(3))
+        assertEquals("仓库版本 · 3 分钟前更新", panelMeta(panel, now))
+        assertEquals("仓库版本 · 刚刚更新", panelMeta(panel.copy(updatedAt = now), now))
     }
 
     @Test

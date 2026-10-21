@@ -323,9 +323,9 @@ func TestTriggersFireFromTheirPackageWithItsSecrets(t *testing.T) {
 	if err := library.SetSecret(ctx, "price-watch", "PRICE_TOKEN", "s3cret"); err != nil {
 		t.Fatal(err)
 	}
-	events, err := runner.Fire(ctx, triggers[0])
-	if err != nil || !slices.Equal(events, []Event{{Key: "price-120", Text: "BTC crossed 120k"}}) {
-		t.Fatalf("events = %+v, %v", events, err)
+	out, err := runner.Fire(ctx, triggers[0])
+	if err != nil || !slices.Equal(out.Events, []Event{{Key: "price-120", Text: "BTC crossed 120k"}}) || len(out.ViewData) != 0 {
+		t.Fatalf("output = %+v, %v", out, err)
 	}
 	run := host.runs[0]
 	if run.Skill != "price-watch" || run.Trigger != "price" || run.Hash != triggers[0].Hash || run.Env["PRICE_TOKEN"] != "s3cret" || run.TimeoutSeconds != 300 || run.MaxOutputBytes != 32768 {
@@ -340,9 +340,9 @@ func TestTriggersFireFromTheirPackageWithItsSecrets(t *testing.T) {
 	}
 	for name, result := range map[string]TriggerResult{
 		"status 2: Traceback\nValueError: bad price": {ExitCode: 2, Stderr: "Traceback\nValueError: bad price"},
-		"timed out":    {TimedOut: true, ExitCode: -1},
-		"more than":    {StdoutTruncated: true},
-		"not an event": {Stdout: "price is 120\n"},
+		"timed out":        {TimedOut: true, ExitCode: -1},
+		"more than":        {StdoutTruncated: true},
+		"neither an event": {Stdout: "price is 120\n"},
 	} {
 		host.result = result
 		if _, err := runner.Fire(ctx, triggers[0]); err == nil || !strings.Contains(err.Error(), name) {
@@ -351,15 +351,18 @@ func TestTriggersFireFromTheirPackageWithItsSecrets(t *testing.T) {
 	}
 }
 
-func TestParseEventsReadsOneEventPerLine(t *testing.T) {
-	events, err := ParseEvents(" {\"key\": \"a\", \"text\": \"first\\nline\"}\n\n{\"key\":\"b\",\"text\":\"second\"}")
-	if err != nil || !slices.Equal(events, []Event{{Key: "a", Text: "first\nline"}, {Key: "b", Text: "second"}}) {
-		t.Fatalf("events = %+v, %v", events, err)
+func TestParseOutputReadsEventsAndViewDataOnePerLine(t *testing.T) {
+	out, err := ParseOutput(" {\"key\": \"a\", \"text\": \"first\\nline\"}\n\n{\"view_data\": {\"latest\": \"v1.2\"}}\n{\"key\":\"b\",\"text\":\"second\"}\n{\"view_data\":{\"latest\":\"v1.3\"}}")
+	if err != nil || !slices.Equal(out.Events, []Event{{Key: "a", Text: "first\nline"}, {Key: "b", Text: "second"}}) {
+		t.Fatalf("events = %+v, %v", out.Events, err)
 	}
-	if events, err := ParseEvents("\n  \n"); err != nil || len(events) != 0 {
-		t.Fatalf("no output = %+v, %v", events, err)
+	if len(out.ViewData) != 2 || out.ViewData[0]["latest"] != "v1.2" || out.ViewData[1]["latest"] != "v1.3" {
+		t.Fatalf("view data = %+v", out.ViewData)
 	}
-	for _, out := range []string{
+	if out, err := ParseOutput("\n  \n"); err != nil || len(out.Events) != 0 || len(out.ViewData) != 0 {
+		t.Fatalf("no output = %+v, %v", out, err)
+	}
+	for _, line := range []string{
 		`{"key":"a"}`,
 		`{"text":"x"}`,
 		`{"key":"a","text":"x","extra":1}`,
@@ -367,9 +370,13 @@ func TestParseEventsReadsOneEventPerLine(t *testing.T) {
 		`["a","x"]`,
 		`{"key":"a","text":"x"}` + "\n" + `{"key":"a","text":"y"}`,
 		`{"key":"` + strings.Repeat("k", 257) + `","text":"x"}`,
+		`{"view_data":[1,2]}`,
+		`{"view_data":null}`,
+		`{"view_data":{"a":1},"key":"a"}`,
+		`{"view_data":{"a":1}} trailing`,
 	} {
-		if _, err := ParseEvents(out); err == nil {
-			t.Fatalf("parsed %q", out)
+		if _, err := ParseOutput(line); err == nil {
+			t.Fatalf("parsed %q", line)
 		}
 	}
 }

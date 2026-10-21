@@ -213,9 +213,10 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "show_view", "update_view":
 		needs = []nativeToolDep{
 			{"Views.Store", deps.Views.Store != nil},
-			{"Views.Files", deps.Views.Files != nil},
-			{"Views.Attachments", deps.Views.Attachments != nil},
-			{"Views.Links", deps.Views.Links != nil},
+			{"Views.Sources.Files", deps.Views.Sources.Files != nil},
+			{"Views.Sources.Attachments", deps.Views.Sources.Attachments != nil},
+			{"Views.Sources.Links", deps.Views.Sources.Links != nil},
+			{"Views.Triggers", deps.Views.Triggers != nil},
 			{"Views.Context", deps.Views.Context != nil},
 		}
 		build = func() (einotool.BaseTool, error) {

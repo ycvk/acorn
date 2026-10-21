@@ -18,6 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/views"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
@@ -37,6 +38,7 @@ type containerRuntimeDeps struct {
 	watchChecker *watch.Checker
 	// triggers is nil without a workstation.
 	triggers      *skills.TriggerRunner
+	panels        *views.Feeder
 	packageStatus *skills.Status
 }
 
@@ -147,6 +149,11 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
+	viewSources := views.Sources{Files: db, Attachments: vault, Links: webaccess.URLPolicy{AllowPrivateNetworks: cfg.WebAccess.AllowPrivateNetworks}}
+	panels, err := views.NewFeeder(db, viewSources)
+	if err != nil {
+		return nil, err
+	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
 		ArtifactService: artifactSvc,
@@ -176,11 +183,10 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Location: ownerLoc,
 		},
 		Views: tools.ViewToolDeps{
-			Store:       db,
-			Files:       db,
-			Attachments: vault,
-			Links:       webaccess.URLPolicy{AllowPrivateNetworks: cfg.WebAccess.AllowPrivateNetworks},
-			Context:     ctxBridge,
+			Store:    db,
+			Sources:  viewSources,
+			Triggers: skillLibrary,
+			Context:  ctxBridge,
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
@@ -262,6 +268,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		vault:                 vault,
 		watchChecker:          watchChecker,
 		triggers:              triggers,
+		panels:                panels,
 		packageStatus:         packageStatus,
 	}, nil
 }

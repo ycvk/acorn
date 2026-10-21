@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Icon
@@ -69,7 +70,8 @@ import io.ycvk.acorn.feature.knowledge.AttachmentImage
  * run of the thread is going; [sending] is the [ViewActionPress.id] of the one
  * whose request is out. [picks] holds the options picked but not yet sent, by
  * [ViewActionPress.id], outside the message rows, which are rebuilt when a
- * view updates.
+ * view updates. [onPin] pins a view to the now page or takes it off; [pinning]
+ * is the id of the view whose request is out.
  */
 class ViewActions(
     val idle: Boolean,
@@ -77,6 +79,8 @@ class ViewActions(
     val picks: Map<String, List<String>>,
     val onPick: (String, List<String>) -> Unit,
     val onSend: (ViewActionPress) -> Unit,
+    val pinning: String?,
+    val onPin: (View) -> Unit,
 ) {
     val canSend: Boolean get() = idle && sending == null
 
@@ -92,9 +96,21 @@ fun ViewCards(views: List<View>, threadId: String?, profile: ConnectionProfile?,
     }
 }
 
-/** A view the agent showed: its title over its components, drawn with the app's own components. */
+/**
+ * A view the agent showed: its title and pin over its components, drawn with
+ * the app's own components. As a panel on the now page it carries [meta] under
+ * the title, and [onOpen] takes a tap on it to its conversation.
+ */
 @Composable
-fun ViewCard(view: View, threadId: String?, profile: ConnectionProfile?, actions: ViewActions, modifier: Modifier = Modifier) {
+fun ViewCard(
+    view: View,
+    threadId: String?,
+    profile: ConnectionProfile?,
+    actions: ViewActions,
+    modifier: Modifier = Modifier,
+    meta: String? = null,
+    onOpen: (() -> Unit)? = null,
+) {
     // An updated view keeps its id, so the tree follows its whole content.
     val tree = remember(view) { viewTree(view) }
     val sent = remember(view) { sentActions(view) }
@@ -105,11 +121,41 @@ fun ViewCard(view: View, threadId: String?, profile: ConnectionProfile?, actions
             .clip(AcornShapes.card)
             .background(colors.surface)
             .hairline(AcornShapes.card)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier)
+            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 12.dp),
     ) {
-        Text(tree.title, style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.inkSoft)
-        Spacer(Modifier.height(10.dp))
-        tree.root?.let { Component(Drawing(view.id, tree, sent, actions, threadId, profile), it, Scope.ROOT) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(tree.title, style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.inkSoft)
+                meta?.let { Text(it, style = AcornTheme.type.caption, color = colors.inkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+            PinButton(pinned = view.pinnedAt != null, busy = actions.pinning == view.id, onClick = { actions.onPin(view) })
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(modifier = Modifier.padding(end = 8.dp)) {
+            tree.root?.let { Component(Drawing(view.id, tree, sent, actions, threadId, profile), it, Scope.ROOT) }
+        }
+    }
+}
+
+/** Pins a view to the now page, or takes it off when [pinned]. */
+@Composable
+private fun PinButton(pinned: Boolean, busy: Boolean, onClick: () -> Unit) {
+    val colors = AcornTheme.colors
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(enabled = !busy, role = Role.Button, onClick = onClick)
+            .semantics { stateDescription = if (pinned) "已固定到今天" else "未固定" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            AcornIcons.Pin,
+            contentDescription = if (pinned) "取消固定" else "固定到今天",
+            tint = if (pinned) colors.accent else colors.inkFaint,
+            modifier = Modifier.size(17.dp).alpha(if (busy) 0.4f else 1f),
+        )
     }
 }
 

@@ -35,6 +35,8 @@ type threadViewStore interface {
 	ThreadViews(ctx context.Context, sessionID string) ([]core.ThreadView, error)
 	ThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error)
 	SendViewAction(ctx context.Context, in core.ViewActionWrite) (core.SessionMessageRecord, core.ViewAction, error)
+	PinThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error)
+	UnpinThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error)
 }
 
 // NewThreadService constructs a ThreadService backed by the given store and
@@ -546,4 +548,22 @@ const (
 type MessageContent struct {
 	Type string
 	Text string
+}
+
+// PinView pins a view of the thread to the now page as a panel.
+func (s *ThreadService) PinView(ctx context.Context, threadID, viewID string) (core.ViewData, error) {
+	view, err := s.views.PinThreadView(ctx, threadID, viewID)
+	if err != nil {
+		return core.ViewData{}, err
+	}
+	return core.ViewDataOf(view), nil
+}
+
+// UnpinView takes a view off the now page; it stays in its conversation.
+func (s *ThreadService) UnpinView(ctx context.Context, threadID, viewID string) (core.ViewData, error) {
+	view, err := s.views.UnpinThreadView(ctx, threadID, viewID)
+	if err != nil {
+		return core.ViewData{}, err
+	}
+	return core.ViewDataOf(view), nil
 }

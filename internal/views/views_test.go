@@ -223,8 +223,8 @@ func TestTheViewsSkillExamplesPass(t *testing.T) {
 			t.Fatalf("the skill's example %d fails: %v", examples, err)
 		}
 	}
-	if examples != 2 {
-		t.Fatalf("the views skill has %d json examples, want 2", examples)
+	if examples != 3 {
+		t.Fatalf("the views skill has %d json examples, want 3", examples)
 	}
 	for name := range catalog {
 		if !strings.Contains(string(skill), "`"+name+"`") {

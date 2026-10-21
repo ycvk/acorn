@@ -3,10 +3,12 @@ package io.ycvk.acorn.feature.now
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.NowRepository
@@ -63,6 +65,11 @@ class NowViewModel @Inject constructor(
 
     fun resumeWatch(id: Long) = change { repository.resumeWatch(it, id) }
 
+    fun unpinView(panel: NowPanel) = change { repository.unpinView(it, panel.threadId, panel.view.id) }
+
+    /** The paired server, for loading a panel's images. */
+    fun connection(): ConnectionProfile? = profile()
+
     fun dismissActionError() {
         _actionError.value = null
     }
@@ -118,6 +125,9 @@ fun wakeTime(at: OffsetDateTime, today: LocalDate, zone: ZoneId): WakeTime {
     }
     return WakeTime(day, local.format(timeOfDay))
 }
+
+/** Under a panel's title: its conversation and when its content last changed, "仓库版本 · 3 分钟前更新". */
+fun panelMeta(panel: NowPanel, now: OffsetDateTime): String = "${panel.threadTitle} · ${ago(panel.updatedAt, now)}更新"
 
 /** How often a watch is checked: "每 30 分钟", "每 2 小时", "每天". */
 fun intervalLabel(seconds: Long): String = when {

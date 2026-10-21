@@ -11,6 +11,7 @@ import io.ycvk.acorn.api.models.InboxResponse
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.api.models.SendViewActionRequest
+import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -87,6 +88,10 @@ class ChatViewModel @Inject constructor(
     /** The [ViewActionPress.id] of the view action whose request is out. */
     private val _sendingAction = MutableStateFlow<String?>(null)
     val sendingAction: StateFlow<String?> = _sendingAction.asStateFlow()
+
+    /** The id of the view being pinned or unpinned. */
+    private val _pinning = MutableStateFlow<String?>(null)
+    val pinning: StateFlow<String?> = _pinning.asStateFlow()
 
     private var eventSource: EventSource? = null
     private var streamingRunId: String? = null
@@ -313,6 +318,33 @@ class ChatViewModel @Inject constructor(
                 loadMessages(threadId)
             } finally {
                 _sendingAction.value = null
+            }
+        }
+    }
+
+    /** Pins [view] to the now page, or takes it off when it is pinned; the server's view replaces it here. */
+    fun togglePin(view: View) {
+        val profile = getConnectionProfile() ?: run {
+            _error.value = "还没有连接服务器"
+            return
+        }
+        val threadId = _threadId.value ?: return
+        if (_pinning.value != null) return
+        _pinning.value = view.id
+        viewModelScope.launch {
+            try {
+                val changed = withContext(Dispatchers.IO) {
+                    ApiClient.accessToken = profile.accessToken
+                    val api = ClientApi(basePath = profile.serverUrl)
+                    if (view.pinnedAt != null) api.clientUnpinView(threadId, view.id) else api.clientPinView(threadId, view.id)
+                }
+                if (_threadId.value != threadId) return@launch
+                _messages.value = withView(_messages.value, changed)
+                _chatState.value = _chatState.value.copy(views = _chatState.value.views.map { if (it.id == changed.id) changed else it })
+            } catch (e: Exception) {
+                if (_threadId.value == threadId) _error.value = (if (view.pinnedAt != null) "没能取消固定：" else "没能固定：") + userMessage(e)
+            } finally {
+                _pinning.value = null
             }
         }
     }

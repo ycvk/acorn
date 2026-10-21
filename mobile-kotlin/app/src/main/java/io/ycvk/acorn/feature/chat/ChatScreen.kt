@@ -148,6 +148,7 @@ fun ChatScreen(
     val uploading by viewModel.uploading.collectAsStateWithLifecycle()
     val fileBusy by viewModel.fileBusy.collectAsStateWithLifecycle()
     val sendingAction by viewModel.sendingAction.collectAsStateWithLifecycle()
+    val pinning by viewModel.pinning.collectAsStateWithLifecycle()
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
@@ -185,6 +186,8 @@ fun ChatScreen(
         picks = viewPicks,
         onPick = { id, picked -> viewPicks[id] = picked },
         onSend = viewModel::sendViewAction,
+        pinning = pinning,
+        onPin = viewModel::togglePin,
     )
 
     // Follow new content only while the reader is at the bottom.

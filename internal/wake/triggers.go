@@ -16,10 +16,16 @@ import (
 )
 
 // TriggerRunner lists the triggers of the skills in use and fires one,
-// returning the events its command printed.
+// returning what its command printed.
 type TriggerRunner interface {
 	Triggers(ctx context.Context) ([]skills.PackageTrigger, error)
-	Fire(ctx context.Context, t skills.PackageTrigger) ([]skills.Event, error)
+	Fire(ctx context.Context, t skills.PackageTrigger) (skills.Output, error)
+}
+
+// PanelFeeder replaces the data of the pinned views whose source is a
+// trigger with a view_data line it printed.
+type PanelFeeder interface {
+	Feed(ctx context.Context, source string, data map[string]any) error
 }
 
 // dueTrigger is a trigger whose slot has come.
@@ -141,9 +147,11 @@ func (s *Scheduler) syncTriggers(ctx context.Context, now time.Time) ([]dueTrigg
 	return due, errors.Join(errs...)
 }
 
-// fire claims a trigger's slot, runs its command and records the outcome:
-// its new events, or the failure with the watches' backoff. Five failures in
-// a row mark it failing until a run succeeds.
+// fire claims a trigger's slot, runs its command, feeds the pinned views
+// naming the trigger with its view_data lines, and records the outcome: its
+// new events, and any failure with the watches' backoff. A view_data line a
+// pinned view rejects is a failure; the events printed with it still count.
+// Five failures in a row mark it failing until a run succeeds.
 func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time) ([]core.TriggerEvent, error) {
 	id := d.trigger.ID()
 	next, err := d.schedule.Next(now.In(s.cfg.Location))
@@ -156,7 +164,12 @@ func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time) ([]co
 		}
 		return nil, err
 	}
-	events, fireErr := s.triggers.Fire(ctx, d.trigger)
+	out, fireErr := s.triggers.Fire(ctx, d.trigger)
+	for _, data := range out.ViewData {
+		if fireErr = s.panels.Feed(ctx, id, data); fireErr != nil {
+			break
+		}
+	}
 	run := core.TriggerRun{At: s.cfg.Clock(), NextAt: next, Status: core.TriggerActive}
 	if fireErr != nil {
 		run.Failures, run.LastError, run.Status = d.state.Failures+1, fireErr.Error(), d.state.Status
@@ -167,12 +180,12 @@ func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time) ([]co
 			return nil, errors.Join(fireErr, err)
 		}
 	}
-	for _, e := range events {
+	for _, e := range out.Events {
 		run.Events = append(run.Events, core.TriggerEvent{Key: e.Key, Text: e.Text})
 	}
 	added, err := s.cfg.Triggers.RecordTriggerRun(ctx, d.trigger.Skill, d.trigger.Name, run)
 	if fireErr != nil {
-		return nil, errors.Join(fmt.Errorf("trigger %s: %w", id, fireErr), err)
+		return added, errors.Join(fmt.Errorf("trigger %s: %w", id, fireErr), err)
 	}
 	return added, err
 }
