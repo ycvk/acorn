@@ -74,6 +74,7 @@ object AcornIcons {
         )
     }
     val Close by lazy { icon("close", "M6.5 6.5l11 11 M17.5 6.5l-11 11") }
+    val Check by lazy { icon("check", "M5.5 12.5l4.5 4.5l8.5 -9.5", stroke = 2f) }
     val Trash by lazy {
         icon(
             "trash",

@@ -367,6 +367,49 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/threads/{thread_id}/views/{view_id}/actions:
+    post:
+      tags: [client]
+      summary: Send what the owner pressed or chose in a view as their message
+      description: |
+        Names a Button or ChoicePicker of the view, the item of each List it
+        is drawn for, and for a choice the option ids picked. The backend
+        resolves the action against the stored view, records the owner's
+        message (the button's label, or the chosen options) and starts a run
+        on it, like a message the owner typed. Each action of a view, that
+        is each component per List item, is sent once.
+      operationId: clientSendViewAction
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+        - $ref: '#/components/parameters/ViewID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendViewActionRequest'
+      responses:
+        '201':
+          description: Message recorded and run started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ViewActionResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/ViewNotFound'
+        '409':
+          $ref: '#/components/responses/ViewActionTaken'
+        '503':
+          $ref: '#/components/responses/ExecutionNotReady'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/runs/{run_id}:
     get:
       tags: [client]
@@ -1629,6 +1672,12 @@ components:
       required: true
       schema:
         type: string
+    ViewID:
+      name: view_id
+      in: path
+      required: true
+      schema:
+        type: string
     SkillName:
       name: name
       in: path
@@ -1805,6 +1854,30 @@ components:
                 error:
                   code: memory_not_found
                   message: 'memory not found: record m_0123'
+    ViewNotFound:
+      description: The thread has no view with this id
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            viewNotFound:
+              value:
+                error:
+                  code: view_not_found
+                  message: 'thread view not found: view_0123 in thread session_1'
+    ViewActionTaken:
+      description: This action of the view was already sent
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            viewActionTaken:
+              value:
+                error:
+                  code: view_action_taken
+                  message: 'send view action save: view action already sent: save of view_0123'
     ThreadBusy:
       description: A run of the thread is still running
       content:
@@ -3119,6 +3192,7 @@ components:
         - $ref: '#/components/schemas/ClientToolCallSucceededEvent'
         - $ref: '#/components/schemas/ClientToolCallFailedEvent'
         - $ref: '#/components/schemas/ClientViewShownEvent'
+        - $ref: '#/components/schemas/ClientViewUpdatedEvent'
       discriminator:
         propertyName: type
         mapping:
@@ -3138,6 +3212,7 @@ components:
           tool.call.succeeded: '#/components/schemas/ClientToolCallSucceededEvent'
           tool.call.failed: '#/components/schemas/ClientToolCallFailedEvent'
           view.shown: '#/components/schemas/ClientViewShownEvent'
+          view.updated: '#/components/schemas/ClientViewUpdatedEvent'
 
     RunEventBase:
       type: object
@@ -3330,6 +3405,18 @@ components:
           properties:
             type:
               const: view.shown
+            data:
+              $ref: '#/components/schemas/ViewShownData'
+
+    ClientViewUpdatedEvent:
+      description: A run replaced the content of a view shown earlier in the thread; `data.view` is the view as it now is.
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: view.updated
             data:
               $ref: '#/components/schemas/ViewShownData'
 
@@ -4057,7 +4144,10 @@ components:
         a path without a leading slash is relative to the item. The backend
         checked every component, path, link and image before storing the
         view, so the app draws it as it is and shows a component type it does
-        not know as a placeholder.
+        not know as a placeholder. A Button or ChoicePicker is sent through
+        `POST /v1/threads/{thread_id}/views/{view_id}/actions`; `actions`
+        lists the ones already sent, which the app shows as chosen. A later
+        run may replace the view's content (`view.updated`).
       properties:
         id:
           type: string
@@ -4077,6 +4167,64 @@ components:
         created_at:
           type: string
           format: date-time
+        actions:
+          type: array
+          description: Buttons and choices of the view the owner already sent, oldest first.
+          items:
+            $ref: '#/components/schemas/ViewActionSent'
+
+    ViewActionSent:
+      type: object
+      additionalProperties: false
+      required: [component_id, scope, created_at]
+      properties:
+        component_id:
+          type: string
+        scope:
+          type: array
+          description: The index of the item in each List the component was drawn for, outermost first; empty outside Lists.
+          items:
+            type: integer
+        selected:
+          type: array
+          description: The option ids chosen in a ChoicePicker.
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    SendViewActionRequest:
+      type: object
+      additionalProperties: false
+      required: [component_id]
+      properties:
+        component_id:
+          type: string
+          description: Id of the Button or ChoicePicker.
+        scope:
+          type: array
+          description: The index of the item in each List the component is drawn for, outermost first; leave out outside Lists.
+          items:
+            type: integer
+        selected:
+          type: array
+          description: The option ids chosen in a ChoicePicker; leave out for a Button.
+          items:
+            type: string
+
+    ViewActionResponse:
+      type: object
+      additionalProperties: false
+      required: [run, text, view]
+      properties:
+        run:
+          $ref: '#/components/schemas/Run'
+        text:
+          type: string
+          description: The owner's message the action sent.
+        view:
+          $ref: '#/components/schemas/View'
 
     ToolApprovalData:
       type: object

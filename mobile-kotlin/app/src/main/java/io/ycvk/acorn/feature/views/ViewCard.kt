@@ -2,6 +2,7 @@ package io.ycvk.acorn.feature.views
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -19,14 +20,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -34,6 +39,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -44,28 +52,52 @@ import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import io.ycvk.acorn.api.models.View
+import io.ycvk.acorn.api.models.ViewActionSent
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornIcons
+import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.hairline
 import io.ycvk.acorn.feature.knowledge.AttachmentImage
 
+/**
+ * How a view's buttons and choices reach the server. [idle] is false while a
+ * run of the thread is going; [sending] is the [ViewActionPress.id] of the one
+ * whose request is out. [picks] holds the options picked but not yet sent, by
+ * [ViewActionPress.id], outside the message rows, which are rebuilt when a
+ * view updates.
+ */
+class ViewActions(
+    val idle: Boolean,
+    val sending: String?,
+    val picks: Map<String, List<String>>,
+    val onPick: (String, List<String>) -> Unit,
+    val onSend: (ViewActionPress) -> Unit,
+) {
+    val canSend: Boolean get() = idle && sending == null
+
+    fun isSending(press: ViewActionPress) = sending == press.id
+}
+
 /** The views a reply showed, one card each. */
 @Composable
-fun ViewCards(views: List<View>, threadId: String?, profile: ConnectionProfile?, modifier: Modifier = Modifier) {
+fun ViewCards(views: List<View>, threadId: String?, profile: ConnectionProfile?, actions: ViewActions, modifier: Modifier = Modifier) {
     if (views.isEmpty()) return
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        views.forEach { ViewCard(it, threadId, profile) }
+        views.forEach { ViewCard(it, threadId, profile, actions) }
     }
 }
 
 /** A view the agent showed: its title over its components, drawn with the app's own components. */
 @Composable
-fun ViewCard(view: View, threadId: String?, profile: ConnectionProfile?, modifier: Modifier = Modifier) {
-    val tree = remember(view.id) { viewTree(view) }
+fun ViewCard(view: View, threadId: String?, profile: ConnectionProfile?, actions: ViewActions, modifier: Modifier = Modifier) {
+    // An updated view keeps its id, so the tree follows its whole content.
+    val tree = remember(view) { viewTree(view) }
+    val sent = remember(view) { sentActions(view) }
     val colors = AcornTheme.colors
     Column(
         modifier = modifier
@@ -77,27 +109,44 @@ fun ViewCard(view: View, threadId: String?, profile: ConnectionProfile?, modifie
     ) {
         Text(tree.title, style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.inkSoft)
         Spacer(Modifier.height(10.dp))
-        tree.root?.let { Component(Drawing(tree, threadId, profile), it, emptyList()) }
+        tree.root?.let { Component(Drawing(view.id, tree, sent, actions, threadId, profile), it, Scope.ROOT) }
     }
 }
 
 /** What drawing one view needs besides its components. */
-private class Drawing(val tree: ViewTree, val threadId: String?, val profile: ConnectionProfile?)
+private class Drawing(
+    val viewId: String,
+    val tree: ViewTree,
+    val sent: Map<String, ViewActionSent>,
+    val actions: ViewActions,
+    val threadId: String?,
+    val profile: ConnectionProfile?,
+)
+
+/** The List items a component is drawn for, outermost first: the items themselves and their indices. */
+private data class Scope(val items: List<Any?>, val indices: List<Int>) {
+    fun enter(item: Any?, index: Int) = Scope(items + listOf(item), indices + index)
+
+    companion object {
+        val ROOT = Scope(emptyList(), emptyList())
+    }
+}
 
 @Composable
-private fun Component(drawing: Drawing, component: ViewComponent, scopes: List<Any?>) {
+private fun Component(drawing: Drawing, component: ViewComponent, scope: Scope) {
     val tree = drawing.tree
     val colors = AcornTheme.colors
+    val scopes = scope.items
     when (component.type) {
         "Column" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            tree.children(component).forEach { Component(drawing, it, scopes) }
+            tree.children(component).forEach { Component(drawing, it, scope) }
         }
         "Row" -> FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
-            tree.children(component).forEach { Component(drawing, it, scopes) }
+            tree.children(component).forEach { Component(drawing, it, scope) }
         }
         "Card" -> Column(
             modifier = Modifier
@@ -107,7 +156,7 @@ private fun Component(drawing: Drawing, component: ViewComponent, scopes: List<A
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            tree.children(component).forEach { Component(drawing, it, scopes) }
+            tree.children(component).forEach { Component(drawing, it, scope) }
         }
         "Divider" -> Hairline()
         "Text" -> tree.text(component, "text", scopes)?.let { text ->
@@ -134,7 +183,7 @@ private fun Component(drawing: Drawing, component: ViewComponent, scopes: List<A
             val template = tree.component(component.props["template"] as? String)
             if (template != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tree.list(component, "items", scopes).forEach { item -> Component(drawing, template, scopes + listOf(item)) }
+                    tree.list(component, "items", scopes).forEachIndexed { index, item -> Component(drawing, template, scope.enter(item, index)) }
                 }
             }
         }
@@ -143,7 +192,128 @@ private fun Component(drawing: Drawing, component: ViewComponent, scopes: List<A
             val unit = tree.text(component, "unit", scopes)
             if (component.props["variant"] == "line") LineChart(points, unit) else BarChart(points, unit)
         }
+        "Button" -> tree.text(component, "label", scopes)?.let { label ->
+            ViewButton(drawing, label, component.props["variant"] == "quiet", ViewActionPress(drawing.viewId, component.id, scope.indices))
+        }
+        "ChoicePicker" -> {
+            val submit = tree.text(component, "submit", scopes)
+            if (submit != null) {
+                ChoicePicker(
+                    drawing = drawing,
+                    label = tree.text(component, "label", scopes),
+                    options = choiceOptions(tree.list(component, "options", scopes)),
+                    multiple = component.props["multiple"] == true,
+                    submit = submit,
+                    press = ViewActionPress(drawing.viewId, component.id, scope.indices),
+                )
+            }
+        }
         else -> Text("这个版本的 App 显示不了这部分", style = AcornTheme.type.caption, color = colors.inkFaint)
+    }
+}
+
+/** A button that sends its action once; afterwards it stays as a checked mark. */
+@Composable
+private fun ViewButton(drawing: Drawing, label: String, quiet: Boolean, press: ViewActionPress) {
+    if (actionKey(press.componentId, press.scope) in drawing.sent) {
+        SentMark(label)
+        return
+    }
+    val actions = drawing.actions
+    val sending = actions.isSending(press)
+    AcornButton(
+        text = label,
+        onClick = { actions.onSend(press) },
+        kind = if (quiet) ButtonKind.Quiet else ButtonKind.Primary,
+        compact = true,
+        loading = sending,
+        enabled = sending || actions.canSend,
+    )
+}
+
+/**
+ * Options the owner picks, one or several, then sends with the submit button.
+ * Once sent, the chosen options stay marked and the rest fade.
+ */
+@Composable
+private fun ChoicePicker(drawing: Drawing, label: String?, options: List<ChoiceOption>, multiple: Boolean, submit: String, press: ViewActionPress) {
+    val colors = AcornTheme.colors
+    val sent = drawing.sent[actionKey(press.componentId, press.scope)]
+    val actions = drawing.actions
+    val sending = actions.isSending(press)
+    val picked = actions.picks[press.id].orEmpty()
+    val shown = sent?.selected ?: picked
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        label?.let { Text(it, style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = colors.inkSoft) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { option ->
+                OptionChip(
+                    label = option.label,
+                    picked = option.id in shown,
+                    multiple = multiple,
+                    enabled = sent == null && !sending,
+                    faded = sent != null && option.id !in shown,
+                    onToggle = { actions.onPick(press.id, toggleChoice(picked, option.id, multiple)) },
+                )
+            }
+        }
+        if (sent != null) {
+            SentMark(submit)
+        } else {
+            AcornButton(
+                text = submit,
+                onClick = { actions.onSend(press.copy(selected = options.map { it.id }.filter { it in picked })) },
+                compact = true,
+                loading = sending,
+                enabled = sending || (picked.isNotEmpty() && actions.canSend),
+            )
+        }
+    }
+}
+
+@Composable
+private fun OptionChip(label: String, picked: Boolean, multiple: Boolean, enabled: Boolean, faded: Boolean, onToggle: () -> Unit) {
+    val colors = AcornTheme.colors
+    val shape = AcornShapes.pill
+    val selection = if (multiple) {
+        Modifier.toggleable(value = picked, enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle() })
+    } else {
+        Modifier.selectable(selected = picked, enabled = enabled, role = Role.RadioButton, onClick = onToggle)
+    }
+    Row(
+        modifier = Modifier
+            .alpha(if (faded) 0.45f else 1f)
+            .clip(shape)
+            .background(if (picked) colors.accentSoft else Color.Transparent)
+            .then(if (picked) Modifier else Modifier.border(1.dp, colors.line, shape))
+            .then(selection)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (picked) {
+            Icon(AcornIcons.Check, contentDescription = null, tint = colors.accentInk, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+        }
+        Text(label, style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = if (picked) colors.accentInk else colors.ink)
+    }
+}
+
+/** What the owner already sent from a view, checked. */
+@Composable
+private fun SentMark(text: String) {
+    val colors = AcornTheme.colors
+    Row(
+        modifier = Modifier
+            .height(34.dp)
+            .clip(AcornShapes.pill)
+            .background(colors.surfaceMuted)
+            .semantics(mergeDescendants = true) { stateDescription = "已发送" }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(AcornIcons.Check, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = colors.inkSoft, maxLines = 1)
     }
 }
 

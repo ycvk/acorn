@@ -18,6 +18,7 @@ import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
 import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
 import io.ycvk.acorn.api.models.ClientViewShownEvent
+import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -70,6 +71,7 @@ class RunEventStreamClient(
         "tool.call.succeeded" to ClientToolCallSucceededEvent::class.java,
         "tool.call.failed" to ClientToolCallFailedEvent::class.java,
         "view.shown" to ClientViewShownEvent::class.java,
+        "view.updated" to ClientViewUpdatedEvent::class.java,
     )
 
     private val eventAdapters = ConcurrentHashMap<String, JsonAdapter<*>>()
@@ -146,6 +148,7 @@ class RunEventStreamClient(
             "tool.call.succeeded" -> RunEventPacket.ToolCallSucceeded(parsed as ClientToolCallSucceededEvent)
             "tool.call.failed" -> RunEventPacket.ToolCallFailed(parsed as ClientToolCallFailedEvent)
             "view.shown" -> RunEventPacket.ViewShown(parsed as ClientViewShownEvent)
+            "view.updated" -> RunEventPacket.ViewUpdated(parsed as ClientViewUpdatedEvent)
             else -> RunEventPacket.Unknown(rawType = type, rawData = data)
         }
     }
@@ -255,6 +258,12 @@ sealed class RunEventPacket {
     }
 
     data class ViewShown(val event: ClientViewShownEvent) : RunEventPacket() {
+        override val eventId: String get() = event.eventId
+        override val runId: String get() = event.runId
+        override val seq: Long get() = event.seq
+    }
+
+    data class ViewUpdated(val event: ClientViewUpdatedEvent) : RunEventPacket() {
         override val eventId: String get() = event.eventId
         override val runId: String get() = event.runId
         override val seq: Long get() = event.seq

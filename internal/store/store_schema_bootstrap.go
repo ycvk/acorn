@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + threadViewsTable + `
 
+` + threadViewActionsTable + `
+
 ` + runProcessesTable + `
 
 CREATE TABLE IF NOT EXISTS watches (

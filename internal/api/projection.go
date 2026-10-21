@@ -25,6 +25,7 @@ var liveRunEventKinds = []string{
 	"tool.call.succeeded",
 	"tool.call.failed",
 	"view.shown",
+	"view.updated",
 }
 
 // IsLiveRunEventKind reports whether kind is part of the /v1 mobile live contract.
@@ -105,18 +106,18 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 			Summary:    toolCallSummary(topLevelString(payload, "arguments")),
 			Error:      clip(topLevelString(payload, "error"), toolCallErrorRunes),
 		}, nil
-	case "view.shown":
+	case "view.shown", "view.updated":
 		value, ok := objectField(payload, "view")
 		if !ok {
-			return nil, projectionError("view.shown payload missing view object")
+			return nil, projectionError("%s payload missing view object", kind)
 		}
 		raw, err := json.Marshal(value)
 		if err != nil {
-			return nil, projectionError("view.shown view: %v", err)
+			return nil, projectionError("%s view: %v", kind, err)
 		}
 		var view core.ViewData
 		if err := json.Unmarshal(raw, &view); err != nil {
-			return nil, projectionError("view.shown view: %v", err)
+			return nil, projectionError("%s view: %v", kind, err)
 		}
 		return core.ViewShownData{View: view}, nil
 	default:

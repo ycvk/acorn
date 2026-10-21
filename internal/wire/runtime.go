@@ -203,6 +203,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Attachments:           vault,
 		Files:                 db,
+		Views:                 db,
 		Uploads:               uploads,
 		Work:                  work,
 		Persona:               db,

@@ -141,6 +141,24 @@ func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []SystemToolCapa
 	}
 	return apiCapabilitiesToolDTOList
 }
+func (c *ConverterImpl) coreViewActionDataToCoreViewActionData(source core.ViewActionData) core.ViewActionData {
+	var coreViewActionData core.ViewActionData
+	coreViewActionData.ComponentID = source.ComponentID
+	if source.Scope != nil {
+		coreViewActionData.Scope = make([]int, len(source.Scope))
+		for i := 0; i < len(source.Scope); i++ {
+			coreViewActionData.Scope[i] = source.Scope[i]
+		}
+	}
+	if source.Selected != nil {
+		coreViewActionData.Selected = make([]string, len(source.Selected))
+		for j := 0; j < len(source.Selected); j++ {
+			coreViewActionData.Selected[j] = source.Selected[j]
+		}
+	}
+	coreViewActionData.CreatedAt = TimeToTime(source.CreatedAt)
+	return coreViewActionData
+}
 func (c *ConverterImpl) coreViewDataToCoreViewData(source core.ViewData) core.ViewData {
 	var coreViewData core.ViewData
 	coreViewData.ID = source.ID
@@ -149,6 +167,12 @@ func (c *ConverterImpl) coreViewDataToCoreViewData(source core.ViewData) core.Vi
 	coreViewData.Components = c.jsontextValueToJsontextValue(source.Components)
 	coreViewData.Data = c.jsontextValueToJsontextValue(source.Data)
 	coreViewData.CreatedAt = TimeToTime(source.CreatedAt)
+	if source.Actions != nil {
+		coreViewData.Actions = make([]core.ViewActionData, len(source.Actions))
+		for i := 0; i < len(source.Actions); i++ {
+			coreViewData.Actions[i] = c.coreViewActionDataToCoreViewActionData(source.Actions[i])
+		}
+	}
 	return coreViewData
 }
 func (c *ConverterImpl) jsontextValueToJsontextValue(source jsontext.Value) jsontext.Value {

@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/views"
 )
 
 const (
@@ -161,6 +162,12 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 		s.respondNotFound(w, r, "thread_file_not_found", err.Error())
 	case errors.Is(err, core.ErrThreadFileTooLarge):
 		s.respondError(w, r, http.StatusRequestEntityTooLarge, "payload_too_large", err.Error())
+	case errors.Is(err, core.ErrThreadViewNotFound):
+		s.respondNotFound(w, r, "view_not_found", err.Error())
+	case errors.Is(err, views.ErrInvalidAction):
+		s.respondBadRequest(w, r, err.Error())
+	case errors.Is(err, core.ErrViewActionTaken):
+		s.respondConflict(w, r, "view_action_taken", err.Error())
 	case errors.Is(err, ErrPendingActionDecisionInvalid):
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, ErrClientProjectionFailed):

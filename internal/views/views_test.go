@@ -192,28 +192,39 @@ func TestCheckLimitsHowMuchNestedListsDraw(t *testing.T) {
 	}
 }
 
-// TestTheViewsSkillExamplePasses keeps the example the agent copies from in
+// TestTheViewsSkillExamplesPass keeps the examples the agent copies from in
 // step with the checks.
-func TestTheViewsSkillExamplePasses(t *testing.T) {
+func TestTheViewsSkillExamplesPass(t *testing.T) {
 	skill, err := os.ReadFile(filepath.Join("..", "skills", "seed", "views", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, rest, ok := strings.Cut(string(skill), "```json\n")
-	example, _, closed := strings.Cut(rest, "```")
-	if !ok || !closed {
-		t.Fatal("the views skill has no json example")
+	examples := 0
+	for rest := string(skill); ; {
+		var ok bool
+		if _, rest, ok = strings.Cut(rest, "```json\n"); !ok {
+			break
+		}
+		example, after, closed := strings.Cut(rest, "```")
+		if !closed {
+			t.Fatal("a json example in the views skill is not closed")
+		}
+		rest = after
+		examples++
+		var view struct {
+			Title      string           `json:"title"`
+			Components []map[string]any `json:"components"`
+			Data       map[string]any   `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(example), &view); err != nil {
+			t.Fatalf("example %d: %v", examples, err)
+		}
+		if _, err := Check(context.Background(), view.Title, view.Components, view.Data, newRefs()); err != nil {
+			t.Fatalf("the skill's example %d fails: %v", examples, err)
+		}
 	}
-	var view struct {
-		Title      string           `json:"title"`
-		Components []map[string]any `json:"components"`
-		Data       map[string]any   `json:"data"`
-	}
-	if err := json.Unmarshal([]byte(example), &view); err != nil {
-		t.Fatalf("example: %v", err)
-	}
-	if _, err := Check(context.Background(), view.Title, view.Components, view.Data, newRefs()); err != nil {
-		t.Fatalf("the skill's example fails: %v", err)
+	if examples != 2 {
+		t.Fatalf("the views skill has %d json examples, want 2", examples)
 	}
 	for name := range catalog {
 		if !strings.Contains(string(skill), "`"+name+"`") {

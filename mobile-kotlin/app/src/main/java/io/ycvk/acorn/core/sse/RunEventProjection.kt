@@ -125,6 +125,12 @@ class RunEventProjection {
                 if (state.views.any { it.id == view.id }) state else state.copy(views = state.views + view)
             }
 
+            // A view this run showed is redrawn here; one of an earlier reply lives in the thread's messages.
+            is RunEventPacket.ViewUpdated -> {
+                val view = packet.event.`data`.view
+                state.copy(views = state.views.map { if (it.id == view.id) view else it })
+            }
+
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }

@@ -66,6 +66,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -125,6 +126,7 @@ import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
 import io.ycvk.acorn.feature.knowledge.AttachmentImage
+import io.ycvk.acorn.feature.views.ViewActions
 import io.ycvk.acorn.feature.views.ViewCards
 import kotlinx.coroutines.launch
 
@@ -145,6 +147,7 @@ fun ChatScreen(
     val attachments by viewModel.attachments.collectAsStateWithLifecycle()
     val uploading by viewModel.uploading.collectAsStateWithLifecycle()
     val fileBusy by viewModel.fileBusy.collectAsStateWithLifecycle()
+    val sendingAction by viewModel.sendingAction.collectAsStateWithLifecycle()
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
@@ -174,6 +177,15 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val streaming = chatState.isStreaming
     val threadPending = pending.filter { it.threadId == currentThread }
+    // A view's buttons wait, like the composer, while a run of the thread is going.
+    val viewPicks = remember(currentThread) { mutableStateMapOf<String, List<String>>() }
+    val viewActions = ViewActions(
+        idle = !streaming,
+        sending = sendingAction,
+        picks = viewPicks,
+        onPick = { id, picked -> viewPicks[id] = picked },
+        onSend = viewModel::sendViewAction,
+    )
 
     // Follow new content only while the reader is at the bottom.
     var follow by remember { mutableStateOf(true) }
@@ -269,7 +281,7 @@ fun ChatScreen(
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
                         }
                         is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, streaming = false, modifier = itemModifier) {
-                            ViewCards(message.views, currentThread, viewModel.connection(), Modifier.padding(top = 10.dp))
+                            ViewCards(message.views, currentThread, viewModel.connection(), viewActions, Modifier.padding(top = 10.dp))
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, Modifier.padding(top = 8.dp))
                         }
                         is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier)
@@ -291,7 +303,7 @@ fun ChatScreen(
                             streaming = streaming,
                             modifier = rowAnimation(),
                         ) {
-                            ViewCards(chatState.views, currentThread, viewModel.connection(), Modifier.padding(top = 10.dp))
+                            ViewCards(chatState.views, currentThread, viewModel.connection(), viewActions, Modifier.padding(top = 10.dp))
                         }
                     }
                 }

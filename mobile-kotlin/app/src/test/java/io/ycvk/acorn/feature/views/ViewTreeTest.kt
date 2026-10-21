@@ -1,11 +1,15 @@
 package io.ycvk.acorn.feature.views
 
 import io.ycvk.acorn.api.models.ClientViewShownEvent
+import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
 import io.ycvk.acorn.api.models.View
+import io.ycvk.acorn.api.models.ViewActionSent
 import io.ycvk.acorn.api.models.ViewShownData
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunEventProjection
+import io.ycvk.acorn.feature.chat.ChatMessage
+import io.ycvk.acorn.feature.chat.withView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -116,5 +120,48 @@ class ViewTreeTest {
         val once = projection.apply(ChatState(), packet)
         val twice = projection.apply(once, packet)
         assertEquals(listOf("view_1"), twice.views.map { it.id })
+    }
+
+    @Test
+    fun `an action is keyed by its component and list items, and a sent one is known by that key`() {
+        val sentAt = OffsetDateTime.parse("2026-10-21T07:00:00Z")
+        val sent = view.copy(
+            actions = listOf(
+                ViewActionSent(componentId = "save", scope = listOf(1, 0), createdAt = sentAt),
+                ViewActionSent(componentId = "pick", scope = emptyList(), createdAt = sentAt, selected = listOf("b")),
+            ),
+        )
+        assertEquals(setOf("save/1/0", "pick"), sentActions(sent).keys)
+        assertEquals(listOf("b"), sentActions(sent)["pick"]?.selected)
+        assertEquals("view_1:save/1/0", ViewActionPress("view_1", "save", listOf(1, 0)).id)
+        assertEquals(emptyMap<String, ViewActionSent>(), sentActions(view))
+    }
+
+    @Test
+    fun `picking keeps one option unless the picker takes several`() {
+        assertEquals(listOf("b"), toggleChoice(listOf("a"), "b", multiple = false))
+        assertEquals(listOf("a", "b"), toggleChoice(listOf("a"), "b", multiple = true))
+        assertEquals(emptyList<String>(), toggleChoice(listOf("a"), "a", multiple = false))
+        assertEquals(listOf("b"), toggleChoice(listOf("a", "b"), "a", multiple = true))
+        val options = choiceOptions(listOf(mapOf("id" to "a", "label" to "写摘要"), mapOf("id" to "b"), "c"))
+        assertEquals(listOf(ChoiceOption("a", "写摘要")), options)
+    }
+
+    @Test
+    fun `an updated view is redrawn in the live reply and in the reply that showed it`() {
+        val updated = view.copy(title = "eino 最近的版本（已整理）")
+        val packet = RunEventPacket.ViewUpdated(
+            ClientViewUpdatedEvent(eventId = "e2", runId = "run-2", seq = 6, ts = view.createdAt, type = null, data = ViewShownData(updated)),
+        )
+        val live = RunEventProjection().apply(ChatState(views = listOf(view)), packet)
+        assertEquals(listOf(updated.title), live.views.map { it.title })
+        // A view of an earlier reply is not added to the live one.
+        assertEquals(emptyList<View>(), RunEventProjection().apply(ChatState(), packet).views)
+
+        val messages = listOf(ChatMessage.User("读一下"), ChatMessage.Assistant("读完了", views = listOf(view)), ChatMessage.User("整理成笔记"))
+        val redrawn = withView(messages, updated)
+        assertEquals(updated.title, (redrawn[1] as ChatMessage.Assistant).views.single().title)
+        assertEquals(messages[0], redrawn[0])
+        assertEquals(messages[2], redrawn[2])
     }
 }

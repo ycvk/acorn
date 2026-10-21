@@ -58,7 +58,7 @@ agent 用 `show_view` 交出一个新视图，用 `update_view` 按 id 替换这
 
 ### 交互回到对话
 
-`Button` 与 `ChoicePicker` 各带一个 `action`。owner 点按钮或提交选择时，App 调用 `POST /v1/threads/{thread_id}/views/{view_id}/actions`，只带动作名和选中的选项；后端核对这个动作在视图里、选项来自组件声明的选项，再把它作为 owner 在这个对话里的一条消息起 run，规则与 owner 发消息相同。消息正文是 owner 看得懂的一句话，例如"整理成笔记"或"选了：A、C"；模型另外看到视图 id、动作名与动作声明要带上的数据。
+`Button` 与 `ChoicePicker` 各带一个 `action`。owner 点按钮或提交选择时，App 调用 `POST /v1/threads/{thread_id}/views/{view_id}/actions`，只带组件 id、它在 List 里的位置和选中的选项；后端从存着的视图找出这个动作，核对选项来自组件声明的选项，再把它作为 owner 在这个对话里的一条消息起 run，规则与 owner 发消息相同。消息正文是 owner 看得懂的一句话，例如"整理成笔记"或"选了：A、C"；模型另外看到视图 id、动作名与动作声明要带上的数据。
 
 每个动作只能提交一次。提交后视图记下 owner 的选择，按钮显示为已选，对话里留下这条记录；重复提交返回 409，不会因为网络重试多起 run。
 

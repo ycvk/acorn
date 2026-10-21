@@ -62,6 +62,15 @@ fun chatMessageFrom(
     Message.Role.system, Message.Role.tool -> ChatMessage.Assistant(text)
 }
 
+/** [messages] with [view] in place of the view with its id, wherever a reply shows it. */
+fun withView(messages: List<ChatMessage>, view: View): List<ChatMessage> = messages.map { message ->
+    if (message is ChatMessage.Assistant && message.views.any { it.id == view.id }) {
+        message.copy(views = message.views.map { if (it.id == view.id) view else it })
+    } else {
+        message
+    }
+}
+
 /**
  * Turns a capture run input into a card: drops the "[capture]" header line and
  * takes the attachment path out of the "Image:" line.

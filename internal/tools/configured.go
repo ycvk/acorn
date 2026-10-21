@@ -37,6 +37,7 @@ var localToolNames = []string{
 	"watch_update",
 	"watch_list",
 	"show_view",
+	"update_view",
 	"web_fetch",
 	"web_search",
 	"shell",
@@ -106,7 +107,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("workstation")
-	case "show_view":
+	case "show_view", "update_view":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("views")
