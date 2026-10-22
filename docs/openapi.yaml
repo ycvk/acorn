@@ -3885,12 +3885,21 @@ components:
           type: string
         kind:
           type: string
-          enum: [rss, github, web, web_rendered]
+          enum: [rss, github, web, web_rendered, trigger]
         target:
           type: string
         mode:
           type: string
-          enum: [digest, immediate]
+          enum: [digest, immediate, news]
+        section:
+          type: string
+          description: The news section of a news watch.
+        issue:
+          type: boolean
+          description: A news watch whose entries are issues read on their pages.
+        trial:
+          type: boolean
+          description: A news watch on trial, fetched and sorted but kept out of the briefing until the owner takes it in.
         status:
           type: string
           enum: [active, paused, failing]

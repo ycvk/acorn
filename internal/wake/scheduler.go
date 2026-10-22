@@ -33,6 +33,8 @@ type RunStarter interface {
 // WatchChecker fetches a watch and records what it found.
 type WatchChecker interface {
 	Check(ctx context.Context, w core.Watch) (watch.Result, error)
+	// Apply records what a trigger source's trigger printed as a check.
+	Apply(ctx context.Context, w core.Watch, fetched watch.Fetched) (watch.Result, error)
 }
 
 // Briefing schedules the morning briefing at At after owner-local midnight.
@@ -55,9 +57,13 @@ type Config struct {
 	Runs               RunStarter
 	Watches            core.WatchStore
 	Checker            WatchChecker
-	Triggers           core.TriggerStore
-	Clock              func() time.Time
-	Location           *time.Location
+	// News offers the sorted news stories to the briefing; Sorter sorts
+	// what is waiting before it.
+	News     core.NewsStore
+	Sorter   NewsSorter
+	Triggers core.TriggerStore
+	Clock    func() time.Time
+	Location *time.Location
 	// DailyLimit caps commitment and watch wakes per owner-local day; zero
 	// disables them.
 	DailyLimit  int
@@ -111,6 +117,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Watches is required")
 	case cfg.Checker == nil:
 		return nil, errors.New("wake scheduler: Checker is required")
+	case cfg.News == nil || cfg.Sorter == nil:
+		return nil, errors.New("wake scheduler: News and Sorter are required")
 	case cfg.Triggers == nil:
 		return nil, errors.New("wake scheduler: Triggers is required")
 	case cfg.MaxChecksPerTick <= 0:
@@ -194,6 +202,9 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		errs = append(errs, fmt.Errorf("routines: %w", err))
 	}
 	if _, err := s.cfg.PhoneNotifications.PrunePhoneNotifications(ctx, now.Add(-7*24*time.Hour)); err != nil {
+		errs = append(errs, err)
+	}
+	if _, err := s.cfg.News.PruneNews(ctx, now.Add(-core.NewsRetention)); err != nil {
 		errs = append(errs, err)
 	}
 	if s.notifications != nil {

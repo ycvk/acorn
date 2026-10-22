@@ -77,7 +77,55 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (
 		}
 		fmt.Fprintf(&b, "- skill %s rev %d [%s] written=%t loads=%d\n", skill.ID, skill.Revision, state, written, loads[skill.ID])
 	}
+	review, err := s.newsReview(ctx, last, now)
+	if err != nil {
+		return routineInput{}, err
+	}
+	if review != "" {
+		n++
+		b.WriteString(review)
+	}
 	return routineInput{sources: sources, wake: "night reflection " + day, input: b.String(), skip: n == 0}, nil
+}
+
+// newsReviewWindow is the week of numbers the news review weighs.
+const newsReviewWindow = 7 * 24 * time.Hour
+
+// newsReview lists what each news source brought over the last week, on the
+// owner's Sunday night or when a trial source finished its first week since
+// the last night, so the agent can propose promotions and stops.
+func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time) (string, error) {
+	stats, err := s.cfg.News.NewsSourceStats(ctx, now.Add(-newsReviewWindow))
+	if err != nil || len(stats) == 0 {
+		return "", err
+	}
+	due := now.In(s.cfg.Location).Weekday() == time.Sunday
+	for _, st := range stats {
+		week := st.Watch.CreatedAt.Add(newsReviewWindow)
+		if st.Watch.Trial && week.After(last) && !week.After(now) {
+			due = true
+		}
+	}
+	if !due {
+		return "", nil
+	}
+	var b strings.Builder
+	b.WriteString("News sources over the last 7 days. A trial source is fetched and sorted but stays out of the briefing. Propose with news_source, which waits for the owner: promote a trial source after its first full week when it brings important news the others miss, stop a source the briefing takes when it brings little the briefing uses. Give the numbers as the reason.\n")
+	for _, st := range stats {
+		w := st.Watch
+		days := min(now.Sub(w.CreatedAt), newsReviewWindow).Hours() / 24
+		state := "in the briefing"
+		if w.Trial {
+			state = "on trial since " + w.CreatedAt.In(s.cfg.Location).Format("01-02")
+		}
+		avg, shared := 0.0, 0
+		if st.Scored > 0 {
+			avg, shared = float64(st.ScoreSum)/float64(st.Scored), st.Shared*100/st.Scored
+		}
+		fmt.Fprintf(&b, "- news source #%d %s [%s] %s: %d items (%.1f a day), average score %.1f, %d scored 4 or 5, %d%% share a story with another source, %d linked from briefings\n",
+			w.ID, w.Name, w.Section, state, st.Items, float64(st.Items)/max(days, 1), avg, st.High, shared, st.Picked)
+	}
+	return b.String(), nil
 }
 
 // wanderInput advances the due concern revised longest ago, in the

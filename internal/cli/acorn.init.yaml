@@ -24,7 +24,9 @@ providers:
 approval:
   # Tool-name glob patterns. block refuses a call, require pauses it for your
   # approval on the phone, allow runs it without review. block wins over
-  # require, and require over allow; review judges the rest.
+  # require, and require over allow; review judges the rest. news_source,
+  # which takes a news source into the briefing or stops one, always asks
+  # unless allow names it.
   require:
     - "mcp__*"
     - skill_write
@@ -80,15 +82,22 @@ notify:
     service_account_file: ""
 
 watch:
-  # Your RSSHub, for rsshub:/route watches (see the onboarding guide).
+  # Your RSSHub, for rsshub:/route watches (see the onboarding guide); its
+  # address is reached even on loopback, such as http://127.0.0.1:1200.
   rsshub_base_url: ""
   # Optional GitHub token for a higher API rate limit, e.g. ${GITHUB_TOKEN}.
   github_token: ""
   max_checks_per_tick: 5
 
 briefing:
-  # Morning briefing time in owner.timezone; empty turns it off.
+  # Morning briefing time in owner.timezone; empty turns it off. Daily
+  # digests you follow as news sources often publish after 08:00.
   at: "08:00"
+
+news:
+  # Tokens per local day for sorting news items into scored stories in the
+  # background; 0 means no cap. Items wait for the next day once it is spent.
+  daily_tokens: 100000
 
 backup:
   # Where `acorn backup` writes snapshots; empty turns backups off.

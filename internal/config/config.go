@@ -17,6 +17,7 @@ type Config struct {
 	Notify      NotifyConfig      `yaml:"notify"`
 	Watch       WatchConfig       `yaml:"watch"`
 	Briefing    BriefingConfig    `yaml:"briefing"`
+	News        NewsConfig        `yaml:"news"`
 	Backup      BackupConfig      `yaml:"backup"`
 	Workstation WorkstationConfig `yaml:"workstation"`
 	Files       FilesConfig       `yaml:"files"`

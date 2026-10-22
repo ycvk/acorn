@@ -156,24 +156,11 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + runProcessesTable + `
 
-CREATE TABLE IF NOT EXISTS watches (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    target TEXT NOT NULL,
-    selector TEXT NOT NULL DEFAULT '',
-    mode TEXT NOT NULL,
-    interval_seconds INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    session_id TEXT NOT NULL DEFAULT '',
-    next_check_at TEXT NOT NULL,
-    last_checked_at TEXT NOT NULL DEFAULT '',
-    last_error TEXT NOT NULL DEFAULT '',
-    failures INTEGER NOT NULL DEFAULT 0,
-    snapshot TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
+` + newsSectionsTable + `
+
+` + watchesTable + `
+
+` + newsStoriesTables + `
 
 CREATE TABLE IF NOT EXISTS watch_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -128,7 +128,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required for web_fetch")
 	}
-	tool, err := inferProgressTool("web_fetch", "Fetch a public HTTP(S) URL (HTML, plain text or XML), extract Markdown, and persist raw/Markdown artifacts. An RSS or Atom feed comes back as its entries with title, link, date and summary.", func(ctx context.Context, input WebFetchInput, emit ToolProgressEmitter) (WebFetchOutput, error) {
+	tool, err := inferProgressTool("web_fetch", "Fetch a public HTTP(S) URL (HTML, plain text, XML or JSON), extract Markdown, and persist raw/Markdown artifacts. An RSS, Atom or JSON feed comes back as its entries with title, link, date and summary.", func(ctx context.Context, input WebFetchInput, emit ToolProgressEmitter) (WebFetchOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
 			return WebFetchOutput{}, errors.New("web_fetch requires current run context")

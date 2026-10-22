@@ -16,7 +16,10 @@ type Resolver interface {
 
 type URLPolicy struct {
 	AllowPrivateNetworks bool
-	Resolver             Resolver
+	// Trusted are base URLs whose origin is reached even on a loopback or
+	// private address, such as the owner's RSSHub.
+	Trusted  []string
+	Resolver Resolver
 }
 
 type ValidatedURL struct {
@@ -47,6 +50,13 @@ func (p URLPolicy) Validate(ctx context.Context, raw string) (ValidatedURL, erro
 	host := strings.TrimSpace(parsed.Hostname())
 	if host == "" {
 		return ValidatedURL{}, errors.New("url host is required")
+	}
+	trusted, err := p.trusts(parsed)
+	if err != nil {
+		return ValidatedURL{}, err
+	}
+	if trusted {
+		return ValidatedURL{Raw: trimmed, Normalized: parsed.String(), Scheme: strings.ToLower(parsed.Scheme), Host: host}, nil
 	}
 	if isLocalhostName(host) {
 		return ValidatedURL{}, fmt.Errorf("blocked localhost host %q", host)
@@ -102,6 +112,30 @@ func (p URLPolicy) validateHost(ctx context.Context, host string) ([]netip.Addr,
 		addrs = append(addrs, addr)
 	}
 	return addrs, nil
+}
+
+// trusts reports whether u has the origin of a trusted base URL.
+func (p URLPolicy) trusts(u *url.URL) (bool, error) {
+	for _, raw := range p.Trusted {
+		base, err := url.Parse(raw)
+		if err != nil || base.Host == "" {
+			return false, fmt.Errorf("trusted base url %q is not an absolute url", raw)
+		}
+		if origin(base) == origin(u) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// origin is a URL's scheme, host and port, with the scheme's default port.
+func origin(u *url.URL) string {
+	scheme := strings.ToLower(u.Scheme)
+	port := u.Port()
+	if port == "" {
+		port = map[string]string{"http": "80", "https": "443"}[scheme]
+	}
+	return scheme + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), port)
 }
 
 func isLocalhostName(host string) bool {

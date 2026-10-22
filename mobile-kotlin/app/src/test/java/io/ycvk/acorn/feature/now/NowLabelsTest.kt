@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.now
 
 import io.ycvk.acorn.api.models.NowPanel
+import io.ycvk.acorn.api.models.NowWatch
 import io.ycvk.acorn.api.models.View
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -34,6 +35,21 @@ class NowLabelsTest {
         val panel = NowPanel(threadId = "thread_repos", threadTitle = "仓库版本", view = view, updatedAt = now.minusMinutes(3))
         assertEquals("仓库版本 · 3 分钟前更新", panelMeta(panel, now))
         assertEquals("仓库版本 · 刚刚更新", panelMeta(panel.copy(updatedAt = now), now))
+    }
+
+    @Test
+    fun `a news source names its section`() {
+        val watch = NowWatch(
+            id = 1, name = "AI225", kind = NowWatch.Kind.rss, target = "https://daily.ai225.com/rss.xml",
+            mode = NowWatch.Mode.news, status = NowWatch.Status.active, intervalSeconds = 3600,
+            nextCheckAt = OffsetDateTime.parse("2026-10-22T01:00:00Z"), failures = 0, section = "AI 与科技前沿", issue = true,
+        )
+        assertEquals("新闻：AI 与科技前沿", watchModeLabel(watch))
+        assertEquals("试用：AI 与科技前沿", watchModeLabel(watch.copy(trial = true)))
+        assertEquals("新闻", watchModeLabel(watch.copy(section = null)))
+        assertEquals("汇总进简报", watchModeLabel(watch.copy(mode = NowWatch.Mode.digest, section = null)))
+        assertEquals("即时提醒", watchModeLabel(watch.copy(mode = NowWatch.Mode.immediate, section = null)))
+        assertEquals("脚本", watchKindLabel(NowWatch.Kind.trigger))
     }
 
     @Test

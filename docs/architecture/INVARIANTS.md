@@ -32,8 +32,9 @@
 - **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再发 `run.completed`/`run.failed` 并把 run 标记为结束；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
-- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
+- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
   - `internal/runtime/approval_review_test.go`
+  - `internal/runtime/approval_test.go`
   - `internal/review/review_test.go`
 - **审批绑定具体调用并可跨重启恢复**：规则或审查要求审批的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行完，被拦截的调用等决策后再执行。`approval.require` 与 `approval.block` 不允许命中 `ask_operator`。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
   - `internal/runtime/approval_test.go`
@@ -263,8 +264,11 @@
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/tools/watch_tools_test.go`
-- **抓取只经 URL policy**：feed、GitHub 与网页都经 `webaccess.FetchRaw`（与 `web_fetch` 共用 policy、超时与大小上限），渲染页面经浏览器服务的 policy；loopback 一律拒绝。
+- **抓取只经 URL policy**：feed、GitHub、网页与 `feed_discover` 试探的地址都经 `webaccess.FetchRaw`（与 `web_fetch` 共用超时与大小上限），渲染页面经浏览器服务的 policy；loopback 与未放开的内网地址拒绝，唯一例外是追踪用的 policy 放行 `watch.rsshub_base_url` 的 origin（协议、主机与端口），`web_fetch` 与视图链接不放行。
   - `internal/watch/watch_test.go`
+  - `internal/webaccess/discover_test.go`
+  - `internal/webaccess/url_policy_test.go`
+  - `internal/wire/watch_test.go`
 - **追踪项检查与唤醒只在 wake 调度器**：到期追踪项以条件更新加租约认领，多个调度器只有一个检查。检查结果只写检查字段（下次与上次检查、错误、失败次数、快照、active 与 failing 之间的切换），与新条目在同一事务里，且仅当追踪项的状态、失败次数与上次检查仍是检查开始时读到的值；检查期间 owner 的暂停、恢复或重设基线优先，这次检查的结果与条目都不记录。只有 immediate 追踪项的新条目起 wake run（在建立追踪项的线程里），计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`；超限、起 run 失败与 digest 追踪项的条目都留给早安卡。一个追踪项失败不影响约定和其他追踪项；连续 5 次失败标为 failing，退避上限 24 小时。
   - `internal/wake/watches_test.go`
   - `internal/watch/watch_test.go`
@@ -281,7 +285,12 @@
   - `internal/store/store_skills_test.go`
   - `internal/wire/package_triggers_e2e_test.go`
   - `internal/runtime/agent_test.go`
-- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、全部待简报条目、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，或有 failing 的触发器。
+- **触发器的条目只进跟随它的新闻源**：输出行 `{"item": {...}}` 严格解析（key 与 title 必填，url 为绝对 http(s) 链接，published 为 RFC 3339），同一次输出里 key 不重复。条目作为一次检查写进 kind 为 `trigger`、目标为 `<skill>/<trigger>` 的每个未暂停的新闻源（创建后第一次输出是基线，之后的新 key 才是待报条目），不起 run；有条目而没有源跟随时本次运行失败。`trigger` 类追踪项只能是新闻源，建立时触发器须属于在用技能，不抓取、不在到期检查与早安卡前的刷新里。
+  - `internal/skills/manifest_test.go`
+  - `internal/wake/triggers_test.go`
+  - `internal/store/store_news_test.go`
+  - `internal/tools/watch_tools_test.go`
+- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、新闻事件（见下一条）、其他追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，有 failing 的触发器，或近一天有放弃整理的新闻条目。
   - `internal/wake/briefing_test.go`
   - `internal/wake/health_test.go`
   - `internal/wake/watches_test.go`
@@ -289,6 +298,22 @@
   - `internal/memory/context_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
+- **新闻源只供早安卡挑选，用过即丢，不进记忆**：`news` 模式的追踪项属于 `news_sections` 的一个板块（外键随板块改名级联，有源的板块不能删除），只有新闻源带板块与期刊标记。新闻源的条目不登记为记忆来源，也不作为早安卡的输入来源。早安卡生成前，未暂停的新闻源全部再检查一次（至多 4 个并发），再等后台整理追上（至多 10 分钟）；检查与整理的失败照常记录，错误交给调度日志，早安卡用已整理好的事件照常生成。输入按板块顺序列出板块偏好、每个板块有待报条目的事件（按分数至多 20 件，标明新事件或之前出现的日期与新进展，附待报条目的来源、时间与链接）以及上一份写成的早安卡。起 run 时整理过的待报条目与暂停的源的待报条目标为 briefed。
+  - `internal/wake/news_test.go`
+  - `internal/store/store_news_test.go`
+  - `internal/tools/watch_tools_test.go`
+  - `internal/wire/news_acceptance_e2e_test.go`
+- **新闻源先试用，进出早安卡由 owner 决定**：新建的新闻源与改成 news 模式的追踪项都从试用开始；试用源照常抓取与整理，它的条目不出现在早安卡的事件里，早安卡开始时与其他整理过的条目一样标为已报。`news_source` 把试用源转正（暂停的同时恢复）或停用早安卡在用的源，`approval.allow` 没有放行时每次调用都等 owner 审批；`watch_update` 不能暂停在用的新闻源，也不能把它改成别的模式。夜思在 owner 时区的周日，或有试用源在上次夜思之后满一周时，列出每个未暂停的新闻源近 7 天的条目数、平均分、4–5 分条数、与其他源同属一个事件的比例和被早安卡链接的条数。
+  - `internal/store/store_news_stories_test.go`
+  - `internal/tools/watch_tools_test.go`
+  - `internal/runtime/approval_test.go`
+  - `internal/api/tool_steps_test.go`
+  - `internal/wake/thinking_test.go`
+  - `internal/wire/news_acceptance_e2e_test.go`
+- **新闻条目整理一次，过期只留键**：后台 worker 认领首见于 14 天内、未整理的待报条目（期刊一次一期，其余一批至多 30 条），租约 5 分钟；模型在 `news.daily_tokens` 内给每条打 1–5 分并归入新事件或近 72 小时的事件，期刊页拆成带链接的条目（链接按期刊页解析，只接受 http/https），期刊页读不到时这一批失败。回复逐项校验：批里每条恰好打分一次，事件引用有定义，板块存在；提交在同一事务里按认领 token 校验并写分数、事件与条目，条目已被另一批重新认领时提交失败。预算用尽的批延到下一本地日且不计失败次数，其他失败第 3 次放弃并计入 System health。首见超过 14 天的条目只留键与状态（记忆来源除外），移出事件，没有条目的事件删除；源里仍在的条目不会作为新条目回来。`news_search` 按板块、关键词（每个词都要出现）与天数（1 到 14）检索事件。
+  - `internal/news/news_test.go`
+  - `internal/store/store_news_stories_test.go`
+  - `internal/tools/watch_tools_test.go`
 
 ## 空闲思考、用量与手机通知
 

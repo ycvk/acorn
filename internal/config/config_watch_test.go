@@ -16,6 +16,7 @@ func TestValidateBaseRejectsInvalidWatchSettings(t *testing.T) {
 		{"rsshub url", func(c *Config) { c.Watch.RSSHubBaseURL = "rsshub.local" }, "watch.rsshub_base_url"},
 		{"checks per tick", func(c *Config) { c.Watch.MaxChecksPerTick = 0 }, "watch.max_checks_per_tick"},
 		{"briefing clock", func(c *Config) { c.Briefing.At = "8am" }, "briefing.at"},
+		{"news budget", func(c *Config) { c.News.DailyTokens = -1 }, "news.daily_tokens"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := defaultConfig()
@@ -45,5 +46,19 @@ func TestGitHubTokenExpandsEnv(t *testing.T) {
 	}
 	if cfg.Watch.GitHubToken != "ghp_from_env" {
 		t.Fatalf("github token = %q", cfg.Watch.GitHubToken)
+	}
+}
+
+func TestNewsBudgetDefaultsAndLoads(t *testing.T) {
+	if got := defaultConfig().News.DailyTokens; got != 100000 {
+		t.Fatalf("default news.daily_tokens = %d", got)
+	}
+	path := filepath.Join(t.TempDir(), "acorn.yaml")
+	if err := os.WriteFile(path, []byte("news:\n  daily_tokens: 0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil || cfg.News.DailyTokens != 0 {
+		t.Fatalf("news.daily_tokens = %d, %v", cfg.News.DailyTokens, err)
 	}
 }

@@ -281,7 +281,7 @@ Do not expose `/v1` without device auth. Acorn does not provide a local/dev auth
 Acorn can use native runtime tools for public web research:
 
 - `web_search` uses Exa for search discovery.
-- `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts. It reads HTML, plain text and XML; an RSS or Atom feed comes back as a list of its entries.
+- `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts. It reads HTML, plain text, XML and JSON; an RSS, Atom or JSON feed comes back as a list of its entries.
 
 Pages that need JavaScript or interaction open in a real browser on the agent's workstation; see [Agent Workstation](#15-agent-workstation).
 
@@ -435,7 +435,7 @@ Tap the pin on a view to keep it on the Today page as a panel; a tap on the pane
 
 Ask the agent to keep an eye on something and it creates a watch: "follow the Go blog", "tell me when golang/go has a new release", "watch the price on this page and tell me right away when it drops". The backend checks each watch on its own schedule (hourly by default, at least every 15 minutes) and only involves the model when something is new. The first check of a watch is the baseline, so what is already there is not reported.
 
-Every morning with something to say, the agent writes a briefing in the Briefings conversation, shows it on the 今天 tab, and pushes a short summary. It covers today's commitments, what it remembered from you since the last briefing, facts that take effect this week, last night's reflection, notes written since then, what changed on your watches, and phone notifications worth acting on. A morning with none of that is skipped: no briefing, no push, and the 今天 tab keeps showing the latest one. When something needs your attention on the server — no recent backup, memory jobs that failed after all retries, or memory jobs waiting for more than a day — the briefing says so with a suggested check; on a healthy server it says nothing about it. Watches you asked to hear about right away wake the agent in the conversation where you set them up instead; those wakes count toward `wake.daily_limit`, and changes past the limit wait for the briefing.
+Every morning with something to say, the agent writes a briefing in the Briefings conversation, shows it on the 今天 tab, and pushes a short summary. Items of your watches take turns for the briefing's 100 places, so one busy watch cannot crowd out the others; the rest wait for the next morning. It covers today's commitments, what it remembered from you since the last briefing, facts that take effect this week, last night's reflection, notes written since then, what changed on your watches, and phone notifications worth acting on. A morning with none of that is skipped: no briefing, no push, and the 今天 tab keeps showing the latest one. When something needs your attention on the server — no recent backup, memory jobs that failed after all retries, or memory jobs waiting for more than a day — the briefing says so with a suggested check; on a healthy server it says nothing about it. Watches you asked to hear about right away wake the agent in the conversation where you set them up instead; those wakes count toward `wake.daily_limit`, and changes past the limit wait for the briefing.
 
 ```yaml
 briefing:
@@ -448,17 +448,37 @@ watch:
 
 Sources a watch can follow:
 
-- RSS or Atom feeds by URL.
-- Anything RSSHub can turn into a feed (X, Weibo, and many more) as `rsshub:/route`. Run your own RSSHub next to Acorn; public instances are often rate limited:
+- The news items a skill package trigger prints, for a news site without a feed: the agent writes a script that reads the site's list, and a news source of kind `trigger` follows it.
+- RSS, Atom or JSON feeds by URL. Give the agent a site's address and it finds the site's feeds with `feed_discover`: the feeds the page names, links on it that look like feeds and common feed paths, each checked, with how many entries a day it carries and when it last published.
+- Anything RSSHub can turn into a feed (X, Weibo, hot lists and many more) as `rsshub:/route`. Run your own RSSHub next to Acorn; public instances are often rate limited:
 
   ```bash
-  docker run -d --name rsshub --restart always -p 127.0.0.1:1200:1200 diygod/rsshub
+  podman run -d --name rsshub --restart always -p 127.0.0.1:1200:1200 docker.io/diygod/rsshub
   ```
+
+  Set `watch.rsshub_base_url` to its address; the agent then checks a route with `feed_discover rsshub:/route` before following it. Watches and feed discovery reach that address even on loopback or a private network; every other loopback and private address stays blocked, and the agent's `web_fetch` does not reach it.
 
 - A GitHub repository's releases or newly opened issues.
 - Part of a web page picked by a CSS selector, such as a price; without a selector the page's main text. Pages that only render with JavaScript need the workstation, whose browser renders them.
 
 A watch that keeps failing (five times in a row) is marked failing and listed in the briefing with its last error. Ask the agent to list, pause, resume or change your watches. `acorn doctor` shows how many watches there are and which are failing.
+
+### News in the briefing
+
+Ask the agent for the news you want each morning, for example "国内要闻、国际与财经、AI 与科技前沿，每天十条左右". It sets up sections with `news_sections`, each with a few lines of what you want from it, most important first, and adds news sources under them: watches in `news` mode. A source whose entries are issues, such as a daily AI digest, is marked as one.
+
+In the background Acorn sorts what the sources publish into stories: each item gets a score from 1 to 5 for general importance and fit with its section, reports of the same event from different sources share a story, and each piece of news on an issue's page becomes an item of its own. Sorting calls the model and counts against its own daily budget:
+
+```yaml
+news:
+  daily_tokens: 100000   # 0 means no cap
+```
+
+Once the budget is spent, items wait for the next local day. Before each briefing the backend checks every news source again and waits for the sorting to catch up, then offers the model the stories with new items since the last briefing, by section and highest score first, with the previous briefing. The briefing opens with about ten stories across the sections, each a title, one sentence and a link, then 今日关注 with the three that matter most; the push carries those three. Stories it did not pick are dropped, and a story told the day before comes back only with something new. Ask "最近 AI 圈有什么" or "那个停火谈判后来怎样" in any conversation and the agent answers from the stories of the last two weeks with `news_search`. Items older than two weeks keep only what tells them apart, so a feed that still lists them does not bring them back. News sources are not part of memory, and the morning briefing lists items the sorting gave up on under System health.
+
+A new news source starts on trial: Acorn fetches and sorts it, but the briefing leaves it out. Every Sunday night, and on the night a trial source finishes its first week, the night reflection looks at each source's last seven days: items a day, average score, how many scored 4 or 5, how many shared a story with another source, and how many a briefing linked. The agent proposes taking a trial source in or stopping one the briefing takes, and each such change waits for your approval in the app. Ask in any conversation to try a source and it is added on trial; ask to take it in and you approve it once.
+
+Pick sources someone already ranked: top stories, front pages and daily digests. A feed of hundreds of items a day in order of time gives the model only the last hour or two. Daily digests often appear after 08:00; set `briefing.at` after the ones you follow publish, or the briefing carries the previous issue. Say what you want changed in any conversation ("AI 板块少报融资", "加一个财经源"), and the agent edits the sections and sources.
 
 ## 14. Backup and Restore
 
@@ -566,7 +586,7 @@ Unknown fields are rejected. When the agent writes or imports such a package, th
 
 While the skill is in use, its MCP server runs on the workstation, restarts when the skill gets a new revision and stops when the skill is retired; its tools are named `mcp__<skill>__<tool>` and appear only in runs that have the skill. Like any MCP tool they meet your approval rules first, so with the default `mcp__*` in `require` every call waits for your approval. A package with an MCP server cannot take the name of a provider in `mcp.providers`, and Acorn refuses to start when you later add a provider named like one.
 
-A trigger's command runs at each time of its schedule, bounded by `workstation.command_timeout_seconds`. Each line it prints is an event, `{"key": "...", "text": "..."}`, or data for the pinned views that name the trigger as their source, `{"view_data": {...}}`; printing nothing means nothing happened, and the model is not called. Acorn handles each key of a trigger once, so the command can print everything it still sees and only new keys count. Put the deterministic check in the command: compare the price with a threshold, list the items not seen yet. Events of an `immediate` trigger start a run in the package's own conversation, named after the skill, and the agent loads the skill to handle them; these runs count toward `wake.daily_limit` and `wake.daily_tokens`, and events over the limit, or whose run could not start, go to the next morning briefing. Events of a `digest` trigger only go to the briefing. Events are kept as external sources the agent can cite; like phone notifications, nothing in them changes the agent's rules. A trigger whose command fails five times in a row is listed under System health in the briefing and retries after a growing wait. Retiring the skill stops its triggers.
+A trigger's command runs at each time of its schedule, bounded by `workstation.command_timeout_seconds`. Each line it prints is an event, `{"key": "...", "text": "..."}`, a news item for the news source that follows the trigger, `{"item": {"key": "...", "title": "...", "url": "...", "summary": "...", "published": "..."}}`, or data for the pinned views that name the trigger as their source, `{"view_data": {...}}`; printing nothing means nothing happened, and the model is not called. Acorn handles each key of a trigger once, so the command can print everything it still sees and only new keys count. Put the deterministic check in the command: compare the price with a threshold, list the items not seen yet. Events of an `immediate` trigger start a run in the package's own conversation, named after the skill, and the agent loads the skill to handle them; these runs count toward `wake.daily_limit` and `wake.daily_tokens`, and events over the limit, or whose run could not start, go to the next morning briefing. Events of a `digest` trigger only go to the briefing. Events are kept as external sources the agent can cite; like phone notifications, nothing in them changes the agent's rules. A trigger whose command fails five times in a row is listed under System health in the briefing and retries after a growing wait. Retiring the skill stops its triggers.
 
 `secrets` lists environment variables the package needs. Set each on the skill's page in the app, under 密钥, or on the server, where the value is read from standard input or typed without echo:
 

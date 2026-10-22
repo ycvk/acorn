@@ -125,3 +125,20 @@ func TestURLPolicyAllowsPrivateNetworksOnlyWhenExplicitlyConfigured(t *testing.T
 		}
 	}
 }
+
+func TestURLPolicyReachesOnlyTheOriginOfATrustedBaseURL(t *testing.T) {
+	policy := URLPolicy{Trusted: []string{"http://127.0.0.1:1200/", "https://rsshub.lan"}, Resolver: fakeResolver{"rsshub.lan": {"10.0.0.5"}}}
+	for _, raw := range []string{"http://127.0.0.1:1200/zhihu/hot", "HTTP://127.0.0.1:1200", "https://rsshub.lan:443/github/trending/daily"} {
+		if _, err := policy.Validate(context.Background(), raw); err != nil {
+			t.Fatalf("Validate(%q) = %v", raw, err)
+		}
+	}
+	for _, raw := range []string{"http://127.0.0.1:1201/", "https://127.0.0.1:1200/", "http://localhost:1200/", "http://rsshub.lan/", "http://user@127.0.0.1:1200/", "http://169.254.169.254/"} {
+		if _, err := policy.Validate(context.Background(), raw); err == nil {
+			t.Fatalf("Validate(%q) passed", raw)
+		}
+	}
+	if _, err := (URLPolicy{Trusted: []string{"rsshub"}}).Validate(context.Background(), "http://127.0.0.1:1200/"); err == nil || !strings.Contains(err.Error(), "trusted base url") {
+		t.Fatalf("a relative trusted url err = %v", err)
+	}
+}

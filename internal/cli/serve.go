@@ -55,6 +55,7 @@ func runServe(ctx context.Context, args []string) error {
 
 	workers.Go(func() { container.WakeScheduler().Run(ctx) })
 	workers.Go(func() { container.MemoryWorker().Run(ctx) })
+	workers.Go(func() { container.NewsWorker().Run(ctx) })
 	workers.Go(func() { resumeReadyRunsLoop(ctx, container.ResumeReadyRuns, resumeSweepInterval) })
 
 	server := &http.Server{

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/knowledge"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/news"
 	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/presence"
 	"github.com/ycvk/acorn/internal/runtime"
@@ -36,6 +38,7 @@ type containerRuntimeDeps struct {
 	notifier     *notify.Sender
 	vault        *knowledge.Vault
 	watchChecker *watch.Checker
+	news         *news.Processor
 	// triggers is nil without a workstation.
 	triggers      *skills.TriggerRunner
 	panels        *views.Feeder
@@ -125,9 +128,17 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, fmt.Errorf("memory: %w", err)
 	}
-	watchChecker, err := buildWatchChecker(cfg, db, options)
+	webFetcher, webPolicy, err := buildWebFetcher(cfg)
 	if err != nil {
 		return nil, err
+	}
+	watchChecker, err := buildWatchChecker(cfg, db, webFetcher, webPolicy, options)
+	if err != nil {
+		return nil, err
+	}
+	newsProcessor, err := buildNews(ctx, cfg, db, webFetcher, options.clock)
+	if err != nil {
+		return nil, fmt.Errorf("news: %w", err)
 	}
 	workstationClient, err := buildWorkstationClient(cfg)
 	if err != nil {
@@ -177,6 +188,10 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Skills: skillDeps,
 		Watch: tools.WatchToolDeps{
 			Store:    db,
+			News:     db,
+			Feeds:    webFetcher,
+			RSSHub:   strings.TrimSpace(cfg.Watch.RSSHubBaseURL),
+			Triggers: skillLibrary,
 			Checker:  watchChecker,
 			Context:  ctxBridge,
 			Clock:    options.clock,
@@ -267,6 +282,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		notifier:              notifier,
 		vault:                 vault,
 		watchChecker:          watchChecker,
+		news:                  newsProcessor,
 		triggers:              triggers,
 		panels:                panels,
 		packageStatus:         packageStatus,

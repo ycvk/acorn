@@ -15,6 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/knowledge"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/news"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
@@ -23,6 +24,7 @@ import (
 
 type Container struct {
 	memory             *memory.Engine
+	news               *news.Processor
 	clock              func() time.Time
 	cfg                *config.Config
 	store              *store.Store
@@ -229,6 +231,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container := &Container{
 		cfg:           cfg,
 		memory:        deps.memory,
+		news:          deps.news,
 		clock:         clock,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
@@ -248,7 +251,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.threads = threads
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
-	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithResumer(container.runResume)
+	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithNewsSources(db).WithResumer(container.runResume)
 
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = api.NewDeviceAuthService(db).WithPushInstallations(db)
@@ -303,6 +306,8 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Runs:               &wakeRunStarter{runs: container.runs, store: db},
 		Watches:            db,
 		Checker:            deps.watchChecker,
+		News:               db,
+		Sorter:             deps.news,
 		Triggers:           db,
 		Clock:              clock,
 		Location:           location,

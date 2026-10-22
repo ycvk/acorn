@@ -48,6 +48,13 @@ func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time) (string, 
 		return "", err
 	}
 	problems = append(problems, failingTriggers(triggers)...)
+	news, err := s.newsHealth(ctx, now)
+	if err != nil {
+		return "", err
+	}
+	if news != "" {
+		problems = append(problems, news)
+	}
 	if len(problems) == 0 {
 		return "", nil
 	}

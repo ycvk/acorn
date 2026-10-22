@@ -9,11 +9,18 @@ import (
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
-func (c *Checker) fetchFeed(ctx context.Context, w core.Watch) (Fetched, error) {
-	target := w.Target
-	if route, ok := strings.CutPrefix(target, "rsshub:"); ok {
-		target = strings.TrimRight(c.cfg.RSSHubBaseURL, "/") + "/" + strings.TrimLeft(route, "/")
+// RSSHubURL is the address of an rsshub:/route target on the RSSHub at
+// base; ok is false for any other target.
+func RSSHubURL(base, target string) (string, bool) {
+	route, ok := strings.CutPrefix(target, "rsshub:")
+	if !ok {
+		return target, false
 	}
+	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(route, "/"), true
+}
+
+func (c *Checker) fetchFeed(ctx context.Context, w core.Watch) (Fetched, error) {
+	target, _ := RSSHubURL(c.cfg.RSSHubBaseURL, w.Target)
 	got, err := c.cfg.Fetcher.FetchRaw(ctx, target, map[string]string{
 		"Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9",
 	})

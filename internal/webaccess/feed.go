@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -17,10 +18,10 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-// ErrNotFeed reports an XML document whose root is not an RSS or Atom feed.
-var ErrNotFeed = errors.New("not an RSS or Atom feed")
+// ErrNotFeed reports a document that is not an RSS, Atom or JSON feed.
+var ErrNotFeed = errors.New("not an RSS, Atom or JSON feed")
 
-// Feed is an RSS or Atom feed's title and entries, in the feed's order.
+// Feed is a feed's title and entries, in the feed's order.
 type Feed struct {
 	Title string
 	Items []FeedItem
@@ -72,9 +73,12 @@ type atomLink struct {
 
 var feedTimeLayouts = []string{time.RFC1123Z, time.RFC1123, time.RFC3339, "Mon, 2 Jan 2006 15:04:05 -0700", "Mon, 2 Jan 2006 15:04:05 MST"}
 
-// ParseFeed reads an RSS or Atom feed in the encoding its XML declaration
-// names. A document with another root element is ErrNotFeed.
+// ParseFeed reads a JSON Feed, or an RSS or Atom feed in the encoding its
+// XML declaration names. Any other document is ErrNotFeed.
 func ParseFeed(body []byte) (Feed, error) {
+	if trimmed := bytes.TrimSpace(bytes.TrimPrefix(body, []byte("\xef\xbb\xbf"))); bytes.HasPrefix(trimmed, []byte("{")) {
+		return parseJSONFeed(trimmed)
+	}
 	decoder := xml.NewDecoder(bytes.NewReader(body))
 	decoder.CharsetReader = charset.NewReaderLabel
 	decoder.Strict = false
@@ -97,6 +101,50 @@ func ParseFeed(body []byte) (Feed, error) {
 	}
 	for _, e := range doc.Entries {
 		feed.Items = append(feed.Items, feedEntry(e.ID, atomHref(e.Links), e.Title, firstNonEmpty(e.Summary, e.Content), firstNonEmpty(e.Published, e.Updated)))
+	}
+	return feed, nil
+}
+
+// jsonFeedDoc is a JSON Feed (https://jsonfeed.org) 1.0 or 1.1.
+type jsonFeedDoc struct {
+	Title string `json:"title"`
+	Items []struct {
+		ID            json.RawMessage `json:"id"`
+		URL           string          `json:"url"`
+		ExternalURL   string          `json:"external_url"`
+		Title         string          `json:"title"`
+		Summary       string          `json:"summary"`
+		ContentText   string          `json:"content_text"`
+		ContentHTML   string          `json:"content_html"`
+		DatePublished string          `json:"date_published"`
+		DateModified  string          `json:"date_modified"`
+	} `json:"items"`
+}
+
+// jsonFeedTitleRunes bounds the title made from the text of an untitled
+// JSON Feed item.
+const jsonFeedTitleRunes = 80
+
+func parseJSONFeed(body []byte) (Feed, error) {
+	var head struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(body, &head); err != nil || !strings.HasPrefix(head.Version, "https://jsonfeed.org/version/") {
+		return Feed{}, ErrNotFeed
+	}
+	var doc jsonFeedDoc
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return Feed{}, fmt.Errorf("decode JSON feed: %w", err)
+	}
+	feed := Feed{Title: collapseSpace(doc.Title)}
+	for _, it := range doc.Items {
+		var id string
+		if err := json.Unmarshal(it.ID, &id); err != nil {
+			id = strings.TrimSpace(string(it.ID))
+		}
+		summary := firstNonEmpty(it.Summary, it.ContentText, it.ContentHTML)
+		title := firstNonEmpty(it.Title, truncateRunes(plainText(summary), jsonFeedTitleRunes))
+		feed.Items = append(feed.Items, feedEntry(id, firstNonEmpty(it.URL, it.ExternalURL), title, summary, firstNonEmpty(it.DatePublished, it.DateModified)))
 	}
 	return feed, nil
 }

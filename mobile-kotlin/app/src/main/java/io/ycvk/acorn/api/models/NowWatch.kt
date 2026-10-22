@@ -39,6 +39,9 @@ import com.squareup.moshi.JsonClass
  * @param intervalSeconds 
  * @param nextCheckAt 
  * @param failures 
+ * @param section The news section of a news watch.
+ * @param issue A news watch whose entries are issues read on their pages.
+ * @param trial A news watch on trial, fetched and sorted but kept out of the briefing until the owner takes it in.
  * @param lastCheckedAt 
  * @param lastError 
  */
@@ -73,6 +76,18 @@ data class NowWatch (
     @Json(name = "failures")
     val failures: kotlin.Int,
 
+    /* The news section of a news watch. */
+    @Json(name = "section")
+    val section: kotlin.String? = null,
+
+    /* A news watch whose entries are issues read on their pages. */
+    @Json(name = "issue")
+    val issue: kotlin.Boolean? = null,
+
+    /* A news watch on trial, fetched and sorted but kept out of the briefing until the owner takes it in. */
+    @Json(name = "trial")
+    val trial: kotlin.Boolean? = null,
+
     @Json(name = "last_checked_at")
     val lastCheckedAt: java.time.OffsetDateTime? = null,
 
@@ -84,24 +99,26 @@ data class NowWatch (
     /**
      * 
      *
-     * Values: rss,github,web,web_rendered
+     * Values: rss,github,web,web_rendered,trigger
      */
     @JsonClass(generateAdapter = false)
     enum class Kind(val value: kotlin.String) {
         @Json(name = "rss") rss("rss"),
         @Json(name = "github") github("github"),
         @Json(name = "web") web("web"),
-        @Json(name = "web_rendered") web_rendered("web_rendered");
+        @Json(name = "web_rendered") web_rendered("web_rendered"),
+        @Json(name = "trigger") trigger("trigger");
     }
     /**
      * 
      *
-     * Values: digest,immediate
+     * Values: digest,immediate,news
      */
     @JsonClass(generateAdapter = false)
     enum class Mode(val value: kotlin.String) {
         @Json(name = "digest") digest("digest"),
-        @Json(name = "immediate") immediate("immediate");
+        @Json(name = "immediate") immediate("immediate"),
+        @Json(name = "news") news("news");
     }
     /**
      * 
