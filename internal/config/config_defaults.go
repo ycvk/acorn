@@ -31,6 +31,7 @@ func defaultConfig() *Config {
 		Thinking: ThinkingConfig{NightAt: "03:00", WanderAt: []string{}},
 		Watch:    WatchConfig{MaxChecksPerTick: 5},
 		Briefing: BriefingConfig{At: "08:00"},
+		News:     NewsConfig{DailyTokens: 100000},
 		Backup:   BackupConfig{Keep: 14},
 		Review: ReviewConfig{
 			APIKey:         "${TYPESAFE_API_KEY}",

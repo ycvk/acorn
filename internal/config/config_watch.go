@@ -23,6 +23,12 @@ type BriefingConfig struct {
 	At string `yaml:"at"`
 }
 
+// NewsConfig bounds the background sorting of news items into scored
+// stories. DailyTokens is per owner-local day; zero means no cap.
+type NewsConfig struct {
+	DailyTokens int `yaml:"daily_tokens"`
+}
+
 func (c *Config) validateWatch() error {
 	if base := strings.TrimSpace(c.Watch.RSSHubBaseURL); base != "" {
 		u, err := url.Parse(base)
@@ -37,6 +43,9 @@ func (c *Config) validateWatch() error {
 		if _, err := ParseClock(at); err != nil {
 			return fmt.Errorf("briefing.at: %w", err)
 		}
+	}
+	if c.News.DailyTokens < 0 {
+		return errors.New("news.daily_tokens must be >= 0 (0 means no cap)")
 	}
 	return nil
 }

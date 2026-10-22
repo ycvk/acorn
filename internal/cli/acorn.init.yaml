@@ -87,8 +87,14 @@ watch:
   max_checks_per_tick: 5
 
 briefing:
-  # Morning briefing time in owner.timezone; empty turns it off.
+  # Morning briefing time in owner.timezone; empty turns it off. Daily
+  # digests you follow as news sources often publish after 08:00.
   at: "08:00"
+
+news:
+  # Tokens per local day for sorting news items into scored stories in the
+  # background; 0 means no cap. Items wait for the next day once it is spent.
+  daily_tokens: 100000
 
 backup:
   # Where `acorn backup` writes snapshots; empty turns backups off.
