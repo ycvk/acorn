@@ -238,9 +238,11 @@ END;
 
 // memoryWatchTrigger and memoryEventTrigger register watch items and tool
 // results as sources without queueing extraction; only owner messages are
-// extracted. The v8 migration recreates them from these definitions.
+// extracted. Items of news watches are not sources. The v8 and v22
+// migrations recreate them from these definitions.
 const memoryWatchTrigger = `
-CREATE TRIGGER IF NOT EXISTS memory_watch_ai AFTER INSERT ON watch_items BEGIN
+CREATE TRIGGER IF NOT EXISTS memory_watch_ai AFTER INSERT ON watch_items
+ WHEN COALESCE((SELECT mode FROM watches WHERE id=new.watch_id),'') <> 'news' BEGIN
  INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,recorded_at,occurred_at)
  VALUES('watch:'||new.id,'watch',CAST(new.id AS TEXT),'1','external',COALESCE((SELECT session_id FROM watches WHERE id=new.watch_id),''),new.seen_at,new.published_at);
 END;

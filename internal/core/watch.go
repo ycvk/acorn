@@ -13,7 +13,11 @@ var (
 	ErrWatchNotDue = errors.New("watch not due")
 	// ErrWatchChanged means a watch's status, failures or last check changed
 	// while a check of it ran, so the check's result was not recorded.
-	ErrWatchChanged = errors.New("watch changed during the check")
+	ErrWatchChanged        = errors.New("watch changed during the check")
+	ErrNewsSectionNotFound = errors.New("news section not found")
+	// ErrNewsSectionInUse means a news section still has sources, so it
+	// cannot be removed.
+	ErrNewsSectionInUse = errors.New("news section still has sources")
 )
 
 // WatchKind is the type of source a watch follows.
@@ -27,12 +31,14 @@ const (
 )
 
 // WatchMode decides what happens with a watch's new items: immediate wakes
-// the agent, digest keeps them for the morning briefing.
+// the agent, digest keeps them for the morning briefing, and news offers them
+// to the briefing to pick from under the watch's section.
 type WatchMode string
 
 const (
 	WatchModeDigest    WatchMode = "digest"
 	WatchModeImmediate WatchMode = "immediate"
+	WatchModeNews      WatchMode = "news"
 )
 
 // WatchStatus is a watch's scheduling state. A failing watch is still
@@ -58,12 +64,16 @@ const (
 
 // Watch is a source the agent follows on the owner's behalf.
 type Watch struct {
-	ID            int64
-	Name          string
-	Kind          WatchKind
-	Target        string
-	Selector      string
-	Mode          WatchMode
+	ID       int64
+	Name     string
+	Kind     WatchKind
+	Target   string
+	Selector string
+	Mode     WatchMode
+	// Section is the news section of a news watch; other modes have none.
+	Section string
+	// Issue marks a news watch whose items are issues, each read on its page.
+	Issue         bool
 	Interval      time.Duration
 	Status        WatchStatus
 	SessionID     string
@@ -86,6 +96,32 @@ func (w Watch) Pause(now time.Time) Watch {
 func (w Watch) Resume(now time.Time) Watch {
 	w.Status, w.Failures, w.LastError, w.NextCheckAt, w.UpdatedAt = WatchActive, 0, "", now, now
 	return w
+}
+
+// NewsSection groups news watches in the morning briefing. Preference is
+// what the owner wants from it, a few lines in order of priority.
+type NewsSection struct {
+	Name       string
+	Position   int
+	Preference string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+// PendingNews is what news watches found since the last briefing: up to a
+// number of the newest items of each watch, every watch's pending count, and
+// the ids of all pending items, which the briefing marks whether listed or not.
+type PendingNews struct {
+	Items  []WatchItem
+	Counts map[int64]int
+	IDs    []int64
+}
+
+// PendingBriefing is what the other watches hold for the briefing: items
+// taken from each watch in turn up to a limit, and every watch's pending count.
+type PendingBriefing struct {
+	Items  []WatchItem
+	Counts map[int64]int
 }
 
 // WatchItem is one new thing seen on a watch.
@@ -133,4 +169,20 @@ type WatchStore interface {
 	RecordWatchCheck(ctx context.Context, from Watch, check WatchCheck) ([]WatchItem, error)
 	ListWatchItems(ctx context.Context, status WatchItemStatus, limit int) ([]WatchItem, error)
 	MarkWatchItems(ctx context.Context, ids []int64, status WatchItemStatus, runID string) error
+	// PendingBriefingItems takes the pending items of the watches other than
+	// news watches in turns, oldest first within a watch, up to limit.
+	PendingBriefingItems(ctx context.Context, limit int) (PendingBriefing, error)
+	// PendingNewsItems lists the newest pending items of each news watch, at
+	// most perWatch of each.
+	PendingNewsItems(ctx context.Context, perWatch int) (PendingNews, error)
+
+	ListNewsSections(ctx context.Context) ([]NewsSection, error)
+	// SaveNewsSection adds a section or changes the position and preference
+	// of the one with its name.
+	SaveNewsSection(ctx context.Context, section NewsSection) (NewsSection, error)
+	// RenameNewsSection renames a section and moves its watches with it.
+	RenameNewsSection(ctx context.Context, from, to string, at time.Time) error
+	// DeleteNewsSection removes a section without watches; one with watches
+	// fails with ErrNewsSectionInUse.
+	DeleteNewsSection(ctx context.Context, name string) error
 }
