@@ -213,3 +213,98 @@ func TestPruneNewsKeepsKeysAndItemsThatAreMemorySources(t *testing.T) {
 		t.Fatalf("stories move with their section's name: %+v, %v", found, err)
 	}
 }
+
+func TestTrialSourcesStayOutOfBriefingsAndEachSourceIsCounted(t *testing.T) {
+	s, bbc, ft, _ := newsStoryFixture(t)
+	ctx := context.Background()
+	trial := addNewsWatch(t, s, "trial", "国际", false)
+	trial.Trial, trial.UpdatedAt = true, watchTestNow
+	if err := s.UpdateWatch(ctx, trial); err != nil {
+		t.Fatal(err)
+	}
+	record := func(w core.Watch, keys ...string) map[string]int64 {
+		var items []core.WatchItem
+		for _, key := range keys {
+			items = append(items, core.WatchItem{WatchID: w.ID, Key: key, Title: key, URL: "https://" + w.Name + ".test/" + key, Status: core.WatchItemPending, SeenAt: watchTestNow})
+		}
+		added, err := s.RecordWatchCheck(ctx, w, core.WatchCheck{At: watchTestNow, NextCheckAt: watchTestNow.Add(time.Hour), Status: w.Status, Items: items})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := map[string]int64{}
+		for _, item := range added {
+			ids[item.Key] = item.ID
+		}
+		return ids
+	}
+	ids := record(bbc, "b1", "b2")
+	for k, v := range record(ft, "f1") {
+		ids[k] = v
+	}
+	for k, v := range record(trial, "t1", "t2") {
+		ids[k] = v
+	}
+	batch, err := s.ClaimNewsBatch(ctx, watchTestNow, time.Minute, 10, false)
+	if err != nil || len(batch.Items) != 5 {
+		t.Fatalf("batch = %+v, %v", batch, err)
+	}
+	if err := s.CommitNewsBatch(ctx, batch.Token, core.NewsCommit{
+		At:      watchTestNow,
+		Stories: []core.NewsStoryChange{{Ref: "n1", Section: "国际", Title: "停火谈判"}, {Ref: "n2", Section: "国际", Title: "只有试用源报的事"}},
+		Scores: []core.NewsItemScore{
+			{ItemID: ids["b1"], Score: 5, Story: "n1"}, {ItemID: ids["b2"], Score: 1}, {ItemID: ids["f1"], Score: 4, Story: "n1"},
+			{ItemID: ids["t1"], Score: 5, Story: "n1"}, {ItemID: ids["t2"], Score: 4, Story: "n2"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	news, err := s.BriefingNewsStories(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(news.Stories) != 1 || news.Stories[0].Title != "停火谈判" || len(news.Stories[0].Items) != 2 || len(news.IDs) != 5 {
+		t.Fatalf("briefing news = %+v", news)
+	}
+	for _, item := range news.Stories[0].Items {
+		if item.Source == "trial" {
+			t.Fatalf("a trial item was offered: %+v", item)
+		}
+	}
+
+	if err := s.ClaimRoutine(ctx, "briefing", "2026-10-03", watchTestNow); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_b", Input: "[briefing 2026-10-03]"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FinishRun(ctx, "run_b", core.RunStatusSucceeded, "1. **停火谈判**：开始了。[BBC](https://bbc.test/b1)", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRoutineRun(ctx, "briefing", "2026-10-03", "thread_b", "run_b"); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := s.NewsSourceStats(ctx, watchTestNow.Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, st := range stats {
+		got = append(got, fmt.Sprintf("%s trial=%t items=%d scored=%d sum=%d high=%d shared=%d picked=%d", st.Watch.Name, st.Watch.Trial, st.Items, st.Scored, st.ScoreSum, st.High, st.Shared, st.Picked))
+	}
+	want := []string{
+		"bbc trial=false items=2 scored=2 sum=6 high=1 shared=1 picked=1",
+		"ft trial=false items=1 scored=1 sum=4 high=1 shared=1 picked=0",
+		"daily trial=false items=0 scored=0 sum=0 high=0 shared=0 picked=0",
+		"trial trial=true items=2 scored=2 sum=9 high=2 shared=1 picked=0",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("stats:\n%s", strings.Join(got, "\n"))
+	}
+	ft.Status, ft.UpdatedAt = core.WatchPaused, watchTestNow
+	if err := s.UpdateWatch(ctx, ft); err != nil {
+		t.Fatal(err)
+	}
+	if stats, err := s.NewsSourceStats(ctx, watchTestNow.Add(-time.Hour)); err != nil || len(stats) != 3 {
+		t.Fatalf("paused sources are not counted: %d, %v", len(stats), err)
+	}
+}

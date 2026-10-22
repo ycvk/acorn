@@ -18,6 +18,12 @@ type PendingActionService struct {
 	store    core.SessionStore
 	resumer  runResumer
 	packages skillPackages
+	watches  newsSources
+}
+
+// newsSources reads the news source a news_source call changes.
+type newsSources interface {
+	LoadWatch(ctx context.Context, id int64) (*core.Watch, error)
 }
 
 // skillPackages reads the package a skill_import would store and the files a
@@ -40,6 +46,13 @@ func NewPendingActionService(store core.SessionStore) *PendingActionService {
 // a skill_write keeps, in their detail.
 func (s *PendingActionService) WithSkillPackages(packages skillPackages) *PendingActionService {
 	s.packages = packages
+	return s
+}
+
+// WithNewsSources names the news source a news_source call changes in its
+// detail.
+func (s *PendingActionService) WithNewsSources(watches newsSources) *PendingActionService {
+	s.watches = watches
 	return s
 }
 
@@ -135,6 +148,8 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 // import fails.
 func (s *PendingActionService) toolDetail(ctx context.Context, toolName, arguments string) (string, error) {
 	switch toolName {
+	case "news_source":
+		return s.newsSourceDetail(ctx, arguments)
 	case "skill_write", "skill_import":
 	default:
 		return "", nil
@@ -172,6 +187,40 @@ func (s *PendingActionService) toolDetail(ctx context.Context, toolName, argumen
 		return "", err
 	}
 	return skillPackageDetail(pkg.Markdown, pkg.Files, nil, nil), nil
+}
+
+// newsSourceDetail says which news source a news_source call takes into the
+// briefing or stops, and why.
+func (s *PendingActionService) newsSourceDetail(ctx context.Context, arguments string) (string, error) {
+	if s.watches == nil {
+		return "", errors.New("pending action service: news sources are required to show news_source")
+	}
+	var args struct {
+		Action string `json:"action"`
+		ID     int64  `json:"id"`
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return "", fmt.Errorf("news_source arguments: %w", err)
+	}
+	w, err := s.watches.LoadWatch(ctx, args.ID)
+	if errors.Is(err, core.ErrWatchNotFound) {
+		return fmt.Sprintf("News source #%d does not exist; the call will fail.", args.ID), nil
+	}
+	if err != nil {
+		return "", err
+	}
+	source := fmt.Sprintf("news source #%d %s (%s, section %s)", w.ID, w.Name, w.Target, w.Section)
+	var what string
+	switch args.Action {
+	case "promote":
+		what = "Take " + source + " into the morning briefing."
+	case "stop":
+		what = "Stop " + source + "; the morning briefing no longer takes it."
+	default:
+		what = fmt.Sprintf("Action %q on %s is neither promote nor stop; the call will fail.", args.Action, source)
+	}
+	return what + "\n\nReason: " + strings.TrimSpace(args.Reason), nil
 }
 
 // keptManifest is the manifest a skill_write keeps from its base revision:

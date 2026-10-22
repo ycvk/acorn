@@ -162,7 +162,7 @@ func newWatchToolsForTest(t *testing.T) (*toolWatchStore, *fakeWatchChecker, map
 	tools := map[string]einotool.BaseTool{}
 	for name, build := range map[string]func(WatchToolDeps) (einotool.BaseTool, error){
 		"watch_create": buildWatchCreateTool, "watch_update": buildWatchUpdateTool, "watch_list": buildWatchListTool,
-		"news_sections": buildNewsSectionsTool,
+		"news_sections": buildNewsSectionsTool, "news_source": buildNewsSourceTool,
 	} {
 		tool, err := build(deps)
 		if err != nil {
@@ -415,5 +415,54 @@ func TestWatchCreateFollowsATriggerWithoutFetching(t *testing.T) {
 		if _, err := runPresenceTool(t, tools["watch_create"], input); err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("%s err = %v", input, err)
 		}
+	}
+}
+
+func TestNewsSourcesStartOnTrialAndStopOnlyThroughNewsSource(t *testing.T) {
+	store, _, tools := newWatchToolsForTest(t)
+	store.sections = []core.NewsSection{{Name: "国际"}}
+	run := func(tool, input string) (string, error) { return runPresenceTool(t, tools[tool], input) }
+	out, err := run("watch_create", `{"name":"BBC","kind":"rss","target":"https://bbc.test/feed","mode":"news","section":"国际"}`)
+	if err != nil || !strings.Contains(out, `"trial":true`) || !strings.Contains(out, "starts on trial") {
+		t.Fatalf("create = %s, %v", out, err)
+	}
+	if _, err := run("watch_update", `{"id":1,"status":"paused"}`); err != nil {
+		t.Fatalf("pausing a trial source: %v", err)
+	}
+	if _, err := run("news_source", `{"action":"promote","id":1}`); err == nil || !strings.Contains(err.Error(), "reason is required") {
+		t.Fatalf("promote without reason err = %v", err)
+	}
+	out, err = run("news_source", `{"action":"promote","id":1,"reason":"一周 40 条，5 条独家"}`)
+	if err != nil || strings.Contains(out, `"trial"`) || !strings.Contains(out, `"status":"active"`) {
+		t.Fatalf("promote = %s, %v", out, err)
+	}
+	for _, input := range []string{`{"id":1,"status":"paused"}`, `{"id":1,"mode":"digest"}`} {
+		if _, err := run("watch_update", input); err == nil || !strings.Contains(err.Error(), "use news_source stop") {
+			t.Fatalf("watch_update %s err = %v", input, err)
+		}
+	}
+	if _, err := run("watch_update", `{"id":1,"every":"2h"}`); err != nil {
+		t.Fatalf("other changes stay open: %v", err)
+	}
+	if out, err := run("news_source", `{"action":"stop","id":1,"reason":"一周只被引用一次"}`); err != nil || !strings.Contains(out, `"status":"paused"`) {
+		t.Fatalf("stop = %s, %v", out, err)
+	}
+	for input, want := range map[string]string{
+		`{"action":"stop","id":1,"reason":"x"}`:    "is not in the briefing",
+		`{"action":"promote","id":1,"reason":"x"}`: "is not on trial",
+		`{"action":"drop","id":1,"reason":"x"}`:    "must be promote or stop",
+	} {
+		if _, err := run("news_source", input); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("news_source %s err = %v", input, err)
+		}
+	}
+	if _, err := run("watch_create", `{"name":"blog","kind":"rss","target":"https://blog.test/feed"}`); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run("news_source", `{"action":"promote","id":2,"reason":"x"}`); err == nil || !strings.Contains(err.Error(), "not a news source") {
+		t.Fatalf("promoting a digest watch = %s, %v", out, err)
+	}
+	if out, err := run("watch_update", `{"id":2,"mode":"news","section":"国际"}`); err != nil || !strings.Contains(out, `"trial":true`) {
+		t.Fatalf("a watch switched to news = %s, %v", out, err)
 	}
 }

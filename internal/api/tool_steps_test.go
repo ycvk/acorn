@@ -234,3 +234,27 @@ func TestSkillApprovalsListThePackageManifestFirst(t *testing.T) {
 		t.Fatalf("unparsable skill detail = %q, %v", got, err)
 	}
 }
+
+type newsSourcesStub map[int64]core.Watch
+
+func (s newsSourcesStub) LoadWatch(_ context.Context, id int64) (*core.Watch, error) {
+	w, ok := s[id]
+	if !ok {
+		return nil, fmt.Errorf("%w: %d", core.ErrWatchNotFound, id)
+	}
+	return &w, nil
+}
+
+func TestNewsSourceApprovalNamesTheSource(t *testing.T) {
+	service := NewPendingActionService(nil).WithNewsSources(newsSourcesStub{12: {ID: 12, Name: "知乎热榜", Target: "hot-lists/zhihu", Section: "热榜"}})
+	ctx := context.Background()
+	for args, want := range map[string]string{
+		`{"action":"promote","id":12,"reason":"一周 70 条，3 条 4 分以上"}`: "Take news source #12 知乎热榜 (hot-lists/zhihu, section 热榜) into the morning briefing.\n\nReason: 一周 70 条，3 条 4 分以上",
+		`{"action":"stop","id":12,"reason":"没被引用"}`:                 "Stop news source #12 知乎热榜 (hot-lists/zhihu, section 热榜); the morning briefing no longer takes it.\n\nReason: 没被引用",
+		`{"action":"promote","id":7,"reason":"x"}`:                  "News source #7 does not exist; the call will fail.",
+	} {
+		if got, err := service.toolDetail(ctx, "news_source", args); err != nil || got != want {
+			t.Fatalf("detail of %s = %q, %v", args, got, err)
+		}
+	}
+}

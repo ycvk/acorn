@@ -41,6 +41,7 @@ import com.squareup.moshi.JsonClass
  * @param failures 
  * @param section The news section of a news watch.
  * @param issue A news watch whose entries are issues read on their pages.
+ * @param trial A news watch on trial, fetched and sorted but kept out of the briefing until the owner takes it in.
  * @param lastCheckedAt 
  * @param lastError 
  */
@@ -82,6 +83,10 @@ data class NowWatch (
     /* A news watch whose entries are issues read on their pages. */
     @Json(name = "issue")
     val issue: kotlin.Boolean? = null,
+
+    /* A news watch on trial, fetched and sorted but kept out of the briefing until the owner takes it in. */
+    @Json(name = "trial")
+    val trial: kotlin.Boolean? = null,
 
     @Json(name = "last_checked_at")
     val lastCheckedAt: java.time.OffsetDateTime? = null,

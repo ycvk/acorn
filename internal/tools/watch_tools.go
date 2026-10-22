@@ -73,6 +73,7 @@ type WatchOutput struct {
 	Mode        string `json:"mode"`
 	Section     string `json:"section,omitempty"`
 	Issue       bool   `json:"issue,omitempty"`
+	Trial       bool   `json:"trial,omitempty"`
 	Every       string `json:"every"`
 	Status      string `json:"status"`
 	NextCheck   string `json:"next_check"`
@@ -124,7 +125,7 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			}
 			now := deps.Clock()
 			w := core.Watch{
-				Name: name, Kind: kind, Target: target, Selector: selector, Mode: mode, Section: section, Issue: input.Issue, Interval: every,
+				Name: name, Kind: kind, Target: target, Selector: selector, Mode: mode, Section: section, Issue: input.Issue, Trial: mode == core.WatchModeNews, Interval: every,
 				Status: core.WatchActive, SessionID: deps.Context.CurrentSessionID(ctx), NextCheckAt: now, CreatedAt: now,
 			}
 			if kind == core.WatchTrigger {
@@ -145,6 +146,7 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				WatchOutput: watchOutput(result.Watch, 0, deps.Location),
 				Baseline:    result.Baseline,
 				Sample:      fetchedSample(fetched),
+				Note:        trialNote(result.Watch),
 			}, nil
 		})
 }
@@ -164,13 +166,21 @@ func createTriggerSource(ctx context.Context, deps WatchToolDeps, w core.Watch) 
 	}
 	return WatchCreateOutput{
 		WatchOutput: watchOutput(w, 0, deps.Location),
-		Note:        "The trigger's next output is the baseline; item lines it prints after that are news for this source.",
+		Note:        "The trigger's next output is the baseline; item lines it prints after that are news for this source. " + trialNote(w),
 	}, nil
+}
+
+// trialNote says what a new news source on trial does.
+func trialNote(w core.Watch) string {
+	if !w.Trial {
+		return ""
+	}
+	return "The news source starts on trial: fetched and sorted, but out of the briefing. news_source promote asks the owner to take it in; the weekly night review shows its numbers."
 }
 
 func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 	return inferProgressTool("watch_update",
-		"Change a watch: rename it, change what part of the page it follows, switch between digest, immediate and news, move a news source to another section, change how often it is checked, or pause and resume it.",
+		"Change a watch: rename it, change what part of the page it follows, switch between digest, immediate and news, move a news source to another section, change how often it is checked, or pause and resume it. A news source the briefing takes is stopped only with news_source; a watch switched to news starts on trial.",
 		func(ctx context.Context, input WatchUpdateInput, _ ToolProgressEmitter) (WatchOutput, error) {
 			loaded, err := deps.Store.LoadWatch(ctx, input.ID)
 			if err != nil {
@@ -178,12 +188,19 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			}
 			w := *loaded
 			now := deps.Clock()
+			inBriefing := w.Mode == core.WatchModeNews && !w.Trial
+			if inBriefing && (input.Status == string(core.WatchPaused) || (input.Mode != "" && input.Mode != string(core.WatchModeNews))) {
+				return WatchOutput{}, errors.New("watch_update: this news source is in the briefing; stopping it needs the owner, so use news_source stop")
+			}
 			if name := strings.TrimSpace(input.Name); name != "" {
 				w.Name = name
 			}
 			if input.Mode != "" {
 				if w.Mode, err = watchMode(input.Mode, w.Mode); err != nil {
 					return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
+				}
+				if w.Mode == core.WatchModeNews && loaded.Mode != core.WatchModeNews {
+					w.Trial = true
 				}
 			}
 			if section := strings.TrimSpace(input.Section); section != "" {
@@ -193,7 +210,7 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				w.Issue = *input.Issue
 			}
 			if w.Mode != core.WatchModeNews && input.Section == "" && input.Issue == nil {
-				w.Section, w.Issue = "", false
+				w.Section, w.Issue, w.Trial = "", false, false
 			}
 			if err := newsFields(w.Mode, w.Section, w.Issue); err != nil {
 				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
@@ -313,7 +330,7 @@ func watchEvery(value string, fallback time.Duration) (time.Duration, error) {
 func watchOutput(w core.Watch, pending int, loc *time.Location) WatchOutput {
 	out := WatchOutput{
 		ID: w.ID, Name: w.Name, Kind: string(w.Kind), Target: w.Target, Selector: w.Selector,
-		Mode: string(w.Mode), Section: w.Section, Issue: w.Issue, Every: w.Interval.String(), Status: string(w.Status),
+		Mode: string(w.Mode), Section: w.Section, Issue: w.Issue, Trial: w.Trial, Every: w.Interval.String(), Status: string(w.Status),
 		NextCheck: w.NextCheckAt.In(loc).Format(localTimeLayout), LastError: w.LastError, Pending: pending,
 	}
 	if !w.LastCheckedAt.IsZero() {

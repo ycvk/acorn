@@ -191,6 +191,53 @@ func buildNewsSearchTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 		})
 }
 
+// NewsSourceInput is the input of news_source.
+type NewsSourceInput struct {
+	Action string `json:"action" jsonschema:"required" jsonschema_description:"promote takes a trial source into the briefing; stop pauses a news source the briefing takes."`
+	ID     int64  `json:"id" jsonschema:"required" jsonschema_description:"The news source's watch id."`
+	Reason string `json:"reason" jsonschema:"required" jsonschema_description:"Why, with the source's numbers from the night review; the owner reads it before deciding."`
+}
+
+func buildNewsSourceTool(deps WatchToolDeps) (einotool.BaseTool, error) {
+	return inferProgressTool("news_source",
+		"Promote a trial news source into the morning briefing, or stop a news source the briefing takes. The owner approves each call.",
+		func(ctx context.Context, input NewsSourceInput, _ ToolProgressEmitter) (WatchOutput, error) {
+			if strings.TrimSpace(input.Reason) == "" {
+				return WatchOutput{}, errors.New("news_source: reason is required")
+			}
+			loaded, err := deps.Store.LoadWatch(ctx, input.ID)
+			if err != nil {
+				return WatchOutput{}, fmt.Errorf("news_source: %w", err)
+			}
+			w, now := *loaded, deps.Clock()
+			if w.Mode != core.WatchModeNews {
+				return WatchOutput{}, fmt.Errorf("news_source: watch #%d is not a news source", w.ID)
+			}
+			switch input.Action {
+			case "promote":
+				if !w.Trial {
+					return WatchOutput{}, fmt.Errorf("news_source: news source #%d is not on trial", w.ID)
+				}
+				w.Trial = false
+				if w.Status == core.WatchPaused {
+					w = w.Resume(now)
+				}
+			case "stop":
+				if w.Trial || w.Status == core.WatchPaused {
+					return WatchOutput{}, fmt.Errorf("news_source: news source #%d is not in the briefing; pause a trial source with watch_update", w.ID)
+				}
+				w = w.Pause(now)
+			default:
+				return WatchOutput{}, fmt.Errorf("news_source: action %q must be promote or stop", input.Action)
+			}
+			w.UpdatedAt = now
+			if err := deps.Store.UpdateWatch(ctx, w); err != nil {
+				return WatchOutput{}, fmt.Errorf("news_source: %w", err)
+			}
+			return watchOutput(w, 0, deps.Location), nil
+		})
+}
+
 func nextPosition(sections []core.NewsSection) int {
 	next := 1
 	for _, s := range sections {

@@ -11,7 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// watchesTable is shared with the migration that adds sections and issues.
+// watchesTable is shared with the migrations that rebuild the watches table.
 // A news watch names its section; other watches have none.
 const watchesTable = `CREATE TABLE IF NOT EXISTS watches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,6 +22,7 @@ const watchesTable = `CREATE TABLE IF NOT EXISTS watches (
     mode TEXT NOT NULL,
     section TEXT REFERENCES news_sections(name) ON UPDATE CASCADE,
     issue INTEGER NOT NULL DEFAULT 0,
+    trial INTEGER NOT NULL DEFAULT 0,
     interval_seconds INTEGER NOT NULL,
     status TEXT NOT NULL,
     session_id TEXT NOT NULL DEFAULT '',
@@ -66,7 +67,27 @@ func addNewsSections(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-const watchColumns = `id, name, kind, target, selector, mode, section, issue, interval_seconds, status, session_id,
+// addNewsTrials (23 to 24) adds the trial flag of news watches. The watches
+// table is rebuilt from watchesTable so its stored definition matches a new
+// database.
+func addNewsTrials(ctx context.Context, tx *sql.Tx) error {
+	columns := "id, name, kind, target, selector, mode, section, issue, interval_seconds, status, session_id, next_check_at, last_checked_at, last_error, failures, snapshot, created_at, updated_at"
+	for _, statement := range []string{
+		`CREATE TEMP TABLE watches_v23 AS SELECT ` + columns + ` FROM watches`,
+		`DROP TABLE watches`,
+		watchesTable,
+		`INSERT INTO watches(` + columns + `) SELECT ` + columns + ` FROM watches_v23`,
+		`DROP TABLE watches_v23`,
+		`CREATE INDEX IF NOT EXISTS idx_watches_due ON watches(status, next_check_at)`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+const watchColumns = `id, name, kind, target, selector, mode, section, issue, trial, interval_seconds, status, session_id,
 	next_check_at, last_checked_at, last_error, failures, snapshot, created_at, updated_at`
 
 func (s *Store) AddWatch(ctx context.Context, w core.Watch) (core.Watch, error) {
@@ -78,10 +99,10 @@ func (s *Store) AddWatch(ctx context.Context, w core.Watch) (core.Watch, error) 
 	}
 	w.UpdatedAt = w.CreatedAt
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO watches (name, kind, target, selector, mode, section, issue, interval_seconds, status, session_id,
+		`INSERT INTO watches (name, kind, target, selector, mode, section, issue, trial, interval_seconds, status, session_id,
 		   next_check_at, last_checked_at, last_error, failures, snapshot, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		w.Name, string(w.Kind), w.Target, w.Selector, string(w.Mode), nullableSection(w.Section), w.Issue, int64(w.Interval/time.Second), string(w.Status), w.SessionID,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		w.Name, string(w.Kind), w.Target, w.Selector, string(w.Mode), nullableSection(w.Section), w.Issue, w.Trial, int64(w.Interval/time.Second), string(w.Status), w.SessionID,
 		formatTimestamp(w.NextCheckAt), formatZeroableTimestamp(w.LastCheckedAt), w.LastError, w.Failures, w.Snapshot,
 		formatTimestamp(w.CreatedAt), formatTimestamp(w.UpdatedAt))
 	if err != nil {
@@ -125,10 +146,10 @@ func (s *Store) UpdateWatch(ctx context.Context, w core.Watch) error {
 		return errors.New("update watch: updated_at is required")
 	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE watches SET name = ?, selector = ?, mode = ?, section = ?, issue = ?, interval_seconds = ?, status = ?,
+		`UPDATE watches SET name = ?, selector = ?, mode = ?, section = ?, issue = ?, trial = ?, interval_seconds = ?, status = ?,
 		   next_check_at = ?, last_checked_at = ?, last_error = ?, failures = ?, snapshot = ?, updated_at = ?
 		 WHERE id = ?`,
-		w.Name, w.Selector, string(w.Mode), nullableSection(w.Section), w.Issue, int64(w.Interval/time.Second), string(w.Status),
+		w.Name, w.Selector, string(w.Mode), nullableSection(w.Section), w.Issue, w.Trial, int64(w.Interval/time.Second), string(w.Status),
 		formatTimestamp(w.NextCheckAt), formatZeroableTimestamp(w.LastCheckedAt), w.LastError, w.Failures, w.Snapshot,
 		formatTimestamp(w.UpdatedAt), w.ID)
 	if err != nil {
@@ -306,8 +327,8 @@ func validateWatch(w core.Watch) error {
 		return errors.New("watch: next_check_at is required")
 	case w.Mode == core.WatchModeNews && strings.TrimSpace(w.Section) == "":
 		return errors.New("watch: a news watch needs a section")
-	case w.Mode != core.WatchModeNews && (w.Section != "" || w.Issue):
-		return fmt.Errorf("watch: only news watches have a section or issues, not mode %q", w.Mode)
+	case w.Mode != core.WatchModeNews && (w.Section != "" || w.Issue || w.Trial):
+		return fmt.Errorf("watch: only news watches have a section, issues or a trial, not mode %q", w.Mode)
 	case w.Kind == core.WatchTrigger && w.Mode != core.WatchModeNews:
 		return fmt.Errorf("watch: a trigger source is a news watch, not mode %q", w.Mode)
 	}
@@ -340,7 +361,7 @@ func scanWatches(rows *sql.Rows) ([]core.Watch, error) {
 			intervalSeconds                     int64
 			next, lastChecked, created, updated string
 		)
-		if err := scan(&w.ID, &w.Name, &kind, &w.Target, &w.Selector, &mode, &section, &w.Issue, &intervalSeconds, &status, &w.SessionID,
+		if err := scan(&w.ID, &w.Name, &kind, &w.Target, &w.Selector, &mode, &section, &w.Issue, &w.Trial, &intervalSeconds, &status, &w.SessionID,
 			&next, &lastChecked, &w.LastError, &w.Failures, &w.Snapshot, &created, &updated); err != nil {
 			return err
 		}

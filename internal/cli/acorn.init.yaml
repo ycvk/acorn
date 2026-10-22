@@ -24,7 +24,9 @@ providers:
 approval:
   # Tool-name glob patterns. block refuses a call, require pauses it for your
   # approval on the phone, allow runs it without review. block wins over
-  # require, and require over allow; review judges the rest.
+  # require, and require over allow; review judges the rest. news_source,
+  # which takes a news source into the briefing or stops one, always asks
+  # unless allow names it.
   require:
     - "mcp__*"
     - skill_write

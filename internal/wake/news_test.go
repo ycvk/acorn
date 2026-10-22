@@ -19,6 +19,15 @@ type fakeNews struct {
 	offered core.BriefingNews
 	failed  int
 	pruned  []time.Time
+	stats   []core.NewsSourceStats
+	since   []time.Time
+}
+
+func (f *fakeNews) NewsSourceStats(_ context.Context, since time.Time) ([]core.NewsSourceStats, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.since = append(f.since, since)
+	return f.stats, nil
 }
 
 func (f *fakeNews) BriefingNewsStories(context.Context, int) (core.BriefingNews, error) {

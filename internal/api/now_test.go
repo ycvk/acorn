@@ -109,7 +109,7 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 		watches: []core.Watch{
 			{ID: 1, Name: "tokio", Kind: core.WatchGitHub, Mode: core.WatchModeDigest, Status: core.WatchActive, Interval: time.Hour, NextCheckAt: nowTestTime},
 			{ID: 2, Name: "price", Kind: core.WatchWeb, Mode: core.WatchModeImmediate, Status: core.WatchFailing, Interval: 30 * time.Minute, NextCheckAt: nowTestTime, LastCheckedAt: nowTestTime, LastError: "selector matched nothing", Failures: 3},
-			{ID: 3, Name: "AI225", Kind: core.WatchRSS, Mode: core.WatchModeNews, Section: "AI 与科技前沿", Issue: true, Status: core.WatchActive, Interval: time.Hour, NextCheckAt: nowTestTime},
+			{ID: 3, Name: "AI225", Kind: core.WatchRSS, Mode: core.WatchModeNews, Section: "AI 与科技前沿", Issue: true, Trial: true, Status: core.WatchActive, Interval: time.Hour, NextCheckAt: nowTestTime},
 		},
 		briefing: core.RoutineOutput{Slot: "2026-10-11", ThreadID: "thread_briefings", RunID: "run_briefing", Text: "## 今天\n交房租", FinishedAt: nowTestTime},
 		panels: []core.Panel{{ThreadTitle: "仓库版本", View: core.ThreadView{ID: "view_1", SessionID: "thread_repos", Title: "eino 最新版本", Catalog: "acorn.views.v1",
@@ -151,7 +151,7 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 	if len(got.Watches) != 3 || got.Watches[0].ID != 2 || got.Watches[0].IntervalSeconds != 1800 || got.Watches[1].LastCheckedAt != nil {
 		t.Fatalf("watches = %+v", got.Watches)
 	}
-	if news := got.Watches[2]; news.Mode != "news" || news.Section != "AI 与科技前沿" || !news.Issue || got.Watches[1].Section != "" {
+	if news := got.Watches[2]; news.Mode != "news" || news.Section != "AI 与科技前沿" || !news.Issue || !news.Trial || got.Watches[1].Section != "" || got.Watches[1].Trial {
 		t.Fatalf("news watch = %+v", news)
 	}
 	if !strings.Contains(rec.Body.String(), `"occurrences":[]`) {

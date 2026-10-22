@@ -385,3 +385,55 @@ func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
 		t.Fatalf("a release write is listed:\n%s", night)
 	}
 }
+
+func TestNightReviewsNewsSourcesOnSundayAndAfterATrialWeek(t *testing.T) {
+	monday := time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC) // 09:00 on Monday in Shanghai
+	bbc := core.NewsSourceStats{Watch: core.Watch{ID: 3, Name: "BBC 中文", Section: "国际与财经", CreatedAt: monday.Add(-30 * 24 * time.Hour)},
+		Items: 40, Scored: 38, ScoreSum: 114, High: 12, Shared: 19, Picked: 6}
+	trial := core.NewsSourceStats{Watch: core.Watch{ID: 12, Name: "知乎热榜", Section: "热榜", Trial: true, CreatedAt: monday.Add(-7*24*time.Hour - time.Hour)},
+		Items: 70, Scored: 70, ScoreSum: 140, High: 3, Shared: 7}
+	for _, tc := range []struct {
+		name   string
+		now    time.Time
+		stats  []core.NewsSourceStats
+		review bool
+	}{
+		{name: "a trial week ends", now: monday, stats: []core.NewsSourceStats{bbc, trial}, review: true},
+		{name: "sunday", now: monday.Add(-24 * time.Hour), stats: []core.NewsSourceStats{bbc}, review: true},
+		{name: "another day", now: monday, stats: []core.NewsSourceStats{bbc}, review: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, 20)
+			h.sched.cfg.Thinking.Night = Briefing{Enabled: true, At: 0}
+			h.now = tc.now
+			h.news.stats = tc.stats
+			if err := h.sched.Tick(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if !tc.review {
+				if len(h.runs.starts) != 0 {
+					t.Fatalf("a night without material started: %v", h.runs.starts)
+				}
+				return
+			}
+			if len(h.runs.starts) != 1 {
+				t.Fatalf("starts = %v", h.runs.starts)
+			}
+			night := h.runs.starts[0]
+			for _, want := range []string{
+				"News sources over the last 7 days.",
+				"- news source #3 BBC 中文 [国际与财经] in the briefing: 40 items (5.7 a day), average score 3.0, 12 scored 4 or 5, 50% share a story with another source, 6 linked from briefings\n",
+			} {
+				if !strings.Contains(night, want) {
+					t.Fatalf("night input lacks %q:\n%s", want, night)
+				}
+			}
+			if len(tc.stats) == 2 && !strings.Contains(night, "- news source #12 知乎热榜 [热榜] on trial since 09-28: 70 items (10.0 a day), average score 2.0, 3 scored 4 or 5, 10% share a story") {
+				t.Fatalf("night input lacks the trial source:\n%s", night)
+			}
+			if len(h.news.since) != 1 || !h.news.since[0].Equal(tc.now.Add(-7*24*time.Hour)) {
+				t.Fatalf("stats since %v", h.news.since)
+			}
+		})
+	}
+}

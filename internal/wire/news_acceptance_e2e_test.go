@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -53,6 +54,38 @@ func newsFeed(title, prefix string, keys []string) string {
 	}
 	b.WriteString(`</channel></rss>`)
 	return b.String()
+}
+
+// approveNext waits for a pending action not in approved and accepts it as
+// the app does, returning the detail the owner saw.
+func approveNext(t *testing.T, c *Container, approved map[string]bool) string {
+	t.Helper()
+	ctx := context.Background()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		actions, err := c.pendingAction.List(ctx, 10)
+		if err != nil {
+			t.Fatalf("list pending actions: %v", err)
+		}
+		for _, a := range actions {
+			if approved[a.ActionID] {
+				continue
+			}
+			detail, err := c.pendingAction.Get(ctx, a.ActionID)
+			if err != nil {
+				t.Fatalf("pending action %s: %v", a.ActionID, err)
+			}
+			if _, err := c.pendingAction.Decide(ctx, a.ActionID, api.PendingActionDecisionInput{Decision: "accept"}); err != nil {
+				t.Fatalf("approve %s: %v", a.ActionID, err)
+			}
+			approved[a.ActionID] = true
+			return detail.ToolDetail
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no new pending action; approved %v", approved)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 // completionReply is a JSON chat completion with text, for calls that do not
@@ -103,6 +136,8 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 		toolCallChunk("call_s2", "news_sections", map[string]string{"action": "set", "name": "AI 与科技前沿"}),
 		toolCallChunk("call_news", "watch_create", map[string]any{"name": "中新网要闻", "kind": "rss", "target": web.URL + "/news", "mode": "news", "section": "国内要闻"}),
 		toolCallChunk("call_daily", "watch_create", map[string]any{"name": "AI 日报", "kind": "rss", "target": web.URL + "/daily", "mode": "news", "section": "AI 与科技前沿", "issue": true}),
+		toolCallChunk("call_p1", "news_source", map[string]any{"action": "promote", "id": 1, "reason": "你要的国内要闻"}),
+		toolCallChunk("call_p2", "news_source", map[string]any{"action": "promote", "id": 2, "reason": "你要的 AI 新闻"}),
 		textReply("配好了"),
 		completionReply(`{"items":[],"entries":[` +
 			`{"issue":__item:2026-10-05__,"title":"DeepSeek 开源推理框架","summary":"DeepSeek 开源了云上使用的推理框架。","score":5,"story":"n1"},` +
@@ -130,12 +165,19 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	if _, err := c.runs.CreateRun(ctx, thread.ID, "", "早上给我国内要闻和 AI 新闻", nil); err != nil {
 		t.Fatal(err)
 	}
+	// New sources start on trial; the owner approves taking each in.
+	approved := map[string]bool{}
+	for _, want := range []string{"Take news source #1 中新网要闻 (", "Take news source #2 AI 日报 ("} {
+		if detail := approveNext(t, c, approved); !strings.HasPrefix(detail, want) {
+			t.Fatalf("approval detail = %q, want %q…", detail, want)
+		}
+	}
 	waitNewRun(t, c, thread.ID, "")
-	if created := toolResult(t, provider.request(4), "call_daily"); !strings.Contains(created, `"baseline_items":1`) || !strings.Contains(created, `"issue":true`) {
+	if created := toolResult(t, provider.request(4), "call_daily"); !strings.Contains(created, `"baseline_items":1`) || !strings.Contains(created, `"issue":true`) || !strings.Contains(created, `"trial":true`) {
 		t.Fatalf("daily source = %s", created)
 	}
 	watches, err := c.store.ListWatches(ctx)
-	if err != nil || len(watches) != 2 || watches[0].Section != "国内要闻" || watches[1].Mode != core.WatchModeNews || !watches[1].Issue {
+	if err != nil || len(watches) != 2 || watches[0].Section != "国内要闻" || watches[1].Mode != core.WatchModeNews || !watches[1].Issue || watches[0].Trial || watches[1].Trial {
 		t.Fatalf("watches = %+v, %v", watches, err)
 	}
 
@@ -157,16 +199,16 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 		t.Fatalf("briefing thread = %q, %v", briefingThread, err)
 	}
 	waitNewRun(t, c, briefingThread, "")
-	issueInput := chatContentText(requestMessages(provider.request(5))[1]["content"])
+	issueInput := chatContentText(requestMessages(provider.request(7))[1]["content"])
 	for _, want := range []string{"Sections:\n## 国内要闻\nPreference:\n1. 政策与民生\n## AI 与科技前沿\n", "\n--- issue page ---\n", "DeepSeek 开源推理框架 ★★★★★", "谷歌开源 TorchTPU"} {
 		if !strings.Contains(issueInput, want) {
 			t.Fatalf("issue sorting input lacks %q:\n%s", want, issueInput)
 		}
 	}
-	if itemsInput := chatContentText(requestMessages(provider.request(6))[1]["content"]); !strings.Contains(itemsInput, "[AI 与科技前沿] DeepSeek 开源推理框架: DeepSeek 开源了它在云上使用的推理框架。") || strings.Contains(itemsInput, "旧闻") {
+	if itemsInput := chatContentText(requestMessages(provider.request(8))[1]["content"]); !strings.Contains(itemsInput, "[AI 与科技前沿] DeepSeek 开源推理框架: DeepSeek 开源了它在云上使用的推理框架。") || strings.Contains(itemsInput, "旧闻") {
 		t.Fatalf("items sorting input:\n%s", itemsInput)
 	}
-	messages := requestMessages(provider.request(7))
+	messages := requestMessages(provider.request(9))
 	input := chatContentText(messages[len(messages)-3]["content"])
 	for _, want := range []string{
 		"[briefing 2026-10-05] morning briefing",
@@ -187,7 +229,13 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	if used, err := c.store.MemoryUsageSince(ctx, start, "news"); err != nil || used != 2000 {
 		t.Fatalf("news usage = %d, %v", used, err)
 	}
-	if sent := harness.fcm.sent(); len(sent) != 1 {
-		t.Fatalf("pushes = %v", sent)
+	briefings := 0
+	for _, push := range harness.fcm.sent() {
+		if n, _ := push["notification"].(map[string]any); n != nil && n["title"] == "早安" {
+			briefings++
+		}
+	}
+	if briefings != 1 {
+		t.Fatalf("briefing pushes = %d: %v", briefings, harness.fcm.sent())
 	}
 }

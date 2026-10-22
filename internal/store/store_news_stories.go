@@ -320,7 +320,8 @@ func (s *Store) BriefingNewsStories(ctx context.Context, perSection int) (core.B
 		`SELECT id, section, title, summary, development, score, first_seen, updated_at FROM (
 		   SELECT `+newsStoryColumns+`, ROW_NUMBER() OVER (PARTITION BY st.section ORDER BY st.score DESC, st.updated_at DESC, st.id DESC) AS rank
 		   FROM news_stories st
-		   WHERE EXISTS (SELECT 1 FROM news_scores s JOIN watch_items i ON i.id = s.item_id WHERE s.story_id = st.id AND i.status = ?))
+		   WHERE EXISTS (SELECT 1 FROM news_scores s JOIN watch_items i ON i.id = s.item_id JOIN watches w ON w.id = i.watch_id
+		     WHERE s.story_id = st.id AND i.status = ? AND w.trial = 0))
 		 WHERE rank <= ? ORDER BY section, rank`,
 		string(core.WatchItemPending), perSection)
 	if err != nil {
@@ -330,7 +331,7 @@ func (s *Store) BriefingNewsStories(ctx context.Context, perSection int) (core.B
 	if err != nil {
 		return core.BriefingNews{}, fmt.Errorf("briefing news stories: %w", err)
 	}
-	if err := s.attachStoryItems(ctx, stories, string(core.WatchItemPending), 0); err != nil {
+	if err := s.attachStoryItems(ctx, stories, true, 0); err != nil {
 		return core.BriefingNews{}, fmt.Errorf("briefing news stories: %w", err)
 	}
 	idRows, err := s.db.QueryContext(ctx,
@@ -383,15 +384,16 @@ func (s *Store) SearchNewsStories(ctx context.Context, query core.NewsQuery) ([]
 	if err != nil {
 		return nil, fmt.Errorf("search news stories: %w", err)
 	}
-	if err := s.attachStoryItems(ctx, stories, "", newsItemsPerStory); err != nil {
+	if err := s.attachStoryItems(ctx, stories, false, newsItemsPerStory); err != nil {
 		return nil, fmt.Errorf("search news stories: %w", err)
 	}
 	return stories, nil
 }
 
-// attachStoryItems adds each story's items with status, all when status is
-// empty, newest first and at most limit of them when limit is positive.
-func (s *Store) attachStoryItems(ctx context.Context, stories []core.NewsStory, status string, limit int) error {
+// attachStoryItems adds each story's items, newest first and at most limit
+// of them when limit is positive: for a briefing the pending items of sources
+// not on trial, otherwise all of them.
+func (s *Store) attachStoryItems(ctx context.Context, stories []core.NewsStory, briefing bool, limit int) error {
 	rowLimit := limit
 	if rowLimit <= 0 {
 		rowLimit = -1 // SQLite reads a negative LIMIT as no limit.
@@ -400,9 +402,9 @@ func (s *Store) attachStoryItems(ctx context.Context, stories []core.NewsStory, 
 		rows, err := s.db.QueryContext(ctx,
 			`SELECT i.id, i.watch_id, i.item_key, i.title, i.url, i.summary, i.published_at, i.status, i.run_id, i.seen_at, w.name, s.score
 			 FROM news_scores s JOIN watch_items i ON i.id = s.item_id JOIN watches w ON w.id = i.watch_id
-			 WHERE s.story_id = ? AND (? = '' OR i.status = ?)
+			 WHERE s.story_id = ? AND (NOT ? OR (i.status = ? AND w.trial = 0))
 			 ORDER BY COALESCE(NULLIF(i.published_at, ''), i.seen_at) DESC, i.id DESC LIMIT ?`,
-			stories[i].ID, status, status, rowLimit)
+			stories[i].ID, briefing, string(core.WatchItemPending), rowLimit)
 		if err != nil {
 			return err
 		}
@@ -435,6 +437,44 @@ func (s *Store) FailedNewsItems(ctx context.Context, since time.Time) (int, erro
 		return 0, fmt.Errorf("failed news items: %w", err)
 	}
 	return n, nil
+}
+
+func (s *Store) NewsSourceStats(ctx context.Context, since time.Time) ([]core.NewsSourceStats, error) {
+	at := formatTimestamp(since)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT w.id, COUNT(i.id), COALESCE(SUM(s.score > 0), 0), COALESCE(SUM(s.score), 0), COALESCE(SUM(s.score >= 4), 0),
+		   COALESCE(SUM(s.story_id IS NOT NULL AND EXISTS (
+		     SELECT 1 FROM news_scores o JOIN watch_items oi ON oi.id = o.item_id WHERE o.story_id = s.story_id AND oi.watch_id <> w.id)), 0),
+		   COALESCE(SUM(i.url <> '' AND EXISTS (
+		     SELECT 1 FROM routine_runs r JOIN runs u ON u.run_id = r.run_id WHERE r.routine = 'briefing' AND r.created_at >= ? AND instr(u.output_text, i.url) > 0)), 0)
+		 FROM watches w
+		 LEFT JOIN watch_items i ON i.watch_id = w.id AND i.seen_at >= ? AND i.status <> ?
+		 LEFT JOIN news_scores s ON s.item_id = i.id
+		 WHERE w.mode = ? AND w.status <> ?
+		 GROUP BY w.id ORDER BY w.id`,
+		at, at, string(core.WatchItemBaseline), string(core.WatchModeNews), string(core.WatchPaused))
+	if err != nil {
+		return nil, fmt.Errorf("news source stats: %w", err)
+	}
+	var stats []core.NewsSourceStats
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var st core.NewsSourceStats
+		if err := scan(&st.Watch.ID, &st.Items, &st.Scored, &st.ScoreSum, &st.High, &st.Shared, &st.Picked); err != nil {
+			return err
+		}
+		stats = append(stats, st)
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("news source stats: %w", err)
+	}
+	for i := range stats {
+		w, err := s.LoadWatch(ctx, stats[i].Watch.ID)
+		if err != nil {
+			return nil, fmt.Errorf("news source stats: %w", err)
+		}
+		stats[i].Watch = *w
+	}
+	return stats, nil
 }
 
 func (s *Store) PruneNews(ctx context.Context, before time.Time) (pruned int, err error) {

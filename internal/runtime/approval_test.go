@@ -251,3 +251,58 @@ func assertLastToolMessage(t *testing.T, model *scriptedModel, want string) {
 	}
 	t.Fatalf("model input has no tool message for call_1: %+v", model.lastInput())
 }
+
+// newsSourceTool stands in for news_source.
+type newsSourceTool struct{ echoTool }
+
+func (t *newsSourceTool) Info(context.Context) (*schema.ToolInfo, error) {
+	return &schema.ToolInfo{Name: "news_source", Desc: "changes a news source"}, nil
+}
+
+func TestNewsSourceWaitsForTheOwnerUnlessAllowed(t *testing.T) {
+	RegisterTypes()
+	for _, tc := range []struct {
+		name  string
+		rules config.ApprovalConfig
+		gated bool
+	}{
+		{name: "no rule", rules: config.ApprovalConfig{Require: []string{"skill_*"}}, gated: true},
+		{name: "allowed", rules: config.ApprovalConfig{Allow: []string{"news_*"}}, gated: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := core.WithRunID(context.Background(), "run_news")
+			store := &approvalTestStore{}
+			tool := &newsSourceTool{}
+			mw, err := newApprovalMiddleware(tc.rules, nil, store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			model := &scriptedModel{replies: []*schema.AgenticMessage{
+				toolCallReply("call_1", "news_source", `{"action":"promote","id":12,"reason":"一周 40 条，独家 5 条"}`),
+				assistantMessage("done", nil),
+			}}
+			agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
+				Name: "news_source_test", Description: "news source approval", Model: model,
+				ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{Tools: []einotool.BaseTool{tool}, ExecuteSequentially: true}},
+				Handlers:    []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{mw}, MaxIterations: 5,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true, CheckPointStore: &memoryCheckpointStore{data: map[string][]byte{}}})
+			interrupted, err := drainEvents(t, runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("go")}, adk.WithCheckPointID("run_news")))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.gated {
+				if interrupted != nil || len(store.actions) != 0 || tool.callCount() != 1 {
+					t.Fatalf("interrupted %v, actions %+v, calls %d", interrupted, store.actions, tool.callCount())
+				}
+				return
+			}
+			if interrupted == nil || len(store.actions) != 1 || store.actions[0].Reason != "owner decides" || tool.callCount() != 0 {
+				t.Fatalf("interrupted %v, actions %+v, calls %d", interrupted, store.actions, tool.callCount())
+			}
+		})
+	}
+}

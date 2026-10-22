@@ -104,6 +104,13 @@ func matchesAny(patterns []string, name string) bool {
 	return false
 }
 
+// ownerDecides are the tools whose calls wait for the owner unless
+// approval.allow names them: news_source changes which sources the briefing
+// takes.
+func ownerDecides(name string) bool {
+	return name == "news_source"
+}
+
 // reviewed are the tools whose effects can leave Acorn and the workstation.
 func reviewed(name string) bool {
 	return name == "shell" || strings.HasPrefix(name, "mcp__")
@@ -122,6 +129,10 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 	case matchesAny(m.rules.Require, tCtx.Name):
 		return m.gated(run, tCtx, func(context.Context, string) (*approvalRequest, error) {
 			return &approvalRequest{reason: "approval.require"}, nil
+		}), nil
+	case ownerDecides(tCtx.Name) && !matchesAny(m.rules.Allow, tCtx.Name):
+		return m.gated(run, tCtx, func(context.Context, string) (*approvalRequest, error) {
+			return &approvalRequest{reason: "owner decides"}, nil
 		}), nil
 	case matchesAny(m.rules.Allow, tCtx.Name) || m.reviewer == nil || !reviewed(tCtx.Name):
 		return run, nil

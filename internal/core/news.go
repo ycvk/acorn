@@ -98,6 +98,20 @@ type BriefingNews struct {
 	IDs     []int64
 }
 
+// NewsSourceStats is what a news source brought since a time: items first
+// seen, how many were sorted with a score and the sum of those scores, how
+// many scored 4 or 5, how many share their story with another source, and
+// how many a briefing written since links.
+type NewsSourceStats struct {
+	Watch    Watch
+	Items    int
+	Scored   int
+	ScoreSum int
+	High     int
+	Shared   int
+	Picked   int
+}
+
 // NewsQuery finds stories updated since a time, optionally in a section and
 // matching text in a story or its items.
 type NewsQuery struct {
@@ -128,11 +142,15 @@ type NewsStore interface {
 	// newest first.
 	RecentNewsStories(ctx context.Context, sections []string, since time.Time, limit int) ([]NewsStory, error)
 	// BriefingNewsStories lists, per section, up to perSection stories with
-	// pending sorted items, highest score first, each with those items.
+	// pending sorted items of sources not on trial, highest score first, each
+	// with those items.
 	BriefingNewsStories(ctx context.Context, perSection int) (BriefingNews, error)
 	SearchNewsStories(ctx context.Context, query NewsQuery) ([]NewsStory, error)
 	// FailedNewsItems counts the items given up on since since.
 	FailedNewsItems(ctx context.Context, since time.Time) (int, error)
+	// NewsSourceStats lists what each news source that is not paused
+	// brought since since, in id order.
+	NewsSourceStats(ctx context.Context, since time.Time) ([]NewsSourceStats, error)
 	// PruneNews keeps only the key and status of news items first seen
 	// before before, so a feed that still lists them does not bring them
 	// back, takes them out of their stories and deletes the stories left

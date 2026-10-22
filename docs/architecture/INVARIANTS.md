@@ -32,8 +32,9 @@
 - **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再发 `run.completed`/`run.failed` 并把 run 标记为结束；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
-- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
+- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
   - `internal/runtime/approval_review_test.go`
+  - `internal/runtime/approval_test.go`
   - `internal/review/review_test.go`
 - **审批绑定具体调用并可跨重启恢复**：规则或审查要求审批的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行完，被拦截的调用等决策后再执行。`approval.require` 与 `approval.block` 不允许命中 `ask_operator`。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
   - `internal/runtime/approval_test.go`
@@ -301,6 +302,13 @@
   - `internal/wake/news_test.go`
   - `internal/store/store_news_test.go`
   - `internal/tools/watch_tools_test.go`
+  - `internal/wire/news_acceptance_e2e_test.go`
+- **新闻源先试用，进出早安卡由 owner 决定**：新建的新闻源与改成 news 模式的追踪项都从试用开始；试用源照常抓取与整理，它的条目不出现在早安卡的事件里，早安卡开始时与其他整理过的条目一样标为已报。`news_source` 把试用源转正（暂停的同时恢复）或停用早安卡在用的源，`approval.allow` 没有放行时每次调用都等 owner 审批；`watch_update` 不能暂停在用的新闻源，也不能把它改成别的模式。夜思在 owner 时区的周日，或有试用源在上次夜思之后满一周时，列出每个未暂停的新闻源近 7 天的条目数、平均分、4–5 分条数、与其他源同属一个事件的比例和被早安卡链接的条数。
+  - `internal/store/store_news_stories_test.go`
+  - `internal/tools/watch_tools_test.go`
+  - `internal/runtime/approval_test.go`
+  - `internal/api/tool_steps_test.go`
+  - `internal/wake/thinking_test.go`
   - `internal/wire/news_acceptance_e2e_test.go`
 - **新闻条目整理一次，过期只留键**：后台 worker 认领首见于 14 天内、未整理的待报条目（期刊一次一期，其余一批至多 30 条），租约 5 分钟；模型在 `news.daily_tokens` 内给每条打 1–5 分并归入新事件或近 72 小时的事件，期刊页拆成带链接的条目（链接按期刊页解析，只接受 http/https），期刊页读不到时这一批失败。回复逐项校验：批里每条恰好打分一次，事件引用有定义，板块存在；提交在同一事务里按认领 token 校验并写分数、事件与条目，条目已被另一批重新认领时提交失败。预算用尽的批延到下一本地日且不计失败次数，其他失败第 3 次放弃并计入 System health。首见超过 14 天的条目只留键与状态（记忆来源除外），移出事件，没有条目的事件删除；源里仍在的条目不会作为新条目回来。`news_search` 按板块、关键词（每个词都要出现）与天数（1 到 14）检索事件。
   - `internal/news/news_test.go`

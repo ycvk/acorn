@@ -24,7 +24,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "feed_discover", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "news_search", "news_sections", "notify_owner", "recall", "schedule_wake", "settle", "show_view", "skill_import", "skill_inspect", "skill_retire", "skill_write", "think", "update_view", "watch_create", "watch_list", "watch_update"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "feed_discover", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "news_search", "news_sections", "news_source", "notify_owner", "recall", "schedule_wake", "settle", "show_view", "skill_import", "skill_inspect", "skill_retire", "skill_write", "think", "update_view", "watch_create", "watch_list", "watch_update"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()

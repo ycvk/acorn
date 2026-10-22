@@ -45,6 +45,8 @@ class NowLabelsTest {
             nextCheckAt = OffsetDateTime.parse("2026-10-22T01:00:00Z"), failures = 0, section = "AI 与科技前沿", issue = true,
         )
         assertEquals("新闻：AI 与科技前沿", watchModeLabel(watch))
+        assertEquals("试用：AI 与科技前沿", watchModeLabel(watch.copy(trial = true)))
+        assertEquals("新闻", watchModeLabel(watch.copy(section = null)))
         assertEquals("汇总进简报", watchModeLabel(watch.copy(mode = NowWatch.Mode.digest, section = null)))
         assertEquals("即时提醒", watchModeLabel(watch.copy(mode = NowWatch.Mode.immediate, section = null)))
         assertEquals("脚本", watchKindLabel(NowWatch.Kind.trigger))

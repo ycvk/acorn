@@ -77,7 +77,10 @@ type Watch struct {
 	// Section is the news section of a news watch; other modes have none.
 	Section string
 	// Issue marks a news watch whose items are issues, each read on its page.
-	Issue         bool
+	Issue bool
+	// Trial marks a news watch on trial: fetched and sorted, but its items
+	// stay out of the briefing until the owner takes it in.
+	Trial         bool
 	Interval      time.Duration
 	Status        WatchStatus
 	SessionID     string

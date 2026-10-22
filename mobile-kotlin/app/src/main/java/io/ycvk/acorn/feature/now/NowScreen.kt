@@ -494,7 +494,7 @@ private fun WatchRow(watch: NowWatch, onPause: () -> Unit, onResume: () -> Unit)
 fun watchModeLabel(watch: NowWatch): String = when (watch.mode) {
     NowWatch.Mode.immediate -> "即时提醒"
     NowWatch.Mode.digest -> "汇总进简报"
-    NowWatch.Mode.news -> watch.section?.let { "新闻：$it" } ?: "新闻"
+    NowWatch.Mode.news -> (if (watch.trial == true) "试用" else "新闻") + (watch.section?.let { "：$it" } ?: "")
 }
 
 fun watchKindLabel(kind: NowWatch.Kind): String = when (kind) {
