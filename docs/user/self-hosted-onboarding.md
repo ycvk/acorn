@@ -449,11 +449,13 @@ watch:
 Sources a watch can follow:
 
 - RSS, Atom or JSON feeds by URL. Give the agent a site's address and it finds the site's feeds with `feed_discover`: the feeds the page names, links on it that look like feeds and common feed paths, each checked, with how many entries a day it carries and when it last published.
-- Anything RSSHub can turn into a feed (X, Weibo, and many more) as `rsshub:/route`. Run your own RSSHub next to Acorn; public instances are often rate limited:
+- Anything RSSHub can turn into a feed (X, Weibo, hot lists and many more) as `rsshub:/route`. Run your own RSSHub next to Acorn; public instances are often rate limited:
 
   ```bash
-  docker run -d --name rsshub --restart always -p 127.0.0.1:1200:1200 diygod/rsshub
+  podman run -d --name rsshub --restart always -p 127.0.0.1:1200:1200 docker.io/diygod/rsshub
   ```
+
+  Set `watch.rsshub_base_url` to its address. Watches and feed discovery reach that address even on loopback or a private network; every other loopback and private address stays blocked, and the agent's `web_fetch` does not reach it.
 
 - A GitHub repository's releases or newly opened issues.
 - Part of a web page picked by a CSS selector, such as a price; without a selector the page's main text. Pages that only render with JavaScript need the workstation, whose browser renders them.

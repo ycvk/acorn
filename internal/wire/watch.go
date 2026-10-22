@@ -15,11 +15,15 @@ import (
 
 const defaultGitHubAPI = "https://api.github.com"
 
-// buildWebFetcher fetches under the configured outbound policy, for watches
-// and the pages of news issues.
+// buildWebFetcher fetches under the configured outbound policy, for watches,
+// feed discovery and the pages of news issues. The owner's RSSHub is reached
+// even on a loopback or private address.
 func buildWebFetcher(cfg *config.Config) (*webaccess.FetchService, webaccess.URLPolicy, error) {
 	webCfg := cfg.WebAccess
 	policy := webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks}
+	if base := strings.TrimSpace(cfg.Watch.RSSHubBaseURL); base != "" {
+		policy.Trusted = []string{base}
+	}
 	fetcher, err := webaccess.NewFetchService(webaccess.FetchConfig{
 		UserAgent:        webCfg.UserAgent,
 		Timeout:          time.Duration(webCfg.TimeoutSeconds) * time.Second,

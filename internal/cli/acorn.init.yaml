@@ -80,7 +80,8 @@ notify:
     service_account_file: ""
 
 watch:
-  # Your RSSHub, for rsshub:/route watches (see the onboarding guide).
+  # Your RSSHub, for rsshub:/route watches (see the onboarding guide); its
+  # address is reached even on loopback, such as http://127.0.0.1:1200.
   rsshub_base_url: ""
   # Optional GitHub token for a higher API rate limit, e.g. ${GITHUB_TOKEN}.
   github_token: ""
