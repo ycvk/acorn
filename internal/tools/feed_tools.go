@@ -9,6 +9,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
+	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -19,7 +20,7 @@ type FeedDiscoverer interface {
 
 // FeedDiscoverInput is the input of feed_discover.
 type FeedDiscoverInput struct {
-	URL string `json:"url" jsonschema:"required" jsonschema_description:"A site, blog or page address, or a feed address to check."`
+	URL string `json:"url" jsonschema:"required" jsonschema_description:"A site, blog or page address, a feed address to check, or rsshub:/route for a route of the owner's RSSHub."`
 }
 
 // DiscoveredFeedOutput is one feed found.
@@ -48,14 +49,26 @@ func buildFeedDiscoverTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if page == "" {
 				return FeedDiscoverOutput{}, errors.New("feed_discover: url is required")
 			}
+			base := strings.TrimRight(deps.RSSHub, "/")
+			if strings.HasPrefix(page, "rsshub:") {
+				if base == "" {
+					return FeedDiscoverOutput{}, errors.New("feed_discover: the owner has no RSSHub: watch.rsshub_base_url is not set")
+				}
+				page, _ = watch.RSSHubURL(base, page)
+			}
 			found, err := deps.Feeds.DiscoverFeeds(ctx, page)
 			if err != nil {
 				return FeedDiscoverOutput{}, fmt.Errorf("feed_discover: %w", err)
 			}
 			out := FeedDiscoverOutput{Feeds: make([]DiscoveredFeedOutput, 0, len(found.Feeds)), Tried: found.Tried}
 			for _, f := range found.Feeds {
+				// A feed on the owner's RSSHub is named by its route, as watches take it.
+				url := f.URL
+				if route, ok := strings.CutPrefix(url, base+"/"); ok && base != "" {
+					url = "rsshub:/" + route
+				}
 				feed := DiscoveredFeedOutput{
-					URL: f.URL, FoundBy: f.FoundBy, Title: f.Title, Entries: f.Entries,
+					URL: url, FoundBy: f.FoundBy, Title: f.Title, Entries: f.Entries,
 					PerDay: math.Round(f.PerDay*100) / 100, Samples: f.Samples,
 				}
 				if !f.Latest.IsZero() {
@@ -64,7 +77,10 @@ func buildFeedDiscoverTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				out.Feeds = append(out.Feeds, feed)
 			}
 			if len(out.Feeds) == 0 {
-				out.Note = "No feed found. If the owner runs RSSHub, a route for the site may exist: watch_create kind rss with target rsshub:/route. Otherwise a skill package trigger can read the site and print item lines for a news source of kind trigger."
+				out.Note = "No feed found. A skill package trigger can read the site and print item lines for a news source of kind trigger."
+				if base != "" {
+					out.Note = "No feed found. The owner's RSSHub may have a route for the site: check rsshub:/route with feed_discover, then watch_create kind rss with that target. Otherwise a skill package trigger can read the site and print item lines for a news source of kind trigger."
+				}
 			}
 			return out, nil
 		})

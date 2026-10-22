@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/config"
@@ -189,6 +190,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Store:    db,
 			News:     db,
 			Feeds:    webFetcher,
+			RSSHub:   strings.TrimSpace(cfg.Watch.RSSHubBaseURL),
 			Triggers: skillLibrary,
 			Checker:  watchChecker,
 			Context:  ctxBridge,

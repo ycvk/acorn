@@ -456,7 +456,7 @@ Sources a watch can follow:
   podman run -d --name rsshub --restart always -p 127.0.0.1:1200:1200 docker.io/diygod/rsshub
   ```
 
-  Set `watch.rsshub_base_url` to its address. Watches and feed discovery reach that address even on loopback or a private network; every other loopback and private address stays blocked, and the agent's `web_fetch` does not reach it.
+  Set `watch.rsshub_base_url` to its address; the agent then checks a route with `feed_discover rsshub:/route` before following it. Watches and feed discovery reach that address even on loopback or a private network; every other loopback and private address stays blocked, and the agent's `web_fetch` does not reach it.
 
 - A GitHub repository's releases or newly opened issues.
 - Part of a web page picked by a CSS selector, such as a price; without a selector the page's main text. Pages that only render with JavaScript need the workstation, whose browser renders them.

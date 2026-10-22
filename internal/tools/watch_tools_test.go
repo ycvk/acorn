@@ -389,8 +389,24 @@ func TestFeedDiscoverListsTheFeedsFound(t *testing.T) {
 		t.Fatalf("output %s, pages %v", out, discoverer.pages)
 	}
 	discoverer.found = webaccess.FeedDiscovery{Tried: 12}
-	if out, err := runPresenceTool(t, tool, `{"url":"https://nofeed.test"}`); err != nil || !strings.Contains(out, `"feeds":[]`) || !strings.Contains(out, "rsshub:/route") {
-		t.Fatalf("no feed: %s, %v", out, err)
+	if out, err := runPresenceTool(t, tool, `{"url":"https://nofeed.test"}`); err != nil || !strings.Contains(out, `"feeds":[]`) || strings.Contains(out, "RSSHub") || !strings.Contains(out, "skill package trigger") {
+		t.Fatalf("no feed without RSSHub: %s, %v", out, err)
+	}
+	if _, err := runPresenceTool(t, tool, `{"url":"rsshub:/zhihu/hot"}`); err == nil || !strings.Contains(err.Error(), "watch.rsshub_base_url is not set") {
+		t.Fatalf("a route without RSSHub err = %v", err)
+	}
+
+	tool, err = buildFeedDiscoverTool(WatchToolDeps{Feeds: discoverer, RSSHub: "http://127.0.0.1:1200/", Location: loc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runPresenceTool(t, tool, `{"url":"https://nofeed.test"}`); err != nil || !strings.Contains(out, "check rsshub:/route with feed_discover") {
+		t.Fatalf("no feed with RSSHub: %s, %v", out, err)
+	}
+	discoverer.found = webaccess.FeedDiscovery{Tried: 1, Feeds: []webaccess.DiscoveredFeed{{URL: "http://127.0.0.1:1200/zhihu/hot", FoundBy: "page", Entries: 30}}}
+	out, err = runPresenceTool(t, tool, `{"url":"rsshub:/zhihu/hot"}`)
+	if err != nil || !strings.Contains(out, `"url":"rsshub:/zhihu/hot","found_by":"page"`) || discoverer.pages[len(discoverer.pages)-1] != "http://127.0.0.1:1200/zhihu/hot" {
+		t.Fatalf("route = %s, %v, pages %v", out, err, discoverer.pages)
 	}
 }
 

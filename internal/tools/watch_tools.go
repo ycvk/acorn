@@ -27,9 +27,11 @@ type NewsSearcher interface {
 
 // WatchToolDeps are what the watch tools need.
 type WatchToolDeps struct {
-	Store    core.WatchStore
-	News     NewsSearcher
-	Feeds    FeedDiscoverer
+	Store core.WatchStore
+	News  NewsSearcher
+	Feeds FeedDiscoverer
+	// RSSHub is the owner's RSSHub base URL, empty when none is set.
+	RSSHub   string
 	Triggers TriggerLister
 	Checker  WatchChecker
 	Context  core.ToolCallContextBridge
