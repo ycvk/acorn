@@ -64,7 +64,7 @@ func buildFeedDiscoverTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				out.Feeds = append(out.Feeds, feed)
 			}
 			if len(out.Feeds) == 0 {
-				out.Note = "No feed found. If the owner runs RSSHub, a route for the site may exist: watch_create kind rss with target rsshub:/route."
+				out.Note = "No feed found. If the owner runs RSSHub, a route for the site may exist: watch_create kind rss with target rsshub:/route. Otherwise a skill package trigger can read the site and print item lines for a news source of kind trigger."
 			}
 			return out, nil
 		})

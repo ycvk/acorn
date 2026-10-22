@@ -3885,7 +3885,7 @@ components:
           type: string
         kind:
           type: string
-          enum: [rss, github, web, web_rendered]
+          enum: [rss, github, web, web_rendered, trigger]
         target:
           type: string
         mode:

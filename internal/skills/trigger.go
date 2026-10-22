@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -164,25 +166,38 @@ type Event struct {
 	Text string `json:"text"`
 }
 
+// Item is a piece of news a trigger's command found, for the news source
+// that follows the trigger.
+type Item struct {
+	Key         string
+	Title       string
+	URL         string
+	Summary     string
+	PublishedAt time.Time
+}
+
 const (
 	maxEventKeyBytes  = 256
 	maxEventTextBytes = 8 << 10
+	maxItemTitleBytes = 1 << 10
 )
 
-// Output is what a trigger's command printed: its events, and the view_data
-// lines in order, each replacing the data of the pinned views the trigger
-// feeds.
+// Output is what a trigger's command printed: its events, its news items,
+// and the view_data lines in order, each replacing the data of the pinned
+// views the trigger feeds.
 type Output struct {
 	Events   []Event
+	Items    []Item
 	ViewData []map[string]any
 }
 
 // ParseOutput reads a trigger command's output: each non-blank line is an
-// event {"key": "...", "text": "..."} or view data {"view_data": {...}}. A
-// line that is neither, or an event repeated in one output, fails the run.
+// event {"key": "...", "text": "..."}, a news item {"item": {...}} or view
+// data {"view_data": {...}}. A line that is none of them, or an event or item
+// repeated in one output, fails the run.
 func ParseOutput(stdout string) (Output, error) {
 	var out Output
-	seen := map[string]bool{}
+	seen, seenItems := map[string]bool{}, map[string]bool{}
 	for i, line := range strings.Split(stdout, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -197,11 +212,23 @@ func ParseOutput(stdout string) (Output, error) {
 			out.ViewData = append(out.ViewData, data)
 			continue
 		}
+		if len(fields) == 1 && fields["item"] != nil {
+			item, err := parseItem(fields["item"])
+			if err != nil {
+				return Output{}, fmt.Errorf("output line %d: %w", i+1, err)
+			}
+			if seenItems[item.Key] {
+				return Output{}, fmt.Errorf("output line %d repeats the item key %q", i+1, item.Key)
+			}
+			seenItems[item.Key] = true
+			out.Items = append(out.Items, item)
+			continue
+		}
 		var e Event
 		decoder := json.NewDecoder(bytes.NewReader([]byte(line)))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&e); err != nil || decoder.More() {
-			return Output{}, fmt.Errorf(`output line %d is neither an event {"key": "...", "text": "..."} nor {"view_data": {...}}: %s`, i+1, tail(line, 200))
+			return Output{}, fmt.Errorf(`output line %d is neither an event {"key": "...", "text": "..."}, an item {"item": {...}} nor {"view_data": {...}}: %s`, i+1, tail(line, 200))
 		}
 		e.Key, e.Text = strings.TrimSpace(e.Key), strings.TrimSpace(e.Text)
 		switch {
@@ -218,6 +245,49 @@ func ParseOutput(stdout string) (Output, error) {
 		out.Events = append(out.Events, e)
 	}
 	return out, nil
+}
+
+// parseItem reads {"key", "title", "url", "summary", "published"}: key and
+// title are required, url is an absolute http(s) link and published an
+// RFC 3339 time when given.
+func parseItem(raw json.RawMessage) (Item, error) {
+	var in struct {
+		Key       string `json:"key"`
+		Title     string `json:"title"`
+		URL       string `json:"url"`
+		Summary   string `json:"summary"`
+		Published string `json:"published"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&in); err != nil {
+		return Item{}, fmt.Errorf(`an item is {"key", "title", "url", "summary", "published"}: %w`, err)
+	}
+	item := Item{Key: strings.TrimSpace(in.Key), Title: strings.TrimSpace(in.Title), URL: strings.TrimSpace(in.URL), Summary: strings.TrimSpace(in.Summary)}
+	switch {
+	case item.Key == "" || item.Title == "":
+		return Item{}, errors.New("an item needs a key and a title")
+	case len(item.Key) > maxEventKeyBytes:
+		return Item{}, fmt.Errorf("the item key is longer than %d bytes", maxEventKeyBytes)
+	case len(item.Title) > maxItemTitleBytes:
+		return Item{}, fmt.Errorf("the item title is longer than %d bytes", maxItemTitleBytes)
+	case len(item.Summary) > maxEventTextBytes:
+		return Item{}, fmt.Errorf("the item summary is longer than %d bytes", maxEventTextBytes)
+	}
+	if item.URL != "" {
+		u, err := url.Parse(item.URL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return Item{}, fmt.Errorf("the item url %q must be an absolute http(s) link", item.URL)
+		}
+	}
+	if in.Published != "" {
+		at, err := time.Parse(time.RFC3339, strings.TrimSpace(in.Published))
+		if err != nil {
+			return Item{}, fmt.Errorf("the item published %q must be an RFC 3339 time: %w", in.Published, err)
+		}
+		item.PublishedAt = at.UTC()
+	}
+	return item, nil
 }
 
 // tail keeps the end of a command's output, where errors usually are.

@@ -149,9 +149,9 @@ func (s *Store) ListDueWatches(ctx context.Context, now time.Time, limit int) ([
 		return nil, errors.New("list due watches: limit must be positive")
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+watchColumns+` FROM watches WHERE status <> ? AND next_check_at <= ?
+		`SELECT `+watchColumns+` FROM watches WHERE status <> ? AND kind <> ? AND next_check_at <= ?
 		 ORDER BY next_check_at, id LIMIT ?`,
-		string(core.WatchPaused), formatTimestamp(now), limit)
+		string(core.WatchPaused), string(core.WatchTrigger), formatTimestamp(now), limit)
 	if err != nil {
 		return nil, fmt.Errorf("list due watches: %w", err)
 	}
@@ -308,6 +308,8 @@ func validateWatch(w core.Watch) error {
 		return errors.New("watch: a news watch needs a section")
 	case w.Mode != core.WatchModeNews && (w.Section != "" || w.Issue):
 		return fmt.Errorf("watch: only news watches have a section or issues, not mode %q", w.Mode)
+	case w.Kind == core.WatchTrigger && w.Mode != core.WatchModeNews:
+		return fmt.Errorf("watch: a trigger source is a news watch, not mode %q", w.Mode)
 	}
 	return nil
 }

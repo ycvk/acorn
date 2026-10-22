@@ -502,6 +502,7 @@ fun watchKindLabel(kind: NowWatch.Kind): String = when (kind) {
     NowWatch.Kind.github -> "GitHub"
     NowWatch.Kind.web -> "网页"
     NowWatch.Kind.web_rendered -> "动态网页"
+    NowWatch.Kind.trigger -> "脚本"
 }
 
 @Composable

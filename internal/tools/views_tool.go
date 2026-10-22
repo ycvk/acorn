@@ -71,8 +71,8 @@ func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 		}
 		source := strings.TrimSpace(input.Source)
 		if source != "" {
-			if err := checkViewSource(ctx, deps.Triggers, source); err != nil {
-				return ShowViewOutput{}, err
+			if err := checkTrigger(ctx, deps.Triggers, source); err != nil {
+				return ShowViewOutput{}, fmt.Errorf("source: %w", err)
 			}
 		}
 		checked, err := views.Check(ctx, input.Title, input.Components, input.Data, deps.Sources.For(sessionID))
@@ -142,21 +142,22 @@ func buildUpdateViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 	})
 }
 
-// checkViewSource accepts source when it names a trigger of a skill in use.
-func checkViewSource(ctx context.Context, triggers TriggerLister, source string) error {
+// checkTrigger accepts id when it names a trigger of a skill in use, as
+// skill/trigger.
+func checkTrigger(ctx context.Context, triggers TriggerLister, id string) error {
 	listed, err := triggers.Triggers(ctx)
 	if err != nil {
 		return fmt.Errorf("list triggers: %w", err)
 	}
 	ids := make([]string, 0, len(listed))
 	for _, t := range listed {
-		if t.ID() == source {
+		if t.ID() == id {
 			return nil
 		}
 		ids = append(ids, t.ID())
 	}
 	if len(ids) == 0 {
-		return fmt.Errorf("source %q is not a trigger: no skill in use has triggers", source)
+		return fmt.Errorf("%q is not a trigger: no skill in use has triggers", id)
 	}
-	return fmt.Errorf("source %q is not a trigger of a skill in use; the triggers are %s", source, strings.Join(ids, ", "))
+	return fmt.Errorf("%q is not a trigger of a skill in use; the triggers are %s", id, strings.Join(ids, ", "))
 }

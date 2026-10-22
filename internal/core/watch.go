@@ -28,6 +28,10 @@ const (
 	WatchGitHub      WatchKind = "github"
 	WatchWeb         WatchKind = "web"
 	WatchWebRendered WatchKind = "web_rendered"
+	// WatchTrigger is a news source whose items are the item lines a skill
+	// package trigger prints; its target is skill/trigger and it is never
+	// fetched.
+	WatchTrigger WatchKind = "trigger"
 )
 
 // WatchMode decides what happens with a watch's new items: immediate wakes
@@ -147,6 +151,8 @@ type WatchStore interface {
 	LoadWatch(ctx context.Context, id int64) (*Watch, error)
 	ListWatches(ctx context.Context) ([]Watch, error)
 	UpdateWatch(ctx context.Context, w Watch) error
+	// ListDueWatches lists the watches to fetch now, leaving out paused
+	// watches and trigger sources.
 	ListDueWatches(ctx context.Context, now time.Time, limit int) ([]Watch, error)
 	// ClaimDueWatch moves the next check of a due, unpaused watch to now+lease.
 	// Exactly one concurrent caller succeeds; the others get ErrWatchNotDue.

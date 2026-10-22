@@ -43,7 +43,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		Notify:          NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Location: time.UTC},
 		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Location: time.UTC},
 		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Location: time.UTC},
-		Watch:           WatchToolDeps{Store: &toolWatchStore{}, News: &toolNewsSearcher{}, Feeds: &toolFeedDiscoverer{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Location: time.UTC},
+		Watch:           WatchToolDeps{Store: &toolWatchStore{}, News: &toolNewsSearcher{}, Feeds: &toolFeedDiscoverer{}, Triggers: triggersFake{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Location: time.UTC},
 		Views:           ViewToolDeps{Store: &viewStoreFake{}, Sources: views.Sources{Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: bridge},
 	}
 }

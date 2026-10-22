@@ -47,6 +47,7 @@ class NowLabelsTest {
         assertEquals("新闻：AI 与科技前沿", watchModeLabel(watch))
         assertEquals("汇总进简报", watchModeLabel(watch.copy(mode = NowWatch.Mode.digest, section = null)))
         assertEquals("即时提醒", watchModeLabel(watch.copy(mode = NowWatch.Mode.immediate, section = null)))
+        assertEquals("脚本", watchKindLabel(NowWatch.Kind.trigger))
     }
 
     @Test

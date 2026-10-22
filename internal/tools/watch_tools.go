@@ -30,6 +30,7 @@ type WatchToolDeps struct {
 	Store    core.WatchStore
 	News     NewsSearcher
 	Feeds    FeedDiscoverer
+	Triggers TriggerLister
 	Checker  WatchChecker
 	Context  core.ToolCallContextBridge
 	Clock    func() time.Time
@@ -41,8 +42,8 @@ const defaultWatchEvery = time.Hour
 // WatchCreateInput is the input of watch_create.
 type WatchCreateInput struct {
 	Name     string `json:"name" jsonschema_description:"Short name, e.g. Go releases or phone price."`
-	Kind     string `json:"kind" jsonschema_description:"rss (feed URL or rsshub:/route), github (target owner/repo), web (page URL) or web_rendered (page that needs JavaScript)."`
-	Target   string `json:"target" jsonschema_description:"Feed URL, rsshub:/route, owner/repo, or page URL."`
+	Kind     string `json:"kind" jsonschema_description:"rss (feed URL or rsshub:/route), github (target owner/repo), web (page URL), web_rendered (page that needs JavaScript) or trigger (a news source whose items are the item lines a skill package trigger prints)."`
+	Target   string `json:"target" jsonschema_description:"Feed URL, rsshub:/route, owner/repo, page URL, or skill/trigger."`
 	Selector string `json:"selector,omitempty" jsonschema_description:"web and web_rendered: CSS selector of the part to follow, e.g. .price; empty follows the main text. github: releases (default) or issues."`
 	Mode     string `json:"mode,omitempty" jsonschema_description:"digest (default) keeps new items for the morning briefing; immediate wakes you as soon as something new appears; news offers new items to the briefing's news section to pick from, for news sources with many items a day."`
 	Section  string `json:"section,omitempty" jsonschema_description:"news: the news section the source belongs to, from news_sections."`
@@ -85,6 +86,7 @@ type WatchCreateOutput struct {
 	WatchOutput
 	Baseline int      `json:"baseline_items"`
 	Sample   []string `json:"sample,omitempty"`
+	Note     string   `json:"note,omitempty"`
 }
 
 // WatchListOutput lists every watch.
@@ -125,6 +127,9 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				Name: name, Kind: kind, Target: target, Selector: selector, Mode: mode, Section: section, Issue: input.Issue, Interval: every,
 				Status: core.WatchActive, SessionID: deps.Context.CurrentSessionID(ctx), NextCheckAt: now, CreatedAt: now,
 			}
+			if kind == core.WatchTrigger {
+				return createTriggerSource(ctx, deps, w)
+			}
 			fetched, err := deps.Checker.Fetch(ctx, w)
 			if err != nil {
 				return WatchCreateOutput{}, fmt.Errorf("watch_create: the first check failed, so the watch was not created: %w", err)
@@ -142,6 +147,25 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				Sample:      fetchedSample(fetched),
 			}, nil
 		})
+}
+
+// createTriggerSource adds a news source that follows a trigger of a skill in
+// use. The trigger's next output is its baseline.
+func createTriggerSource(ctx context.Context, deps WatchToolDeps, w core.Watch) (WatchCreateOutput, error) {
+	if w.Mode != core.WatchModeNews || w.Issue {
+		return WatchCreateOutput{}, errors.New("watch_create: a trigger source is a news source: mode news with a section, and not an issue source")
+	}
+	if err := checkTrigger(ctx, deps.Triggers, w.Target); err != nil {
+		return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
+	}
+	w, err := deps.Store.AddWatch(ctx, w)
+	if err != nil {
+		return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
+	}
+	return WatchCreateOutput{
+		WatchOutput: watchOutput(w, 0, deps.Location),
+		Note:        "The trigger's next output is the baseline; item lines it prints after that are news for this source.",
+	}, nil
 }
 
 func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {

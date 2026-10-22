@@ -33,6 +33,8 @@ type RunStarter interface {
 // WatchChecker fetches a watch and records what it found.
 type WatchChecker interface {
 	Check(ctx context.Context, w core.Watch) (watch.Result, error)
+	// Apply records what a trigger source's trigger printed as a check.
+	Apply(ctx context.Context, w core.Watch, fetched watch.Fetched) (watch.Result, error)
 }
 
 // Briefing schedules the morning briefing at At after owner-local midnight.

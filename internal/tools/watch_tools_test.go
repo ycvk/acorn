@@ -12,6 +12,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
@@ -156,7 +157,8 @@ func newWatchToolsForTest(t *testing.T) (*toolWatchStore, *fakeWatchChecker, map
 	if err != nil {
 		t.Fatal(err)
 	}
-	deps := WatchToolDeps{Store: store, News: &toolNewsSearcher{}, Checker: checker, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_7", callID: "call_1"}, Clock: func() time.Time { return watchToolNow }, Location: loc}
+	triggers := triggersFake{{Trigger: skills.Trigger{Name: "zhihu"}, Skill: "hot-lists"}}
+	deps := WatchToolDeps{Store: store, News: &toolNewsSearcher{}, Triggers: triggers, Checker: checker, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_7", callID: "call_1"}, Clock: func() time.Time { return watchToolNow }, Location: loc}
 	tools := map[string]einotool.BaseTool{}
 	for name, build := range map[string]func(WatchToolDeps) (einotool.BaseTool, error){
 		"watch_create": buildWatchCreateTool, "watch_update": buildWatchUpdateTool, "watch_list": buildWatchListTool,
@@ -389,5 +391,29 @@ func TestFeedDiscoverListsTheFeedsFound(t *testing.T) {
 	discoverer.found = webaccess.FeedDiscovery{Tried: 12}
 	if out, err := runPresenceTool(t, tool, `{"url":"https://nofeed.test"}`); err != nil || !strings.Contains(out, `"feeds":[]`) || !strings.Contains(out, "rsshub:/route") {
 		t.Fatalf("no feed: %s, %v", out, err)
+	}
+}
+
+func TestWatchCreateFollowsATriggerWithoutFetching(t *testing.T) {
+	store, checker, tools := newWatchToolsForTest(t)
+	store.sections = []core.NewsSection{{Name: "热榜"}}
+	out, err := runPresenceTool(t, tools["watch_create"], `{"name":"知乎热榜","kind":"trigger","target":"hot-lists/zhihu","mode":"news","section":"热榜"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `"kind":"trigger"`) || !strings.Contains(out, `"baseline_items":0`) || !strings.Contains(out, "next output is the baseline") {
+		t.Fatalf("output = %s", out)
+	}
+	if len(checker.fetched) != 0 || len(store.watches) != 1 || !store.watches[0].LastCheckedAt.IsZero() {
+		t.Fatalf("fetched %v, watches %+v", checker.fetched, store.watches)
+	}
+	for input, want := range map[string]string{
+		`{"name":"x","kind":"trigger","target":"hot-lists/weibo","mode":"news","section":"热榜"}`:              `"hot-lists/weibo" is not a trigger of a skill in use; the triggers are hot-lists/zhihu`,
+		`{"name":"x","kind":"trigger","target":"hot-lists/zhihu"}`:                                           "a trigger source is a news source",
+		`{"name":"x","kind":"trigger","target":"hot-lists/zhihu","mode":"news","section":"热榜","issue":true}`: "a trigger source is a news source",
+	} {
+		if _, err := runPresenceTool(t, tools["watch_create"], input); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("%s err = %v", input, err)
+		}
 	}
 }

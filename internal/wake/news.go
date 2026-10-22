@@ -55,7 +55,7 @@ func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since 
 	}
 	var news []core.Watch
 	for _, w := range watches {
-		if w.Mode == core.WatchModeNews && w.Status != core.WatchPaused {
+		if w.Mode == core.WatchModeNews && w.Status != core.WatchPaused && w.Kind != core.WatchTrigger {
 			news = append(news, w)
 		}
 	}

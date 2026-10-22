@@ -94,14 +94,15 @@ data class NowWatch (
     /**
      * 
      *
-     * Values: rss,github,web,web_rendered
+     * Values: rss,github,web,web_rendered,trigger
      */
     @JsonClass(generateAdapter = false)
     enum class Kind(val value: kotlin.String) {
         @Json(name = "rss") rss("rss"),
         @Json(name = "github") github("github"),
         @Json(name = "web") web("web"),
-        @Json(name = "web_rendered") web_rendered("web_rendered");
+        @Json(name = "web_rendered") web_rendered("web_rendered"),
+        @Json(name = "trigger") trigger("trigger");
     }
     /**
      * 

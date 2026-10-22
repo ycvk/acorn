@@ -87,7 +87,10 @@ func NewChecker(cfg Config) (*Checker, error) {
 	return &Checker{cfg: cfg}, nil
 }
 
-var githubRepo = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+var (
+	githubRepo     = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+	packageTrigger = regexp.MustCompile(`^[^/\s]+/[^/\s]+$`)
+)
 
 // Validate reports why a watch of kind on target with selector cannot be
 // followed, or nil.
@@ -119,8 +122,13 @@ func (c *Checker) Validate(kind core.WatchKind, target, selector string) error {
 			return err
 		}
 		return validateSelector(selector)
+	case core.WatchTrigger:
+		if !packageTrigger.MatchString(target) {
+			return fmt.Errorf("trigger target %q must be skill/trigger", target)
+		}
+		return nil
 	default:
-		return fmt.Errorf("unknown watch kind %q; use rss, github, web or web_rendered", kind)
+		return fmt.Errorf("unknown watch kind %q; use rss, github, web, web_rendered or trigger", kind)
 	}
 }
 
@@ -130,6 +138,8 @@ func (c *Checker) Fetch(ctx context.Context, w core.Watch) (Fetched, error) {
 		return Fetched{}, err
 	}
 	switch w.Kind {
+	case core.WatchTrigger:
+		return Fetched{}, fmt.Errorf("watch #%d gets its items from trigger %s and is not fetched", w.ID, w.Target)
 	case core.WatchRSS:
 		return c.fetchFeed(ctx, w)
 	case core.WatchGitHub:
@@ -211,6 +221,12 @@ func (c *Checker) record(ctx context.Context, from, checked core.Watch, items []
 		At: checked.LastCheckedAt, NextCheckAt: checked.NextCheckAt, Status: checked.Status,
 		Failures: checked.Failures, LastError: checked.LastError, Snapshot: checked.Snapshot, Items: items,
 	})
+}
+
+// ItemSummary bounds an item's summary as the summaries of fetched items
+// are bounded.
+func ItemSummary(s string) string {
+	return truncate(s, summaryRunes)
 }
 
 // Backoff doubles the interval per consecutive failure, up to a day.

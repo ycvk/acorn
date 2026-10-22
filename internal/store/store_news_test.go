@@ -173,3 +173,25 @@ func sourceExists(t *testing.T, s *Store, id string) bool {
 	}
 	return exists
 }
+
+func TestTriggerSourcesAreNewsWatchesThatAreNeverDue(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if _, err := s.SaveNewsSection(ctx, core.NewsSection{Name: "热榜", UpdatedAt: watchTestNow}); err != nil {
+		t.Fatal(err)
+	}
+	source := core.Watch{Name: "知乎热榜", Kind: core.WatchTrigger, Target: "hot-lists/zhihu", Mode: core.WatchModeNews, Section: "热榜",
+		Interval: time.Hour, Status: core.WatchActive, NextCheckAt: watchTestNow, CreatedAt: watchTestNow}
+	if _, err := s.AddWatch(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	feed := addNewsWatch(t, s, "bbc", "热榜", false)
+	due, err := s.ListDueWatches(ctx, watchTestNow, 10)
+	if err != nil || len(due) != 1 || due[0].ID != feed.ID {
+		t.Fatalf("due = %+v, %v", due, err)
+	}
+	source.Mode, source.Section = core.WatchModeDigest, ""
+	if _, err := s.AddWatch(ctx, source); err == nil || !strings.Contains(err.Error(), "trigger source is a news watch") {
+		t.Fatalf("a digest trigger source err = %v", err)
+	}
+}

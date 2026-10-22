@@ -20,6 +20,7 @@ type fakeTriggers struct {
 	mu       sync.Mutex
 	triggers []skills.PackageTrigger
 	outputs  map[string][][]skills.Event
+	items    map[string][][]skills.Item
 	viewData map[string][]map[string]any
 	failures map[string]error
 	fired    []string
@@ -60,6 +61,10 @@ func (f *fakeTriggers) Fire(_ context.Context, t skills.PackageTrigger) (skills.
 		f.outputs[t.ID()] = outputs[1:]
 		out.Events = outputs[0]
 	}
+	if items := f.items[t.ID()]; len(items) > 0 {
+		f.items[t.ID()] = items[1:]
+		out.Items = items[0]
+	}
 	return out, nil
 }
 
@@ -76,7 +81,7 @@ func packageTrigger(skill, name string, deliver skills.Deliver) skills.PackageTr
 func newTriggerHarness(t *testing.T, limit int, briefing Briefing, triggers ...skills.PackageTrigger) (*harness, *fakeTriggers) {
 	t.Helper()
 	h := newHarnessWith(t, limit, briefing)
-	f := &fakeTriggers{triggers: triggers, outputs: map[string][][]skills.Event{}, viewData: map[string][]map[string]any{}, failures: map[string]error{}}
+	f := &fakeTriggers{triggers: triggers, outputs: map[string][][]skills.Event{}, items: map[string][][]skills.Item{}, viewData: map[string][]map[string]any{}, failures: map[string]error{}}
 	h.panels = &fakePanels{}
 	h.sched.WithTriggers(f, h.panels)
 	return h, f
@@ -313,5 +318,53 @@ func TestViewDataFeedsPanelsWithoutAModel(t *testing.T) {
 	}
 	if len(h.runs.starts) != 1 || !strings.Contains(h.runs.starts[0], "- v0.9.23") {
 		t.Fatalf("the events printed with rejected view data did not count: %v", h.runs.starts)
+	}
+}
+
+func TestTriggerItemsFeedTheNewsSourcesThatFollowIt(t *testing.T) {
+	h, f := newTriggerHarness(t, 20, Briefing{}, packageTrigger("hot-lists", "zhihu", skills.DeliverDigest))
+	ctx := context.Background()
+	f.items["hot-lists/zhihu"] = [][]skills.Item{
+		{{Key: "q0", Title: "无人跟随"}},
+		{{Key: "q1", Title: "热榜一", URL: "https://zhihu.test/1"}, {Key: "q2", Title: "热榜二"}},
+		{{Key: "q3", Title: "热榜三", Summary: strings.Repeat("长", 400)}},
+	}
+	h.at(9, 7)
+	h.tick(t)
+	h.at(9, 30)
+	if err := h.sched.Tick(ctx); err == nil || !strings.Contains(err.Error(), "no news source follows trigger hot-lists/zhihu") {
+		t.Fatalf("tick err = %v", err)
+	}
+	h.section(t, "热榜", 1, "")
+	source, err := h.watches.AddWatch(ctx, core.Watch{Name: "知乎热榜", Kind: core.WatchTrigger, Target: "hot-lists/zhihu", Mode: core.WatchModeNews, Section: "热榜",
+		Interval: time.Hour, Status: core.WatchActive, NextCheckAt: h.now.Add(-time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	paused, err := h.watches.AddWatch(ctx, core.Watch{Name: "停了的", Kind: core.WatchTrigger, Target: "hot-lists/zhihu", Mode: core.WatchModeNews, Section: "热榜",
+		Interval: time.Hour, Status: core.WatchPaused, NextCheckAt: h.now.Add(-time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.at(10, 30) // after the failure's backoff
+	h.tick(t)
+	h.at(11, 0)
+	h.tick(t)
+	var got []string
+	for _, item := range h.watches.items {
+		got = append(got, fmt.Sprintf("%d %s %s %d", item.WatchID, item.Key, item.Status, len([]rune(item.Summary))))
+	}
+	want := []string{
+		fmt.Sprintf("%d q1 baseline 0", source.ID), fmt.Sprintf("%d q2 baseline 0", source.ID),
+		fmt.Sprintf("%d q3 pending 301", source.ID),
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("items = %v, want %v", got, want)
+	}
+	if slices.Contains(h.checker.checked, source.ID) || slices.Contains(h.checker.applied, paused.ID) {
+		t.Fatalf("checked %v, applied %v: trigger sources are not fetched and paused ones take nothing", h.checker.checked, h.checker.applied)
+	}
+	if len(h.runs.starts) != 0 {
+		t.Fatalf("items woke the agent: %v", h.runs.starts)
 	}
 }

@@ -105,7 +105,7 @@ func (m *memWatches) ListDueWatches(_ context.Context, now time.Time, limit int)
 	defer m.mu.Unlock()
 	var out []core.Watch
 	for _, w := range m.watches {
-		if w.Status != core.WatchPaused && !w.NextCheckAt.After(now) && len(out) < limit {
+		if w.Status != core.WatchPaused && w.Kind != core.WatchTrigger && !w.NextCheckAt.After(now) && len(out) < limit {
 			out = append(out, w)
 		}
 	}
@@ -170,7 +170,29 @@ type fakeChecker struct {
 	found   map[int64][]core.WatchItem
 	failing map[int64]error
 	checked []int64
+	applied []int64
 	clock   func() time.Time
+}
+
+// Apply records fetched as a check of w, baseline when w was never checked.
+func (c *fakeChecker) Apply(ctx context.Context, w core.Watch, fetched watch.Fetched) (watch.Result, error) {
+	c.mu.Lock()
+	c.applied = append(c.applied, w.ID)
+	c.mu.Unlock()
+	status := core.WatchItemPending
+	if w.LastCheckedAt.IsZero() {
+		status = core.WatchItemBaseline
+	}
+	items := fetched.Items
+	for i := range items {
+		items[i].WatchID, items[i].Status, items[i].SeenAt = w.ID, status, c.clock()
+	}
+	check := core.WatchCheck{At: c.clock(), NextCheckAt: c.clock().Add(w.Interval), Status: w.Status, Items: items}
+	added, err := c.watches.RecordWatchCheck(ctx, w, check)
+	if err != nil {
+		return watch.Result{Watch: w}, err
+	}
+	return watch.Result{Watch: w, New: added}, nil
 }
 
 func (c *fakeChecker) Check(ctx context.Context, w core.Watch) (watch.Result, error) {

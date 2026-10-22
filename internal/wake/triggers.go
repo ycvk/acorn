@@ -170,6 +170,9 @@ func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time) ([]co
 			break
 		}
 	}
+	if fireErr == nil && len(out.Items) > 0 {
+		fireErr = s.recordTriggerItems(ctx, id, out.Items)
+	}
 	run := core.TriggerRun{At: s.cfg.Clock(), NextAt: next, Status: core.TriggerActive}
 	if fireErr != nil {
 		run.Failures, run.LastError, run.Status = d.state.Failures+1, fireErr.Error(), d.state.Status
@@ -188,6 +191,40 @@ func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time) ([]co
 		return added, errors.Join(fmt.Errorf("trigger %s: %w", id, fireErr), err)
 	}
 	return added, err
+}
+
+// recordTriggerItems records the item lines a trigger printed as a check of
+// each news source that follows it; a paused source takes none. Items with
+// no source following the trigger are a failure, so they are not lost
+// unnoticed.
+func (s *Scheduler) recordTriggerItems(ctx context.Context, id string, items []skills.Item) error {
+	watches, err := s.cfg.Watches.ListWatches(ctx)
+	if err != nil {
+		return err
+	}
+	fetched := watch.Fetched{Items: make([]core.WatchItem, 0, len(items))}
+	for _, it := range items {
+		fetched.Items = append(fetched.Items, core.WatchItem{Key: it.Key, Title: it.Title, URL: it.URL, Summary: watch.ItemSummary(it.Summary), PublishedAt: it.PublishedAt})
+	}
+	followed := false
+	var errs []error
+	for _, w := range watches {
+		if w.Kind != core.WatchTrigger || w.Target != id {
+			continue
+		}
+		followed = true
+		if w.Status == core.WatchPaused {
+			continue
+		}
+		// Apply sets each item's watch and status, so each source gets its own copy.
+		if _, err := s.cfg.Checker.Apply(ctx, w, watch.Fetched{Items: slices.Clone(fetched.Items)}); err != nil {
+			errs = append(errs, fmt.Errorf("record items for news source #%d: %w", w.ID, err))
+		}
+	}
+	if !followed {
+		return fmt.Errorf("printed %d items but no news source follows trigger %s; create one with watch_create kind trigger", len(items), id)
+	}
+	return errors.Join(errs...)
 }
 
 // retryAt is the first slot after a failed trigger's backoff: the gap between

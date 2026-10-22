@@ -202,7 +202,7 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		needs = skillDeps
 		build = func() (einotool.BaseTool, error) { return buildSkillImportTool(deps.Skills) }
 	case "watch_create":
-		needs = watchDeps
+		needs = append(slices.Clone(watchDeps), nativeToolDep{"Watch.Triggers", deps.Watch.Triggers != nil})
 		build = func() (einotool.BaseTool, error) { return buildWatchCreateTool(deps.Watch) }
 	case "watch_update":
 		needs = watchDeps

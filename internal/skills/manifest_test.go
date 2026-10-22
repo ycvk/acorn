@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -374,6 +375,38 @@ func TestParseOutputReadsEventsAndViewDataOnePerLine(t *testing.T) {
 		`{"view_data":null}`,
 		`{"view_data":{"a":1},"key":"a"}`,
 		`{"view_data":{"a":1}} trailing`,
+	} {
+		if _, err := ParseOutput(line); err == nil {
+			t.Fatalf("parsed %q", line)
+		}
+	}
+}
+
+func TestParseOutputReadsNewsItems(t *testing.T) {
+	out, err := ParseOutput(`{"item": {"key": "h1", "title": " 热榜第一 ", "url": "https://hot.test/1", "summary": "讨论很多", "published": "2026-10-22T08:00:00+08:00"}}` + "\n" +
+		`{"key":"e","text":"event"}` + "\n" + `{"item":{"key":"h2","title":"第二"}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Items) != 2 || len(out.Events) != 1 {
+		t.Fatalf("output = %+v", out)
+	}
+	first := out.Items[0]
+	if first.Key != "h1" || first.Title != "热榜第一" || first.URL != "https://hot.test/1" || first.Summary != "讨论很多" || !first.PublishedAt.Equal(time.Date(2026, 10, 22, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("item = %+v", first)
+	}
+	if second := out.Items[1]; second.Key != "h2" || second.URL != "" || !second.PublishedAt.IsZero() {
+		t.Fatalf("bare item = %+v", second)
+	}
+	for _, line := range []string{
+		`{"item":{"title":"no key"}}`,
+		`{"item":{"key":"k"}}`,
+		`{"item":{"key":"k","title":"t","extra":1}}`,
+		`{"item":{"key":"k","title":"t","url":"/relative"}}`,
+		`{"item":{"key":"k","title":"t","url":"javascript:alert(1)"}}`,
+		`{"item":{"key":"k","title":"t","published":"yesterday"}}`,
+		`{"item":{"key":"k","title":"t"}}` + "\n" + `{"item":{"key":"k","title":"again"}}`,
+		`{"item":"k"}`,
 	} {
 		if _, err := ParseOutput(line); err == nil {
 			t.Fatalf("parsed %q", line)
