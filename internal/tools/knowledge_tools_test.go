@@ -12,6 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 // fakeVault records calls and returns canned notes.
@@ -60,7 +61,7 @@ func newKnowledgeToolsForTest(t *testing.T) (*fakeVault, map[string]einotool.Bas
 	if err != nil {
 		t.Fatal(err)
 	}
-	deps := KnowledgeToolDeps{Vault: vault, Context: fixedArtifactContext{runID: "run_9", sessionID: "thread_1", callID: "call_1"}, Location: loc}
+	deps := KnowledgeToolDeps{Vault: vault, Context: fixedArtifactContext{runID: "run_9", sessionID: "thread_1", callID: "call_1"}, Settings: settings.Fixed(core.Settings{Location: loc})}
 	tools := map[string]einotool.BaseTool{}
 	for name, build := range map[string]func(KnowledgeToolDeps) (einotool.BaseTool, error){
 		"knowledge_write":  buildKnowledgeWriteTool,

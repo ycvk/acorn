@@ -45,16 +45,16 @@ type firedTrigger struct {
 // fires each due trigger once for its slot, then delivers the new events of
 // immediate triggers. Triggers of one skill fire one after another; skills
 // fire side by side, so a tick waits for at most the slowest skill.
-func (s *Scheduler) fireTriggers(ctx context.Context, now time.Time) error {
+func (s *Scheduler) fireTriggers(ctx context.Context, now time.Time, settings core.Settings) error {
 	if s.triggers == nil {
 		return nil
 	}
-	due, syncErr := s.syncTriggers(ctx, now)
+	due, syncErr := s.syncTriggers(ctx, now, settings.Location)
 	if len(due) == 0 {
 		return syncErr
 	}
-	if len(due) > s.cfg.MaxChecksPerTick {
-		due = due[:s.cfg.MaxChecksPerTick]
+	if len(due) > maxChecksPerTick {
+		due = due[:maxChecksPerTick]
 	}
 	bySkill := map[string][]dueTrigger{}
 	var skillOrder []string
@@ -73,7 +73,7 @@ func (s *Scheduler) fireTriggers(ctx context.Context, now time.Time) error {
 	for _, skill := range skillOrder {
 		wg.Go(func() {
 			for _, d := range bySkill[skill] {
-				added, err := s.fire(ctx, d, now)
+				added, err := s.fire(ctx, d, now, settings.Location)
 				mu.Lock()
 				if err != nil {
 					errs = append(errs, err)
@@ -91,7 +91,7 @@ func (s *Scheduler) fireTriggers(ctx context.Context, now time.Time) error {
 		if !ok || f.trigger.Deliver != skills.DeliverImmediate {
 			continue // digest events wait for the briefing
 		}
-		if err := s.wakeForTrigger(ctx, f.trigger, f.added, now); err != nil {
+		if err := s.wakeForTrigger(ctx, f.trigger, f.added, now, settings); err != nil {
 			errs = append(errs, fmt.Errorf("trigger %s: %w", f.trigger.ID(), err))
 		}
 	}
@@ -101,7 +101,7 @@ func (s *Scheduler) fireTriggers(ctx context.Context, now time.Time) error {
 // syncTriggers schedules the triggers of the skills in use, drops the
 // schedules of triggers no longer in use and returns the due ones whose
 // package has all its secrets.
-func (s *Scheduler) syncTriggers(ctx context.Context, now time.Time) ([]dueTrigger, error) {
+func (s *Scheduler) syncTriggers(ctx context.Context, now time.Time, loc *time.Location) ([]dueTrigger, error) {
 	triggers, err := s.triggers.Triggers(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list triggers: %w", err)
@@ -126,7 +126,7 @@ func (s *Scheduler) syncTriggers(ctx context.Context, now time.Time) ([]dueTrigg
 		}
 		state, ok := byID[t.ID()]
 		if !ok || state.Schedule != t.Schedule {
-			next, err := schedule.Next(now.In(s.cfg.Location))
+			next, err := schedule.Next(now.In(loc))
 			if err != nil {
 				errs = append(errs, fmt.Errorf("trigger %s schedule: %w", t.ID(), err))
 				continue
@@ -152,9 +152,9 @@ func (s *Scheduler) syncTriggers(ctx context.Context, now time.Time) ([]dueTrigg
 // new events, and any failure with the watches' backoff. A view_data line a
 // pinned view rejects is a failure; the events printed with it still count.
 // Five failures in a row mark it failing until a run succeeds.
-func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time) ([]core.TriggerEvent, error) {
+func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time, loc *time.Location) ([]core.TriggerEvent, error) {
 	id := d.trigger.ID()
-	next, err := d.schedule.Next(now.In(s.cfg.Location))
+	next, err := d.schedule.Next(now.In(loc))
 	if err != nil {
 		return nil, fmt.Errorf("trigger %s schedule: %w", id, err)
 	}
@@ -179,7 +179,7 @@ func (s *Scheduler) fire(ctx context.Context, d dueTrigger, now time.Time) ([]co
 		if run.Failures >= watch.FailingAfter {
 			run.Status = core.TriggerFailing
 		}
-		if run.NextAt, err = s.retryAt(d.schedule, next, now, run.Failures); err != nil {
+		if run.NextAt, err = s.retryAt(d.schedule, next, now, run.Failures, loc); err != nil {
 			return nil, errors.Join(fireErr, err)
 		}
 	}
@@ -229,13 +229,13 @@ func (s *Scheduler) recordTriggerItems(ctx context.Context, id string, items []s
 
 // retryAt is the first slot after a failed trigger's backoff: the gap between
 // its slots, doubled per failure up to a day, as watches wait.
-func (s *Scheduler) retryAt(schedule *presence.CronSchedule, next, now time.Time, failures int) (time.Time, error) {
+func (s *Scheduler) retryAt(schedule *presence.CronSchedule, next, now time.Time, failures int, loc *time.Location) (time.Time, error) {
 	after, err := schedule.Next(next)
 	if err != nil {
 		return time.Time{}, err
 	}
 	gap := after.Sub(next)
-	retry, err := schedule.Next(now.Add(watch.Backoff(gap, failures) - gap).In(s.cfg.Location))
+	retry, err := schedule.Next(now.Add(watch.Backoff(gap, failures) - gap).In(loc))
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -248,8 +248,8 @@ func (s *Scheduler) retryAt(schedule *presence.CronSchedule, next, now time.Time
 // wakeForTrigger starts a run with an immediate trigger's new events in the
 // skill's thread, created on its first run. Over the daily limit, or when the
 // run cannot start, the events wait for the briefing.
-func (s *Scheduler) wakeForTrigger(ctx context.Context, t skills.PackageTrigger, events []core.TriggerEvent, now time.Time) error {
-	allowed, err := s.withinBudget(ctx, "trigger "+t.ID(), now)
+func (s *Scheduler) wakeForTrigger(ctx context.Context, t skills.PackageTrigger, events []core.TriggerEvent, now time.Time, settings core.Settings) error {
+	allowed, err := s.withinBudget(ctx, "trigger "+t.ID(), now, settings)
 	if err != nil || !allowed {
 		return err
 	}

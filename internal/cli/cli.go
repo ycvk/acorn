@@ -39,6 +39,8 @@ func Run(ctx context.Context, args []string) error {
 		return runPersona(ctx, args[1:])
 	case "owner":
 		return runOwner(ctx, args[1:])
+	case "settings":
+		return runSettings(ctx, args[1:])
 	case "pair":
 		return runPair(ctx, args[1:])
 	case "token":
@@ -81,6 +83,9 @@ Usage:
   acorn persona set [-c path] FILE
   acorn owner show [-c path] [--json]
   acorn owner set [-c path] NAME
+  acorn settings show [-c path] [--json]
+  acorn settings set [-c path] KEY [VALUE...]
+  acorn settings reset [-c path] KEY...
   acorn pair [-c path] [--json] [--qr] [--ttl duration] [--server-url url]
   acorn token issue [-c path] [--json] [--name name] [--ttl duration]
   acorn devices list [-c path] [--json]
@@ -128,6 +133,10 @@ func runDoctor(ctx context.Context, args []string) error {
 			return fmt.Errorf("package triggers: %w", err)
 		}
 		reviewStatus := container.ReviewStatus(ctx)
+		owner, err := container.Settings().Current(ctx)
+		if err != nil {
+			return fmt.Errorf("settings: %w", err)
+		}
 		if *jsonMode {
 			return printJSON(struct {
 				api.SystemCapabilities
@@ -141,8 +150,8 @@ func runDoctor(ctx context.Context, args []string) error {
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
-		fmt.Println(renderDoctorWatches(container.Config(), watches))
-		fmt.Println(renderDoctorThinking(container.Config(), thinking))
+		fmt.Println(renderDoctorWatches(container.Config(), owner.Values, watches))
+		fmt.Println(renderDoctorThinking(owner.Values, thinking))
 		fmt.Printf("Memory: tokens_today=%d daily_limit=%d pending=%d failed=%d oldest=%s last_completed=%s index=%s/%d generation=%d state=%s\n", memoryStatus.TokensToday, memoryStatus.DailyTokenLimit, memoryStatus.Pending, memoryStatus.Failed, memoryStatus.Oldest, memoryStatus.LastCompleted, memoryStatus.Index.Model, memoryStatus.Index.Dimensions, memoryStatus.Index.Generation, memoryStatus.Index.State)
 		if memoryStatus.LastError != "" {
 			fmt.Printf("Memory error: %s\n", memoryStatus.LastError)
@@ -152,11 +161,11 @@ func runDoctor(ctx context.Context, args []string) error {
 			fmt.Println(renderDoctorPackageTools(packageTools))
 		}
 		if len(packageTriggers) > 0 {
-			loc, err := container.Config().OwnerLocation()
+			current, err := container.Settings().Settings(ctx)
 			if err != nil {
 				return err
 			}
-			fmt.Println(renderDoctorPackageTriggers(packageTriggers, loc))
+			fmt.Println(renderDoctorPackageTriggers(packageTriggers, current.Location))
 		}
 		fmt.Println(renderDoctorReview(reviewStatus))
 		return nil

@@ -10,7 +10,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (routineInput, error) {
+func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time, loc *time.Location) (routineInput, error) {
 	last, err := s.cfg.Routines.LastRoutineAt(ctx, "night", day)
 	if err != nil {
 		return routineInput{}, err
@@ -57,7 +57,7 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (
 	for _, c := range concerns {
 		n++
 		sources = append(sources, c.SourceID)
-		fmt.Fprintf(&b, "- concern %s rev %d [%s]: %s (review %s)\n", c.ID, c.Revision, c.State, c.Title, c.ReviewAt.In(s.cfg.Location).Format(time.RFC3339))
+		fmt.Fprintf(&b, "- concern %s rev %d [%s]: %s (review %s)\n", c.ID, c.Revision, c.State, c.Title, c.ReviewAt.In(loc).Format(time.RFC3339))
 	}
 	for _, o := range occurrences {
 		n++
@@ -77,7 +77,7 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (
 		}
 		fmt.Fprintf(&b, "- skill %s rev %d [%s] written=%t loads=%d\n", skill.ID, skill.Revision, state, written, loads[skill.ID])
 	}
-	review, err := s.newsReview(ctx, last, now)
+	review, err := s.newsReview(ctx, last, now, loc)
 	if err != nil {
 		return routineInput{}, err
 	}
@@ -94,12 +94,12 @@ const newsReviewWindow = 7 * 24 * time.Hour
 // newsReview lists what each news source brought over the last week, on the
 // owner's Sunday night or when a trial source finished its first week since
 // the last night, so the agent can propose promotions and stops.
-func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time) (string, error) {
+func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time, loc *time.Location) (string, error) {
 	stats, err := s.cfg.News.NewsSourceStats(ctx, now.Add(-newsReviewWindow))
 	if err != nil || len(stats) == 0 {
 		return "", err
 	}
-	due := now.In(s.cfg.Location).Weekday() == time.Sunday
+	due := now.In(loc).Weekday() == time.Sunday
 	for _, st := range stats {
 		week := st.Watch.CreatedAt.Add(newsReviewWindow)
 		if st.Watch.Trial && week.After(last) && !week.After(now) {
@@ -116,7 +116,7 @@ func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time) (string
 		days := min(now.Sub(w.CreatedAt), newsReviewWindow).Hours() / 24
 		state := "in the briefing"
 		if w.Trial {
-			state = "on trial since " + w.CreatedAt.In(s.cfg.Location).Format("01-02")
+			state = "on trial since " + w.CreatedAt.In(loc).Format("01-02")
 		}
 		avg, shared := 0.0, 0
 		if st.Scored > 0 {
@@ -133,7 +133,7 @@ func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time) (string
 // running run or one waiting for the owner is left for a later slot. A
 // concern with an outcome is worked on in its directory on the workstation
 // and delivered in its conversation.
-func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time) (routineInput, error) {
+func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time, loc *time.Location) (routineInput, error) {
 	concerns, err := s.cfg.Memory.ListConcerns(ctx, true)
 	if err != nil {
 		return routineInput{}, err
@@ -152,7 +152,7 @@ func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time)
 		}
 		review := "not set"
 		if !c.ReviewAt.IsZero() {
-			review = c.ReviewAt.In(s.cfg.Location).Format("2006-01-02 15:04")
+			review = c.ReviewAt.In(loc).Format("2006-01-02 15:04")
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "[wander %s] Advance concern %s\nReview at: %s\n", slot, concernText(c), review)

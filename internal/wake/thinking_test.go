@@ -72,7 +72,7 @@ func (h *harness) wanderAt(t *testing.T, days, hour int) {
 
 func TestWanderTakesTheConcernRevisedLongestAgoInItsConversation(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour}
+	h.settings.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour}
 	a := h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-2*time.Hour))
 	b := h.concernIn(t, "thread_b", "跟进 B 项目", h.now.Add(-time.Hour))
 	h.wanderAt(t, 0, 10)
@@ -101,7 +101,7 @@ func TestWanderTakesTheConcernRevisedLongestAgoInItsConversation(t *testing.T) {
 // directory; one without an outcome gets neither line.
 func TestWanderWorksTowardAConcernsOutcome(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour}
+	h.settings.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour}
 	a := h.concernIn(t, "thread_a", "整理 A 项目的版本变化", h.now.Add(-2*time.Hour))
 	a.Outcome = "一份 Markdown，列出 v1.4 到 v1.7 的不兼容变更和升级步骤"
 	a.ReviewAt = time.Date(2026, 10, 5, 1, 30, 0, 0, time.UTC)
@@ -122,7 +122,7 @@ func TestWanderWorksTowardAConcernsOutcome(t *testing.T) {
 
 func TestWanderSkipsAConcernWhoseConversationIsBusy(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour, 20 * time.Hour}
+	h.settings.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour, 20 * time.Hour}
 	ctx := context.Background()
 	h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-2*time.Hour))
 	b := h.concernIn(t, "thread_b", "跟进 B 项目", h.now.Add(-time.Hour))
@@ -152,7 +152,7 @@ func TestWanderSkipsAConcernWhoseConversationIsBusy(t *testing.T) {
 
 func TestWanderLeavesConcernsOfADeletedConversation(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour}
+	h.settings.Wander = []time.Duration{10 * time.Hour}
 	h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-time.Hour))
 	if err := h.data.DeleteThread(context.Background(), "thread_a"); err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestWanderLeavesConcernsOfADeletedConversation(t *testing.T) {
 
 func TestWanderReleasesItsSlotWhenTheConversationIsGone(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Wander = []time.Duration{10 * time.Hour}
+	h.settings.Wander = []time.Duration{10 * time.Hour}
 	h.concernIn(t, "thread_a", "跟进 A 项目", h.now.Add(-time.Hour))
 	h.runs.fail = core.ErrSessionNotFound
 	h.now = time.Date(2026, 10, 5, 2, 0, 0, 0, time.UTC)
@@ -179,7 +179,7 @@ func TestWanderReleasesItsSlotWhenTheConversationIsGone(t *testing.T) {
 
 func TestNightRunsInThoughtsAndWanderInTheConcernsConversation(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking = Thinking{Night: Briefing{Enabled: true, At: 3 * time.Hour}, Wander: []time.Duration{10 * time.Hour, 15 * time.Hour}}
+	h.settings.Night, h.settings.Wander = core.DailyTime{Enabled: true, At: 3 * time.Hour}, []time.Duration{10 * time.Hour, 15 * time.Hour}
 	oldThought(t, h)
 	for range 2 {
 		if err := h.sched.Tick(context.Background()); err != nil {
@@ -212,7 +212,7 @@ func TestNightRunsInThoughtsAndWanderInTheConcernsConversation(t *testing.T) {
 
 func TestEmptyNightKeepsItsSlot(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Night = Briefing{Enabled: true, At: 0}
+	h.settings.Night = core.DailyTime{Enabled: true, At: 0}
 	if err := h.sched.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -226,9 +226,9 @@ func TestEmptyNightKeepsItsSlot(t *testing.T) {
 }
 
 func TestTokenBudgetDefersCommitmentSkipsNightAndAllowsBriefing(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
-	h.sched.cfg.Thinking.Night = Briefing{Enabled: true, At: 0}
-	h.sched.cfg.DailyTokens = 100
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
+	h.settings.Night = core.DailyTime{Enabled: true, At: 0}
+	h.settings.WakeDailyTokens = 100
 	h.store.tokens = 150
 	h.store.usageAt = h.now
 	h.commit(t, "tomorrow if out of budget", h.now, "")
@@ -267,7 +267,7 @@ func TestTokenBudgetDefersCommitmentSkipsNightAndAllowsBriefing(t *testing.T) {
 func TestRoutinePreparationFailureReleasesClaim(t *testing.T) {
 	h := newHarness(t, 20)
 	prepare := func() (routineInput, error) { return routineInput{}, errors.New("query failed") }
-	if err := h.sched.runRoutine(context.Background(), "night", "2026-10-05", "Thoughts", true, h.now, prepare); err == nil {
+	if err := h.sched.runRoutine(context.Background(), "night", "2026-10-05", "Thoughts", true, h.now, h.settings, prepare); err == nil {
 		t.Fatal("preparation error hidden")
 	}
 	if err := h.data.ClaimRoutine(context.Background(), "night", "2026-10-05", h.now); err != nil {
@@ -277,7 +277,7 @@ func TestRoutinePreparationFailureReleasesClaim(t *testing.T) {
 
 func TestRoutineConcurrentTicksStartOnce(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Night = Briefing{Enabled: true, At: 0}
+	h.settings.Night = core.DailyTime{Enabled: true, At: 0}
 	oldThought(t, h)
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
@@ -297,7 +297,7 @@ func TestRoutineConcurrentTicksStartOnce(t *testing.T) {
 }
 
 func TestBriefingPhoneWindowAndRetention(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
 	previous := h.now.Add(-24 * time.Hour)
 	if err := h.data.ClaimRoutine(ctx, "briefing", "2026-10-04", previous); err != nil {
@@ -335,8 +335,8 @@ func TestBriefingPhoneWindowAndRetention(t *testing.T) {
 }
 
 func TestZeroTokenBudgetAllowsAutonomousWake(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{})
-	h.sched.cfg.DailyTokens = 0
+	h := newHarnessWith(t, 20, core.DailyTime{})
+	h.settings.WakeDailyTokens = 0
 	h.store.tokens = 10000000
 	h.store.usageAt = h.now
 	h.commit(t, "wake without token cap", h.now, "")
@@ -350,7 +350,7 @@ func TestZeroTokenBudgetAllowsAutonomousWake(t *testing.T) {
 
 func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
 	h := newHarness(t, 20)
-	h.sched.cfg.Thinking.Night = Briefing{Enabled: true, At: 0}
+	h.settings.Night = core.DailyTime{Enabled: true, At: 0}
 	// Tool call events carry the wall clock time.
 	h.now = time.Now().UTC().Add(time.Minute)
 	ctx := context.Background()
@@ -404,7 +404,7 @@ func TestNightReviewsNewsSourcesOnSundayAndAfterATrialWeek(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t, 20)
-			h.sched.cfg.Thinking.Night = Briefing{Enabled: true, At: 0}
+			h.settings.Night = core.DailyTime{Enabled: true, At: 0}
 			h.now = tc.now
 			h.news.stats = tc.stats
 			if err := h.sched.Tick(context.Background()); err != nil {

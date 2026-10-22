@@ -88,7 +88,14 @@ func (e *Engine) recoverMemoryJobs(ctx context.Context, jobs []core.MemoryJob, c
 	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	now := e.cfg.Clock()
-	tomorrow := e.midnight(now).AddDate(0, 0, 1)
+	var tomorrow time.Time
+	if errors.Is(cause, core.ErrMemoryBudget) {
+		settings, err := e.cfg.Settings.Settings(recoveryCtx)
+		if err != nil {
+			return err
+		}
+		tomorrow = midnight(now, settings.Location).AddDate(0, 0, 1)
+	}
 	var errs []error
 	for _, job := range jobs {
 		var err error
@@ -129,7 +136,11 @@ func (e *Engine) extract(ctx context.Context, job core.MemoryJob) error {
 	if err != nil {
 		return err
 	}
-	in := extractionInput{Source: source, OwnerTimezone: e.cfg.Location.String(), OwnerName: owner.Name, Existing: make([]extractionExisting, 0, len(existing))}
+	settings, err := e.cfg.Settings.Settings(ctx)
+	if err != nil {
+		return err
+	}
+	in := extractionInput{Source: source, OwnerTimezone: settings.Location.String(), OwnerName: owner.Name, Existing: make([]extractionExisting, 0, len(existing))}
 	for _, r := range existing {
 		in.Existing = append(in.Existing, extractionExisting{ID: r.ID, Content: r.Content, Scope: r.Scope})
 	}
@@ -143,7 +154,7 @@ func (e *Engine) extract(ctx context.Context, job core.MemoryJob) error {
 	if err != nil {
 		return err
 	}
-	text, next, err := e.fitPrefix(ctx, runes, job.Cursor, e.cfg.BatchTokens-overhead-512)
+	text, next, err := e.fitPrefix(ctx, runes, job.Cursor, BatchTokens-overhead-512)
 	if err != nil {
 		return err
 	}

@@ -15,7 +15,6 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/review"
 )
@@ -47,7 +46,7 @@ type ActionReviewer interface {
 // arguments and a declined call returns a notice to the model instead.
 type approvalMiddleware struct {
 	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
-	rules    config.ApprovalConfig
+	rules    core.ApprovalRules
 	reviewer ActionReviewer
 	store    approvalStore
 
@@ -69,7 +68,7 @@ type approvalRequest struct {
 
 // newApprovalMiddleware builds the gate for one run. A nil reviewer leaves
 // calls no rule settles to run unreviewed.
-func newApprovalMiddleware(rules config.ApprovalConfig, reviewer ActionReviewer, store approvalStore) (*approvalMiddleware, error) {
+func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, store approvalStore) (*approvalMiddleware, error) {
 	if store == nil {
 		return nil, errors.New("approval middleware requires a store")
 	}
@@ -82,7 +81,7 @@ func newApprovalMiddleware(rules config.ApprovalConfig, reviewer ActionReviewer,
 	}
 	return &approvalMiddleware{
 		TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{},
-		rules: config.ApprovalConfig{
+		rules: core.ApprovalRules{
 			Require: slices.Clone(rules.Require),
 			Block:   slices.Clone(rules.Block),
 			Allow:   slices.Clone(rules.Allow),

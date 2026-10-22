@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 func TestConsolidationReconcilesFactsCommittedTogetherInOneCall(t *testing.T) {
@@ -102,7 +103,7 @@ func TestConsolidationBatchDefersTogetherOnBudget(t *testing.T) {
 	if err != nil || status.Failed != 0 {
 		t.Fatalf("status=%+v %v", status, err)
 	}
-	tomorrow := e.midnight(now).AddDate(0, 0, 1)
+	tomorrow := midnight(now, time.UTC).AddDate(0, 0, 1)
 	if ready, err := db.ReadyMemoryJobs(ctx, tomorrow.Add(-time.Second), "consolidate", 10); err != nil || len(ready) != 0 {
 		t.Fatalf("deferred jobs ready before the next local day: %+v err=%v", ready, err)
 	}
@@ -114,5 +115,18 @@ func TestConsolidationBatchDefersTogetherOnBudget(t *testing.T) {
 		if r.Attempts != 0 {
 			t.Fatalf("job %d attempts=%d, want 0", r.ID, r.Attempts)
 		}
+	}
+	// The owner lifting the cap puts the deferred jobs back today.
+	owner, err := settings.NewService(db, db, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, budget := range []string{"1", "0"} {
+		if _, err := owner.Save(ctx, settings.Change{Set: map[string]json.RawMessage{settings.KeyMemoryDailyTokens: json.RawMessage(budget)}}, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ready, err := db.ReadyMemoryJobs(ctx, now, "consolidate", 10); err != nil || len(ready) != 2 {
+		t.Fatalf("lifting the budget releases both jobs today: %+v err=%v", ready, err)
 	}
 }

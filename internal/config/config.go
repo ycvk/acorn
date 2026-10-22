@@ -1,23 +1,17 @@
 package config
 
+// Config is what is set once at deployment: addresses, keys and limits the
+// host's other services share. The owner's schedule, budgets and approval
+// rules are settings in the database.
 type Config struct {
 	Providers   []ProviderConfig  `yaml:"providers"`
-	Context     ContextConfig     `yaml:"context"`
 	Runtime     RuntimeConfig     `yaml:"runtime"`
 	Web         WebConfig         `yaml:"web"`
 	WebAccess   WebAccessConfig   `yaml:"web_access"`
-	Agent       AgentConfig       `yaml:"agent"`
 	MCP         MCPConfig         `yaml:"mcp"`
-	Approval    ApprovalConfig    `yaml:"approval"`
-	Owner       OwnerConfig       `yaml:"owner"`
 	Memory      MemoryConfig      `yaml:"memory"`
-	Presence    PresenceConfig    `yaml:"presence"`
-	Thinking    ThinkingConfig    `yaml:"thinking"`
-	Wake        WakeConfig        `yaml:"wake"`
 	Notify      NotifyConfig      `yaml:"notify"`
 	Watch       WatchConfig       `yaml:"watch"`
-	Briefing    BriefingConfig    `yaml:"briefing"`
-	News        NewsConfig        `yaml:"news"`
 	Backup      BackupConfig      `yaml:"backup"`
 	Workstation WorkstationConfig `yaml:"workstation"`
 	Files       FilesConfig       `yaml:"files"`
@@ -34,42 +28,26 @@ type BackupConfig struct {
 	Keep int    `yaml:"keep"`
 }
 
-// ApprovalConfig holds the owner's rules as tool-name glob patterns
-// (path.Match syntax). Block refuses a call, Require pauses it for the
-// owner's approval, and Allow runs it without review; Block wins over
-// Require, and Require over Allow. Calls no rule settles go to review.
-type ApprovalConfig struct {
-	Require []string `yaml:"require"`
-	Block   []string `yaml:"block"`
-	Allow   []string `yaml:"allow"`
-}
-
 type ProviderConfig struct {
-	Name               string         `yaml:"name"`
-	API                string         `yaml:"api"`
-	Model              string         `yaml:"model"`
-	BaseURL            string         `yaml:"base_url"`
-	APIKey             string         `yaml:"api_key"`
-	TimeoutSeconds     int            `yaml:"timeout_seconds"`
-	Temperature        *float32       `yaml:"temperature,omitempty"`
-	MaxOutputTokens    *int           `yaml:"max_output_tokens,omitempty"`
-	IdleTimeoutSeconds *int           `yaml:"idle_timeout_seconds,omitempty"`
-	ReasoningEffort    string         `yaml:"reasoning_effort,omitempty"`
-	ExtraFields        map[string]any `yaml:"extra_fields,omitempty"`
-	Enabled            bool           `yaml:"enabled"`
-}
-
-type ContextConfig struct {
-	WindowTokens        int `yaml:"window_tokens"`
-	CompactMarginTokens int `yaml:"compact_margin_tokens"`
-	// MaskAfterTurns is how many of the most recent tool-call rounds stay
-	// verbatim when older tool results are cleared to save context.
-	MaskAfterTurns int `yaml:"mask_after_turns"`
+	Name            string   `yaml:"name"`
+	API             string   `yaml:"api"`
+	Model           string   `yaml:"model"`
+	BaseURL         string   `yaml:"base_url"`
+	APIKey          string   `yaml:"api_key"`
+	TimeoutSeconds  int      `yaml:"timeout_seconds"`
+	Temperature     *float32 `yaml:"temperature,omitempty"`
+	MaxOutputTokens *int     `yaml:"max_output_tokens,omitempty"`
+	// ContextWindowTokens is the context window of a model the model table
+	// does not know; known models use their own.
+	ContextWindowTokens *int           `yaml:"context_window_tokens,omitempty"`
+	IdleTimeoutSeconds  *int           `yaml:"idle_timeout_seconds,omitempty"`
+	ReasoningEffort     string         `yaml:"reasoning_effort,omitempty"`
+	ExtraFields         map[string]any `yaml:"extra_fields,omitempty"`
+	Enabled             bool           `yaml:"enabled"`
 }
 
 type RuntimeConfig struct {
-	StorageDir        string `yaml:"storage_dir"`
-	RunTimeoutSeconds int    `yaml:"run_timeout_seconds"`
+	StorageDir string `yaml:"storage_dir"`
 }
 
 type WebConfig struct {
@@ -78,24 +56,13 @@ type WebConfig struct {
 }
 
 type WebAccessConfig struct {
-	UserAgent            string          `yaml:"user_agent"`
-	TimeoutSeconds       int             `yaml:"timeout_seconds"`
-	MaxResponseBytes     int64           `yaml:"max_response_bytes"`
 	AllowPrivateNetworks bool            `yaml:"allow_private_networks"`
 	Search               WebSearchConfig `yaml:"search"`
 }
 
 type WebSearchConfig struct {
-	Provider       string `yaml:"provider"`
-	APIKey         string `yaml:"api_key"`
-	TimeoutSeconds int    `yaml:"timeout_seconds"`
-	MaxResults     int    `yaml:"max_results"`
-}
-
-type AgentConfig struct {
-	Name          string `yaml:"name"`
-	Description   string `yaml:"description"`
-	MaxIterations int    `yaml:"max_iterations"`
+	Provider string `yaml:"provider"`
+	APIKey   string `yaml:"api_key"`
 }
 
 type MCPConfig struct {

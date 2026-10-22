@@ -57,7 +57,7 @@ func (m *briefingMaterial) add(section string, material bool) {
 
 // prepareBriefing gathers what happened since the last briefing and what is
 // due today. Without material the slot is kept and no run starts.
-func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Time) (routineInput, error) {
+func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Time, loc *time.Location) (routineInput, error) {
 	since, err := s.cfg.Routines.LastRoutineAt(ctx, "briefing", day)
 	if err != nil {
 		return routineInput{}, err
@@ -66,12 +66,12 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 		since = now.Add(-24 * time.Hour)
 	}
 	var m briefingMaterial
-	commitments, err := s.briefingCommitments(ctx, now)
+	commitments, err := s.briefingCommitments(ctx, now, loc)
 	if err != nil {
 		return routineInput{}, err
 	}
 	m.add(commitments, true)
-	if err := s.briefingMemory(ctx, &m, since, now); err != nil {
+	if err := s.briefingMemory(ctx, &m, since, now, loc); err != nil {
 		return routineInput{}, err
 	}
 	night, err := s.briefingNight(ctx, since)
@@ -82,7 +82,7 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	if err := s.briefingNotes(ctx, &m, since); err != nil {
 		return routineInput{}, err
 	}
-	news, err := s.prepareNews(ctx, &m, since)
+	news, err := s.prepareNews(ctx, &m, since, loc)
 	if err != nil {
 		return routineInput{}, err
 	}
@@ -103,7 +103,7 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	}
 	m.add(triggerChanges(events), true)
 	m.sources = append(m.sources, triggerSourceIDs(events)...)
-	health, err := s.briefingHealth(ctx, now)
+	health, err := s.briefingHealth(ctx, now, loc)
 	if err != nil {
 		return routineInput{}, err
 	}
@@ -112,12 +112,12 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	if err != nil {
 		return routineInput{}, err
 	}
-	m.add(phoneBriefing(notifications, s.cfg.Location), true)
+	m.add(phoneBriefing(notifications, loc), true)
 	if !m.material {
 		return routineInput{skip: true}, nil
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "[briefing %s] morning briefing\nSince the last briefing (%s). Write only what deserves the owner's attention.\n", day, since.In(s.cfg.Location).Format("2006-01-02 15:04"))
+	fmt.Fprintf(&b, "[briefing %s] morning briefing\nSince the last briefing (%s). Write only what deserves the owner's attention.\n", day, since.In(loc).Format("2006-01-02 15:04"))
 	for _, section := range m.sections {
 		b.WriteString("\n" + section)
 	}
@@ -134,7 +134,7 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 
 // briefingCommitments lists the commitments due today and the occurrences
 // still waiting for an outcome.
-func (s *Scheduler) briefingCommitments(ctx context.Context, now time.Time) (string, error) {
+func (s *Scheduler) briefingCommitments(ctx context.Context, now time.Time, loc *time.Location) (string, error) {
 	commitments, err := s.cfg.Commitments.ListCommitments(ctx, true)
 	if err != nil {
 		return "", err
@@ -143,14 +143,14 @@ func (s *Scheduler) briefingCommitments(ctx context.Context, now time.Time) (str
 	if err != nil {
 		return "", err
 	}
-	local := now.In(s.cfg.Location)
-	tomorrow := time.Date(local.Year(), local.Month(), local.Day()+1, 0, 0, 0, 0, s.cfg.Location)
+	local := now.In(loc)
+	tomorrow := time.Date(local.Year(), local.Month(), local.Day()+1, 0, 0, 0, 0, loc)
 	rules := map[int64]core.Commitment{}
 	var lines []string
 	for _, c := range commitments {
 		rules[c.ID] = c
 		if c.State == "scheduled" && c.WakeAt.Before(tomorrow) {
-			lines = append(lines, fmt.Sprintf("- #%d [%s] %s", c.ID, c.WakeAt.In(s.cfg.Location).Format("15:04"), c.Content))
+			lines = append(lines, fmt.Sprintf("- #%d [%s] %s", c.ID, c.WakeAt.In(loc).Format("15:04"), c.Content))
 		}
 	}
 	for _, o := range occurrences {
@@ -158,7 +158,7 @@ func (s *Scheduler) briefingCommitments(ctx context.Context, now time.Time) (str
 		if !ok {
 			return "", fmt.Errorf("briefing missing commitment #%d for occurrence #%d", o.CommitmentID, o.ID)
 		}
-		lines = append(lines, fmt.Sprintf("- #%d occurrence #%d [%s; set for %s; run %s] %s", c.ID, o.ID, o.State, o.DueAt.In(s.cfg.Location).Format("2006-01-02 15:04"), o.RunID, c.Content))
+		lines = append(lines, fmt.Sprintf("- #%d occurrence #%d [%s; set for %s; run %s] %s", c.ID, o.ID, o.State, o.DueAt.In(loc).Format("2006-01-02 15:04"), o.RunID, c.Content))
 	}
 	if len(lines) == 0 {
 		return "", nil
@@ -169,7 +169,7 @@ func (s *Scheduler) briefingCommitments(ctx context.Context, now time.Time) (str
 // briefingMemory adds the records remembered since the last briefing and the
 // facts that take effect within the horizon. A fact taking effect today is
 // material; later ones are context.
-func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, since, now time.Time) error {
+func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, since, now time.Time, loc *time.Location) error {
 	changed, err := s.cfg.Memory.ListMemoryRecords(ctx, core.MemoryQuery{Mode: "current", ChangedSince: since, Limit: maxBriefingRecords})
 	if err != nil {
 		return err
@@ -187,8 +187,8 @@ func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, sin
 	if len(lines) > 0 {
 		m.add("Remembered since the last briefing:\n"+strings.Join(lines, "\n")+"\n", true)
 	}
-	local := now.In(s.cfg.Location)
-	todayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, s.cfg.Location)
+	local := now.In(loc)
+	todayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
 	tomorrow := todayStart.Add(24 * time.Hour)
 	upcoming, err := s.cfg.Memory.ListMemoryRecords(ctx, core.MemoryQuery{Mode: "current", Kind: "fact", From: todayStart, To: now.Add(briefingHorizon), Limit: maxBriefingRecords})
 	if err != nil {
@@ -207,7 +207,7 @@ func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, sin
 		if !listed[r.ID] {
 			m.sources = append(m.sources, r.SourceIDs...)
 		}
-		lines = append(lines, fmt.Sprintf("- %s fact %s: %s", r.ValidFrom.In(s.cfg.Location).Format("2006-01-02"), r.ID, previewText(r.Content, 200)))
+		lines = append(lines, fmt.Sprintf("- %s fact %s: %s", r.ValidFrom.In(loc).Format("2006-01-02"), r.ID, previewText(r.Content, 200)))
 	}
 	if len(lines) > 0 {
 		m.add("Taking effect within a week:\n"+strings.Join(lines, "\n")+"\n", today)

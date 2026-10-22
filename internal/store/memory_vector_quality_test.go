@@ -12,6 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 func TestMemoryCandidateIndexPreservesExactTopFive(t *testing.T) {
@@ -93,7 +94,7 @@ func TestMemoryCandidateIndexPreservesExactTopFive(t *testing.T) {
 			}
 			return 0
 		})
-		e, err := memory.New(memory.Config{Store: db, Owner: db, Model: capacityModel{}, ModelName: "unused", Embedder: capacityEmbedding(query), Index: index, Count: func(_ context.Context, s string) (int, error) { return len(s) / 2, nil }, Clock: time.Now, Location: time.UTC, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
+		e, err := memory.New(memory.Config{Store: db, Owner: db, Model: capacityModel{}, ModelName: "unused", Embedder: capacityEmbedding(query), Index: index, Count: func(_ context.Context, s string) (int, error) { return len(s) / 2, nil }, Clock: time.Now, Settings: settings.Fixed(core.Settings{Location: time.UTC})})
 		if err != nil {
 			t.Fatal(err)
 		}

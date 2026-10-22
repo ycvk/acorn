@@ -155,7 +155,7 @@ pages:
 			if err != nil {
 				return nil, err
 			}
-			if n > e.cfg.BatchTokens-128 {
+			if n > BatchTokens-128 {
 				if len(texts) == 0 {
 					sourceID := "message:" + strconv.FormatInt(m.ID, 10)
 					sources = append(sources, sourceID)
@@ -247,7 +247,7 @@ func (e *Engine) summarizeLargeMessage(ctx context.Context, prefix string, m cor
 		if err != nil {
 			return "", err
 		}
-		chunk, next, err := e.fitPrefix(ctx, runes, offset, e.cfg.BatchTokens-overhead-128)
+		chunk, next, err := e.fitPrefix(ctx, runes, offset, BatchTokens-overhead-128)
 		if err != nil {
 			return "", err
 		}

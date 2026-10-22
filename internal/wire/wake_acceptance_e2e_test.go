@@ -21,6 +21,7 @@ import (
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 type testClock struct {
@@ -126,7 +127,7 @@ func (h *pushHarness) open(t *testing.T, cfg *config.Config) *Container {
 }
 
 // briefingOff keeps the morning briefing out of tests about commitments.
-const briefingOff = "briefing:\n  at: \"\"\nthinking:\n  night_at: \"\"\n"
+var briefingOff = ownerSettings{settings.KeyBriefingAt: `""`, settings.KeyNightAt: `""`}
 
 func registerPushInstallation(t *testing.T, c *Container, fid string) {
 	t.Helper()
@@ -229,7 +230,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+briefingOff)
+	cfg := writeTestConfig(t, server.URL, extra, briefingOff)
 	ctx := context.Background()
 
 	first := harness.open(t, cfg)
@@ -331,7 +332,7 @@ func TestNotificationInQuietHoursWaitsForTheirEnd(t *testing.T) {
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+briefingOff)
+	cfg := writeTestConfig(t, server.URL, extra, briefingOff)
 	ctx := context.Background()
 	c := harness.open(t, cfg)
 	defer func() { _ = c.Close() }()
@@ -370,7 +371,7 @@ func TestCommitmentOfDeletedThreadWakesInReminders(t *testing.T) {
 	provider := &fakeOpenAI{replies: []string{textReply("收到")}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, briefingOff)
+	cfg := writeTestConfig(t, server.URL, "", briefingOff)
 	clock := &testClock{now: start}
 	ctx := context.Background()
 	c, err := buildContainer(ctx, cfg, buildOptions{clock: clock.Now})

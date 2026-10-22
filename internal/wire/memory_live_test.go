@@ -2,6 +2,7 @@ package wire
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 // TestMemoryLiveRuntime uses the real primary model against an isolated store,
@@ -38,14 +40,9 @@ func TestMemoryLiveRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.Memory.Embedding.APIKey = strings.TrimSpace(string(key))
-	cfg.Memory.DailyTokens = 0
-	cfg.Wake.DailyTokens = 0
 	cfg.Runtime.StorageDir = t.TempDir()
 	cfg.Notify.FCM.ServiceAccountFile = ""
 	cfg.MCP.Providers = nil
-	cfg.Briefing.At = ""
-	cfg.Thinking.NightAt = "00:00"
-	cfg.Thinking.WanderAt = nil
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	c, err := NewContainer(ctx, cfg)
@@ -53,6 +50,14 @@ func TestMemoryLiveRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
+	if _, err := c.Settings().Save(ctx, settings.Change{Set: map[string]json.RawMessage{
+		settings.KeyMemoryDailyTokens: json.RawMessage(`0`),
+		settings.KeyWakeDailyTokens:   json.RawMessage(`0`),
+		settings.KeyBriefingAt:        json.RawMessage(`""`),
+		settings.KeyNightAt:           json.RawMessage(`"00:00"`),
+	}}, ""); err != nil {
+		t.Fatal(err)
+	}
 	run := func(input string) *RunOnceResult {
 		t.Helper()
 		result, err := c.RunOnce(ctx, input)

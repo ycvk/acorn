@@ -22,18 +22,10 @@ type Pusher interface {
 	Send(ctx context.Context, fid string, msg Message) error
 }
 
-// QuietHours is a daily window, as offsets from local midnight. Start after
-// End means the window crosses midnight. Equal values disable it.
-type QuietHours struct {
-	Start, End time.Duration
-}
-
-func (q QuietHours) enabled() bool { return q.Start != q.End }
-
-// endAfter returns when the quiet window containing t ends, and whether t is
-// inside a quiet window at all.
-func (q QuietHours) endAfter(t time.Time) (time.Time, bool) {
-	if !q.enabled() {
+// quietEnd returns when the quiet window q containing t ends, and whether t
+// is inside a quiet window at all.
+func quietEnd(q core.QuietHours, t time.Time) (time.Time, bool) {
+	if q.Start == q.End {
 		return time.Time{}, false
 	}
 	midnight := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
@@ -50,13 +42,13 @@ func (q QuietHours) endAfter(t time.Time) (time.Time, bool) {
 }
 
 // SenderConfig holds the sender's dependencies; every field is required.
+// Each notification reads the owner's time zone, quiet hours and hourly cap
+// from Settings.
 type SenderConfig struct {
-	Store      core.NotificationStore
-	Pusher     Pusher
-	Clock      func() time.Time
-	Location   *time.Location
-	MaxPerHour int
-	Quiet      QuietHours
+	Store    core.NotificationStore
+	Pusher   Pusher
+	Clock    func() time.Time
+	Settings core.SettingsReader
 }
 
 // Sender records every notification and delivers it now or, inside quiet
@@ -73,10 +65,8 @@ func NewSender(cfg SenderConfig) (*Sender, error) {
 		return nil, errors.New("notify sender: Pusher is required")
 	case cfg.Clock == nil:
 		return nil, errors.New("notify sender: Clock is required")
-	case cfg.Location == nil:
-		return nil, errors.New("notify sender: Location is required")
-	case cfg.MaxPerHour < 1:
-		return nil, errors.New("notify sender: MaxPerHour must be >= 1")
+	case cfg.Settings == nil:
+		return nil, errors.New("notify sender: Settings is required")
 	}
 	return &Sender{cfg: cfg}, nil
 }
@@ -84,13 +74,17 @@ func NewSender(cfg SenderConfig) (*Sender, error) {
 // Notify enforces the hourly cap, then sends n now or queues it until quiet
 // hours end. The returned notification carries the resulting status.
 func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notification, error) {
+	settings, err := s.cfg.Settings.Settings(ctx)
+	if err != nil {
+		return core.Notification{}, err
+	}
 	now := s.cfg.Clock()
 	sent, err := s.cfg.Store.CountNotificationsSince(ctx, now.Add(-time.Hour))
 	if err != nil {
 		return core.Notification{}, err
 	}
-	if sent >= s.cfg.MaxPerHour {
-		return core.Notification{}, fmt.Errorf("%w (%d per hour)", ErrRateLimited, s.cfg.MaxPerHour)
+	if sent >= settings.MaxPushesPerHour {
+		return core.Notification{}, fmt.Errorf("%w (%d per hour)", ErrRateLimited, settings.MaxPushesPerHour)
 	}
 	installations, err := s.cfg.Store.ListPushInstallations(ctx)
 	if err != nil {
@@ -101,9 +95,9 @@ func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notifica
 	}
 	n.CreatedAt = now
 	n.SendAfter = now
-	quietEnd, quiet := s.cfg.Quiet.endAfter(now.In(s.cfg.Location))
+	end, quiet := quietEnd(settings.QuietHours, now.In(settings.Location))
 	if quiet {
-		n.SendAfter = quietEnd
+		n.SendAfter = end
 	}
 	queued, err := s.cfg.Store.QueueNotification(ctx, n)
 	if err != nil {

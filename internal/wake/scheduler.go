@@ -37,12 +37,6 @@ type WatchChecker interface {
 	Apply(ctx context.Context, w core.Watch, fetched watch.Fetched) (watch.Result, error)
 }
 
-// Briefing schedules the morning briefing at At after owner-local midnight.
-type Briefing struct {
-	Enabled bool
-	At      time.Duration
-}
-
 // Config holds the scheduler's dependencies; every field is required.
 type Config struct {
 	Routines           core.RoutineStore
@@ -63,15 +57,9 @@ type Config struct {
 	Sorter   NewsSorter
 	Triggers core.TriggerStore
 	Clock    func() time.Time
-	Location *time.Location
-	// DailyLimit caps commitment and watch wakes per owner-local day; zero
-	// disables them.
-	DailyLimit  int
-	DailyTokens int
-	Thinking    Thinking
-	// MaxChecksPerTick bounds the watches fetched in one tick.
-	MaxChecksPerTick int
-	Briefing         Briefing
+	// Settings gives each tick the owner's time zone, the times of the
+	// briefing and the reflections, and the wake budget.
+	Settings core.SettingsReader
 	// Backups reports when the newest backup snapshot was taken, for the
 	// briefing's health check; nil when backups are off.
 	Backups  func() (time.Time, error)
@@ -80,6 +68,9 @@ type Config struct {
 
 // retryDelay is how far a commitment moves when its run could not start.
 const retryDelay = 5 * time.Minute
+
+// maxChecksPerTick bounds the watches fetched in one tick.
+const maxChecksPerTick = 5
 
 // Scheduler keeps commitments. Tick is safe to call from several processes
 // sharing one database: claiming a commitment is a conditional update.
@@ -107,8 +98,6 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Routines is required")
 	case cfg.PhoneNotifications == nil:
 		return nil, errors.New("wake scheduler: PhoneNotifications is required")
-	case cfg.DailyTokens < 0:
-		return nil, errors.New("wake scheduler: DailyTokens must be >= 0")
 	case cfg.Events == nil:
 		return nil, errors.New("wake scheduler: Events is required")
 	case cfg.Runs == nil:
@@ -121,16 +110,12 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: News and Sorter are required")
 	case cfg.Triggers == nil:
 		return nil, errors.New("wake scheduler: Triggers is required")
-	case cfg.MaxChecksPerTick <= 0:
-		return nil, errors.New("wake scheduler: MaxChecksPerTick must be positive")
 	case cfg.Clock == nil:
 		return nil, errors.New("wake scheduler: Clock is required")
-	case cfg.Location == nil:
-		return nil, errors.New("wake scheduler: Location is required")
+	case cfg.Settings == nil:
+		return nil, errors.New("wake scheduler: Settings is required")
 	case cfg.Interval <= 0:
 		return nil, errors.New("wake scheduler: Interval must be positive")
-	case cfg.DailyLimit < 0:
-		return nil, errors.New("wake scheduler: DailyLimit must be >= 0")
 	}
 	return &Scheduler{cfg: cfg, warned: map[string]string{}}, nil
 }
@@ -178,6 +163,10 @@ func (s *Scheduler) Run(ctx context.Context) {
 // ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) Tick(ctx context.Context) error {
+	settings, err := s.cfg.Settings.Settings(ctx)
+	if err != nil {
+		return err
+	}
 	now := s.cfg.Clock()
 	var errs []error
 	if err := s.cfg.Commitments.RecoverCommitmentClaims(ctx, now); err != nil {
@@ -188,17 +177,17 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		return errors.Join(append(errs, fmt.Errorf("list due commitments: %w", err))...)
 	}
 	for _, item := range due {
-		if err := s.wake(ctx, item, now); err != nil {
+		if err := s.wake(ctx, item, now, settings); err != nil {
 			errs = append(errs, fmt.Errorf("commitment #%d: %w", item.ID, err))
 		}
 	}
-	if err := s.checkWatches(ctx, now); err != nil {
+	if err := s.checkWatches(ctx, now, settings); err != nil {
 		errs = append(errs, err)
 	}
-	if err := s.fireTriggers(ctx, now); err != nil {
+	if err := s.fireTriggers(ctx, now, settings); err != nil {
 		errs = append(errs, err)
 	}
-	if err := s.runRoutines(ctx, now); err != nil {
+	if err := s.runRoutines(ctx, now, settings); err != nil {
 		errs = append(errs, fmt.Errorf("routines: %w", err))
 	}
 	if _, err := s.cfg.PhoneNotifications.PrunePhoneNotifications(ctx, now.Add(-7*24*time.Hour)); err != nil {
@@ -215,8 +204,8 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Time) error {
-	allowed, err := s.withinBudget(ctx, fmt.Sprintf("commitment #%d", item.ID), now)
+func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Time, settings core.Settings) error {
+	allowed, err := s.withinBudget(ctx, fmt.Sprintf("commitment #%d", item.ID), now, settings)
 	if err != nil || !allowed {
 		return err
 	}
@@ -226,7 +215,7 @@ func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Tim
 		if err != nil {
 			return fmt.Errorf("recurrence: %w", err)
 		}
-		next, err = schedule.Next(now.In(s.cfg.Location))
+		next, err = schedule.Next(now.In(settings.Location))
 		if err != nil {
 			return fmt.Errorf("recurrence: %w", err)
 		}
@@ -244,7 +233,7 @@ func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Tim
 	}
 	wake := fmt.Sprintf("commitment #%d: %s", item.ID, item.Content)
 	input := fmt.Sprintf("[commitment #%d, made %s] %s",
-		item.ID, item.CreatedAt.In(s.cfg.Location).Format("2006-01-02 15:04"), item.Content)
+		item.ID, item.CreatedAt.In(settings.Location).Format("2006-01-02 15:04"), item.Content)
 	if concern != nil {
 		input += "\nConcern " + concernText(*concern)
 	}
@@ -278,9 +267,9 @@ func (s *Scheduler) linkedConcern(ctx context.Context, id string) (*core.MemoryC
 
 // withinBudget reports whether another wake fits today's limit and warns
 // once a day per subject when it does not.
-func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.Time) (bool, error) {
-	local := now.In(s.cfg.Location)
-	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, s.cfg.Location)
+func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.Time, settings core.Settings) (bool, error) {
+	local := now.In(settings.Location)
+	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, settings.Location)
 	count, err := s.cfg.Store.CountWakesSince(ctx, midnight)
 	if err != nil {
 		return false, err
@@ -289,7 +278,7 @@ func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.T
 	if err != nil {
 		return false, err
 	}
-	if count < s.cfg.DailyLimit && (s.cfg.DailyTokens == 0 || tokens < s.cfg.DailyTokens) {
+	if count < settings.WakeDailyLimit && (settings.WakeDailyTokens == 0 || tokens < settings.WakeDailyTokens) {
 		return true, nil
 	}
 	day := local.Format("2006-01-02")
@@ -298,10 +287,10 @@ func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.T
 	if s.warned[subject] != day {
 		s.warned[subject] = day
 		reason := "count"
-		if s.cfg.DailyTokens > 0 && tokens >= s.cfg.DailyTokens {
+		if settings.WakeDailyTokens > 0 && tokens >= settings.WakeDailyTokens {
 			reason = "tokens"
 		}
-		slog.Warn("wake deferred: daily budget reached", "subject", subject, "reason", reason, "count", count, "limit", s.cfg.DailyLimit, "tokens", tokens, "token_limit", s.cfg.DailyTokens, "day", day)
+		slog.Warn("wake deferred: daily budget reached", "subject", subject, "reason", reason, "count", count, "limit", settings.WakeDailyLimit, "tokens", tokens, "token_limit", settings.WakeDailyTokens, "day", day)
 	}
 	return false, nil
 }

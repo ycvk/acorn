@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,20 +12,6 @@ type WatchConfig struct {
 	RSSHubBaseURL string `yaml:"rsshub_base_url"`
 	// GitHubToken raises the GitHub API rate limit; environment variables expand.
 	GitHubToken string `yaml:"github_token"`
-	// MaxChecksPerTick bounds how many watches one scheduler tick fetches.
-	MaxChecksPerTick int `yaml:"max_checks_per_tick"`
-}
-
-// BriefingConfig schedules the morning briefing. At is "HH:MM" in the owner's
-// timezone; empty turns the briefing off.
-type BriefingConfig struct {
-	At string `yaml:"at"`
-}
-
-// NewsConfig bounds the background sorting of news items into scored
-// stories. DailyTokens is per owner-local day; zero means no cap.
-type NewsConfig struct {
-	DailyTokens int `yaml:"daily_tokens"`
 }
 
 func (c *Config) validateWatch() error {
@@ -35,17 +20,6 @@ func (c *Config) validateWatch() error {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return fmt.Errorf("watch.rsshub_base_url %q must be an http(s) URL", base)
 		}
-	}
-	if c.Watch.MaxChecksPerTick < 1 || c.Watch.MaxChecksPerTick > 50 {
-		return errors.New("watch.max_checks_per_tick must be between 1 and 50")
-	}
-	if at := strings.TrimSpace(c.Briefing.At); at != "" {
-		if _, err := ParseClock(at); err != nil {
-			return fmt.Errorf("briefing.at: %w", err)
-		}
-	}
-	if c.News.DailyTokens < 0 {
-		return errors.New("news.daily_tokens must be >= 0 (0 means no cap)")
 	}
 	return nil
 }

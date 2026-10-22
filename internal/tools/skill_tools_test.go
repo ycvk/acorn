@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -64,7 +65,7 @@ func TestSkillToolsCarryTheRunAndBaseRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deps := SkillToolDeps{Library: library, Context: fixedArtifactContext{runID: "run_9", sessionID: "thread_1", callID: "call_1"}, Location: loc}
+	deps := SkillToolDeps{Library: library, Context: fixedArtifactContext{runID: "run_9", sessionID: "thread_1", callID: "call_1"}, Settings: settings.Fixed(core.Settings{Location: loc})}
 	write, err := buildSkillWriteTool(deps)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +99,7 @@ func TestSkillToolsCarryTheRunAndBaseRevision(t *testing.T) {
 func TestSkillInspectStagesThePackageForImport(t *testing.T) {
 	library := &fakeSkillLibrary{current: &core.Skill{ID: "pdf", Revision: 4}}
 	reader := &fakePackageReader{}
-	deps := SkillToolDeps{Library: library, Packages: reader, Context: fixedArtifactContext{runID: "run_9"}, Location: time.UTC}
+	deps := SkillToolDeps{Library: library, Packages: reader, Context: fixedArtifactContext{runID: "run_9"}, Settings: settings.Fixed(core.Settings{Location: time.UTC})}
 	inspect, err := buildSkillInspectTool(deps)
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +125,7 @@ func TestSkillInspectStagesThePackageForImport(t *testing.T) {
 
 func TestSkillWriteRejectsToolsNoRunHas(t *testing.T) {
 	library := &fakeSkillLibrary{}
-	write, err := buildSkillWriteTool(SkillToolDeps{Library: library, Context: fixedArtifactContext{runID: "run_9"}, Location: time.UTC})
+	write, err := buildSkillWriteTool(SkillToolDeps{Library: library, Context: fixedArtifactContext{runID: "run_9"}, Settings: settings.Fixed(core.Settings{Location: time.UTC})})
 	if err != nil {
 		t.Fatal(err)
 	}

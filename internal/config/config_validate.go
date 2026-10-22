@@ -7,14 +7,8 @@ import (
 )
 
 func (c *Config) ValidateBase() error {
-	if strings.TrimSpace(c.Agent.Name) == "" {
-		return errors.New("runtime.name is required")
-	}
 	if strings.TrimSpace(c.Runtime.StorageDir) == "" {
 		return errors.New("runtime.storage_dir is required")
-	}
-	if c.Runtime.RunTimeoutSeconds < 0 {
-		return errors.New("runtime.run_timeout_seconds must be >= 0")
 	}
 	if c.Backup.Dir != "" && c.Backup.Keep < 1 {
 		return errors.New("backup.keep must be >= 1")
@@ -28,10 +22,7 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateMemory(); err != nil {
 		return err
 	}
-	if err := c.validatePresence(); err != nil {
-		return err
-	}
-	if err := c.validateThinking(); err != nil {
+	if err := c.validateNotify(); err != nil {
 		return err
 	}
 	if err := c.validateWatch(); err != nil {
@@ -41,9 +32,6 @@ func (c *Config) ValidateBase() error {
 		return err
 	}
 	if err := c.validateFiles(); err != nil {
-		return err
-	}
-	if err := c.validateApproval(); err != nil {
 		return err
 	}
 	if err := c.validateReview(); err != nil {
@@ -111,9 +99,6 @@ func (c *Config) ValidateExecutionReady() error {
 	if err := c.ValidateBase(); err != nil {
 		return err
 	}
-	if c.Agent.MaxIterations <= 0 {
-		return errors.New("runtime.max_iterations must be > 0")
-	}
 	if err := c.validateProviders(); err != nil {
 		return err
 	}
@@ -123,58 +108,17 @@ func (c *Config) ValidateExecutionReady() error {
 	if strings.TrimSpace(c.Memory.Embedding.APIKey) == "" || strings.Contains(c.Memory.Embedding.APIKey, "${") {
 		return errors.New("memory.embedding.api_key is required; set VOYAGE_API_KEY")
 	}
-	if err := c.validateMemoryBudget(); err != nil {
-		return err
-	}
-	if err := c.validatePresenceBudget(); err != nil {
-		return err
-	}
 	return c.validateWorkstationToken()
-}
-
-func (c *Config) validateContext() error {
-	if c == nil {
-		return nil
-	}
-	if c.Context.WindowTokens <= 0 {
-		return errors.New("context.window_tokens must be > 0")
-	}
-	if c.Context.CompactMarginTokens <= 1 {
-		return errors.New("context.compact_margin_tokens must be > 1")
-	}
-	if c.Context.CompactMarginTokens >= c.Context.WindowTokens {
-		return errors.New("context.compact_margin_tokens must be < context.window_tokens")
-	}
-	if c.Context.MaskAfterTurns < 0 {
-		return errors.New("context.mask_after_turns must be >= 0")
-	}
-	return nil
 }
 
 func (c *Config) validateWebAccessBase() error {
 	if c == nil {
 		return nil
 	}
-	if strings.TrimSpace(c.WebAccess.UserAgent) == "" {
-		return errors.New("web_access.user_agent is required")
-	}
-	if c.WebAccess.TimeoutSeconds <= 0 {
-		return errors.New("web_access.timeout_seconds must be > 0")
-	}
-	if c.WebAccess.MaxResponseBytes <= 0 {
-		return errors.New("web_access.max_response_bytes must be > 0")
-	}
-	search := c.WebAccess.Search
-	switch strings.TrimSpace(search.Provider) {
+	switch provider := strings.TrimSpace(c.WebAccess.Search.Provider); provider {
 	case "exa":
 	default:
-		return fmt.Errorf("web_access.search.provider must be exa, got %q", search.Provider)
-	}
-	if search.TimeoutSeconds <= 0 {
-		return errors.New("web_access.search.timeout_seconds must be > 0")
-	}
-	if search.MaxResults <= 0 {
-		return errors.New("web_access.search.max_results must be > 0")
+		return fmt.Errorf("web_access.search.provider must be exa, got %q", provider)
 	}
 	return nil
 }

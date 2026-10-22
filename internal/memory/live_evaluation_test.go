@@ -21,6 +21,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -105,8 +106,6 @@ func TestMemoryLiveEvaluation(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.Memory.Embedding.APIKey = strings.TrimSpace(string(key))
-	cfg.Memory.DailyTokens = 0
-	cfg.Wake.DailyTokens = 0
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +138,7 @@ func TestMemoryLiveEvaluation(t *testing.T) {
 	}
 	stage := "ingestion"
 	var providerCalls []evalProviderCall
-	engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: measuredEvaluationModel{inner: model, stage: &stage, calls: &providerCalls}, ModelName: provider.Model, Embedder: measuredEvaluationEmbedding{inner: embed, stage: &stage, calls: &providerCalls}, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Location: time.UTC, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
+	engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: measuredEvaluationModel{inner: model, stage: &stage, calls: &providerCalls}, ModelName: provider.Model, Embedder: measuredEvaluationEmbedding{inner: embed, stage: &stage, calls: &providerCalls}, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Settings: settings.Fixed(core.Settings{Location: time.UTC})})
 	if err != nil {
 		t.Fatal(err)
 	}

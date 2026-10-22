@@ -47,6 +47,9 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Owner == nil {
 		return nil, errors.New("web owner service is required")
 	}
+	if deps.Settings == nil {
+		return nil, errors.New("web settings service is required")
+	}
 	if deps.Captures == nil {
 		return nil, errors.New("web capture service is required")
 	}
@@ -75,6 +78,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		memories:           deps.Memories,
 		persona:            deps.Persona,
 		owner:              deps.Owner,
+		settings:           deps.Settings,
 		captures:           deps.Captures,
 		phoneNotifications: deps.PhoneNotifications,
 		now:                deps.Now,
@@ -155,6 +159,8 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/persona/revisions/{revision}", s.handleGetPersonaRevision)
 			r.Get("/owner", s.handleGetOwner)
 			r.Put("/owner", s.handleSetOwner)
+			r.Get("/settings", s.handleGetSettings)
+			r.Patch("/settings", s.handleUpdateSettings)
 			r.Get("/browser/tabs", s.handleBrowserTabs)
 			r.Get("/browser/frames", s.handleBrowserFrames)
 			r.Post("/browser/input", s.handleBrowserInput)

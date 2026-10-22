@@ -13,7 +13,7 @@ import (
 func TestBriefingHealthIsSilentWhenAllIsWell(t *testing.T) {
 	h := newHarness(t, 0)
 	h.sched.cfg.Backups = func() (time.Time, error) { return h.now.Add(-20 * time.Hour), nil }
-	got, err := h.sched.briefingHealth(context.Background(), h.now)
+	got, err := h.sched.briefingHealth(context.Background(), h.now, h.settings.Location)
 	if err != nil || got != "" {
 		t.Fatalf("health = %q, %v; want nothing", got, err)
 	}
@@ -37,7 +37,7 @@ func TestBriefingHealthReportsBackups(t *testing.T) {
 				}
 				return h.now.Add(-tc.latest), nil
 			}
-			got, err := h.sched.briefingHealth(context.Background(), h.now)
+			got, err := h.sched.briefingHealth(context.Background(), h.now, h.settings.Location)
 			if err != nil || !strings.Contains(got, "System health") || !strings.Contains(got, tc.want) {
 				t.Fatalf("health = %q, %v; want %q", got, err, tc.want)
 			}
@@ -65,7 +65,7 @@ func TestBriefingHealthReportsStuckAndFailedMemoryJobs(t *testing.T) {
 		}
 		later = later.Add(time.Hour)
 	}
-	got, err := h.sched.briefingHealth(ctx, h.now)
+	got, err := h.sched.briefingHealth(ctx, h.now, h.settings.Location)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestBriefingHealthReportsStuckAndFailedMemoryJobs(t *testing.T) {
 func TestBriefingInputCarriesHealthProblems(t *testing.T) {
 	h := newHarness(t, 0)
 	h.sched.cfg.Backups = func() (time.Time, error) { return time.Time{}, nil }
-	in, err := h.sched.prepareBriefing(context.Background(), "2026-10-05", h.now)
+	in, err := h.sched.prepareBriefing(context.Background(), "2026-10-05", h.now, h.settings.Location)
 	if err != nil {
 		t.Fatal(err)
 	}

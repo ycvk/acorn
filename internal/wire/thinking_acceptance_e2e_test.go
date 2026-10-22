@@ -12,6 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 func withUsage(reply string, total int) string {
@@ -26,7 +27,7 @@ func TestThinkingNightRevisesThoughtWithEvidenceAndRecordsUsage(t *testing.T) {
 	provider := &fakeOpenAI{}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+"owner:\n  timezone: Asia/Shanghai\nbriefing:\n  at: \"\"\nthinking:\n  night_at: \"03:00\"\n")
+	cfg := writeTestConfig(t, server.URL, extra, ownerSettings{settings.KeyTimezone: `"Asia/Shanghai"`, settings.KeyBriefingAt: `""`, settings.KeyNightAt: `"03:00"`})
 	c := h.open(t, cfg)
 	defer c.Close()
 	source, err := c.store.RegisterMemorySource(ctx, core.MemorySource{ID: "night-origin", Kind: "fixture", ObjectID: "night-origin", Version: "1", Speaker: "owner", Body: "review this idea", RecordedAt: start.Add(-72 * time.Hour)})
@@ -93,7 +94,7 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig+"thinking:\n  night_at: \"\"\n")
+	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig, watchTestSettings, ownerSettings{settings.KeyNightAt: `""`})
 	c := h.open(t, cfg)
 	defer c.Close()
 	registerPushInstallation(t, c, "fid_phone")
@@ -161,7 +162,7 @@ func TestThinkingTokenBudgetAcrossOwnerDays(t *testing.T) {
 	provider := &fakeOpenAI{replies: []string{withUsage(textReply("first wake"), 150), withUsage(textReply("briefing"), 150), withUsage(textReply("next day"), 150)}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+"owner:\n  timezone: UTC\nwake:\n  daily_tokens: 100\nbriefing:\n  at: \"08:00\"\nthinking:\n  night_at: \"\"\n")
+	cfg := writeTestConfig(t, server.URL, extra, ownerSettings{settings.KeyWakeDailyTokens: `100`, settings.KeyBriefingAt: `"08:00"`, settings.KeyNightAt: `""`})
 	c := h.open(t, cfg)
 	defer c.Close()
 	thread, err := c.threads.CreateThread(ctx, "budget")

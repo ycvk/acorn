@@ -9,12 +9,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// Thinking holds owner-local times for night reflection and idle thought.
-type Thinking struct {
-	Night  Briefing
-	Wander []time.Duration
-}
-
 type routineInput struct {
 	// thread is the conversation the run belongs in; empty runs it in the
 	// routine's own thread.
@@ -27,27 +21,27 @@ type routineInput struct {
 	after      func(context.Context, string) error
 }
 
-func (s *Scheduler) runRoutines(ctx context.Context, now time.Time) error {
-	local := now.In(s.cfg.Location)
+func (s *Scheduler) runRoutines(ctx context.Context, now time.Time, settings core.Settings) error {
+	local := now.In(settings.Location)
 	day := local.Format("2006-01-02")
 	due := func(at time.Duration) bool {
-		scheduled := time.Date(local.Year(), local.Month(), local.Day(), int(at/time.Hour), int(at%time.Hour/time.Minute), 0, 0, s.cfg.Location)
+		scheduled := time.Date(local.Year(), local.Month(), local.Day(), int(at/time.Hour), int(at%time.Hour/time.Minute), 0, 0, settings.Location)
 		return !local.Before(scheduled)
 	}
 	var errs []error
-	if s.cfg.Briefing.Enabled && due(s.cfg.Briefing.At) {
-		errs = append(errs, s.runRoutine(ctx, "briefing", day, "Briefings", false, now, func() (routineInput, error) { return s.prepareBriefing(ctx, day, now) }))
+	if settings.Briefing.Enabled && due(settings.Briefing.At) {
+		errs = append(errs, s.runRoutine(ctx, "briefing", day, "Briefings", false, now, settings, func() (routineInput, error) { return s.prepareBriefing(ctx, day, now, settings.Location) }))
 	}
-	if s.cfg.Thinking.Night.Enabled && due(s.cfg.Thinking.Night.At) {
-		errs = append(errs, s.runRoutine(ctx, "night", day, "Thoughts", true, now, func() (routineInput, error) { return s.nightInput(ctx, day, now) }))
+	if settings.Night.Enabled && due(settings.Night.At) {
+		errs = append(errs, s.runRoutine(ctx, "night", day, "Thoughts", true, now, settings, func() (routineInput, error) { return s.nightInput(ctx, day, now, settings.Location) }))
 	}
-	for _, at := range s.cfg.Thinking.Wander {
+	for _, at := range settings.Wander {
 		if !due(at) {
 			continue
 		}
 		slot := fmt.Sprintf("%s %02d:%02d", day, int(at/time.Hour), int(at%time.Hour/time.Minute))
-		errs = append(errs, s.runRoutine(ctx, "wander", slot, "", true, now, func() (routineInput, error) {
-			return s.wanderInput(ctx, slot, now)
+		errs = append(errs, s.runRoutine(ctx, "wander", slot, "", true, now, settings, func() (routineInput, error) {
+			return s.wanderInput(ctx, slot, now, settings.Location)
 		}))
 	}
 	return errors.Join(errs...)
@@ -57,7 +51,7 @@ func (s *Scheduler) runRoutines(ctx context.Context, now time.Time) error {
 // Preparation/start failures release it; budget skips and empty inputs keep it.
 // A run without a prepared thread goes to the routine's latest thread, created
 // with title when missing.
-func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, autonomous bool, now time.Time, prepare func() (routineInput, error)) (err error) {
+func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, autonomous bool, now time.Time, settings core.Settings, prepare func() (routineInput, error)) (err error) {
 	if err := s.cfg.Routines.ClaimRoutine(ctx, name, slot, now); err != nil {
 		if errors.Is(err, core.ErrRoutineTaken) {
 			return nil
@@ -73,7 +67,7 @@ func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, au
 		}
 	}()
 	if autonomous {
-		allowed, err := s.withinBudget(ctx, name+" "+slot, now)
+		allowed, err := s.withinBudget(ctx, name+" "+slot, now, settings)
 		if err != nil {
 			return err
 		}

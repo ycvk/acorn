@@ -6,6 +6,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -18,7 +19,11 @@ func ReindexMemory(ctx context.Context, cfg *config.Config) (core.MemoryIndex, e
 		return core.MemoryIndex{}, err
 	}
 	defer db.Close()
-	engine, err := buildMemory(ctx, cfg, db, time.Now, true)
+	owner, err := settings.NewService(db, db, time.Now)
+	if err != nil {
+		return core.MemoryIndex{}, err
+	}
+	engine, err := buildMemory(ctx, cfg, db, owner, time.Now, true)
 	if err != nil {
 		return core.MemoryIndex{}, err
 	}

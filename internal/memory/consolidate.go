@@ -133,7 +133,7 @@ func (e *Engine) consolidationFits(ctx context.Context, changed, related []core.
 	if err != nil {
 		return false, err
 	}
-	return n <= e.cfg.BatchTokens-128, nil
+	return n <= BatchTokens-128, nil
 }
 
 type consolidationInput struct {

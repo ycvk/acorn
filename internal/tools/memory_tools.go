@@ -24,7 +24,7 @@ type PresenceToolDeps struct {
 	Memory        MemoryService
 	Context       core.ToolCallContextBridge
 	Clock         func() time.Time
-	Location      *time.Location
+	Settings      core.SettingsReader
 	ForgetBarrier func(context.Context, core.MemoryExclusion, string) error
 }
 

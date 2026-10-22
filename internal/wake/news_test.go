@@ -125,7 +125,7 @@ func story(id int64, section, title string, score int, first time.Time, developm
 }
 
 func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
 	h.writtenBriefing(t, "2026-10-04", "## 国内要闻\n1. **旧闻**：昨天报过。")
 	h.section(t, "AI", 2, "")
@@ -194,7 +194,7 @@ func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
 }
 
 func TestBriefingGoesOnWhenNewsFails(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	h.section(t, "国际", 1, "")
 	down := h.newsWatch(t, "BBC", "国际", core.WatchActive)
 	item := h.pendingItem(down, "found-earlier")
@@ -220,7 +220,7 @@ func TestBriefingGoesOnWhenNewsFails(t *testing.T) {
 }
 
 func TestBriefingWithoutStoriesOrOtherMaterialIsSkipped(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	h.section(t, "国际", 1, "")
 	h.newsWatch(t, "BBC", "国际", core.WatchActive)
 	if err := h.sched.Tick(context.Background()); err != nil {
@@ -232,7 +232,7 @@ func TestBriefingWithoutStoriesOrOtherMaterialIsSkipped(t *testing.T) {
 }
 
 func TestBriefingTakesTheWatchesInTurns(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	busy := h.watch(t, "busy", core.WatchModeDigest)
 	var titles []string
 	for i := range 120 {

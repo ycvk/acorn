@@ -34,7 +34,7 @@ type SkillToolDeps struct {
 	Packages               SkillPackageReader
 	PackagesDisabledReason string
 	Context                core.ToolCallContextBridge
-	Location               *time.Location
+	Settings               core.SettingsReader
 }
 
 // SkillWriteInput is the input of skill_write.
@@ -106,7 +106,11 @@ func buildSkillWriteTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_write: %w", err)
 			}
-			return skillOutput(skill, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return SkillWriteOutput{}, fmt.Errorf("skill_write: %w", err)
+			}
+			return skillOutput(skill, loc), nil
 		})
 }
 
@@ -118,7 +122,11 @@ func buildSkillRetireTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_retire: %w", err)
 			}
-			return skillOutput(skill, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return SkillWriteOutput{}, fmt.Errorf("skill_retire: %w", err)
+			}
+			return skillOutput(skill, loc), nil
 		})
 }
 
@@ -162,7 +170,11 @@ func buildSkillImportTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_import: %w", err)
 			}
-			return skillOutput(skill, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return SkillWriteOutput{}, fmt.Errorf("skill_import: %w", err)
+			}
+			return skillOutput(skill, loc), nil
 		})
 }
 

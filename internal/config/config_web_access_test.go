@@ -17,64 +17,11 @@ func TestValidateExecutionReadyDoesNotRequireWebSearchKey(t *testing.T) {
 	}
 }
 
-func TestValidateBaseRejectsInvalidWebAccessConfig(t *testing.T) {
-	tests := []struct {
-		name    string
-		mutate  func(*Config)
-		wantErr string
-	}{
-		{
-			name: "empty user agent",
-			mutate: func(cfg *Config) {
-				cfg.WebAccess.UserAgent = ""
-			},
-			wantErr: "web_access.user_agent is required",
-		},
-		{
-			name: "zero timeout",
-			mutate: func(cfg *Config) {
-				cfg.WebAccess.TimeoutSeconds = 0
-			},
-			wantErr: "web_access.timeout_seconds must be > 0",
-		},
-		{
-			name: "zero response limit",
-			mutate: func(cfg *Config) {
-				cfg.WebAccess.MaxResponseBytes = 0
-			},
-			wantErr: "web_access.max_response_bytes must be > 0",
-		},
-		{
-			name: "unsupported provider",
-			mutate: func(cfg *Config) {
-				cfg.WebAccess.Search.Provider = "google"
-			},
-			wantErr: "web_access.search.provider must be exa",
-		},
-		{
-			name: "zero search timeout",
-			mutate: func(cfg *Config) {
-				cfg.WebAccess.Search.TimeoutSeconds = 0
-			},
-			wantErr: "web_access.search.timeout_seconds must be > 0",
-		},
-		{
-			name: "zero max results",
-			mutate: func(cfg *Config) {
-				cfg.WebAccess.Search.MaxResults = 0
-			},
-			wantErr: "web_access.search.max_results must be > 0",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := defaultConfig()
-			tc.mutate(cfg)
-			err := cfg.ValidateBase()
-			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("ValidateBase error = %v, want %q", err, tc.wantErr)
-			}
-		})
+func TestValidateBaseRejectsAnotherSearchProvider(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.WebAccess.Search.Provider = "google"
+	if err := cfg.ValidateBase(); err == nil || !strings.Contains(err.Error(), "web_access.search.provider must be exa") {
+		t.Fatalf("ValidateBase error = %v", err)
 	}
 }
 
@@ -96,10 +43,6 @@ web:
 web_access:
   search:
     api_key: ${ACORN_TEST_EXA_KEY}
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers: []
 `

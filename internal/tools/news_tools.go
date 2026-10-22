@@ -169,10 +169,14 @@ func buildNewsSearchTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				return NewsSearchOutput{}, fmt.Errorf("news_search: %w", err)
 			}
 			out := NewsSearchOutput{Stories: make([]NewsStoryOutput, 0, len(stories))}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return NewsSearchOutput{}, fmt.Errorf("news_search: %w", err)
+			}
 			for _, s := range stories {
 				story := NewsStoryOutput{
 					Title: s.Title, Section: s.Section, Score: s.Score, Summary: s.Summary, Development: s.Development,
-					FirstSeen: s.FirstSeen.In(deps.Location).Format(localTimeLayout), Updated: s.UpdatedAt.In(deps.Location).Format(localTimeLayout),
+					FirstSeen: s.FirstSeen.In(loc).Format(localTimeLayout), Updated: s.UpdatedAt.In(loc).Format(localTimeLayout),
 					Items: make([]NewsItemOutput, 0, len(s.Items)),
 				}
 				for _, item := range s.Items {
@@ -182,7 +186,7 @@ func buildNewsSearchTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 					}
 					story.Items = append(story.Items, NewsItemOutput{
 						Source: item.Source, Title: item.Title, URL: item.URL, Summary: item.Summary,
-						Published: published.In(deps.Location).Format(localTimeLayout), Score: item.Score,
+						Published: published.In(loc).Format(localTimeLayout), Score: item.Score,
 					})
 				}
 				out.Stories = append(out.Stories, story)
@@ -234,7 +238,11 @@ func buildNewsSourceTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if err := deps.Store.UpdateWatch(ctx, w); err != nil {
 				return WatchOutput{}, fmt.Errorf("news_source: %w", err)
 			}
-			return watchOutput(w, 0, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return WatchOutput{}, fmt.Errorf("news_source: %w", err)
+			}
+			return watchOutput(w, 0, loc), nil
 		})
 }
 
@@ -256,11 +264,15 @@ func listNewsSections(ctx context.Context, deps WatchToolDeps) (NewsSectionsOutp
 		return NewsSectionsOutput{}, fmt.Errorf("news_sections: %w", err)
 	}
 	out := NewsSectionsOutput{Sections: make([]NewsSectionOutput, 0, len(sections))}
+	loc, err := ownerLocation(ctx, deps.Settings)
+	if err != nil {
+		return NewsSectionsOutput{}, fmt.Errorf("news_sections: %w", err)
+	}
 	for _, s := range sections {
 		section := NewsSectionOutput{Name: s.Name, Position: s.Position, Preference: s.Preference, Sources: []WatchOutput{}}
 		for _, w := range watches {
 			if w.Mode == core.WatchModeNews && w.Section == s.Name {
-				section.Sources = append(section.Sources, watchOutput(w, 0, deps.Location))
+				section.Sources = append(section.Sources, watchOutput(w, 0, loc))
 			}
 		}
 		out.Sections = append(out.Sections, section)

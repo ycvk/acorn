@@ -29,8 +29,9 @@ type modelLimits struct {
 	sampling        bool
 }
 
-// Published model contracts as of 2026-10-09. Unknown model IDs use the owner's
-// explicit context and output settings, without guessing from name prefixes.
+// Published model contracts as of 2026-10-09. Unknown model IDs use the
+// provider's explicit context window and output settings, without guessing
+// from name prefixes.
 func modelLimitsFor(name string) modelLimits {
 	switch strings.TrimSpace(name) {
 	case "gpt-6-astra":
@@ -63,6 +64,12 @@ func (p ProviderConfig) validateModelSettings() error {
 		return errors.New("anthropic requires max_output_tokens")
 	}
 	limits := modelLimitsFor(p.Model)
+	switch {
+	case limits.context > 0 && p.ContextWindowTokens != nil:
+		return fmt.Errorf("%s has a %d token context window of its own; remove context_window_tokens", p.Model, limits.context)
+	case limits.context == 0 && (p.ContextWindowTokens == nil || *p.ContextWindowTokens <= 0):
+		return fmt.Errorf("context_window_tokens is required for %s and must be positive", p.Model)
+	}
 	if p.MaxOutputTokens != nil && limits.output > 0 && *p.MaxOutputTokens > limits.output {
 		return fmt.Errorf("max_output_tokens exceeds %s output limit (%d)", p.Model, limits.output)
 	}

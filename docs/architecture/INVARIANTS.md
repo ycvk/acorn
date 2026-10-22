@@ -64,8 +64,9 @@
 
 ## 上下文与记忆
 
-- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - 输出预留 - presence.max_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
+- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `上下文窗口 - 输出预留 - presence 上限 - 压缩余量` 时总结历史；reduction 只做 clear（保留最近 8 轮工具调用原样）。上下文窗口取模型表里的值，模型表以外的模型取 provider 的 `context_window_tokens`，没写时拒绝启动，模型表里的模型写了也拒绝；presence 上限 4000 与压缩余量 32000 是代码常量。
   - `internal/runtime/agent_test.go`
+  - `internal/config/config_models_test.go`
 - **人格只由 owner 修改**：人格存在 SQLite 的 `persona_revisions`，最新 revision 是当前人格；每次保存是基于读到的 revision 的新 revision，并发修改显式失败；内容去掉首尾空白后不能为空，至多 8 KiB。启动时没有人格才以 release 身份写入默认人格，已有人格不被覆盖。owner 经 `/v1/persona` 与 `acorn persona` 保存，agent 没有写人格的工具。每个 run 开始时读当前人格。
   - `internal/store/store_persona_test.go`
   - `internal/presence/presence_test.go`
@@ -77,6 +78,17 @@
   - `internal/api/handlers_owner_test.go`
   - `internal/wire/owner_e2e_test.go`
   - `internal/memory/extraction_dedup_test.go`
+  - `internal/config/config_load_test.go`
+- **设置只由 owner 修改，用到时读当前值**：owner 的时区、早安卡与夜思游思的时间、免打扰、每小时推送上限、每日预算与审批规则存在 SQLite 的 `owner_settings`，每项一行，没存过的项用 `internal/settings` 里的默认值。owner 经 `/v1/settings` 与 `acorn settings` 保存，一次保存的各项一起校验，有一项不合法就都不存；agent 没有改设置的工具。用到设置的地方每次从 SQLite 读当前值：run 开始时读审批规则与时区，wake 调度器每次检查读一次，记忆与新闻每次预留用量时读预算，推送每次发送时读免打扰与上限。记忆或新闻预算调高或取消时，同一事务里把因它推迟到明天的记忆任务与新闻批次放回当前时刻。配置文件写了这些设置或删掉的调参项时按未知字段拒绝。
+  - `internal/settings/settings_test.go`
+  - `internal/api/handlers_settings_test.go`
+  - `internal/cli/settings_test.go`
+  - `internal/wake/briefing_test.go`
+  - `internal/notify/notify_test.go`
+  - `internal/news/news_test.go`
+  - `internal/memory/consolidation_batch_test.go`
+  - `internal/runtime/agent_test.go`
+  - `internal/wire/approval_restart_e2e_test.go`
   - `internal/config/config_load_test.go`
 - **Instruction = 人格 + 称呼 + 内置规则 + 技能说明**：人格是 run 开始时的当前人格，有称呼时其后一句说明 owner 是谁；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
   - `internal/runtime/agent_test.go`
@@ -163,7 +175,7 @@
   - `internal/store/store_skills_test.go`
   - `internal/tools/skill_tools_test.go`
   - `internal/workstation/skills_test.go`
-- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 description，详情的 `tool_detail` 是将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的详情是暂存包的 `SKILL.md` 与文件内容。包带 `acorn-package.yaml` 时详情先列出它在工作机上运行的东西：MCP 服务器的命令与参数、每个触发器的时间表、送达方式与命令、密钥名；写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。
+- **写技能的审批显示全文**：`approval.require` 设置默认含 `skill_write`、`skill_import`、`skill_retire`；`skill_write` 的待批准项摘要是技能名与 description，详情的 `tool_detail` 是将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的详情是暂存包的 `SKILL.md` 与文件内容。包带 `acorn-package.yaml` 时详情先列出它在工作机上运行的东西：MCP 服务器的命令与参数、每个触发器的时间表、送达方式与命令、密钥名；写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。
   - `internal/config/config_validation_test.go`
   - `internal/api/tool_steps_test.go`
 - **包清单只声明 MCP 服务器、触发器与密钥**：包根目录的 `acorn-package.yaml` 是一个 YAML 文档，以 KnownFields 严格解析，至少声明 `mcp` 或一个触发器：`mcp` 的 `command` 必填，可带 `args`；`triggers` 每项要求 name（技能名格式，包内不重复）、可解析的 cron `schedule`、`run` 与 `deliver`（immediate 或 digest），没有 webhook 字段；包级 `secrets` 是互不相同的大写环境变量名；`skill_write`、`skill_inspect`、`skill_import` 与 `acorn skills import` 写入前校验，解析失败的写入不落库。声明了 MCP 服务器的包名与 `mcp.providers` 的工具命名空间相同时写入、暂存与导入都失败；在用技能与后来配置的 provider 同名时容器启动失败，停用的技能不算。
@@ -249,9 +261,9 @@
   - `internal/store/commitment_contract_test.go`
   - `internal/wake/scheduler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
+- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 设置限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
-- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 时返回错误；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出；没有任何已登记设备时返回错误。推送按 App 向 FCM 注册的 Firebase installation ID（FID）投递，设备经 `PUT /v1/devices/self/push-installation` 登记 FID，格式不符的拒绝；一个 FID 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 FID 被删除，设备吊销时其 FID 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
+- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 设置时返回错误；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出；没有任何已登记设备时返回错误。推送按 App 向 FCM 注册的 Firebase installation ID（FID）投递，设备经 `PUT /v1/devices/self/push-installation` 登记 FID，格式不符的拒绝；一个 FID 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 FID 被删除，设备吊销时其 FID 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
   - `internal/notify/notify_test.go`
   - `internal/store/store_presence_test.go`
   - `internal/api/push_installation_handler_test.go`
@@ -274,7 +286,7 @@
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-- **触发器只在 wake 调度器运行，同一时刻只认领一次**：每个 tick 让 `skill_triggers` 恰好对应在用技能的触发器：新触发器或改了时间表的排到 owner 时区的下一个时刻，停用技能的触发器删除；缺密钥的包的触发器不运行。到期触发器以 `next_at` 的条件更新认领（多个调度器只有一个运行），同一技能的触发器依次、不同技能并行运行，一个 tick 至多 `watch.max_checks_per_tick` 个。工作机先拿到触发器所在的包（哈希不同就先放上去），再以包目录为工作目录用 `bash -lc` 执行 `run`，带包的密钥环境变量，受 `workstation.command_timeout_seconds` 与 `workstation.max_output_bytes` 约束。非零退出、超时、输出超限或任一非空行不是 `{"key","text"}` 都算失败：失败次数加一，按追踪项的退避（时刻间隔每次失败翻倍，上限 24 小时）推迟，连续 5 次标为 failing，成功后清零。
+- **触发器只在 wake 调度器运行，同一时刻只认领一次**：每个 tick 让 `skill_triggers` 恰好对应在用技能的触发器：新触发器或改了时间表的排到 owner 时区的下一个时刻，停用技能的触发器删除；缺密钥的包的触发器不运行。到期触发器以 `next_at` 的条件更新认领（多个调度器只有一个运行），同一技能的触发器依次、不同技能并行运行，一个 tick 至多 5 个。工作机先拿到触发器所在的包（哈希不同就先放上去），再以包目录为工作目录用 `bash -lc` 执行 `run`，带包的密钥环境变量，受工作机命令 300 秒的时限与 32 KiB 的输出上限约束。非零退出、超时、输出超限或任一非空行不是 `{"key","text"}` 都算失败：失败次数加一，按追踪项的退避（时刻间隔每次失败翻倍，上限 24 小时）推迟，连续 5 次标为 failing，成功后清零。
   - `internal/wake/triggers_test.go`
   - `internal/skills/manifest_test.go`
   - `internal/workstation/trigger_test.go`
@@ -290,7 +302,7 @@
   - `internal/wake/triggers_test.go`
   - `internal/store/store_news_test.go`
   - `internal/tools/watch_tools_test.go`
-- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、新闻事件（见下一条）、其他追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，有 failing 的触发器，或近一天有放弃整理的新闻条目。
+- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at` 设置的时间（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、新闻事件（见下一条）、其他追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，有 failing 的触发器，或近一天有放弃整理的新闻条目。
   - `internal/wake/briefing_test.go`
   - `internal/wake/health_test.go`
   - `internal/wake/watches_test.go`
@@ -310,7 +322,7 @@
   - `internal/api/tool_steps_test.go`
   - `internal/wake/thinking_test.go`
   - `internal/wire/news_acceptance_e2e_test.go`
-- **新闻条目整理一次，过期只留键**：后台 worker 认领首见于 14 天内、未整理的待报条目（期刊一次一期，其余一批至多 30 条），租约 5 分钟；模型在 `news.daily_tokens` 内给每条打 1–5 分并归入新事件或近 72 小时的事件，期刊页拆成带链接的条目（链接按期刊页解析，只接受 http/https），期刊页读不到时这一批失败。回复逐项校验：批里每条恰好打分一次，事件引用有定义，板块存在；提交在同一事务里按认领 token 校验并写分数、事件与条目，条目已被另一批重新认领时提交失败。预算用尽的批延到下一本地日且不计失败次数，其他失败第 3 次放弃并计入 System health。首见超过 14 天的条目只留键与状态（记忆来源除外），移出事件，没有条目的事件删除；源里仍在的条目不会作为新条目回来。`news_search` 按板块、关键词（每个词都要出现）与天数（1 到 14）检索事件。
+- **新闻条目整理一次，过期只留键**：后台 worker 认领首见于 14 天内、未整理的待报条目（期刊一次一期，其余一批至多 30 条），租约 5 分钟；模型在 `news.daily_tokens` 设置内给每条打 1–5 分并归入新事件或近 72 小时的事件，期刊页拆成带链接的条目（链接按期刊页解析，只接受 http/https），期刊页读不到时这一批失败。回复逐项校验：批里每条恰好打分一次，事件引用有定义，板块存在；提交在同一事务里按认领 token 校验并写分数、事件与条目，条目已被另一批重新认领时提交失败。预算用尽的批延到下一本地日且不计失败次数，预算调高或取消时当天放回，其他失败第 3 次放弃并计入 System health。首见超过 14 天的条目只留键与状态（记忆来源除外），移出事件，没有条目的事件删除；源里仍在的条目不会作为新条目回来。`news_search` 按板块、关键词（每个词都要出现）与天数（1 到 14）检索事件。
   - `internal/news/news_test.go`
   - `internal/store/store_news_stories_test.go`
   - `internal/tools/watch_tools_test.go`
@@ -364,6 +376,6 @@
   - `internal/workstation/drag_test.go`
   - `internal/workstation/view_test.go`
   - `internal/api/handlers_browser_test.go`
-- **命令有界**：超时或请求取消时杀掉命令的整个进程组；工具超时不能超过 `workstation.command_timeout_seconds`；stdout 与 stderr 超出上限时各保留开头和结尾并标出省略的字节数。
+- **命令有界**：超时或请求取消时杀掉命令的整个进程组；工具超时不能超过 300 秒；stdout 与 stderr 超出上限时各保留开头和结尾并标出省略的字节数。
   - `internal/workstation/workstation_test.go`
   - `internal/tools/workstation_tools_test.go`

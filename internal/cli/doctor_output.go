@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
 )
@@ -314,7 +315,7 @@ func renderDoctorBrowser(b wire.BrowserStatus) string {
 	}
 }
 
-func renderDoctorWatches(cfg *config.Config, watches []core.Watch) string {
+func renderDoctorWatches(cfg *config.Config, owner settings.Values, watches []core.Watch) string {
 	counts := map[core.WatchStatus]int{}
 	for _, w := range watches {
 		counts[w.Status]++
@@ -323,11 +324,11 @@ func renderDoctorWatches(cfg *config.Config, watches []core.Watch) string {
 	if rsshub == "" {
 		rsshub = "not configured (rsshub: watches unavailable)"
 	}
-	briefing := cfg.Briefing.At
+	briefing := owner.BriefingAt
 	if briefing == "" {
 		briefing = "off"
 	} else {
-		briefing += " " + cfg.Owner.Timezone
+		briefing += " " + owner.Timezone
 	}
 	lines := []string{
 		"",
@@ -344,16 +345,16 @@ func renderDoctorWatches(cfg *config.Config, watches []core.Watch) string {
 	return strings.Join(lines, "\n")
 }
 
-func renderDoctorThinking(cfg *config.Config, status wire.ThinkingStatus) string {
-	night := cfg.Thinking.NightAt
+func renderDoctorThinking(owner settings.Values, status wire.ThinkingStatus) string {
+	night := owner.NightAt
 	if night == "" {
 		night = "off"
 	}
-	wander := strings.Join(cfg.Thinking.WanderAt, ", ")
+	wander := strings.Join(owner.WanderAt, ", ")
 	if wander == "" {
 		wander = "off"
 	}
-	lines := []string{"", "Thinking", fmt.Sprintf("  Night reflection: %s (%s)", night, cfg.Owner.Timezone), "  Idle thoughts: " + wander, fmt.Sprintf("  Autonomous wakes today: %d / %d", status.Wakes, cfg.Wake.DailyLimit), fmt.Sprintf("  Autonomous tokens today: %d / %d", status.Usage.AutonomousTokens, cfg.Wake.DailyTokens), fmt.Sprintf("  All reported tokens today: %d", status.Usage.TotalTokens), fmt.Sprintf("  Calls without usage today: %d", status.Usage.UnreportedCalls), "  Phone notifications (last 24h):"}
+	lines := []string{"", "Thinking", fmt.Sprintf("  Night reflection: %s (%s)", night, owner.Timezone), "  Idle thoughts: " + wander, fmt.Sprintf("  Autonomous wakes today: %d / %d", status.Wakes, owner.WakeDailyLimit), fmt.Sprintf("  Autonomous tokens today: %d / %d", status.Usage.AutonomousTokens, owner.WakeDailyTokens), fmt.Sprintf("  All reported tokens today: %d", status.Usage.TotalTokens), fmt.Sprintf("  Calls without usage today: %d", status.Usage.UnreportedCalls), "  Phone notifications (last 24h):"}
 	if len(status.Phones) == 0 {
 		lines = append(lines, "    none")
 	}

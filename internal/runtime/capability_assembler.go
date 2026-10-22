@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/ycvk/acorn/internal/core"
@@ -89,9 +88,9 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 	webCfg := deps.Config.WebAccess
 	policy := webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks}
 	fetch, err := webaccess.NewFetchService(webaccess.FetchConfig{
-		UserAgent:        webCfg.UserAgent,
-		Timeout:          time.Duration(webCfg.TimeoutSeconds) * time.Second,
-		MaxResponseBytes: webCfg.MaxResponseBytes,
+		UserAgent:        webaccess.UserAgent,
+		Timeout:          webaccess.FetchTimeout,
+		MaxResponseBytes: webaccess.MaxResponseBytes,
 		Policy:           policy,
 	})
 	if err != nil {
@@ -107,9 +106,9 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 	} else {
 		search, err := webaccess.NewSearchService(webaccess.SearchConfig{
 			APIKey:           webCfg.Search.APIKey,
-			Timeout:          time.Duration(webCfg.Search.TimeoutSeconds) * time.Second,
-			MaxResults:       webCfg.Search.MaxResults,
-			MaxResponseBytes: webCfg.MaxResponseBytes,
+			Timeout:          webaccess.SearchTimeout,
+			MaxResults:       webaccess.SearchMaxResults,
+			MaxResponseBytes: webaccess.MaxResponseBytes,
 			Policy:           policy,
 		})
 		if err != nil {

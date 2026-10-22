@@ -2,6 +2,7 @@ package news
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -45,12 +47,15 @@ func (p fixedPages) ReadPage(_ context.Context, url string) (string, error) {
 }
 
 type fixture struct {
-	store *store.Store
-	model *scriptedModel
-	proc  *Processor
-	clock time.Time
-	ids   map[string]int64
+	store    *store.Store
+	model    *scriptedModel
+	proc     *Processor
+	clock    time.Time
+	ids      map[string]int64
+	settings core.Settings
 }
+
+func (f *fixture) Settings(context.Context) (core.Settings, error) { return f.settings, nil }
 
 func newFixture(t *testing.T, dailyTokens int) *fixture {
 	t.Helper()
@@ -63,12 +68,12 @@ func newFixture(t *testing.T, dailyTokens int) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fixture{store: db, model: &scriptedModel{}, clock: testNow, ids: map[string]int64{}}
+	f := &fixture{store: db, model: &scriptedModel{}, clock: testNow, ids: map[string]int64{}, settings: core.Settings{Location: loc, NewsDailyTokens: dailyTokens}}
 	f.proc, err = New(Config{
 		Store: db, Model: f.model, ModelName: "test-model",
 		Pages: fixedPages{"https://daily.test/2026-10-22": "## 1. DeepSeek 开源推理框架 ★★★★★\n链接 https://a.test/deepseek\n## 2. 停火谈判进入第二轮 ★★★"},
 		Count: func(_ context.Context, s string) (int, error) { return len([]rune(s)) / 4, nil },
-		Clock: func() time.Time { return f.clock }, Location: loc, DailyTokens: dailyTokens,
+		Clock: func() time.Time { return f.clock }, Settings: f,
 		Ready: func() error { return nil },
 	})
 	if err != nil {
@@ -216,9 +221,38 @@ func TestProcessorLeavesItemsForTheNextDayWhenTheBudgetIsSpent(t *testing.T) {
 	f.model.replies = []func(string) string{func(string) string {
 		return fmt.Sprintf(`{"items":[{"id":%d,"score":1}],"stories":[]}`, f.ids["b1"])
 	}}
-	f.proc.cfg.DailyTokens = 0
+	f.settings.NewsDailyTokens = 0
 	if err := f.proc.CatchUp(context.Background()); err != nil || len(f.model.inputs) != 1 {
 		t.Fatalf("the next day sorts the item: %v, calls %d", err, len(f.model.inputs))
+	}
+}
+
+func TestRaisingTheNewsBudgetSortsDeferredItemsTheSameDay(t *testing.T) {
+	f := newFixture(t, 0)
+	ctx := context.Background()
+	owner, err := settings.NewService(f.store, f.store, func() time.Time { return f.clock })
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.proc.cfg.Settings = owner
+	save := func(key, value string) {
+		t.Helper()
+		if _, err := owner.Save(ctx, settings.Change{Set: map[string]json.RawMessage{key: json.RawMessage(value)}}, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save(settings.KeyTimezone, `"Asia/Singapore"`)
+	save(settings.KeyNewsDailyTokens, `1000`)
+	f.source(t, "bbc", "国际与财经", false, core.WatchItem{Key: "b1", Title: "t"})
+	if err := f.proc.CatchUp(ctx); err != nil || len(f.model.inputs) != 0 {
+		t.Fatalf("past the budget: %v, calls %d", err, len(f.model.inputs))
+	}
+	f.model.replies = []func(string) string{func(string) string {
+		return fmt.Sprintf(`{"items":[{"id":%d,"score":1}],"stories":[]}`, f.ids["b1"])
+	}}
+	save(settings.KeyNewsDailyTokens, `100000`)
+	if err := f.proc.CatchUp(ctx); err != nil || len(f.model.inputs) != 1 {
+		t.Fatalf("the raised budget sorts the deferred item today: %v, calls %d", err, len(f.model.inputs))
 	}
 }
 

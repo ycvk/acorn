@@ -36,7 +36,7 @@ type WatchToolDeps struct {
 	Checker  WatchChecker
 	Context  core.ToolCallContextBridge
 	Clock    func() time.Time
-	Location *time.Location
+	Settings core.SettingsReader
 }
 
 const defaultWatchEvery = time.Hour
@@ -144,8 +144,12 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 			}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
+			}
 			return WatchCreateOutput{
-				WatchOutput: watchOutput(result.Watch, 0, deps.Location),
+				WatchOutput: watchOutput(result.Watch, 0, loc),
 				Baseline:    result.Baseline,
 				Sample:      fetchedSample(fetched),
 				Note:        trialNote(result.Watch),
@@ -166,8 +170,12 @@ func createTriggerSource(ctx context.Context, deps WatchToolDeps, w core.Watch) 
 	if err != nil {
 		return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 	}
+	loc, err := ownerLocation(ctx, deps.Settings)
+	if err != nil {
+		return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
+	}
 	return WatchCreateOutput{
-		WatchOutput: watchOutput(w, 0, deps.Location),
+		WatchOutput: watchOutput(w, 0, loc),
 		Note:        "The trigger's next output is the baseline; item lines it prints after that are news for this source. " + trialNote(w),
 	}, nil
 }
@@ -242,7 +250,11 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if err := deps.Store.UpdateWatch(ctx, w); err != nil {
 				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 			}
-			return watchOutput(w, 0, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
+			}
+			return watchOutput(w, 0, loc), nil
 		})
 }
 
@@ -261,7 +273,11 @@ func rebaseline(ctx context.Context, deps WatchToolDeps, w core.Watch) (WatchOut
 	if err != nil {
 		return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 	}
-	return watchOutput(result.Watch, 0, deps.Location), nil
+	loc, err := ownerLocation(ctx, deps.Settings)
+	if err != nil {
+		return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
+	}
+	return watchOutput(result.Watch, 0, loc), nil
 }
 
 func buildWatchListTool(deps WatchToolDeps) (einotool.BaseTool, error) {
@@ -280,8 +296,12 @@ func buildWatchListTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				counts[item.WatchID]++
 			}
 			out := WatchListOutput{Watches: make([]WatchOutput, 0, len(watches))}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return WatchListOutput{}, fmt.Errorf("watch_list: %w", err)
+			}
 			for _, w := range watches {
-				out.Watches = append(out.Watches, watchOutput(w, counts[w.ID], deps.Location))
+				out.Watches = append(out.Watches, watchOutput(w, counts[w.ID], loc))
 			}
 			return out, nil
 		})

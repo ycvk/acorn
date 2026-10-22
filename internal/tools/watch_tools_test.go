@@ -12,6 +12,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -158,7 +159,7 @@ func newWatchToolsForTest(t *testing.T) (*toolWatchStore, *fakeWatchChecker, map
 		t.Fatal(err)
 	}
 	triggers := triggersFake{{Trigger: skills.Trigger{Name: "zhihu"}, Skill: "hot-lists"}}
-	deps := WatchToolDeps{Store: store, News: &toolNewsSearcher{}, Triggers: triggers, Checker: checker, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_7", callID: "call_1"}, Clock: func() time.Time { return watchToolNow }, Location: loc}
+	deps := WatchToolDeps{Store: store, News: &toolNewsSearcher{}, Triggers: triggers, Checker: checker, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_7", callID: "call_1"}, Clock: func() time.Time { return watchToolNow }, Settings: settings.Fixed(core.Settings{Location: loc})}
 	tools := map[string]einotool.BaseTool{}
 	for name, build := range map[string]func(WatchToolDeps) (einotool.BaseTool, error){
 		"watch_create": buildWatchCreateTool, "watch_update": buildWatchUpdateTool, "watch_list": buildWatchListTool,
@@ -330,7 +331,7 @@ func TestNewsSearchListsStoriesWithTheirItems(t *testing.T) {
 		},
 	}}}
 	store := &toolWatchStore{sections: []core.NewsSection{{Name: "国际"}, {Name: "AI"}}}
-	tool, err := buildNewsSearchTool(WatchToolDeps{Store: store, News: searcher, Clock: func() time.Time { return watchToolNow }, Location: loc})
+	tool, err := buildNewsSearchTool(WatchToolDeps{Store: store, News: searcher, Clock: func() time.Time { return watchToolNow }, Settings: settings.Fixed(core.Settings{Location: loc})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +373,7 @@ func TestFeedDiscoverListsTheFeedsFound(t *testing.T) {
 		{URL: "https://blog.test/feed", FoundBy: "link", Title: "Blog", Entries: 20, PerDay: 2.346, Latest: watchToolNow, Samples: []string{"a", "b"}},
 		{URL: "https://blog.test/old.xml", FoundBy: "path", Entries: 128, PerDay: 0.0291},
 	}}}
-	tool, err := buildFeedDiscoverTool(WatchToolDeps{Feeds: discoverer, Location: loc})
+	tool, err := buildFeedDiscoverTool(WatchToolDeps{Feeds: discoverer, Settings: settings.Fixed(core.Settings{Location: loc})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +397,7 @@ func TestFeedDiscoverListsTheFeedsFound(t *testing.T) {
 		t.Fatalf("a route without RSSHub err = %v", err)
 	}
 
-	tool, err = buildFeedDiscoverTool(WatchToolDeps{Feeds: discoverer, RSSHub: "http://127.0.0.1:1200/", Location: loc})
+	tool, err = buildFeedDiscoverTool(WatchToolDeps{Feeds: discoverer, RSSHub: "http://127.0.0.1:1200/", Settings: settings.Fixed(core.Settings{Location: loc})})
 	if err != nil {
 		t.Fatal(err)
 	}

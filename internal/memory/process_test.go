@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -99,7 +100,7 @@ func testEngineAt(t *testing.T, dir string, model *protocolModel, limit int) (*E
 	if err != nil {
 		t.Fatal(err)
 	}
-	engine, err := New(Config{Store: db, Owner: db, Model: model, ModelName: "fixture", Embedder: embedder, Index: index, Count: func(_ context.Context, s string) (int, error) { return utf8.RuneCountInString(s)/2 + 1, nil }, Clock: time.Now, Location: time.UTC, DailyTokens: limit, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
+	engine, err := New(Config{Store: db, Owner: db, Model: model, ModelName: "fixture", Embedder: embedder, Index: index, Count: func(_ context.Context, s string) (int, error) { return utf8.RuneCountInString(s)/2 + 1, nil }, Clock: time.Now, Settings: settings.Fixed(core.Settings{Location: time.UTC, MemoryDailyTokens: limit})})
 	if err != nil {
 		t.Fatal(err)
 	}

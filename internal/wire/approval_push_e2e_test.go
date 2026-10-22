@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 func TestInterruptedRunPushesItsPendingAction(t *testing.T) {
@@ -12,7 +14,7 @@ func TestInterruptedRunPushesItsPendingAction(t *testing.T) {
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	harness, extra := newPushHarness(t, time.Date(2026, 10, 11, 14, 0, 0, 0, time.UTC))
-	cfg := writeTestConfig(t, server.URL, "approval:\n  require:\n    - recall\n"+briefingOff+extra)
+	cfg := writeTestConfig(t, server.URL, extra, ownerSettings{settings.KeyApprovalRequire: `["recall"]`}, briefingOff)
 	c := harness.open(t, cfg)
 	defer func() { _ = c.Close() }()
 	registerPushInstallation(t, c, "fid_phone")

@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
 )
@@ -164,8 +165,7 @@ func TestRenderDoctorKnowledge(t *testing.T) {
 }
 
 func TestRenderDoctorWatches(t *testing.T) {
-	cfg := &config.Config{Owner: config.OwnerConfig{Timezone: "Asia/Shanghai"}, Briefing: config.BriefingConfig{At: "08:00"}}
-	got := renderDoctorWatches(cfg, []core.Watch{
+	got := renderDoctorWatches(&config.Config{}, settings.Values{Timezone: "Asia/Shanghai", BriefingAt: "08:00"}, []core.Watch{
 		{ID: 1, Name: "blog", Status: core.WatchActive},
 		{ID: 2, Name: "shop", Status: core.WatchFailing, LastError: "HTTP 403"},
 	})

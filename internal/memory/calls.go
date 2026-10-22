@@ -12,16 +12,20 @@ import (
 
 func (e *Engine) reserve(ctx context.Context, operation, model string, input, output int) (core.MemoryUsage, error) {
 	scope := scopeFrom(ctx)
+	settings, err := e.cfg.Settings.Settings(ctx)
+	if err != nil {
+		return core.MemoryUsage{}, err
+	}
 	now := e.cfg.Clock()
 	u := core.MemoryUsage{ID: rand.Text(), Operation: operation, JobID: scope.jobID, RunID: scope.runID, Budget: scope.budget, Model: model, InputTokens: input, OutputTokens: output, CreatedAt: now}
 	limit := 0
 	switch scope.budget {
 	case "memory":
-		limit = e.cfg.DailyTokens
+		limit = settings.MemoryDailyTokens
 	case "autonomous":
-		limit = e.cfg.AutonomousTokens
+		limit = settings.WakeDailyTokens
 	}
-	err := e.cfg.Store.ReserveMemoryUsage(ctx, u, limit, e.midnight(now))
+	err = e.cfg.Store.ReserveMemoryUsage(ctx, u, limit, midnight(now, settings.Location))
 	return u, err
 }
 
@@ -35,8 +39,8 @@ func (e *Engine) generate(ctx context.Context, operation, instruction, input str
 	if err != nil {
 		return "", err
 	}
-	if n > e.cfg.BatchTokens {
-		return "", fmt.Errorf("memory %s input uses %d tokens, batch limit is %d", operation, n, e.cfg.BatchTokens)
+	if n > BatchTokens {
+		return "", fmt.Errorf("memory %s input uses %d tokens, batch limit is %d", operation, n, BatchTokens)
 	}
 	usage, err := e.reserve(ctx, operation, e.cfg.ModelName, n, maxOutput)
 	if err != nil {

@@ -48,7 +48,7 @@ type briefingNews struct {
 // prepareNews refreshes the news watches, sorts what they found into
 // stories, then adds the stories with items since the last briefing, by
 // section, and the previous briefing.
-func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since time.Time) (briefingNews, error) {
+func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since time.Time, loc *time.Location) (briefingNews, error) {
 	watches, err := s.cfg.Watches.ListWatches(ctx)
 	if err != nil {
 		return briefingNews{}, err
@@ -80,7 +80,7 @@ func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since 
 	if err != nil {
 		return briefingNews{}, err
 	}
-	m.add(s.newsStories(sections, offered.Stories, since), true)
+	m.add(s.newsStories(sections, offered.Stories, since, loc), true)
 	previous, err := s.previousBriefing(ctx)
 	if err != nil {
 		return briefingNews{}, err
@@ -123,7 +123,7 @@ func (s *Scheduler) refreshNews(ctx context.Context, watches []core.Watch) error
 // with its score, whether it is new since the last briefing or what it
 // added, and its items since then. Stories of a section removed meanwhile
 // come after the others.
-func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.NewsStory, since time.Time) string {
+func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.NewsStory, since time.Time, loc *time.Location) string {
 	grouped := map[string][]core.NewsStory{}
 	for _, story := range stories {
 		grouped[story.Section] = append(grouped[story.Section], story)
@@ -158,13 +158,13 @@ func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.News
 			if story.FirstSeen.After(since) || story.Development == "" {
 				b.WriteString(" (new)\n")
 			} else {
-				fmt.Fprintf(&b, " (since %s; new: %s)\n", story.FirstSeen.In(s.cfg.Location).Format("01-02"), story.Development)
+				fmt.Fprintf(&b, " (since %s; new: %s)\n", story.FirstSeen.In(loc).Format("01-02"), story.Development)
 			}
 			if summary := strings.TrimSpace(story.Summary); summary != "" {
 				b.WriteString("  " + summary + "\n")
 			}
 			for _, item := range story.Items {
-				line := fmt.Sprintf("  · %s %s %s", item.Source, s.itemTime(item.WatchItem), item.Title)
+				line := fmt.Sprintf("  · %s %s %s", item.Source, s.itemTime(item.WatchItem, loc), item.Title)
 				if item.URL != "" {
 					line += " — " + item.URL
 				}
@@ -177,12 +177,12 @@ func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.News
 
 // itemTime is when an item was published, or first seen when its source
 // gives no date.
-func (s *Scheduler) itemTime(item core.WatchItem) string {
+func (s *Scheduler) itemTime(item core.WatchItem, loc *time.Location) string {
 	at := item.PublishedAt
 	if at.IsZero() {
 		at = item.SeenAt
 	}
-	return at.In(s.cfg.Location).Format("01-02 15:04")
+	return at.In(loc).Format("01-02 15:04")
 }
 
 // previousBriefing carries the last briefing written, so stories it told

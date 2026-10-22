@@ -33,7 +33,7 @@ func (h *harness) fact(t *testing.T, id, content string, recorded, validFrom tim
 func (h *harness) previousBriefing(t *testing.T, at time.Time) {
 	t.Helper()
 	ctx := context.Background()
-	slot := at.In(h.sched.cfg.Location).Format("2006-01-02")
+	slot := at.In(h.settings.Location).Format("2006-01-02")
 	if err := h.data.ClaimRoutine(ctx, "briefing", slot, at); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func (h *harness) previousBriefing(t *testing.T, at time.Time) {
 }
 
 func TestBriefingSkipsWithoutMaterialAndKeepsTheSlot(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
 	h.previousBriefing(t, h.now.Add(-20*time.Hour))
 	// Facts that take effect later in the week are context, never material.
@@ -65,7 +65,7 @@ func TestBriefingSkipsWithoutMaterialAndKeepsTheSlot(t *testing.T) {
 }
 
 func TestBriefingCarriesCommitmentsMemoryNotesAndNight(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
 	h.previousBriefing(t, h.now.Add(-20*time.Hour))
 	h.commit(t, "交房租", h.now.Add(6*time.Hour), "")
@@ -119,7 +119,7 @@ func TestBriefingCarriesCommitmentsMemoryNotesAndNight(t *testing.T) {
 }
 
 func TestBriefingFactTakingEffectTodayIsMaterial(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	h.previousBriefing(t, h.now.Add(-20*time.Hour))
 	// Valid since 08:00 today, an hour before the briefing.
 	h.fact(t, "today", "今天开始每天跑步", h.now.Add(-21*time.Hour), h.now.Add(-time.Hour))
@@ -136,7 +136,7 @@ func TestBriefingFactTakingEffectTodayIsMaterial(t *testing.T) {
 }
 
 func TestBriefingIgnoresFailedOrSilentNight(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
 	if err := h.data.ClaimRoutine(ctx, "night", "2026-10-05", h.now.Add(-5*time.Hour)); err != nil {
 		t.Fatal(err)
@@ -155,5 +155,23 @@ func TestBriefingIgnoresFailedOrSilentNight(t *testing.T) {
 	}
 	if len(h.runs.starts) != 0 {
 		t.Fatalf("a failed night briefed: %v", h.runs.starts)
+	}
+}
+
+func TestTicksReadTheBriefingTimeTheOwnerSavedLast(t *testing.T) {
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 9 * time.Hour})
+	ctx := context.Background()
+	h.at(8, 30)
+	h.tick(t)
+	if err := h.data.ClaimRoutine(ctx, "briefing", "2026-10-05", h.now); err != nil {
+		t.Fatalf("the briefing ran before 09:00: %v", err)
+	}
+	if err := h.data.ReleaseRoutine(ctx, "briefing", "2026-10-05"); err != nil {
+		t.Fatal(err)
+	}
+	h.settings.Briefing.At = 8 * time.Hour
+	h.tick(t)
+	if err := h.data.ClaimRoutine(ctx, "briefing", "2026-10-05", h.now); !errors.Is(err, core.ErrRoutineTaken) {
+		t.Fatalf("moving the briefing to 08:00 at 08:30 runs it on the next tick: %v", err)
 	}
 }

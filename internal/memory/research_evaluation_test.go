@@ -18,6 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -206,8 +207,6 @@ func researchConfig(t *testing.T) *config.Config {
 		t.Fatal(err)
 	}
 	cfg.Memory.Embedding.APIKey = strings.TrimSpace(string(key))
-	cfg.Memory.DailyTokens, cfg.Wake.DailyTokens = 0, 0
-	cfg.Memory.ContextTokens = 8192
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +272,7 @@ func TestMemoryLongitudinalResearch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: model, ModelName: provider.Model, Embedder: embed, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Location: time.UTC, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
+		engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: model, ModelName: provider.Model, Embedder: embed, Index: index, Count: counter.CountText, Clock: func() time.Time { return clock }, Settings: settings.Fixed(core.Settings{Location: time.UTC})})
 		if err != nil {
 			t.Fatal(err)
 		}

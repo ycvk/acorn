@@ -13,7 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 )
 
-func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, clock func() time.Time, rebuild bool) (*memory.Engine, error) {
+func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, owner core.SettingsReader, clock func() time.Time, rebuild bool) (*memory.Engine, error) {
 	model, err := runtime.NewMemoryModel(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -39,13 +39,19 @@ func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, clock
 		if providerErr != nil {
 			return providerErr
 		}
-		return cfg.ValidateExecutionReady()
+		if err := cfg.ValidateExecutionReady(); err != nil {
+			return err
+		}
+		budget, err := cfg.InputTokenBudget()
+		if err != nil {
+			return err
+		}
+		if memory.BatchTokens >= budget {
+			return fmt.Errorf("the model's input budget of %d tokens is too small for a memory batch of %d", budget, memory.BatchTokens)
+		}
+		return nil
 	}
-	loc, err := cfg.OwnerLocation()
-	if err != nil {
-		return nil, err
-	}
-	return memory.New(memory.Config{Ready: ready, Store: db, Model: model, ModelName: provider.Model, Embedder: voyage, Index: index, Count: counter.CountText, Clock: clock, Location: loc, Owner: db, DailyTokens: cfg.Memory.DailyTokens, AutonomousTokens: cfg.Wake.DailyTokens, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
+	return memory.New(memory.Config{Ready: ready, Store: db, Model: model, ModelName: provider.Model, Embedder: voyage, Index: index, Count: counter.CountText, Clock: clock, Settings: owner, Owner: db})
 }
 
 func (c *Container) MemoryWorker() *memory.Engine { return c.memory }
@@ -54,13 +60,13 @@ func (c *Container) MemoryStatus(ctx context.Context) (core.MemoryProcessingStat
 	if err != nil {
 		return status, err
 	}
-	loc, err := c.cfg.OwnerLocation()
+	current, err := c.settings.Settings(ctx)
 	if err != nil {
 		return status, err
 	}
-	now := c.clock().In(loc)
-	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	now := c.clock().In(current.Location)
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, current.Location)
 	status.TokensToday, err = c.store.MemoryUsageSince(ctx, midnight, "memory")
-	status.DailyTokenLimit = c.cfg.Memory.DailyTokens
+	status.DailyTokenLimit = current.MemoryDailyTokens
 	return status, err
 }

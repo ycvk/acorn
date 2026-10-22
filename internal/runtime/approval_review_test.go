@@ -11,7 +11,6 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/review"
 )
@@ -74,7 +73,7 @@ type gateFixture struct {
 	ran      []string
 }
 
-func newGateFixture(t *testing.T, rules config.ApprovalConfig) *gateFixture {
+func newGateFixture(t *testing.T, rules core.ApprovalRules) *gateFixture {
 	t.Helper()
 	f := &gateFixture{store: &approvalTestStore{input: "帮我把购物车里的东西买了"}, reviewer: &fakeReviewer{}}
 	mw, err := newApprovalMiddleware(rules, f.reviewer, f.store)
@@ -95,7 +94,7 @@ func (f *gateFixture) call(t *testing.T, tool, args string) (string, error) {
 }
 
 func TestGateRunsReadOnlyShellWithoutReview(t *testing.T) {
-	f := newGateFixture(t, config.ApprovalConfig{})
+	f := newGateFixture(t, core.ApprovalRules{})
 	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1 | head -n 80")); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +104,7 @@ func TestGateRunsReadOnlyShellWithoutReview(t *testing.T) {
 }
 
 func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
-	f := newGateFixture(t, config.ApprovalConfig{})
+	f := newGateFixture(t, core.ApprovalRules{})
 	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1")); err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +140,7 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 }
 
 func TestGateRunsCallsReviewAllows(t *testing.T) {
-	f := newGateFixture(t, config.ApprovalConfig{})
+	f := newGateFixture(t, core.ApprovalRules{})
 	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1")); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +156,7 @@ func TestGateRunsCallsReviewAllows(t *testing.T) {
 }
 
 func TestGateAsksOwnerWhenReviewFails(t *testing.T) {
-	f := newGateFixture(t, config.ApprovalConfig{})
+	f := newGateFixture(t, core.ApprovalRules{})
 	f.reviewer.err = errors.New("review: HTTP 529: overloaded")
 	if _, err := f.call(t, "shell", shellArgs("curl -s https://example.com | python3 -c 'print(1)'")); err == nil {
 		t.Fatal("expected the approval interrupt")
@@ -171,7 +170,7 @@ func TestGateAsksOwnerWhenReviewFails(t *testing.T) {
 }
 
 func TestGateRulesComeBeforeReview(t *testing.T) {
-	f := newGateFixture(t, config.ApprovalConfig{Block: []string{"mcp__bank__*"}, Require: []string{"mcp__mail__*"}, Allow: []string{"mcp__calendar__*", "mcp__mail__*"}})
+	f := newGateFixture(t, core.ApprovalRules{Block: []string{"mcp__bank__*"}, Require: []string{"mcp__mail__*"}, Allow: []string{"mcp__calendar__*", "mcp__mail__*"}})
 	out, err := f.call(t, "mcp__bank__transfer", `{"amount":100}`)
 	if err != nil || !strings.Contains(out, "approval.block") || len(f.ran) != 0 {
 		t.Fatalf("block: out=%q err=%v ran=%v", out, err, f.ran)

@@ -49,7 +49,7 @@ func TestCloseFailsActiveRuns(t *testing.T) {
 			server := httptest.NewServer(provider)
 			defer server.Close()
 			defer release()
-			cfg := writeTestConfig(t, server.URL, briefingOff)
+			cfg := writeTestConfig(t, server.URL, "", briefingOff)
 
 			ctx := context.Background()
 			c, err := NewContainer(ctx, cfg)
@@ -102,7 +102,7 @@ func TestCloseFailsActiveRuns(t *testing.T) {
 // recording the run's end: the next start fails the run, so its thread can be
 // deleted again.
 func TestStartFailsRunsLeftRunning(t *testing.T) {
-	cfg := writeTestConfig(t, "http://127.0.0.1:1", briefingOff)
+	cfg := writeTestConfig(t, "http://127.0.0.1:1", "", briefingOff)
 	ctx := context.Background()
 	db, err := store.Open(cfg.Runtime.StorageDir)
 	if err != nil {

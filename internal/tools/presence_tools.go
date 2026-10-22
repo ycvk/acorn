@@ -15,6 +15,15 @@ import (
 
 const localTimeLayout = "2006-01-02 Mon 15:04"
 
+// ownerLocation reads the owner's time zone as it is now.
+func ownerLocation(ctx context.Context, settings core.SettingsReader) (*time.Location, error) {
+	current, err := settings.Settings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return current.Location, nil
+}
+
 // ScheduleWakeInput is the input of schedule_wake.
 type ScheduleWakeInput struct {
 	ConcernID  string `json:"concern_id,omitempty" jsonschema_description:"Optional continuing concern this appointment advances."`
@@ -44,7 +53,11 @@ func buildScheduleWakeTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 				return ScheduleWakeOutput{}, errors.New("schedule_wake: no current conversation to wake in")
 			}
 			now := deps.Clock()
-			wakeAt, err := resolveWakeTime(input, now, deps.Location)
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return ScheduleWakeOutput{}, fmt.Errorf("schedule_wake: %w", err)
+			}
+			wakeAt, err := resolveWakeTime(input, now, loc)
 			if err != nil {
 				return ScheduleWakeOutput{}, fmt.Errorf("schedule_wake: %w", err)
 			}
@@ -61,7 +74,7 @@ func buildScheduleWakeTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return ScheduleWakeOutput{}, fmt.Errorf("schedule_wake: %w", err)
 			}
-			return ScheduleWakeOutput{ID: item.ID, WakeAt: wakeAt.In(deps.Location).Format(localTimeLayout), Recurrence: item.Recurrence}, nil
+			return ScheduleWakeOutput{ID: item.ID, WakeAt: wakeAt.In(loc).Format(localTimeLayout), Recurrence: item.Recurrence}, nil
 		})
 }
 

@@ -119,20 +119,25 @@ type harness struct {
 	panels  *fakePanels
 	news    *fakeNews
 	sorter  *fakeSorter
+	// settings are what the owner saved; each tick reads them.
+	settings core.Settings
 }
+
+func (h *harness) Settings(context.Context) (core.Settings, error) { return h.settings, nil }
 
 func newHarness(t *testing.T, limit int) *harness {
 	t.Helper()
-	return newHarnessWith(t, limit, Briefing{})
+	return newHarnessWith(t, limit, core.DailyTime{})
 }
 
-func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
+func newHarnessWith(t *testing.T, limit int, briefing core.DailyTime) *harness {
 	t.Helper()
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), news: &fakeNews{}, now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC)}
+	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), news: &fakeNews{}, now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC),
+		settings: core.Settings{Location: loc, WakeDailyLimit: limit, WakeDailyTokens: 300000, Briefing: briefing}}
 	h.data, err = store.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -149,9 +154,8 @@ func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 	h.sorter = &fakeSorter{checker: h.checker}
 	h.sched, err = NewScheduler(Config{
 		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Knowledge: memKnowledge{h.data}, RunRecords: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker, News: h.news, Sorter: h.sorter, Triggers: h.data,
-		Clock: func() time.Time { return h.now }, Location: loc, DailyLimit: limit,
-		MaxChecksPerTick: 5, Briefing: briefing, Interval: time.Second,
-		DailyTokens: 300000, Routines: h.data, PhoneNotifications: h.data,
+		Clock: func() time.Time { return h.now }, Settings: h, Interval: time.Second,
+		Routines: h.data, PhoneNotifications: h.data,
 	})
 	if err != nil {
 		t.Fatal(err)

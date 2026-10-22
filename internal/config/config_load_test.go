@@ -66,10 +66,6 @@ func TestLoadExpandsHomeConfigPath(t *testing.T) {
     enabled: true
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers: []
 `
@@ -101,10 +97,6 @@ func TestLoadExpandsProviderAPIKeyEnvironment(t *testing.T) {
     enabled: true
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers: []
 `
@@ -136,15 +128,34 @@ func TestLoadReportsUnknownField(t *testing.T) {
 	}
 }
 
-// What Acorn calls the owner lives in the database, set from the App or
-// `acorn owner set`; the config no longer reads it.
-func TestLoadRejectsOwnerName(t *testing.T) {
+// The owner's schedule, budgets and approval rules are settings in the
+// database, and the tuning numbers are constants; a config that still holds
+// them stops the backend and names every such line.
+func TestLoadRejectsWhatMovedOutOfTheConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "acorn.yaml")
-	if err := os.WriteFile(path, []byte("owner:\n  name: 温遥\n"), 0o600); err != nil {
+	body := `owner:
+  timezone: Asia/Singapore
+briefing:
+  at: "09:00"
+approval:
+  require: ["mcp__*"]
+memory:
+  daily_tokens: 100000
+  history_tokens: 65536
+context:
+  window_tokens: 500000
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "name") {
-		t.Fatalf("owner.name must be rejected, got: %v", err)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("a config with moved settings must be rejected")
+	}
+	for _, field := range []string{"owner", "briefing", "approval", "daily_tokens", "history_tokens", "context"} {
+		if !strings.Contains(err.Error(), "field "+field+" not found") {
+			t.Fatalf("error should name %s: %v", field, err)
+		}
 	}
 }
 
@@ -162,10 +173,6 @@ func TestLoadDefaultsToHomeAcorn(t *testing.T) {
     enabled: true
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers: []
 `

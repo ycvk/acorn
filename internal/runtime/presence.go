@@ -12,6 +12,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/presence"
 )
@@ -41,8 +42,8 @@ type presenceMiddleware struct {
 	lastHash string
 }
 
-func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string) (*presenceMiddleware, error) {
-	if deps.PhoneNotifications == nil || deps.Activity == nil || deps.MemoryStore == nil || deps.Commitments == nil || deps.Clock == nil || deps.Location == nil {
+func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string, location *time.Location) (*presenceMiddleware, error) {
+	if deps.PhoneNotifications == nil || deps.Activity == nil || deps.MemoryStore == nil || deps.Commitments == nil || deps.Clock == nil || location == nil {
 		return nil, fmt.Errorf("presence middleware requires PhoneNotifications, Presence, Clock and Location")
 	}
 	inputBudget, err := deps.Config.InputTokenBudget()
@@ -50,7 +51,7 @@ func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string)
 		return nil, err
 	}
 	return &presenceMiddleware{
-		inputLimit:                        inputBudget + deps.Config.Presence.MaxTokens + deps.Config.Context.CompactMarginTokens,
+		inputLimit:                        inputBudget + config.PresenceMaxTokens + config.CompactMarginTokens,
 		TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{},
 		store:                             deps.Activity,
 		memory:                            deps.MemoryStore,
@@ -58,8 +59,8 @@ func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string)
 		phones:                            deps.PhoneNotifications,
 		events:                            deps.Store,
 		clock:                             deps.Clock,
-		location:                          deps.Location,
-		maxTokens:                         deps.Config.Presence.MaxTokens,
+		location:                          location,
+		maxTokens:                         config.PresenceMaxTokens,
 		counter:                           counter,
 		runID:                             runID,
 	}, nil

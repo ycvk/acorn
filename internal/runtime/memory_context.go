@@ -97,8 +97,8 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 			inputTokens += core.ImageInputTokens
 		}
 	}
-	memoryBudget := min(deps.Config.Memory.ContextTokens, max(256, (available-inputTokens-512)/3))
-	historyBudget := min(available-memoryBudget, max(deps.Config.Memory.HistoryTokens, inputTokens+128))
+	memoryBudget := min(memory.ContextTokens, max(256, (available-inputTokens-512)/3))
+	historyBudget := min(available-memoryBudget, max(memory.HistoryTokens, inputTokens+128))
 	if historyBudget < 256 || available <= inputTokens+512 {
 		return nil, fmt.Errorf("run input and tools exceed context budget (%d available)", available)
 	}

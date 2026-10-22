@@ -12,6 +12,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -40,11 +41,11 @@ func testPresenceDeps(t *testing.T, bridge core.ToolCallContextBridge) (Presence
 	if err != nil {
 		t.Fatal(err)
 	}
-	engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: unusedMemoryModel{}, ModelName: "fixture", Embedder: unusedEmbedding{}, Index: core.MemoryIndex{Model: "fixture", Dimensions: 1}, Count: func(_ context.Context, s string) (int, error) { return len(s), nil }, Clock: func() time.Time { return presenceTestNow }, Location: loc, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
+	engine, err := memory.New(memory.Config{Store: db, Owner: db, Model: unusedMemoryModel{}, ModelName: "fixture", Embedder: unusedEmbedding{}, Index: core.MemoryIndex{Model: "fixture", Dimensions: 1}, Count: func(_ context.Context, s string) (int, error) { return len(s), nil }, Clock: func() time.Time { return presenceTestNow }, Settings: settings.Fixed(core.Settings{Location: loc})})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return PresenceToolDeps{Store: db, Memory: engine, Context: bridge, Clock: func() time.Time { return presenceTestNow }, Location: loc, ForgetBarrier: func(context.Context, core.MemoryExclusion, string) error { return nil }}, db
+	return PresenceToolDeps{Store: db, Memory: engine, Context: bridge, Clock: func() time.Time { return presenceTestNow }, Settings: settings.Fixed(core.Settings{Location: loc}), ForgetBarrier: func(context.Context, core.MemoryExclusion, string) error { return nil }}, db
 }
 func runPresenceTool(t *testing.T, tool einotool.BaseTool, args string) (string, error) {
 	t.Helper()
@@ -191,7 +192,7 @@ func (f *fakeNotifier) Notify(_ context.Context, n core.Notification) (core.Noti
 func TestNotifyOwnerAttributesConversationAndReportsQueue(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	notifier := &fakeNotifier{status: core.NotificationQueued}
-	tool, err := buildNotifyOwnerTool(NotifyToolDeps{Notifier: notifier, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_1"}, Location: loc})
+	tool, err := buildNotifyOwnerTool(NotifyToolDeps{Notifier: notifier, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_1"}, Settings: settings.Fixed(core.Settings{Location: loc})})
 	if err != nil {
 		t.Fatal(err)
 	}
