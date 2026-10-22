@@ -160,12 +160,17 @@ func (s *Store) SaveNewsSection(ctx context.Context, section core.NewsSection) (
 	return core.NewsSection{}, fmt.Errorf("save news section %q: not found after saving", section.Name)
 }
 
-func (s *Store) RenameNewsSection(ctx context.Context, from, to string, at time.Time) error {
+func (s *Store) RenameNewsSection(ctx context.Context, from, to string, at time.Time) (err error) {
 	from, to = strings.TrimSpace(from), strings.TrimSpace(to)
 	if from == "" || to == "" {
 		return errors.New("rename news section: from and to are required")
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE news_sections SET name = ?, updated_at = ? WHERE name = ?`, to, formatTimestamp(at), from)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("rename news section %q: %w", from, err)
+	}
+	defer rollbackOnErr(tx, &err, "rename news section")
+	result, err := tx.ExecContext(ctx, `UPDATE news_sections SET name = ?, updated_at = ? WHERE name = ?`, to, formatTimestamp(at), from)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return fmt.Errorf("rename news section %q: a section named %q exists", from, to)
@@ -179,7 +184,11 @@ func (s *Store) RenameNewsSection(ctx context.Context, from, to string, at time.
 	if affected != 1 {
 		return fmt.Errorf("%w: %q", core.ErrNewsSectionNotFound, from)
 	}
-	return nil
+	// Stories keep their section by name; the watches follow by foreign key.
+	if _, err := tx.ExecContext(ctx, `UPDATE news_stories SET section = ? WHERE section = ?`, to, from); err != nil {
+		return fmt.Errorf("rename news section %q: %w", from, err)
+	}
+	return tx.Commit()
 }
 
 func (s *Store) DeleteNewsSection(ctx context.Context, name string) error {
