@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/news"
 	"github.com/ycvk/acorn/internal/runtime"
@@ -15,16 +16,12 @@ import (
 // buildNews builds the processor that sorts news items into stories, with
 // the model background memory work uses and the pages of issues read under
 // the outbound policy.
-func buildNews(ctx context.Context, cfg *config.Config, db *store.Store, fetcher *webaccess.FetchService, clock func() time.Time) (*news.Processor, error) {
+func buildNews(ctx context.Context, cfg *config.Config, db *store.Store, owner core.SettingsReader, fetcher *webaccess.FetchService, clock func() time.Time) (*news.Processor, error) {
 	model, err := runtime.NewMemoryModel(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
 	counter, err := runtime.NewTokenCounter()
-	if err != nil {
-		return nil, err
-	}
-	loc, err := cfg.OwnerLocation()
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +34,7 @@ func buildNews(ctx context.Context, cfg *config.Config, db *store.Store, fetcher
 	}
 	return news.New(news.Config{
 		Store: db, Model: newsModel{model: model}, ModelName: provider.Model, Pages: newsPages{fetcher: fetcher},
-		Count: counter.CountText, Clock: clock, Location: loc, DailyTokens: cfg.News.DailyTokens, Ready: ready,
+		Count: counter.CountText, Clock: clock, Settings: owner, Ready: ready,
 	})
 }
 

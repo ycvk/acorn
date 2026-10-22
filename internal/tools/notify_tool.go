@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
@@ -23,7 +22,7 @@ type Notifier interface {
 type NotifyToolDeps struct {
 	Notifier       Notifier
 	Context        core.ToolCallContextBridge
-	Location       *time.Location
+	Settings       core.SettingsReader
 	DisabledReason string
 }
 
@@ -66,8 +65,12 @@ func buildNotifyOwnerTool(deps NotifyToolDeps) (einotool.BaseTool, error) {
 				return NotifyOwnerOutput{}, fmt.Errorf("notify_owner: %w", err)
 			}
 			out := NotifyOwnerOutput{Status: string(n.Status)}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return NotifyOwnerOutput{}, fmt.Errorf("notify_owner: %w", err)
+			}
 			if n.Status == core.NotificationQueued {
-				out.SendAfter = n.SendAfter.In(deps.Location).Format(localTimeLayout)
+				out.SendAfter = n.SendAfter.In(loc).Format(localTimeLayout)
 			}
 			return out, nil
 		})

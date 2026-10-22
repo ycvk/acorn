@@ -2,8 +2,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
-	"path"
 	"strings"
 )
 
@@ -21,26 +19,6 @@ type ReviewConfig struct {
 func (c *Config) ReviewEnabled() bool {
 	key := strings.TrimSpace(c.Review.APIKey)
 	return key != "" && !strings.Contains(key, "${")
-}
-
-func (c *Config) validateApproval() error {
-	for _, rule := range []struct {
-		name     string
-		patterns []string
-	}{{"require", c.Approval.Require}, {"block", c.Approval.Block}, {"allow", c.Approval.Allow}} {
-		for i, pattern := range rule.patterns {
-			matchesAskOperator, err := path.Match(pattern, "ask_operator")
-			if err != nil {
-				return fmt.Errorf("approval.%s[%d] %q: %w", rule.name, i, pattern, err)
-			}
-			// ask_operator already waits on the owner; gating it would ask
-			// twice, and blocking it would leave the agent unable to ask.
-			if matchesAskOperator && rule.name != "allow" {
-				return fmt.Errorf("approval.%s[%d] %q must not match ask_operator", rule.name, i, pattern)
-			}
-		}
-	}
-	return nil
 }
 
 func (c *Config) validateReview() error {

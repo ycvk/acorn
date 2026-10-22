@@ -26,7 +26,7 @@ type KnowledgeVault interface {
 type KnowledgeToolDeps struct {
 	Vault    KnowledgeVault
 	Context  core.ToolCallContextBridge
-	Location *time.Location
+	Settings core.SettingsReader
 }
 
 const (
@@ -115,7 +115,11 @@ func buildKnowledgeWriteTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) 
 			if err != nil {
 				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_write: %w", err)
 			}
-			return writeOutput(note, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_write: %w", err)
+			}
+			return writeOutput(note, loc), nil
 		})
 }
 
@@ -127,7 +131,11 @@ func buildKnowledgeEditTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_edit: %w", err)
 			}
-			return writeOutput(note, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_edit: %w", err)
+			}
+			return writeOutput(note, loc), nil
 		})
 }
 
@@ -138,13 +146,17 @@ func buildKnowledgeReadTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return KnowledgeReadOutput{}, fmt.Errorf("knowledge_read: %w", err)
 			}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return KnowledgeReadOutput{}, fmt.Errorf("knowledge_read: %w", err)
+			}
 			return KnowledgeReadOutput{
 				Path:    note.Path,
 				Title:   note.Title,
 				Tags:    note.Tags,
 				Source:  note.Source,
-				Created: note.CreatedAt.In(deps.Location).Format(localTimeLayout),
-				Updated: note.UpdatedAt.In(deps.Location).Format(localTimeLayout),
+				Created: note.CreatedAt.In(loc).Format(localTimeLayout),
+				Updated: note.UpdatedAt.In(loc).Format(localTimeLayout),
 				Body:    note.Body,
 			}, nil
 		})
@@ -166,7 +178,11 @@ func buildKnowledgeSearchTool(deps KnowledgeToolDeps) (einotool.BaseTool, error)
 			if err != nil {
 				return KnowledgeHitsOutput{}, fmt.Errorf("knowledge_search: %w", err)
 			}
-			return hitsOutput(hits, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return KnowledgeHitsOutput{}, fmt.Errorf("knowledge_search: %w", err)
+			}
+			return hitsOutput(hits, loc), nil
 		})
 }
 
@@ -182,7 +198,11 @@ func buildKnowledgeListTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return KnowledgeHitsOutput{}, fmt.Errorf("knowledge_list: %w", err)
 			}
-			return hitsOutput(hits, deps.Location), nil
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return KnowledgeHitsOutput{}, fmt.Errorf("knowledge_list: %w", err)
+			}
+			return hitsOutput(hits, loc), nil
 		})
 }
 

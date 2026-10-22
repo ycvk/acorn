@@ -23,8 +23,8 @@ const (
 // checkWatches fetches the due watches. New items of digest watches wait for
 // the briefing; new items of immediate watches wake the agent in the watch's
 // conversation while the daily limit allows, and otherwise wait too.
-func (s *Scheduler) checkWatches(ctx context.Context, now time.Time) error {
-	due, err := s.cfg.Watches.ListDueWatches(ctx, now, s.cfg.MaxChecksPerTick)
+func (s *Scheduler) checkWatches(ctx context.Context, now time.Time, settings core.Settings) error {
+	due, err := s.cfg.Watches.ListDueWatches(ctx, now, maxChecksPerTick)
 	if err != nil {
 		return fmt.Errorf("list due watches: %w", err)
 	}
@@ -50,15 +50,15 @@ func (s *Scheduler) checkWatches(ctx context.Context, now time.Time) error {
 		if len(result.New) == 0 || w.Mode != core.WatchModeImmediate {
 			continue
 		}
-		if err := s.wakeForWatch(ctx, result.Watch, result.New, now); err != nil {
+		if err := s.wakeForWatch(ctx, result.Watch, result.New, now, settings); err != nil {
 			errs = append(errs, fmt.Errorf("watch #%d: %w", w.ID, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func (s *Scheduler) wakeForWatch(ctx context.Context, w core.Watch, items []core.WatchItem, now time.Time) error {
-	allowed, err := s.withinBudget(ctx, fmt.Sprintf("watch #%d", w.ID), now)
+func (s *Scheduler) wakeForWatch(ctx context.Context, w core.Watch, items []core.WatchItem, now time.Time, settings core.Settings) error {
+	allowed, err := s.withinBudget(ctx, fmt.Sprintf("watch #%d", w.ID), now, settings)
 	if err != nil || !allowed {
 		return err // the items stay pending for the briefing
 	}

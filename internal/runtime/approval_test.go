@@ -10,7 +10,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -85,7 +84,7 @@ func (t *echoTool) callCount() int {
 func newApprovalTestRunner(t *testing.T, model *scriptedModel, tool *echoTool, store *approvalTestStore, checkpoints adk.CheckPointStore) *adk.TypedRunner[*schema.AgenticMessage] {
 	t.Helper()
 	ctx := context.Background()
-	mw, err := newApprovalMiddleware(config.ApprovalConfig{Require: []string{"echo_*"}}, nil, store)
+	mw, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_*"}}, nil, store)
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
@@ -232,7 +231,7 @@ func TestApprovalDeclineSkipsCall(t *testing.T) {
 }
 
 func TestApprovalRejectsMalformedPatterns(t *testing.T) {
-	for _, rules := range []config.ApprovalConfig{{Require: []string{"["}}, {Block: []string{"["}}, {Allow: []string{"["}}} {
+	for _, rules := range []core.ApprovalRules{{Require: []string{"["}}, {Block: []string{"["}}, {Allow: []string{"["}}} {
 		if _, err := newApprovalMiddleware(rules, nil, &approvalTestStore{}); err == nil {
 			t.Fatalf("expected malformed pattern in %+v to be rejected", rules)
 		}
@@ -263,11 +262,11 @@ func TestNewsSourceWaitsForTheOwnerUnlessAllowed(t *testing.T) {
 	RegisterTypes()
 	for _, tc := range []struct {
 		name  string
-		rules config.ApprovalConfig
+		rules core.ApprovalRules
 		gated bool
 	}{
-		{name: "no rule", rules: config.ApprovalConfig{Require: []string{"skill_*"}}, gated: true},
-		{name: "allowed", rules: config.ApprovalConfig{Allow: []string{"news_*"}}, gated: false},
+		{name: "no rule", rules: core.ApprovalRules{Require: []string{"skill_*"}}, gated: true},
+		{name: "allowed", rules: core.ApprovalRules{Allow: []string{"news_*"}}, gated: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := core.WithRunID(context.Background(), "run_news")

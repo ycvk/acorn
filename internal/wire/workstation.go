@@ -23,8 +23,8 @@ func buildWorkstationTools(cfg *config.Config, client *workstation.Client, files
 	out := tools.WorkstationToolsConfig{
 		Files:                 files,
 		Context:               bridge,
-		CommandTimeoutSeconds: cfg.Workstation.CommandTimeoutSeconds,
-		MaxOutputBytes:        cfg.Workstation.MaxOutputBytes,
+		CommandTimeoutSeconds: workstation.CommandTimeoutSeconds,
+		MaxOutputBytes:        workstation.CommandOutputBytes,
 		MaxSendBytes:          cfg.Files.MaxSendBytes(),
 	}
 	if client == nil {

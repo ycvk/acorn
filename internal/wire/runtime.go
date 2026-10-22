@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
@@ -17,12 +16,14 @@ import (
 	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/presence"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/views"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
+	"github.com/ycvk/acorn/internal/workstation"
 )
 
 type containerRuntimeDeps struct {
@@ -34,6 +35,7 @@ type containerRuntimeDeps struct {
 	runController         *runtime.RunController
 	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
 	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	settings              *settings.Service
 	// notifier is nil when push notifications are not configured.
 	notifier     *notify.Sender
 	vault        *knowledge.Vault
@@ -46,7 +48,7 @@ type containerRuntimeDeps struct {
 }
 
 // buildNotifier returns the push sender, or nil and the reason push is off.
-func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location, options buildOptions) (*notify.Sender, string, error) {
+func buildNotifier(cfg *config.Config, db *store.Store, owner core.SettingsReader, options buildOptions) (*notify.Sender, string, error) {
 	file := cfg.Notify.FCM.ServiceAccountFile
 	if file == "" {
 		return nil, "notify.fcm.service_account_file is not configured", nil
@@ -64,19 +66,7 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location, opti
 	if err != nil {
 		return nil, "", err
 	}
-	var quiet notify.QuietHours
-	if cfg.Notify.QuietHours.Start != "" {
-		if quiet.Start, err = config.ParseClock(cfg.Notify.QuietHours.Start); err != nil {
-			return nil, "", err
-		}
-		if quiet.End, err = config.ParseClock(cfg.Notify.QuietHours.End); err != nil {
-			return nil, "", err
-		}
-	}
-	sender, err := notify.NewSender(notify.SenderConfig{
-		Store: db, Pusher: client, Clock: options.clock, Location: loc,
-		MaxPerHour: cfg.Notify.MaxPerHour, Quiet: quiet,
-	})
+	sender, err := notify.NewSender(notify.SenderConfig{Store: db, Pusher: client, Clock: options.clock, Settings: owner})
 	return sender, "", err
 }
 
@@ -108,23 +98,23 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	ctxBridge := runtime.NewContextBridge()
-	ownerLoc, err := cfg.OwnerLocation()
+	ownerSettings, err := settings.NewService(db, db, options.clock)
 	if err != nil {
 		return nil, err
 	}
-	notifier, notifyDisabled, err := buildNotifier(cfg, db, ownerLoc, options)
+	notifier, notifyDisabled, err := buildNotifier(cfg, db, ownerSettings, options)
 	if err != nil {
 		return nil, fmt.Errorf("push notifications: %w", err)
 	}
-	notifyDeps := tools.NotifyToolDeps{Context: ctxBridge, Location: ownerLoc, DisabledReason: notifyDisabled}
+	notifyDeps := tools.NotifyToolDeps{Context: ctxBridge, Settings: ownerSettings, DisabledReason: notifyDisabled}
 	if notifier != nil {
 		notifyDeps.Notifier = notifier
 	}
-	vault, err := knowledge.NewVault(knowledge.VaultConfig{Store: db, StorageDir: cfg.Runtime.StorageDir, Clock: options.clock, Location: ownerLoc})
+	vault, err := knowledge.NewVault(knowledge.VaultConfig{Store: db, StorageDir: cfg.Runtime.StorageDir, Clock: options.clock, Settings: ownerSettings})
 	if err != nil {
 		return nil, fmt.Errorf("knowledge base: %w", err)
 	}
-	memoryEngine, err := buildMemory(ctx, cfg, db, options.clock, false)
+	memoryEngine, err := buildMemory(ctx, cfg, db, ownerSettings, options.clock, false)
 	if err != nil {
 		return nil, fmt.Errorf("memory: %w", err)
 	}
@@ -136,7 +126,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	newsProcessor, err := buildNews(ctx, cfg, db, webFetcher, options.clock)
+	newsProcessor, err := buildNews(ctx, cfg, db, ownerSettings, webFetcher, options.clock)
 	if err != nil {
 		return nil, fmt.Errorf("news: %w", err)
 	}
@@ -144,7 +134,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	skillDeps := tools.SkillToolDeps{Library: skillLibrary, Context: ctxBridge, Location: ownerLoc, PackagesDisabledReason: noWorkstation}
+	skillDeps := tools.SkillToolDeps{Library: skillLibrary, Context: ctxBridge, Settings: ownerSettings, PackagesDisabledReason: noWorkstation}
 	var skillPackages skills.PackageHost
 	var skillServers runtime.SkillServerHost
 	var triggers *skills.TriggerRunner
@@ -152,7 +142,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if workstationClient != nil {
 		skillDeps.Packages, skillDeps.PackagesDisabledReason = workstationClient, ""
 		skillPackages, skillServers, serverReporter = workstationClient, workstationClient, workstationClient
-		if triggers, err = skills.NewTriggerRunner(skillLibrary, workstationClient, cfg.Workstation.CommandTimeoutSeconds, cfg.Workstation.MaxOutputBytes); err != nil {
+		if triggers, err = skills.NewTriggerRunner(skillLibrary, workstationClient, workstation.CommandTimeoutSeconds, workstation.CommandOutputBytes); err != nil {
 			return nil, err
 		}
 	}
@@ -177,13 +167,13 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			ForgetBarrier: memoryForgetBarrier(runController, db),
 			Context:       ctxBridge,
 			Clock:         options.clock,
-			Location:      ownerLoc,
+			Settings:      ownerSettings,
 		},
 		Notify: notifyDeps,
 		Knowledge: tools.KnowledgeToolDeps{
 			Vault:    &knowledge.MemoryView{Vault: vault, Store: db},
 			Context:  ctxBridge,
-			Location: ownerLoc,
+			Settings: ownerSettings,
 		},
 		Skills: skillDeps,
 		Watch: tools.WatchToolDeps{
@@ -195,7 +185,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Checker:  watchChecker,
 			Context:  ctxBridge,
 			Clock:    options.clock,
-			Location: ownerLoc,
+			Settings: ownerSettings,
 		},
 		Views: tools.ViewToolDeps{
 			Store:    db,
@@ -243,6 +233,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Workstation:           workstationTools,
 		Reviewer:              actionReviewer,
 		Clock:                 options.clock,
+		Settings:              ownerSettings,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)
@@ -272,6 +263,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 
 	return &containerRuntimeDeps{
 		skills:                skillLibrary,
+		settings:              ownerSettings,
 		memory:                memoryEngine,
 		mcpPendingActionStore: mcpPendingActionStore,
 		toolRegistry:          toolRegistry,

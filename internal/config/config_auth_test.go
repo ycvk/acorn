@@ -23,10 +23,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: oauth_stdio
@@ -70,10 +66,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: oauth_notransport
@@ -113,10 +105,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: oauth_sse
@@ -166,10 +154,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: bad_auth
@@ -212,10 +196,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: no_auth

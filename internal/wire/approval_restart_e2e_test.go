@@ -19,6 +19,8 @@ import (
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 // fakeOpenAI replays scripted chat completions in request order and records
@@ -143,15 +145,16 @@ const (
 
 func writeApprovalTestConfig(t *testing.T, providerURL string) *config.Config {
 	t.Helper()
-	return writeTestConfig(t, providerURL, `approval:
-  require:
-    - recall
-`)
+	return writeTestConfig(t, providerURL, "", ownerSettings{settings.KeyApprovalRequire: `["recall"]`})
 }
 
+// ownerSettings are settings, as JSON by key, saved before a test's
+// container opens the store.
+type ownerSettings map[string]string
+
 // writeTestConfig writes a config for the fake provider plus extra top-level
-// YAML.
-func writeTestConfig(t *testing.T, providerURL, extra string) *config.Config {
+// YAML, and saves the owner's settings; later ones win.
+func writeTestConfig(t *testing.T, providerURL, extra string, owner ...ownerSettings) *config.Config {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -166,6 +169,7 @@ providers:
     api_key: test
     timeout_seconds: 10
     max_output_tokens: 512
+    context_window_tokens: 128000
     enabled: true
 memory:
   embedding:
@@ -182,7 +186,32 @@ memory:
 	if err := os.MkdirAll(cfg.Runtime.StorageDir, 0o700); err != nil {
 		t.Fatalf("create storage dir: %v", err)
 	}
+	if len(owner) > 0 {
+		saveOwnerSettings(t, cfg, owner...)
+	}
 	return cfg
+}
+
+func saveOwnerSettings(t *testing.T, cfg *config.Config, owner ...ownerSettings) {
+	t.Helper()
+	db, err := store.Open(cfg.Runtime.StorageDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	service, err := settings.NewService(db, db, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := settings.Change{Set: map[string]json.RawMessage{}}
+	for _, o := range owner {
+		for key, value := range o {
+			change.Set[key] = json.RawMessage(value)
+		}
+	}
+	if _, err := service.Save(context.Background(), change, ""); err != nil {
+		t.Fatalf("save settings: %v", err)
+	}
 }
 
 // decideOverHTTP decides a pending action through the /v1 handler the way the
@@ -479,4 +508,45 @@ func chatContentText(content any) string {
 		}
 	}
 	return text.String()
+}
+
+// Approval rules are the owner's settings: a rule saved while Acorn serves
+// gates the next run without a restart.
+func TestApprovalRulesSavedWhileServingGateTheNextRun(t *testing.T) {
+	provider := &fakeOpenAI{replies: []string{
+		sseChunks(recallCallStream, toolCallsFinish),
+		sseChunks(doneContent, stopFinish),
+		sseChunks(recallCallStream, toolCallsFinish),
+	}}
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	ctx := context.Background()
+	c, err := NewContainer(ctx, writeTestConfig(t, server.URL, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	thread, err := c.threads.CreateThread(ctx, "rules")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := c.runs.CreateRun(ctx, thread.ID, "", "find probe", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitRunStatus(t, c, first.ID, "completed")
+	if _, err := c.Settings().Save(ctx, settings.Change{Set: map[string]json.RawMessage{
+		settings.KeyApprovalRequire: json.RawMessage(`["recall"]`),
+	}}, "device_test"); err != nil {
+		t.Fatal(err)
+	}
+	second, err := c.runs.CreateRun(ctx, thread.ID, "", "find probe again", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitRunStatus(t, c, second.ID, "interrupted")
+	actions, err := c.pendingAction.List(ctx, 10)
+	if err != nil || len(actions) != 1 || actions[0].Kind != "tool_approval" || actions[0].RunID != second.ID {
+		t.Fatalf("pending actions = %+v, %v", actions, err)
+	}
 }

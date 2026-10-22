@@ -14,6 +14,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
@@ -27,7 +28,7 @@ func TestWanderAdvancesEachConcernInTheConversationItCameFrom(t *testing.T) {
 	provider := &fakeOpenAI{}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+"owner:\n  timezone: Asia/Shanghai\nbriefing:\n  at: \"\"\nthinking:\n  night_at: \"\"\n  wander_at: [\"10:00\", \"15:00\"]\n")
+	cfg := writeTestConfig(t, server.URL, extra, ownerSettings{settings.KeyTimezone: `"Asia/Shanghai"`, settings.KeyBriefingAt: `""`, settings.KeyNightAt: `""`, settings.KeyWanderAt: `["10:00", "15:00"]`})
 	c := h.open(t, cfg)
 	defer c.Close()
 	client := newPairedClient(t, c)
@@ -138,7 +139,7 @@ func TestWanderDeliversAnOutcomeThatOnlyTheOwnerResolves(t *testing.T) {
 	provider := &fakeOpenAI{}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+fmt.Sprintf("workstation:\n  url: %s\n  token: %s\napproval:\n  require:\n    - shell\nowner:\n  timezone: Asia/Shanghai\nbriefing:\n  at: \"\"\nthinking:\n  night_at: \"\"\n  wander_at: [\"10:00\", \"15:00\"]\n", wsServer.URL, fileTestToken))
+	cfg := writeTestConfig(t, server.URL, extra+fmt.Sprintf("workstation:\n  url: %s\n  token: %s\n", wsServer.URL, fileTestToken), ownerSettings{settings.KeyTimezone: `"Asia/Shanghai"`, settings.KeyBriefingAt: `""`, settings.KeyNightAt: `""`, settings.KeyWanderAt: `["10:00", "15:00"]`}, ownerSettings{settings.KeyApprovalRequire: `["shell"]`})
 	c := h.open(t, cfg)
 	defer c.Close()
 	client := newPairedClient(t, c)

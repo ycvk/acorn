@@ -61,41 +61,51 @@ func (c *Config) EnabledProvider() (ProviderConfig, error) {
 	return enabled[0], nil
 }
 
-// ContextPolicy returns the configured context budgets after validation.
-func (c *Config) ContextPolicy() (ContextConfig, error) {
+// The parts of the context window kept out of the conversation.
+const (
+	// CompactMarginTokens is kept free when older turns are summarized.
+	CompactMarginTokens = 32000
+	// PresenceMaxTokens caps the <presence> block added before each call.
+	PresenceMaxTokens = 4000
+)
+
+// ContextWindow is the enabled model's context window: the model table's for
+// a known model, context_window_tokens for any other.
+func (c *Config) ContextWindow() (int, error) {
 	if c == nil {
-		return ContextConfig{}, errors.New("config is required")
+		return 0, errors.New("config is required")
 	}
-	if _, err := c.InputTokenBudget(); err != nil {
-		return ContextConfig{}, err
+	p, err := c.EnabledProvider()
+	if err != nil {
+		return 0, err
 	}
-	return c.Context, nil
+	if limits := modelLimitsFor(p.Model); limits.context > 0 {
+		return limits.context, nil
+	}
+	if p.ContextWindowTokens == nil {
+		return 0, fmt.Errorf("provider %s: context_window_tokens is required for %s", p.Name, p.Model)
+	}
+	return *p.ContextWindowTokens, nil
 }
 
 // InputTokenBudget reserves generated output and the ephemeral presence block
 // before applying the additional compaction margin.
 func (c *Config) InputTokenBudget() (int, error) {
-	if c == nil {
-		return 0, errors.New("config is required")
-	}
-	if err := c.validateContext(); err != nil {
+	window, err := c.ContextWindow()
+	if err != nil {
 		return 0, err
 	}
 	p, err := c.EnabledProvider()
 	if err != nil {
 		return 0, err
 	}
-	limits := modelLimitsFor(p.Model)
-	if limits.context > 0 && c.Context.WindowTokens > limits.context {
-		return 0, fmt.Errorf("context.window_tokens exceeds %s context window (%d)", p.Model, limits.context)
-	}
-	output := limits.output
+	output := modelLimitsFor(p.Model).output
 	if p.MaxOutputTokens != nil {
 		output = *p.MaxOutputTokens
 	}
-	budget := c.Context.WindowTokens - c.Context.CompactMarginTokens - c.Presence.MaxTokens - output
+	budget := window - CompactMarginTokens - PresenceMaxTokens - output
 	if budget <= 0 {
-		return 0, errors.New("context.window_tokens must leave input space after output, presence and compact_margin_tokens")
+		return 0, fmt.Errorf("the %d token context window of %s leaves no input space after output, presence and the compaction margin", window, p.Model)
 	}
 	return budget, nil
 }

@@ -35,9 +35,9 @@ func (e *Engine) Recall(ctx context.Context, q core.MemoryQuery) (core.MemoryRec
 		return out, errors.New("recall depth must be standard or deep")
 	}
 	if q.MaxTokens <= 0 {
-		q.MaxTokens = e.cfg.ContextTokens
+		q.MaxTokens = ContextTokens
 	}
-	q.MaxTokens = min(q.MaxTokens, e.cfg.ContextTokens)
+	q.MaxTokens = min(q.MaxTokens, ContextTokens)
 	if q.Limit <= 0 {
 		q.Limit = 20
 	}
@@ -233,7 +233,7 @@ func (e *Engine) rerank(ctx context.Context, query string, hits []core.MemoryHit
 		if err != nil {
 			return nil, err
 		}
-		if n > e.cfg.BatchTokens-128 {
+		if n > BatchTokens-128 {
 			break
 		}
 		input = data

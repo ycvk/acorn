@@ -102,7 +102,7 @@ func (s *Store) ClaimNewsBatch(ctx context.Context, now time.Time, lease time.Du
 	for _, it := range items {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO news_claims (item_id, token, lease_until, attempts) VALUES (?, ?, ?, 1)
-			 ON CONFLICT(item_id) DO UPDATE SET token = excluded.token, lease_until = excluded.lease_until, attempts = news_claims.attempts + 1`,
+			 ON CONFLICT(item_id) DO UPDATE SET token = excluded.token, lease_until = excluded.lease_until, attempts = news_claims.attempts + 1, error = ''`,
 			it.Item.ID, token, formatTimestamp(now.Add(lease))); err != nil {
 			return core.NewsBatch{}, fmt.Errorf("claim news item %d: %w", it.Item.ID, err)
 		}
@@ -261,8 +261,10 @@ func claimedNewsItems(ctx context.Context, tx *sql.Tx, token string) (map[int64]
 	return claimed, err
 }
 
+// DeferNewsBatch puts a batch the news budget ran out on back until until.
+// Its claims keep the budget error, so raising the budget releases them.
 func (s *Store) DeferNewsBatch(ctx context.Context, token string, until time.Time) error {
-	result, err := s.db.ExecContext(ctx, `UPDATE news_claims SET lease_until = ?, attempts = attempts - 1 WHERE token = ?`, formatTimestamp(until), token)
+	result, err := s.db.ExecContext(ctx, `UPDATE news_claims SET lease_until = ?, attempts = attempts - 1, error = ? WHERE token = ?`, formatTimestamp(until), core.ErrMemoryBudget.Error(), token)
 	if err != nil {
 		return fmt.Errorf("defer news batch: %w", err)
 	}

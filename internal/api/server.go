@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 type Dependencies struct {
@@ -19,6 +20,7 @@ type Dependencies struct {
 	Memories           *MemoryService
 	Persona            *PersonaService
 	Owner              *OwnerService
+	Settings           *settings.Service
 	Captures           *CaptureService
 	PhoneNotifications *PhoneNotificationService
 	Now                *NowService
@@ -41,6 +43,7 @@ type Server struct {
 	memories           *MemoryService
 	persona            *PersonaService
 	owner              *OwnerService
+	settings           *settings.Service
 	captures           *CaptureService
 	phoneNotifications *PhoneNotificationService
 	now                *NowService

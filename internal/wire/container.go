@@ -17,6 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/news"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/wake"
@@ -46,6 +47,7 @@ type Container struct {
 	memories           *api.MemoryService
 	persona            *api.PersonaService
 	owner              *api.OwnerService
+	settings           *settings.Service
 	captures           *api.CaptureService
 	phoneNotifications *api.PhoneNotificationService
 	now                *api.NowService
@@ -97,6 +99,11 @@ func (c *Container) Owner() *api.OwnerService {
 	return c.owner
 }
 
+// Settings reads and saves the owner's schedule, budgets and approval rules.
+func (c *Container) Settings() *settings.Service {
+	return c.settings
+}
+
 func (c *Container) Capabilities() *api.CapabilitiesService {
 	return c.capabilities
 }
@@ -128,6 +135,7 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		Memories:           c.memories,
 		Persona:            c.persona,
 		Owner:              c.owner,
+		Settings:           c.settings,
 		Captures:           c.captures,
 		PhoneNotifications: c.phoneNotifications,
 		Now:                c.now,
@@ -230,6 +238,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, options buildOption
 func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, clock func() time.Time) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
+		settings:      deps.settings,
 		memory:        deps.memory,
 		news:          deps.news,
 		clock:         clock,
@@ -281,18 +290,6 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	if container.now, err = api.NewNowService(db, clock); err != nil {
 		return nil, err
 	}
-	location, err := cfg.OwnerLocation()
-	if err != nil {
-		return nil, err
-	}
-	briefing, err := briefingSchedule(cfg)
-	if err != nil {
-		return nil, err
-	}
-	thinking, err := thinkingSchedule(cfg)
-	if err != nil {
-		return nil, err
-	}
 	container.wake, err = wake.NewScheduler(wake.Config{
 		Routines:           db,
 		PhoneNotifications: db,
@@ -310,12 +307,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Sorter:             deps.news,
 		Triggers:           db,
 		Clock:              clock,
-		Location:           location,
-		DailyLimit:         cfg.Wake.DailyLimit,
-		DailyTokens:        cfg.Wake.DailyTokens,
-		Thinking:           thinking,
-		MaxChecksPerTick:   cfg.Watch.MaxChecksPerTick,
-		Briefing:           briefing,
+		Settings:           deps.settings,
 		Backups:            backupStatus(cfg),
 		Interval:           wakeInterval,
 	})

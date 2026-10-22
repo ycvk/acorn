@@ -30,16 +30,23 @@ type Config struct {
 	Index     core.MemoryIndex
 	Count     func(context.Context, string) (int, error)
 	Clock     func() time.Time
-	Location  *time.Location
+	// Settings gives the owner's time zone and the memory and autonomous
+	// token budgets at each call.
+	Settings core.SettingsReader
 	// Owner says how extracted facts refer to the owner; an unnamed owner
 	// is "owner".
-	Owner            OwnerReader
-	DailyTokens      int
-	AutonomousTokens int
-	BatchTokens      int
-	ContextTokens    int
-	HistoryTokens    int
+	Owner OwnerReader
 }
+
+// Token limits of memory work.
+const (
+	// BatchTokens bounds the input of one memory model call.
+	BatchTokens = 8192
+	// ContextTokens bounds one automatic recall.
+	ContextTokens = 8192
+	// HistoryTokens bounds the recent thread text and summaries a run loads.
+	HistoryTokens = 65536
+)
 
 // OwnerReader reads what Acorn calls the owner.
 type OwnerReader interface {
@@ -49,23 +56,20 @@ type OwnerReader interface {
 type Engine struct{ cfg Config }
 
 func New(cfg Config) (*Engine, error) {
-	if cfg.Store == nil || cfg.Model == nil || cfg.Embedder == nil || cfg.Count == nil || cfg.Clock == nil || cfg.Location == nil || cfg.Owner == nil {
-		return nil, errors.New("memory requires store, model, embedder, token counter, clock, location and owner name reader")
+	if cfg.Store == nil || cfg.Model == nil || cfg.Embedder == nil || cfg.Count == nil || cfg.Clock == nil || cfg.Settings == nil || cfg.Owner == nil {
+		return nil, errors.New("memory requires store, model, embedder, token counter, clock, settings and owner name reader")
 	}
-	if cfg.Index.Model == "" || cfg.Index.Dimensions <= 0 || cfg.BatchTokens < 256 || cfg.ContextTokens < 256 || cfg.HistoryTokens < 256 {
-		return nil, errors.New("memory requires model names, embedding dimensions and positive token budgets")
-	}
-	if cfg.DailyTokens < 0 || cfg.AutonomousTokens < 0 {
-		return nil, errors.New("memory daily budgets must be >= 0")
+	if cfg.Index.Model == "" || cfg.Index.Dimensions <= 0 {
+		return nil, errors.New("memory requires model names and embedding dimensions")
 	}
 	return &Engine{cfg: cfg}, nil
 }
 
 func (e *Engine) Store() core.MemoryStore { return e.cfg.Store }
 
-func (e *Engine) midnight(now time.Time) time.Time {
-	local := now.In(e.cfg.Location)
-	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, e.cfg.Location)
+func midnight(now time.Time, loc *time.Location) time.Time {
+	local := now.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
 }
 
 type callScope struct {

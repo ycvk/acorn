@@ -13,6 +13,13 @@ const TokenEnv = "ACORN_WORKSTATION_TOKEN"
 // MinTokenLength rejects tokens too short to resist guessing.
 const MinTokenLength = 32
 
+// CommandTimeoutSeconds and CommandOutputBytes bound each shell command and
+// trigger run the backend sends.
+const (
+	CommandTimeoutSeconds = 300
+	CommandOutputBytes    = 32 << 10
+)
+
 const (
 	MaxTimeoutSeconds = 3600
 	MaxOutputBytes    = 1 << 20

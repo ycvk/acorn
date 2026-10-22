@@ -16,7 +16,7 @@ const (
 
 // briefingHealth lists the problems the owner should act on, for the morning
 // briefing; it is empty when everything is healthy.
-func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time) (string, error) {
+func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time, loc *time.Location) (string, error) {
 	var problems []string
 	if s.cfg.Backups != nil {
 		latest, err := s.cfg.Backups()
@@ -26,7 +26,7 @@ func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time) (string, 
 		case latest.IsZero():
 			problems = append(problems, "Backups: no snapshot has been taken yet; check acorn-backup.timer.")
 		case now.Sub(latest) > backupStaleAfter:
-			problems = append(problems, fmt.Sprintf("Backups: the newest snapshot is from %s, %d hours ago; check acorn-backup.timer.", latest.In(s.cfg.Location).Format("2006-01-02 15:04"), int(now.Sub(latest).Hours())))
+			problems = append(problems, fmt.Sprintf("Backups: the newest snapshot is from %s, %d hours ago; check acorn-backup.timer.", latest.In(loc).Format("2006-01-02 15:04"), int(now.Sub(latest).Hours())))
 		}
 	}
 	status, err := s.cfg.Memory.MemoryProcessingStatus(ctx)
@@ -37,7 +37,7 @@ func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time) (string, 
 		problems = append(problems, fmt.Sprintf("Memory processing: %d jobs failed after all retries; last error: %s", status.Failed, previewText(status.LastError, 300)))
 	}
 	if status.Pending > 0 && !status.Oldest.IsZero() && now.Sub(status.Oldest) > memoryStaleAfter {
-		line := fmt.Sprintf("Memory processing: %d jobs are waiting, the oldest since %s", status.Pending, status.Oldest.In(s.cfg.Location).Format("2006-01-02 15:04"))
+		line := fmt.Sprintf("Memory processing: %d jobs are waiting, the oldest since %s", status.Pending, status.Oldest.In(loc).Format("2006-01-02 15:04"))
 		if status.DailyTokenLimit > 0 {
 			line += fmt.Sprintf("; %d of the %d daily memory tokens are used", status.TokensToday, status.DailyTokenLimit)
 		}

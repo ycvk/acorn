@@ -229,26 +229,29 @@ func (p *recordingPusher) Send(_ context.Context, fid string, msg Message) error
 }
 
 type senderHarness struct {
-	store  *memNotifications
-	pusher *recordingPusher
-	sender *Sender
-	now    time.Time
+	store    *memNotifications
+	pusher   *recordingPusher
+	sender   *Sender
+	now      time.Time
+	settings core.Settings
 }
 
-func newSenderHarness(t *testing.T, quiet QuietHours) *senderHarness {
+func (h *senderHarness) Settings(context.Context) (core.Settings, error) { return h.settings, nil }
+
+func newSenderHarness(t *testing.T, quiet core.QuietHours) *senderHarness {
 	t.Helper()
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		t.Fatal(err)
 	}
 	h := &senderHarness{
-		store:  &memNotifications{fids: map[string]string{"dev_a": "fid_a"}},
-		pusher: &recordingPusher{errs: map[string]error{}},
-		now:    time.Date(2026, 10, 5, 4, 0, 0, 0, time.UTC), // 12:00 Shanghai
+		store:    &memNotifications{fids: map[string]string{"dev_a": "fid_a"}},
+		pusher:   &recordingPusher{errs: map[string]error{}},
+		now:      time.Date(2026, 10, 5, 4, 0, 0, 0, time.UTC), // 12:00 Shanghai
+		settings: core.Settings{Location: loc, MaxPushesPerHour: 2, QuietHours: quiet},
 	}
 	h.sender, err = NewSender(SenderConfig{
-		Store: h.store, Pusher: h.pusher, Clock: func() time.Time { return h.now },
-		Location: loc, MaxPerHour: 2, Quiet: quiet,
+		Store: h.store, Pusher: h.pusher, Clock: func() time.Time { return h.now }, Settings: h,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +259,7 @@ func newSenderHarness(t *testing.T, quiet QuietHours) *senderHarness {
 	return h
 }
 
-var overnight = QuietHours{Start: 23 * time.Hour, End: 8 * time.Hour}
+var overnight = core.QuietHours{Start: 23 * time.Hour, End: 8 * time.Hour}
 
 func TestNotifySendsNowAndEnforcesHourlyCap(t *testing.T) {
 	h := newSenderHarness(t, overnight)
@@ -270,9 +273,31 @@ func TestNotifySendsNowAndEnforcesHourlyCap(t *testing.T) {
 	if _, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"}); !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("third notify = %v, want rate limited", err)
 	}
+	h.settings.MaxPushesPerHour = 3
+	if _, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"}); err != nil {
+		t.Fatalf("notify after the owner raised the cap: %v", err)
+	}
 	h.now = h.now.Add(61 * time.Minute)
 	if _, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"}); err != nil {
 		t.Fatalf("notify after an hour: %v", err)
+	}
+}
+
+func TestNotifyReadsTheQuietHoursTheOwnerSavedLast(t *testing.T) {
+	h := newSenderHarness(t, overnight)
+	ctx := context.Background()
+	h.settings.QuietHours = core.QuietHours{Start: 11 * time.Hour, End: 13 * time.Hour}
+	n, err := h.sender.Notify(ctx, core.Notification{Title: "午间", Body: "b"})
+	if err != nil || n.Status != core.NotificationQueued {
+		t.Fatalf("notify at 12:00 inside the new window = %+v err=%v", n, err)
+	}
+	if want := time.Date(2026, 10, 5, 5, 0, 0, 0, time.UTC); !n.SendAfter.Equal(want) {
+		t.Fatalf("send after = %v, want 13:00 Shanghai %v", n.SendAfter, want)
+	}
+	h.settings.Location = time.UTC
+	n, err = h.sender.Notify(ctx, core.Notification{Title: "UTC", Body: "b"})
+	if err != nil || n.Status != core.NotificationSent {
+		t.Fatalf("notify at 04:00 UTC outside the window = %+v err=%v", n, err)
 	}
 }
 
@@ -303,7 +328,7 @@ func TestQuietHoursWindows(t *testing.T) {
 	loc := time.UTC
 	at := func(h, m int) time.Time { return time.Date(2026, 10, 5, h, m, 0, 0, loc) }
 	for _, tc := range []struct {
-		q       QuietHours
+		q       core.QuietHours
 		t       time.Time
 		quiet   bool
 		endHour int
@@ -311,11 +336,11 @@ func TestQuietHoursWindows(t *testing.T) {
 		{overnight, at(23, 0), true, 8},
 		{overnight, at(7, 59), true, 8},
 		{overnight, at(8, 0), false, 0},
-		{QuietHours{Start: 13 * time.Hour, End: 14 * time.Hour}, at(13, 30), true, 14},
-		{QuietHours{Start: 13 * time.Hour, End: 14 * time.Hour}, at(14, 0), false, 0},
-		{QuietHours{}, at(3, 0), false, 0},
+		{core.QuietHours{Start: 13 * time.Hour, End: 14 * time.Hour}, at(13, 30), true, 14},
+		{core.QuietHours{Start: 13 * time.Hour, End: 14 * time.Hour}, at(14, 0), false, 0},
+		{core.QuietHours{}, at(3, 0), false, 0},
 	} {
-		end, quiet := tc.q.endAfter(tc.t)
+		end, quiet := quietEnd(tc.q, tc.t)
 		if quiet != tc.quiet || (quiet && end.Hour() != tc.endHour) {
 			t.Fatalf("%v at %v: quiet=%v end=%v", tc.q, tc.t, quiet, end)
 		}
@@ -323,7 +348,7 @@ func TestQuietHoursWindows(t *testing.T) {
 }
 
 func TestNotifyFailsWithoutDevices(t *testing.T) {
-	h := newSenderHarness(t, QuietHours{})
+	h := newSenderHarness(t, core.QuietHours{})
 	h.store.fids = map[string]string{}
 	if _, err := h.sender.Notify(context.Background(), core.Notification{Title: "t", Body: "b"}); !errors.Is(err, ErrNoPushInstallation) {
 		t.Fatalf("err = %v", err)
@@ -331,7 +356,7 @@ func TestNotifyFailsWithoutDevices(t *testing.T) {
 }
 
 func TestDeliverDropsUnregisteredInstallations(t *testing.T) {
-	h := newSenderHarness(t, QuietHours{})
+	h := newSenderHarness(t, core.QuietHours{})
 	ctx := context.Background()
 	h.store.fids["dev_b"] = "fid_b"
 	h.pusher.errs["fid_a"] = ErrUnregistered

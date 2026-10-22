@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -31,7 +32,7 @@ func openTestVault(t *testing.T) *testVault {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	tv.db = db
-	v, err := NewVault(VaultConfig{Store: db, StorageDir: tv.dir, Clock: func() time.Time { return tv.now }, Location: shanghai})
+	v, err := NewVault(VaultConfig{Store: db, StorageDir: tv.dir, Clock: func() time.Time { return tv.now }, Settings: settings.Fixed(core.Settings{Location: shanghai})})
 	if err != nil {
 		t.Fatal(err)
 	}

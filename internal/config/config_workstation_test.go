@@ -7,24 +7,11 @@ import (
 	"testing"
 )
 
-func TestValidateBaseRejectsInvalidWorkstationSettings(t *testing.T) {
-	token := strings.Repeat("t", 32)
-	for _, tc := range []struct {
-		name   string
-		mutate func(*Config)
-		want   string
-	}{
-		{"timeout", func(c *Config) { c.Workstation.CommandTimeoutSeconds = 0 }, "workstation.command_timeout_seconds"},
-		{"output", func(c *Config) { c.Workstation.MaxOutputBytes = 10 }, "workstation.max_output_bytes"},
-		{"url", func(c *Config) { c.Workstation.URL = "127.0.0.1:7810"; c.Workstation.Token = token }, "workstation.url"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := defaultConfig()
-			tc.mutate(cfg)
-			if err := cfg.ValidateBase(); err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("ValidateBase() = %v, want %q", err, tc.want)
-			}
-		})
+func TestValidateBaseRejectsAWorkstationAddressWithoutScheme(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Workstation.URL, cfg.Workstation.Token = "127.0.0.1:7810", strings.Repeat("t", 32)
+	if err := cfg.ValidateBase(); err == nil || !strings.Contains(err.Error(), "workstation.url") {
+		t.Fatalf("ValidateBase() = %v", err)
 	}
 }
 
@@ -59,7 +46,7 @@ func TestLoadExpandsWorkstationToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Workstation.Token != token || cfg.Workstation.CommandTimeoutSeconds != 300 || cfg.Workstation.MaxOutputBytes != 32768 {
+	if cfg.Workstation.Token != token {
 		t.Fatalf("workstation = %+v", cfg.Workstation)
 	}
 }

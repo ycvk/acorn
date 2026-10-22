@@ -31,6 +31,17 @@ type agentRunnerRequest struct {
 	FailedCalls *failedToolCalls
 }
 
+// The run's agent.
+const (
+	agentName        = "acorn"
+	agentDescription = "Self-hosted personal agent that works on its owner's behalf and asks for approval before sensitive actions."
+	// maxIterations bounds the model calls of one run.
+	maxIterations = 100
+	// maskAfterTurns is how many of the most recent tool-call rounds stay
+	// verbatim when older tool results are cleared to save context.
+	maskAfterTurns = 8
+)
+
 // buildAgentRunner assembles the per-run ChatModelAgent. Context management,
 // deferred tool discovery and approvals are middleware; checkpoints persist
 // through the session store so interrupted runs resume after a restart.
@@ -48,8 +59,8 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 		return nil, err
 	}
 	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
-		Name:        deps.Config.Agent.Name,
-		Description: deps.Config.Agent.Description,
+		Name:        agentName,
+		Description: agentDescription,
 		Instruction: req.Instruction,
 		Model:       req.ChatModel,
 		ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{
@@ -57,7 +68,7 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 			ExecuteSequentially: true,
 			UnknownToolsHandler: unknownToolResult,
 		}},
-		MaxIterations:    deps.Config.Agent.MaxIterations,
+		MaxIterations:    maxIterations,
 		Handlers:         handlers,
 		ModelRetryConfig: modelRetryConfig(),
 	})
@@ -139,7 +150,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	reduce, err := reduction.NewTyped[*schema.AgenticMessage](ctx, &reduction.TypedConfig[*schema.AgenticMessage]{
 		SkipTruncation:            true,
 		MaxTokensForClear:         int64(inputBudget * 3 / 4),
-		ClearRetentionSuffixLimit: deps.Config.Context.MaskAfterTurns,
+		ClearRetentionSuffixLimit: maskAfterTurns,
 		TokenCounter: func(ctx context.Context, msgs []*schema.AgenticMessage, tools []*schema.ToolInfo) (int64, error) {
 			n, err := counter.CountMessages(ctx, msgs, tools)
 			return int64(n), err
@@ -148,11 +159,15 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, fmt.Errorf("reduction middleware: %w", err)
 	}
-	approval, err := newApprovalMiddleware(deps.Config.Approval, deps.Reviewer, deps.Store)
+	settings, err := deps.Settings.Settings(ctx)
 	if err != nil {
 		return nil, err
 	}
-	present, err := newPresenceMiddleware(deps, counter, req.RunID)
+	approval, err := newApprovalMiddleware(settings.Approval, deps.Reviewer, deps.Store)
+	if err != nil {
+		return nil, err
+	}
+	present, err := newPresenceMiddleware(deps, counter, req.RunID, settings.Location)
 	if err != nil {
 		return nil, err
 	}

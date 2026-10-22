@@ -16,6 +16,15 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
+// The limits of Acorn's outbound requests.
+const (
+	UserAgent        = "Acorn/0.x (+https://github.com/ycvk/acorn)"
+	FetchTimeout     = 20 * time.Second
+	MaxResponseBytes = 10 << 20
+	SearchTimeout    = 10 * time.Second
+	SearchMaxResults = 10
+)
+
 type FetchConfig struct {
 	UserAgent        string
 	Timeout          time.Duration

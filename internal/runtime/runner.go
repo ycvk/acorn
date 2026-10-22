@@ -135,9 +135,8 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.Activity == nil || opts.MemoryStore == nil || opts.Commitments == nil || opts.PhoneNotifications == nil || opts.Clock == nil {
 		return RuntimeDeps{}, errors.New("presence, phone notifications and clock are required")
 	}
-	location, err := cfg.OwnerLocation()
-	if err != nil {
-		return RuntimeDeps{}, err
+	if opts.Settings == nil {
+		return RuntimeDeps{}, errors.New("settings are required")
 	}
 	return RuntimeDeps{
 		Config:             cfg,
@@ -163,7 +162,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		Workstation:        opts.Workstation,
 		Reviewer:           opts.Reviewer,
 		Clock:              opts.Clock,
-		Location:           location,
+		Settings:           opts.Settings,
 	}, nil
 }
 
@@ -291,6 +290,7 @@ type RunnerFactoryOptions struct {
 	// Reviewer judges calls the approval rules leave open; nil turns review off.
 	Reviewer ActionReviewer
 	Clock    func() time.Time
+	Settings core.SettingsReader
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
@@ -351,6 +351,7 @@ const operatingRules = `Operating rules:
 - For a real browser, load the browser skill: the workstation has its own Chromium, and the owner can sign in to sites in it from their phone.
 - When an answer is several items with the same fields, or numbers worth comparing, load the views skill and show them as a view under your reply instead of a long Markdown table.
 - Some calls pause for the owner's approval on their phone: tools their rules name, and commands or browser actions with consequences outside the workstation, such as paying, sending, deleting or changing settings. Say what you are about to do before such a call. Do not retry a call the owner declined or the rules blocked.
+- The owner's time zone, the times of the morning briefing and the reflections, push quiet hours, daily budgets and approval rules are the owner's settings, which only the owner changes: in the app's settings, or with acorn settings on the server. When the owner asks you to change one, tell them where it is.
 - Prefer available MCP tools over inventing capabilities, and never claim a tool succeeded when it did not run.`
 
 // ownerIdentity ties the name the owner saved to the owner, so sources that

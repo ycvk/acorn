@@ -13,21 +13,12 @@ import (
 // `acorn workstation serve` inside its own container. An empty URL turns the
 // shell and files tools off; the token expands environment variables.
 type WorkstationConfig struct {
-	URL                   string `yaml:"url"`
-	Token                 string `yaml:"token"`
-	CommandTimeoutSeconds int    `yaml:"command_timeout_seconds"`
-	MaxOutputBytes        int    `yaml:"max_output_bytes"`
+	URL   string `yaml:"url"`
+	Token string `yaml:"token"`
 }
 
 func (c *Config) validateWorkstation() error {
-	w := c.Workstation
-	if w.CommandTimeoutSeconds < 1 || w.CommandTimeoutSeconds > workstation.MaxTimeoutSeconds {
-		return fmt.Errorf("workstation.command_timeout_seconds must be between 1 and %d", workstation.MaxTimeoutSeconds)
-	}
-	if w.MaxOutputBytes < 1024 || w.MaxOutputBytes > workstation.MaxOutputBytes {
-		return fmt.Errorf("workstation.max_output_bytes must be between 1024 and %d", workstation.MaxOutputBytes)
-	}
-	base := strings.TrimSpace(w.URL)
+	base := strings.TrimSpace(c.Workstation.URL)
 	if base == "" {
 		return nil
 	}

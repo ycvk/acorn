@@ -61,6 +61,10 @@ func buildFeedDiscoverTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				return FeedDiscoverOutput{}, fmt.Errorf("feed_discover: %w", err)
 			}
 			out := FeedDiscoverOutput{Feeds: make([]DiscoveredFeedOutput, 0, len(found.Feeds)), Tried: found.Tried}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return FeedDiscoverOutput{}, fmt.Errorf("feed_discover: %w", err)
+			}
 			for _, f := range found.Feeds {
 				// A feed on the owner's RSSHub is named by its route, as watches take it.
 				url := f.URL
@@ -72,7 +76,7 @@ func buildFeedDiscoverTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 					PerDay: math.Round(f.PerDay*100) / 100, Samples: f.Samples,
 				}
 				if !f.Latest.IsZero() {
-					feed.Latest = f.Latest.In(deps.Location).Format(localTimeLayout)
+					feed.Latest = f.Latest.In(loc).Format(localTimeLayout)
 				}
 				out.Feeds = append(out.Feeds, feed)
 			}

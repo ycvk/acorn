@@ -75,11 +75,11 @@ Set `providers[].api` to `responses`, `chat_completions`, or `anthropic`. The de
 | `claude-opus-5-5` | `anthropic` | 1000000 | 128000 | low, medium, high, xhigh, max |
 | `grok-4.7` | `responses` | 500000 | 128000 | low, medium, high, xhigh |
 
-Set `context.window_tokens` to the chosen model's context window and `providers[].max_output_tokens` to the desired output budget. Grok's 128000 is a working budget; its published contract has no separate text output limit. Anthropic requires an explicit output budget. Astra and Opus use their model-native sampling: omit `temperature`. Other models can specify it, including an explicit zero. Unlisted model IDs use the owner's configured context and output values.
+A model in the table uses its context window from the table. Any other model ID needs `providers[].context_window_tokens`, its context window; a model in the table refuses it. Set `providers[].max_output_tokens` to the desired output budget. Grok's 128000 is a working budget; its published contract has no separate text output limit. Anthropic requires an explicit output budget. Astra and Opus use their model-native sampling: omit `temperature`. Other models can specify it, including an explicit zero.
 
-`context.compact_margin_tokens` defaults to 32000 and `mask_after_turns` to 8. Before compaction, Acorn reserves output tokens, the presence block and the additional margin from the context window. Known models reserve their output limit when `max_output_tokens` is omitted. Tool results are cleared at three quarters of that input budget. Token estimates use `o200k_base`; they approximate other providers.
+Before compaction, Acorn reserves the output tokens, the 4000-token presence block and a 32000-token margin from the context window. Known models reserve their output limit when `max_output_tokens` is omitted. Tool results are cleared at three quarters of that input budget, keeping the latest eight rounds of tool calls. Token estimates use `o200k_base`; they approximate other providers.
 
-`runtime.run_timeout_seconds` and provider `timeout_seconds` default to 0, which leaves the total duration unrestricted. `idle_timeout_seconds` defaults to 300 and resets when response data arrives; 0 disables it. Runs remain cancellable from the app, and `agent.max_iterations` defaults to 100. `wake.daily_tokens: 0` leaves the autonomous token budget unrestricted; `wake.daily_limit` still limits the number of autonomous wakes.
+Provider `timeout_seconds` defaults to 0, which leaves the total duration of a model call unrestricted. `idle_timeout_seconds` defaults to 300 and resets when response data arrives; 0 disables it. A run has no total time limit, makes at most 100 model calls and can be stopped from the app.
 
 The provider output setting is `max_output_tokens`. Update the YAML before starting this version. Complete pending runs before upgrading the runtime so every resumed checkpoint uses the current AgenticMessage format.
 
@@ -97,10 +97,6 @@ The defaults use `voyage-4` with 1024 dimensions:
 
 ```yaml
 memory:
-  daily_tokens: 100000
-  batch_tokens: 8192
-  context_tokens: 8192
-  history_tokens: 32768
   embedding:
     base_url: https://api.voyageai.com/v1
     api_key: ${VOYAGE_API_KEY}
@@ -108,7 +104,7 @@ memory:
     dimensions: 1024
 ```
 
-`daily_tokens` bounds background memory processing; 0 is unlimited. Processing pauses until the next owner-local day when its budget is exhausted. Run-time retrieval, thread summaries and compaction are recorded against that run. `acorn doctor` shows pending and failed processing, oldest queued work, the last completed job, the index generation and its state. A missing model or Voyage key leaves pairing and diagnostics available while execution reports its readiness error.
+The `memory.daily_tokens` [setting](#settings) bounds background memory processing; 0 is unlimited. Processing pauses until the next owner-local day when its budget is exhausted; raising the budget or lifting its cap puts that day's deferred work back in line. Run-time retrieval, thread summaries and compaction are recorded against that run. `acorn doctor` shows pending and failed processing, oldest queued work, the last completed job, the index generation and its state. A missing model or Voyage key leaves pairing and diagnostics available while execution reports its readiness error.
 
 An existing installer environment file is preserved; add `VOYAGE_API_KEY` to it before enabling execution.
 
@@ -166,10 +162,10 @@ The installed service uses:
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
-- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories, knowledge notes, skills and the persona, and images shared from the phone under `attachments/`.
+- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories, knowledge notes, skills, the persona and your settings, and images shared from the phone under `attachments/`.
 - `127.0.0.1:8080` for the HTTP listener.
 
-The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
+The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn skills`, `acorn settings` and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
 
 If you intentionally serve directly on a trusted private interface, edit `~/.acorn/acorn.yaml` and set:
 
@@ -308,7 +304,7 @@ sudo systemctl restart acorn
 
 `EXA_API_KEY` is optional at backend startup. Without a key `web_search` is disabled; `acorn doctor` lists each disabled tool with the missing setting. `web_fetch` does not require Exa.
 
-## 9. Persona, Timezone and Commitments
+## 9. Persona, Settings and Commitments
 
 The persona is who the agent is and how it talks to you. It lives in the database: the first start saves a default persona as revision 1, and every run reads the current revision when it starts. In the app, Settings → 人格 shows the persona and its history: edit it there, compare any revision with the current one, or restore it. Restoring saves that revision's content as a new revision. On the server, show it or replace it with the contents of a file:
 
@@ -331,21 +327,39 @@ acorn owner show
 
 The name tells the agent it is you when shared material, notifications or memories name you, and facts it learns about you are written with it. It holds at most 40 characters on one line; `acorn owner set ""` leaves you unnamed, and the app asks again the next time it opens. The next conversation uses a new name; facts already written keep theirs.
 
-Set your timezone so the agent reads and schedules times the way you say them:
+### Settings
 
-```yaml
-owner:
-  timezone: Asia/Shanghai   # IANA name; default UTC
+Your time zone, the times of the morning briefing and the reflections, push quiet hours, daily budgets and approval rules are settings. They live in the database, and only you change them: in the app under 设置 → 作息、预算与审批, where each one says what it does and each budget shows what it used today, or on the server with `acorn settings`. A change applies at its next use without a restart: the scheduler's next check, the next run, the next push or the next model call in the background.
+
+| Setting | What it does | Default |
+| --- | --- | --- |
+| `owner.timezone` | IANA time zone for showing times, counting a day's budgets and reading times you give such as "8 tomorrow" | UTC |
+| `briefing.at` | Morning briefing time; empty turns it off | 08:00 |
+| `thinking.night_at` | Night reflection time; empty turns it off | 03:00 |
+| `thinking.wander_at` | Idle thought times, up to six | none |
+| `notify.quiet_hours` | Pushes inside this window wait until it ends | 23:00–08:00 |
+| `notify.max_per_hour` | Pushes allowed in any hour | 6 |
+| `wake.daily_limit` | Autonomous wakes per day; 0 turns them off | 20 |
+| `wake.daily_tokens` | Tokens autonomous wakes may use per day; 0 means no cap | 0 |
+| `memory.daily_tokens` | Tokens background memory work may use per day; 0 means no cap | 100000 |
+| `news.daily_tokens` | Tokens sorting news may use per day; 0 means no cap | 100000 |
+| `approval.block` | Tools refused outright | none |
+| `approval.require` | Tools that wait for your approval each time | `mcp__*`, `skill_write`, `skill_import`, `skill_retire` |
+| `approval.allow` | Tools that run without review | none |
+
+```bash
+acorn settings show
+acorn settings set owner.timezone Asia/Shanghai
+acorn settings set thinking.wander_at 10:00 15:00
+acorn settings set notify.quiet_hours 23:00 08:00
+acorn settings reset news.daily_tokens
 ```
 
-When you ask for something later ("remind me in three days to read X"), the agent makes a commitment with `schedule_wake`. The backend wakes it at that time in the same thread, also after a restart. Related limits, shown with their defaults:
+A list takes any number of values, and none empties it; quiet hours take a start and an end, or nothing to turn them off; `acorn settings set briefing.at ""` turns the briefing off. `acorn settings show` marks the settings at their default, which follow the default of the version you run, and shows what each budget used today. Moving a time to earlier today runs that routine at the scheduler's next check if it has not run today. On the day you change the time zone, a daily budget or routine can count one day more or less. The agent cannot change settings; asked to, it tells you where they are.
 
-```yaml
-presence:
-  max_tokens: 4000   # size of the working-memory block in each model call
-wake:
-  daily_limit: 20    # commitment wakes per local day; 0 turns them off
-```
+### Commitments
+
+When you ask for something later ("remind me in three days to read X"), the agent makes a commitment with `schedule_wake`. The backend wakes it at that time in the same thread, also after a restart. These wakes count toward `wake.daily_limit` and `wake.daily_tokens`.
 
 ## 10. Push Notifications
 
@@ -360,11 +374,9 @@ The agent reaches you with `notify_owner` through Firebase Cloud Messaging. With
    notify:
      fcm:
        service_account_file: fcm-service-account.json   # relative to the config directory
-     max_per_hour: 6
-     quiet_hours:
-       start: "23:00"
-       end: "08:00"
    ```
+
+   The hourly cap and quiet hours are the `notify.max_per_hour` and `notify.quiet_hours` [settings](#settings).
 
 5. Build the app with your Firebase values in `mobile-kotlin/local.properties`, then install that APK:
 
@@ -385,19 +397,27 @@ A run you start from the phone shows as a silent ongoing notification while it r
 
 ## 11. Config Migration
 
-Config is parsed strictly: unknown keys stop the backend. When upgrading from a release before the personal-agent rework, remove these keys from `~/.acorn/acorn.yaml`:
+Config is parsed strictly: unknown keys stop the backend, and the error names each with its line. `acorn` commands read the same file and stop the same way, and the installer keeps an existing config as it is. When an upgrade stops on old keys:
+
+1. Stop Acorn with `sudo systemctl stop acorn`. systemd restarts a failed service every few seconds, so otherwise it starts with default settings as soon as the file loads.
+2. Note the values of the settings below that you changed from their defaults.
+3. Remove the old keys from `~/.acorn/acorn.yaml`.
+4. Save the noted values with `acorn settings set`, for example `acorn settings set owner.timezone Asia/Singapore`.
+5. Start Acorn with `sudo systemctl start acorn` and run `acorn doctor`.
+
+Keys that are now [settings](#settings): the whole `owner`, `briefing`, `thinking`, `wake`, `news` and `approval` blocks, `memory.daily_tokens`, `notify.max_per_hour` and `notify.quiet_hours`.
+
+Keys whose numbers are now built in: the whole `presence`, `context` and `agent` blocks, `runtime.run_timeout_seconds`, `memory.batch_tokens`, `memory.context_tokens`, `memory.history_tokens`, `watch.max_checks_per_tick`, `workstation.command_timeout_seconds`, `workstation.max_output_bytes`, and under `web_access` the keys `user_agent`, `timeout_seconds`, `max_response_bytes`, `search.timeout_seconds` and `search.max_results`. A model outside the [model table](#model-configuration) needs `providers[].context_window_tokens`.
+
+Keys of earlier releases:
 
 - `agent.system_prompt` (put lasting instructions in the persona)
-- the whole `memory` block
 - the whole `triggers` block (webhooks and crons; ask the agent for a recurring commitment instead)
 - `tools.mutation` and `tools.run_command`
-- `context.preserve_recent_turns`
-- `mcp.providers[].tool_safety` (use `approval.require`)
+- `mcp.providers[].tool_safety` (use the `approval.require` setting)
 - the whole `browser` block (the workstation runs the browser)
 - the whole `skills` block (skills live in the database)
 - `owner.name` (set it in the app or with `acorn owner set`)
-
-New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`, `approval.block`, `approval.allow`, `review.*`. Then run `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/`) is no longer read. Delete it once you no longer need it.
 
@@ -435,15 +455,12 @@ Tap the pin on a view to keep it on the Today page as a panel; a tap on the pane
 
 Ask the agent to keep an eye on something and it creates a watch: "follow the Go blog", "tell me when golang/go has a new release", "watch the price on this page and tell me right away when it drops". The backend checks each watch on its own schedule (hourly by default, at least every 15 minutes) and only involves the model when something is new. The first check of a watch is the baseline, so what is already there is not reported.
 
-Every morning with something to say, the agent writes a briefing in the Briefings conversation, shows it on the 今天 tab, and pushes a short summary. Items of your watches take turns for the briefing's 100 places, so one busy watch cannot crowd out the others; the rest wait for the next morning. It covers today's commitments, what it remembered from you since the last briefing, facts that take effect this week, last night's reflection, notes written since then, what changed on your watches, and phone notifications worth acting on. A morning with none of that is skipped: no briefing, no push, and the 今天 tab keeps showing the latest one. When something needs your attention on the server — no recent backup, memory jobs that failed after all retries, or memory jobs waiting for more than a day — the briefing says so with a suggested check; on a healthy server it says nothing about it. Watches you asked to hear about right away wake the agent in the conversation where you set them up instead; those wakes count toward `wake.daily_limit`, and changes past the limit wait for the briefing.
+Every morning with something to say, the agent writes a briefing in the Briefings conversation, shows it on the 今天 tab, and pushes a short summary. Items of your watches take turns for the briefing's 100 places, so one busy watch cannot crowd out the others; the rest wait for the next morning. It covers today's commitments, what it remembered from you since the last briefing, facts that take effect this week, last night's reflection, notes written since then, what changed on your watches, and phone notifications worth acting on. A morning with none of that is skipped: no briefing, no push, and the 今天 tab keeps showing the latest one. When something needs your attention on the server — no recent backup, memory jobs that failed after all retries, or memory jobs waiting for more than a day — the briefing says so with a suggested check; on a healthy server it says nothing about it. Watches you asked to hear about right away wake the agent in the conversation where you set them up instead; those wakes count toward `wake.daily_limit`, and changes past the limit wait for the briefing. The briefing comes at the `briefing.at` [setting](#settings) in your time zone.
 
 ```yaml
-briefing:
-  at: "08:00"                 # owner.timezone; empty turns the briefing off
 watch:
   rsshub_base_url: http://127.0.0.1:1200   # for rsshub:/route watches
   github_token: ${GITHUB_TOKEN}            # optional; raises GitHub's limit of 60 requests an hour
-  max_checks_per_tick: 5
 ```
 
 Sources a watch can follow:
@@ -467,14 +484,7 @@ A watch that keeps failing (five times in a row) is marked failing and listed in
 
 Ask the agent for the news you want each morning, for example "国内要闻、国际与财经、AI 与科技前沿，每天十条左右". It sets up sections with `news_sections`, each with a few lines of what you want from it, most important first, and adds news sources under them: watches in `news` mode. A source whose entries are issues, such as a daily AI digest, is marked as one.
 
-In the background Acorn sorts what the sources publish into stories: each item gets a score from 1 to 5 for general importance and fit with its section, reports of the same event from different sources share a story, and each piece of news on an issue's page becomes an item of its own. Sorting calls the model and counts against its own daily budget:
-
-```yaml
-news:
-  daily_tokens: 100000   # 0 means no cap
-```
-
-Once the budget is spent, items wait for the next local day. Before each briefing the backend checks every news source again and waits for the sorting to catch up, then offers the model the stories with new items since the last briefing, by section and highest score first, with the previous briefing. The briefing opens with about ten stories across the sections, each a title, one sentence and a link, then 今日关注 with the three that matter most; the push carries those three. Stories it did not pick are dropped, and a story told the day before comes back only with something new. Ask "最近 AI 圈有什么" or "那个停火谈判后来怎样" in any conversation and the agent answers from the stories of the last two weeks with `news_search`. Items older than two weeks keep only what tells them apart, so a feed that still lists them does not bring them back. News sources are not part of memory, and the morning briefing lists items the sorting gave up on under System health.
+In the background Acorn sorts what the sources publish into stories: each item gets a score from 1 to 5 for general importance and fit with its section, reports of the same event from different sources share a story, and each piece of news on an issue's page becomes an item of its own. Sorting calls the model and counts against its own daily budget, the `news.daily_tokens` [setting](#settings). Once the budget is spent, items wait for the next local day; raising the budget or lifting its cap sorts them the same day. Before each briefing the backend checks every news source again and waits for the sorting to catch up, then offers the model the stories with new items since the last briefing, by section and highest score first, with the previous briefing. The briefing opens with about ten stories across the sections, each a title, one sentence and a link, then 今日关注 with the three that matter most; the push carries those three. Stories it did not pick are dropped, and a story told the day before comes back only with something new. Ask "最近 AI 圈有什么" or "那个停火谈判后来怎样" in any conversation and the agent answers from the stories of the last two weeks with `news_search`. Items older than two weeks keep only what tells them apart, so a feed that still lists them does not bring them back. News sources are not part of memory, and the morning briefing lists items the sorting gave up on under System health.
 
 A new news source starts on trial: Acorn fetches and sorts it, but the briefing leaves it out. Every Sunday night, and on the night a trial source finishes its first week, the night reflection looks at each source's last seven days: items a day, average score, how many scored 4 or 5, how many shared a story with another source, and how many a briefing linked. The agent proposes taking a trial source in or stopping one the briefing takes, and each such change waits for your approval in the app. Ask in any conversation to try a source and it is added on trial; ask to take it in and you approve it once.
 
@@ -530,9 +540,9 @@ The installer installs Podman, builds the image from the release's `workstation/
 workstation:
   url: http://127.0.0.1:7810            # empty turns shell and files off
   token: ${ACORN_WORKSTATION_TOKEN}
-  command_timeout_seconds: 300          # longest a command may run; 1 to 3600
-  max_output_bytes: 32768               # per command; long output keeps its start and end
 ```
+
+A command may run for 300 seconds; output past 32 KiB keeps its start and end.
 
 Files under `/home/agent` live in the `acorn-workstation-home` volume and survive upgrades; `acorn backup` does not include them. Packages installed with `apt` are lost when the image is rebuilt. `acorn doctor` shows whether the workstation answers. To start over with an empty home:
 
@@ -586,7 +596,7 @@ Unknown fields are rejected. When the agent writes or imports such a package, th
 
 While the skill is in use, its MCP server runs on the workstation, restarts when the skill gets a new revision and stops when the skill is retired; its tools are named `mcp__<skill>__<tool>` and appear only in runs that have the skill. Like any MCP tool they meet your approval rules first, so with the default `mcp__*` in `require` every call waits for your approval. A package with an MCP server cannot take the name of a provider in `mcp.providers`, and Acorn refuses to start when you later add a provider named like one.
 
-A trigger's command runs at each time of its schedule, bounded by `workstation.command_timeout_seconds`. Each line it prints is an event, `{"key": "...", "text": "..."}`, a news item for the news source that follows the trigger, `{"item": {"key": "...", "title": "...", "url": "...", "summary": "...", "published": "..."}}`, or data for the pinned views that name the trigger as their source, `{"view_data": {...}}`; printing nothing means nothing happened, and the model is not called. Acorn handles each key of a trigger once, so the command can print everything it still sees and only new keys count. Put the deterministic check in the command: compare the price with a threshold, list the items not seen yet. Events of an `immediate` trigger start a run in the package's own conversation, named after the skill, and the agent loads the skill to handle them; these runs count toward `wake.daily_limit` and `wake.daily_tokens`, and events over the limit, or whose run could not start, go to the next morning briefing. Events of a `digest` trigger only go to the briefing. Events are kept as external sources the agent can cite; like phone notifications, nothing in them changes the agent's rules. A trigger whose command fails five times in a row is listed under System health in the briefing and retries after a growing wait. Retiring the skill stops its triggers.
+A trigger's command runs at each time of its schedule, bounded by the 300 seconds a command may run. Each line it prints is an event, `{"key": "...", "text": "..."}`, a news item for the news source that follows the trigger, `{"item": {"key": "...", "title": "...", "url": "...", "summary": "...", "published": "..."}}`, or data for the pinned views that name the trigger as their source, `{"view_data": {...}}`; printing nothing means nothing happened, and the model is not called. Acorn handles each key of a trigger once, so the command can print everything it still sees and only new keys count. Put the deterministic check in the command: compare the price with a threshold, list the items not seen yet. Events of an `immediate` trigger start a run in the package's own conversation, named after the skill, and the agent loads the skill to handle them; these runs count toward `wake.daily_limit` and `wake.daily_tokens`, and events over the limit, or whose run could not start, go to the next morning briefing. Events of a `digest` trigger only go to the briefing. Events are kept as external sources the agent can cite; like phone notifications, nothing in them changes the agent's rules. A trigger whose command fails five times in a row is listed under System health in the briefing and retries after a growing wait. Retiring the skill stops its triggers.
 
 `secrets` lists environment variables the package needs. Set each on the skill's page in the app, under 密钥, or on the server, where the value is read from standard input or typed without echo:
 
@@ -600,22 +610,9 @@ Secrets are write-only: the app shows which ones are set, never a value, and can
 
 ### Approval Rules and Action Review
 
-Every tool call meets your rules first. They are tool-name glob patterns in `~/.acorn/acorn.yaml`:
+Every tool call meets your rules first. They are tool-name glob patterns in three [settings](#settings): `approval.require` pauses a call for your approval on the phone, `approval.block` never runs it and tells the agent the rules refused it, and `approval.allow` runs it without review. `block` wins over `require`, and `require` over `allow`; `require` and `block` cannot match `ask_operator`, which already waits for you. In the app you pick tools from the list or type a pattern. A change applies from the next run.
 
-```yaml
-approval:
-  require:          # pause for your approval on the phone
-    - "mcp__*"
-    - skill_write
-    - skill_import
-    - skill_retire
-  block: []         # never run; the agent is told the rules refused it
-  allow: []         # run without review
-```
-
-`block` wins over `require`, and `require` over `allow`.
-
-A skill the agent writes becomes part of every later run's instructions, and an imported skill can carry scripts, an MCP server and triggers that run on the workstation, so `skill_write`, `skill_import` and `skill_retire` wait for your approval by default; the approval shows the package's MCP server command, its triggers and its secret names, then the skill's `SKILL.md` and the files it adds. Move them to `allow` to let the agent keep its skills on its own.
+A skill the agent writes becomes part of every later run's instructions, and an imported skill can carry scripts, an MCP server and triggers that run on the workstation, so `approval.require` holds `skill_write`, `skill_import` and `skill_retire` by default; the approval shows the package's MCP server command, its triggers and its secret names, then the skill's `SKILL.md` and the files it adds. Move them to `approval.allow` to let the agent keep its skills on its own.
 
 Action review judges the shell commands, browser actions and MCP calls no rule settles. It uses Jev, TypeSafe's decision model: create a key at [typesafe.ai](https://typesafe.ai), add it to `~/.acorn/acorn.env` and restart Acorn.
 
@@ -639,27 +636,18 @@ The calls you are asked about, their target and page, and your request go to Typ
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Exa API key. Browser actions require the agent workstation.
 - The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
-- Autonomous wakes share the configured daily count and optional token limits.
+- Autonomous wakes share the daily count and optional token limits in the settings.
 - Watches cannot follow pages that need a login. GitHub watches cover releases and newly opened issues only.
 - Knowledge search matches words (full-text); there is no semantic search yet. The text of a note describes a shared image; search and memory read that text, not the picture.
 - Mobile is a remote control surface. It does not execute runs locally, own runtime truth, or merge offline runtime state.
 
 ## Idle Thinking and Phone Notifications
 
-Night reflection runs once per owner-local day at `thinking.night_at`. It reviews changed evidence, understandings awaiting review, open thoughts, concerns and unfinished appointment occurrences in the Thoughts thread. `think` records or ends a thought; `concern` records progress and review time; `settle` completes an occurrence with execution evidence. Each idle-thought slot advances one due open concern, the one revised longest ago, in the conversation where it was raised, so the advance continues from earlier progress there. A concern whose conversation has a run still working or waiting for your approval waits for a later slot. Deleting a conversation drops the concerns raised in it.
+Night reflection runs once per owner-local day at the `thinking.night_at` [setting](#settings), and idle thought at each time in `thinking.wander_at`. It reviews changed evidence, understandings awaiting review, open thoughts, concerns and unfinished appointment occurrences in the Thoughts thread. `think` records or ends a thought; `concern` records progress and review time; `settle` completes an occurrence with execution evidence. Each idle-thought slot advances one due open concern, the one revised longest ago, in the conversation where it was raised, so the advance continues from earlier progress there. A concern whose conversation has a run still working or waiting for your approval waits for a later slot. Deleting a conversation drops the concerns raised in it.
 
 When you ask for something to be made, such as a document of a project's recent changes, the concern records its outcome: what you get and how to tell it is done. Idle thought then works on it on the workstation, in `~/work/<concern id>/`, and revises the concern after each step; a call that needs your approval waits for it and continues once you approve. The result arrives in the conversation where you asked, with one push, and the concern waits for you. Only your confirmation in that conversation resolves it. Deleting that conversation also removes the concern's directory from the workstation before the next run.
 
-```yaml
-wake:
-  daily_limit: 20
-  daily_tokens: 0      # 0 leaves the token budget unlimited
-thinking:
-  night_at: "03:00"  # Empty disables night reflection.
-  wander_at: []      # For example ["15:00"], up to six distinct local times.
-```
-
-Set a positive `daily_tokens` to impose a token budget. The budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages, captures and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
+Set a positive `wake.daily_tokens` to impose a token budget on autonomous wakes. The budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages, captures and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
 
 In the app's settings, under **手机通知**, read the data destination, grant notification access, and choose individual apps under **转发哪些应用**. The selection starts empty. Acorn captures ordinary notifications from those apps while paired, stores at most 500 on the device, and starts uploading within one minute of the first arrival. Each request contains at most 100 entries. Failed requests retain their batch and show an error with **重新上传**. Disconnecting or pairing another identity clears waiting notifications; turning an app off removes its waiting entries. Android notification access remains under your control in system settings.
 

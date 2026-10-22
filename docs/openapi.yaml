@@ -23,6 +23,7 @@ tags:
   - name: memories
   - name: persona
   - name: owner
+  - name: settings
   - name: browser
 paths:
   /healthz:
@@ -1686,6 +1687,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Owner'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/settings:
+    get:
+      tags: [settings]
+      summary: Load the owner's settings
+      description: |
+        The owner's time zone, the times of the morning briefing and the
+        reflections, push quiet hours, daily budgets and approval rules, with
+        their defaults and what each budget used today. Everything that uses
+        a setting reads its current value; a save applies without a restart.
+      operationId: clientGetSettings
+      responses:
+        '200':
+          description: The owner's settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnerSettings'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [settings]
+      summary: Change some of the owner's settings
+      description: |
+        Saves the settings in `set` and returns those in `reset` to their
+        defaults, all together or, when one breaks its rule, none; the 400
+        message names it. The last save of a setting wins. Raising the memory
+        or news budget, or lifting its cap, puts back in line today's work it
+        deferred to tomorrow.
+      operationId: clientUpdateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOwnerSettingsRequest'
+      responses:
+        '200':
+          description: The settings after the save
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnerSettings'
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':
@@ -4137,6 +4193,174 @@ components:
           type: string
           maxLength: 40
           description: At most 40 characters once trimmed, without line breaks or other control characters. Empty leaves the owner unnamed.
+
+    OwnerSettings:
+      type: object
+      additionalProperties: false
+      required: [values, defaults, customized, usage]
+      properties:
+        values:
+          $ref: '#/components/schemas/OwnerSettingsValues'
+        defaults:
+          $ref: '#/components/schemas/OwnerSettingsValues'
+        customized:
+          type: array
+          description: The settings the owner saved; the rest are at their defaults.
+          items:
+            $ref: '#/components/schemas/OwnerSettingName'
+        usage:
+          $ref: '#/components/schemas/BudgetUsage'
+
+    OwnerSettingName:
+      type: string
+      enum: [owner_timezone, briefing_at, thinking_night_at, thinking_wander_at, notify_quiet_hours, notify_max_per_hour, wake_daily_limit, wake_daily_tokens, memory_daily_tokens, news_daily_tokens, approval_block, approval_require, approval_allow]
+
+    OwnerSettingsValues:
+      type: object
+      additionalProperties: false
+      required: [owner_timezone, briefing_at, thinking_night_at, thinking_wander_at, notify_quiet_hours, notify_max_per_hour, wake_daily_limit, wake_daily_tokens, memory_daily_tokens, news_daily_tokens, approval_block, approval_require, approval_allow]
+      properties:
+        owner_timezone:
+          type: string
+          description: IANA time zone, such as Asia/Shanghai.
+        briefing_at:
+          type: string
+          description: Morning briefing time as HH:MM; empty turns the briefing off.
+        thinking_night_at:
+          type: string
+          description: Night reflection time as HH:MM; empty turns it off.
+        thinking_wander_at:
+          type: array
+          maxItems: 6
+          description: Idle thought times as HH:MM, earliest first.
+          items:
+            type: string
+        notify_quiet_hours:
+          $ref: '#/components/schemas/QuietHours'
+        notify_max_per_hour:
+          type: integer
+          minimum: 1
+          description: Pushes allowed in any hour.
+        wake_daily_limit:
+          type: integer
+          minimum: 0
+          description: Autonomous wakes per owner-local day; 0 turns them off.
+        wake_daily_tokens:
+          type: integer
+          minimum: 0
+          description: Tokens autonomous wakes may use per owner-local day; 0 means no cap.
+        memory_daily_tokens:
+          type: integer
+          minimum: 0
+          description: Tokens background memory work may use per owner-local day; 0 means no cap.
+        news_daily_tokens:
+          type: integer
+          minimum: 0
+          description: Tokens sorting news may use per owner-local day; 0 means no cap.
+        approval_block:
+          type: array
+          description: Tool-name globs whose calls are refused. They must not match ask_operator.
+          items:
+            type: string
+        approval_require:
+          type: array
+          description: Tool-name globs whose calls wait for the owner's approval. They must not match ask_operator.
+          items:
+            type: string
+        approval_allow:
+          type: array
+          description: Tool-name globs whose calls run without review. block wins over require, and require over allow.
+          items:
+            type: string
+
+    OwnerSettingsChanges:
+      type: object
+      additionalProperties: false
+      description: The settings to save, each optional, with the rules of OwnerSettingsValues.
+      properties:
+        owner_timezone:
+          type: string
+        briefing_at:
+          type: string
+        thinking_night_at:
+          type: string
+        thinking_wander_at:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+        notify_quiet_hours:
+          $ref: '#/components/schemas/QuietHours'
+        notify_max_per_hour:
+          type: integer
+          minimum: 1
+        wake_daily_limit:
+          type: integer
+          minimum: 0
+        wake_daily_tokens:
+          type: integer
+          minimum: 0
+        memory_daily_tokens:
+          type: integer
+          minimum: 0
+        news_daily_tokens:
+          type: integer
+          minimum: 0
+        approval_block:
+          type: array
+          items:
+            type: string
+        approval_require:
+          type: array
+          items:
+            type: string
+        approval_allow:
+          type: array
+          items:
+            type: string
+
+    UpdateOwnerSettingsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        set:
+          $ref: '#/components/schemas/OwnerSettingsChanges'
+        reset:
+          type: array
+          description: Settings to return to their defaults.
+          items:
+            $ref: '#/components/schemas/OwnerSettingName'
+
+    QuietHours:
+      type: object
+      additionalProperties: false
+      required: [start, end]
+      description: Pushes inside the window wait until it ends; both empty turns it off.
+      properties:
+        start:
+          type: string
+          description: HH:MM in the owner's time zone.
+        end:
+          type: string
+          description: HH:MM in the owner's time zone; before start means the window crosses midnight.
+
+    BudgetUsage:
+      type: object
+      additionalProperties: false
+      required: [day, wakes, wake_tokens, memory_tokens, news_tokens]
+      description: What the daily budgets used so far on the owner-local day.
+      properties:
+        day:
+          type: string
+          format: date
+        wakes:
+          type: integer
+        wake_tokens:
+          type: integer
+        memory_tokens:
+          type: integer
+        news_tokens:
+          type: integer
 
     KnowledgeNoteSummary:
       type: object

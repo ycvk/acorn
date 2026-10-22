@@ -64,6 +64,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenPersona: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenOwnerSettings: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val status by viewModel.systemStatus.collectAsStateWithLifecycle()
@@ -113,6 +114,8 @@ fun SettingsScreen(
                 )
                 Hairline(inset = 16.dp)
                 SettingRow("人格", "它是谁、怎么说话", onClick = onOpenPersona)
+                Hairline(inset = 16.dp)
+                SettingRow("作息、预算与审批", "时区、早安卡、预算和规则", onClick = onOpenOwnerSettings)
                 Hairline(inset = 16.dp)
                 SettingRow("技能", "它会做的事和技能包", onClick = onOpenSkills)
             }

@@ -148,6 +148,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + ownerTable + `
 
+` + ownerSettingsTable + `
+
 ` + threadFilesTable + `
 
 ` + threadViewsTable + `
@@ -347,6 +349,16 @@ const personaTable = `CREATE TABLE IF NOT EXISTS persona_revisions (
 const ownerTable = `CREATE TABLE IF NOT EXISTS owner (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     name TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);`
+
+// ownerSettingsTable is shared with the migration that adds it. Each row is
+// a setting the owner saved, as JSON; settings without a row are at their
+// defaults.
+const ownerSettingsTable = `CREATE TABLE IF NOT EXISTS owner_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    device_id TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL
 );`
 

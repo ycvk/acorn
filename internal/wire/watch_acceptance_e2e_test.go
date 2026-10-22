@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/watch"
 )
 
@@ -63,7 +64,9 @@ func rss(items ...string) string {
 	return b.String()
 }
 
-const watchTestConfig = "owner:\n  timezone: Asia/Shanghai\nweb_access:\n  allow_private_networks: true\nbriefing:\n  at: \"08:00\"\n"
+const watchTestConfig = "web_access:\n  allow_private_networks: true\n"
+
+var watchTestSettings = ownerSettings{settings.KeyTimezone: `"Asia/Shanghai"`, settings.KeyBriefingAt: `"08:00"`}
 
 func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	src := &sources{feed: rss("go1.26"), price: "¥2,999"}
@@ -84,7 +87,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig)
+	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig, watchTestSettings)
 	c := harness.open(t, cfg)
 	defer c.Close()
 	ctx := context.Background()
@@ -203,7 +206,7 @@ func TestBriefingListsReleasesAndFailingWatches(t *testing.T) {
 	provider := &fakeOpenAI{replies: []string{textReply("早")}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig)
+	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig, watchTestSettings)
 	c := harness.open(t, cfg)
 	defer c.Close()
 	ctx := context.Background()
@@ -249,7 +252,7 @@ func TestOwnerEditsDuringACheckStand(t *testing.T) {
 	harness, extra := newPushHarness(t, start)
 	server := httptest.NewServer(&fakeOpenAI{})
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig)
+	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig, watchTestSettings)
 	c := harness.open(t, cfg)
 	defer c.Close()
 	ctx := context.Background()

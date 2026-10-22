@@ -8,52 +8,28 @@ import (
 )
 
 func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
-	cfg := &Config{
-		Providers: []ProviderConfig{
-			{
-				Name:            "primary",
-				Model:           "gpt-4o",
-				BaseURL:         "https://api.openai.com/v1",
-				APIKey:          "sk-primary",
-				TimeoutSeconds:  30,
-				MaxOutputTokens: new(2048),
-				Enabled:         true,
-			},
-			{
-				Name:            "fallback",
-				Model:           "gpt-4o-mini",
-				BaseURL:         "https://api.openai.com/v1",
-				APIKey:          "sk-fallback",
-				TimeoutSeconds:  30,
-				MaxOutputTokens: new(2048),
-				Enabled:         true,
-			},
+	cfg := defaultConfig()
+	cfg.Providers = []ProviderConfig{
+		{
+			Name:                "primary",
+			Model:               "gpt-4o",
+			BaseURL:             "https://api.openai.com/v1",
+			APIKey:              "sk-primary",
+			TimeoutSeconds:      30,
+			MaxOutputTokens:     new(2048),
+			ContextWindowTokens: new(128000),
+			Enabled:             true,
 		},
-		Runtime: RuntimeConfig{
-			StorageDir: ".acorn",
+		{
+			Name:                "fallback",
+			Model:               "gpt-4o-mini",
+			BaseURL:             "https://api.openai.com/v1",
+			APIKey:              "sk-fallback",
+			TimeoutSeconds:      30,
+			MaxOutputTokens:     new(2048),
+			ContextWindowTokens: new(128000),
+			Enabled:             true,
 		},
-		Context: ContextConfig{
-			WindowTokens:        200000,
-			CompactMarginTokens: 13000,
-			MaskAfterTurns:      2,
-		},
-		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
-		WebAccess: defaultConfig().WebAccess,
-		Agent: AgentConfig{
-			Name:          "coordinator",
-			Description:   "test",
-			MaxIterations: 4,
-		},
-		Owner:       defaultConfig().Owner,
-		Workstation: defaultConfig().Workstation,
-		Files:       defaultConfig().Files,
-		Review:      defaultConfig().Review,
-		Presence:    defaultConfig().Presence,
-		Memory:      defaultConfig().Memory,
-		Wake:        defaultConfig().Wake,
-		Notify:      defaultConfig().Notify,
-		Watch:       defaultConfig().Watch,
-		Briefing:    defaultConfig().Briefing,
 	}
 	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
@@ -143,52 +119,28 @@ func TestValidateExecutionReady_ZeroMaxTokens(t *testing.T) {
 }
 
 func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
-	cfg := &Config{
-		Providers: []ProviderConfig{
-			{
-				Name:            "same",
-				Model:           "gpt-4o",
-				BaseURL:         "https://api.openai.com/v1",
-				APIKey:          "sk-1",
-				TimeoutSeconds:  30,
-				MaxOutputTokens: new(2048),
-				Enabled:         true,
-			},
-			{
-				Name:            "same",
-				Model:           "gpt-4o-mini",
-				BaseURL:         "https://api.openai.com/v1",
-				APIKey:          "sk-2",
-				TimeoutSeconds:  30,
-				MaxOutputTokens: new(2048),
-				Enabled:         true,
-			},
+	cfg := defaultConfig()
+	cfg.Providers = []ProviderConfig{
+		{
+			Name:                "same",
+			Model:               "gpt-4o",
+			BaseURL:             "https://api.openai.com/v1",
+			APIKey:              "sk-1",
+			TimeoutSeconds:      30,
+			MaxOutputTokens:     new(2048),
+			ContextWindowTokens: new(128000),
+			Enabled:             true,
 		},
-		Runtime: RuntimeConfig{
-			StorageDir: ".acorn",
+		{
+			Name:                "same",
+			Model:               "gpt-4o-mini",
+			BaseURL:             "https://api.openai.com/v1",
+			APIKey:              "sk-2",
+			TimeoutSeconds:      30,
+			MaxOutputTokens:     new(2048),
+			ContextWindowTokens: new(128000),
+			Enabled:             true,
 		},
-		Context: ContextConfig{
-			WindowTokens:        200000,
-			CompactMarginTokens: 13000,
-			MaskAfterTurns:      2,
-		},
-		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
-		WebAccess: defaultConfig().WebAccess,
-		Agent: AgentConfig{
-			Name:          "coordinator",
-			Description:   "test",
-			MaxIterations: 4,
-		},
-		Owner:       defaultConfig().Owner,
-		Workstation: defaultConfig().Workstation,
-		Files:       defaultConfig().Files,
-		Review:      defaultConfig().Review,
-		Presence:    defaultConfig().Presence,
-		Memory:      defaultConfig().Memory,
-		Wake:        defaultConfig().Wake,
-		Notify:      defaultConfig().Notify,
-		Watch:       defaultConfig().Watch,
-		Briefing:    defaultConfig().Briefing,
 	}
 	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
@@ -199,52 +151,27 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 }
 
 func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
-	cfg := &Config{
-		Providers: []ProviderConfig{
-			{
-				Name:            "primary",
-				Model:           "gpt-4o",
-				BaseURL:         "https://api.openai.com/v1",
-				APIKey:          "sk-primary",
-				TimeoutSeconds:  30,
-				MaxOutputTokens: new(2048),
-				Enabled:         true,
-			},
-			{
-				Name:            "",
-				Model:           "",
-				BaseURL:         "",
-				APIKey:          "",
-				TimeoutSeconds:  0,
-				MaxOutputTokens: new(0),
-				Enabled:         false,
-			},
+	cfg := defaultConfig()
+	cfg.Providers = []ProviderConfig{
+		{
+			Name:                "primary",
+			Model:               "gpt-4o",
+			BaseURL:             "https://api.openai.com/v1",
+			APIKey:              "sk-primary",
+			TimeoutSeconds:      30,
+			MaxOutputTokens:     new(2048),
+			ContextWindowTokens: new(128000),
+			Enabled:             true,
 		},
-		Runtime: RuntimeConfig{
-			StorageDir: ".acorn",
+		{
+			Name:            "",
+			Model:           "",
+			BaseURL:         "",
+			APIKey:          "",
+			TimeoutSeconds:  0,
+			MaxOutputTokens: new(0),
+			Enabled:         false,
 		},
-		Context: ContextConfig{
-			WindowTokens:        200000,
-			CompactMarginTokens: 13000,
-			MaskAfterTurns:      2,
-		},
-		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
-		WebAccess: defaultConfig().WebAccess,
-		Agent: AgentConfig{
-			Name:          "coordinator",
-			Description:   "test",
-			MaxIterations: 4,
-		},
-		Owner:       defaultConfig().Owner,
-		Workstation: defaultConfig().Workstation,
-		Files:       defaultConfig().Files,
-		Review:      defaultConfig().Review,
-		Presence:    defaultConfig().Presence,
-		Memory:      defaultConfig().Memory,
-		Wake:        defaultConfig().Wake,
-		Notify:      defaultConfig().Notify,
-		Watch:       defaultConfig().Watch,
-		Briefing:    defaultConfig().Briefing,
 	}
 	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err != nil {

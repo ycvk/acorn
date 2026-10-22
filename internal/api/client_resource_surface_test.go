@@ -83,6 +83,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Memory.Embedding.APIKey = "voyage-test"
 	cfg.Providers[0].Model = "gpt-test"
+	cfg.Providers[0].ContextWindowTokens = new(200000)
 	cfg.Providers[0].ReasoningEffort = "high"
 	cfg.Providers[0].APIKey = "redacted-test-key"
 	cfg.Web.ListenAddr = "127.0.0.1:9999"

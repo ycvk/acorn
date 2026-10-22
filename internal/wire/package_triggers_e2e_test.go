@@ -37,7 +37,7 @@ func TestPackageTriggersWakeTheAgentOnlyForNewEvents(t *testing.T) {
 	provider := &fakeOpenAI{replies: []string{textReply("比特币到 120 了，提醒过你了")}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, fmt.Sprintf("workstation:\n  url: %s\n  token: %s\n%s", wsServer.URL, fileTestToken, briefingOff))
+	cfg := writeTestConfig(t, server.URL, fmt.Sprintf("workstation:\n  url: %s\n  token: %s\n", wsServer.URL, fileTestToken), briefingOff)
 	clock := &testClock{now: time.Date(2026, 10, 17, 9, 7, 0, 0, time.UTC)}
 	ctx := context.Background()
 	c, err := buildContainer(ctx, cfg, buildOptions{clock: clock.Now})

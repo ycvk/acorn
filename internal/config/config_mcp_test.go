@@ -23,10 +23,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: my_server
@@ -66,10 +62,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: remote_sse
@@ -110,10 +102,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: prefixed_sse
@@ -154,10 +142,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: remote_http
@@ -198,10 +182,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: bad_transport
@@ -242,10 +222,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: no_command
@@ -286,10 +262,6 @@ runtime:
   storage_dir: .acorn
 web:
   listen_addr: 127.0.0.1:8080
-agent:
-  name: coordinator
-  description: test
-  max_iterations: 4
 mcp:
   providers:
     - name: no_url

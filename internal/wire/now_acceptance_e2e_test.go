@@ -16,7 +16,7 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 	start := time.Date(2026, 10, 11, 8, 0, 0, 0, time.UTC)
 	server := httptest.NewServer(&fakeOpenAI{})
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, briefingOff)
+	cfg := writeTestConfig(t, server.URL, "", briefingOff)
 	clock := &testClock{now: start}
 	ctx := context.Background()
 	c, err := buildContainer(ctx, cfg, buildOptions{clock: clock.Now})

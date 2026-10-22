@@ -19,8 +19,10 @@ func TestModernModelContracts(t *testing.T) {
 		{"grok", ProviderConfig{Model: "grok-4.7", ReasoningEffort: "xhigh"}, ""},
 		{"grok effort", ProviderConfig{Model: "grok-4.7", ReasoningEffort: "max"}, "unsupported"},
 		{"output limit", ProviderConfig{Model: "gpt-6-astra", MaxOutputTokens: new(128001)}, "output limit"},
-		{"custom model", ProviderConfig{Model: "custom", API: "chat_completions", Temperature: new(float32(0)), MaxOutputTokens: new(64000)}, ""},
-		{"idle disabled", ProviderConfig{IdleTimeoutSeconds: new(0)}, ""},
+		{"custom model", ProviderConfig{Model: "custom", API: "chat_completions", Temperature: new(float32(0)), MaxOutputTokens: new(64000), ContextWindowTokens: new(128000)}, ""},
+		{"custom model without a window", ProviderConfig{Model: "custom", API: "chat_completions"}, "context_window_tokens is required"},
+		{"known model with a window", ProviderConfig{Model: "grok-4.7", ContextWindowTokens: new(200000)}, "remove context_window_tokens"},
+		{"idle disabled", ProviderConfig{Model: "grok-4.7", IdleTimeoutSeconds: new(0)}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.provider.validateModelSettings()
@@ -45,18 +47,21 @@ func TestInputBudgetReservesOutputAndPresence(t *testing.T) {
 	if err != nil || n != 950000 {
 		t.Fatalf("explicit output budget = %d, %v", n, err)
 	}
-	cfg.Context.WindowTokens = 20000
-	cfg.Context.CompactMarginTokens = 8000
+	cfg.Providers[0] = ProviderConfig{Name: "small", Model: "custom", ContextWindowTokens: new(40000), MaxOutputTokens: new(8000), Enabled: true}
 	if _, err := cfg.InputTokenBudget(); err == nil {
 		t.Fatal("accepted a context without room for input")
+	}
+	cfg.Providers[0].ContextWindowTokens = new(200000)
+	if n, err := cfg.InputTokenBudget(); err != nil || n != 156000 {
+		t.Fatalf("the provider's own window = %d, %v", n, err)
 	}
 }
 
 func TestModernDefaultsLeaveSamplingAndDeadlinesOptional(t *testing.T) {
 	cfg := defaultConfig()
 	p := cfg.Providers[0]
-	if p.Temperature != nil || p.TimeoutSeconds != 0 || cfg.Runtime.RunTimeoutSeconds != 0 || cfg.Wake.DailyTokens != 0 {
-		t.Fatalf("unexpected defaults: provider=%+v runtime=%+v wake=%+v", p, cfg.Runtime, cfg.Wake)
+	if p.Temperature != nil || p.TimeoutSeconds != 0 {
+		t.Fatalf("unexpected defaults: provider=%+v", p)
 	}
 	if p.ModelIdleTimeoutSeconds() != 300 {
 		t.Fatal("expected idle deadline")

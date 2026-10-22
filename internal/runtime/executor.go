@@ -152,11 +152,6 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 	}
 	runCtxBase, stop := context.WithCancelCause(ctx)
 	cancel := func() { stop(nil) }
-	if runTimeout := time.Duration(e.runRuntime.Config().Runtime.RunTimeoutSeconds) * time.Second; runTimeout > 0 {
-		var cancelTimeout context.CancelFunc
-		runCtxBase, cancelTimeout = context.WithTimeout(runCtxBase, runTimeout)
-		cancel = func() { cancelTimeout(); stop(nil) }
-	}
 	unregister, err := e.controller.Register(runID, stop)
 	if err != nil {
 		cancel()

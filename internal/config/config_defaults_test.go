@@ -12,19 +12,11 @@ func TestDefaultConfigValues(t *testing.T) {
 		got  any
 		want any
 	}{
-		{"web_access.user_agent", cfg.WebAccess.UserAgent, "Acorn/0.x (+https://github.com/ycvk/acorn)"},
-		{"web_access.timeout_seconds", cfg.WebAccess.TimeoutSeconds, 20},
-		{"web_access.max_response_bytes", cfg.WebAccess.MaxResponseBytes, int64(10 * 1024 * 1024)},
 		{"web_access.allow_private_networks", cfg.WebAccess.AllowPrivateNetworks, false},
 		{"web_access.search.provider", cfg.WebAccess.Search.Provider, "exa"},
-		{"web_access.search.timeout_seconds", cfg.WebAccess.Search.TimeoutSeconds, 10},
-		{"web_access.search.max_results", cfg.WebAccess.Search.MaxResults, 10},
-		{"context.window_tokens", cfg.Context.WindowTokens, 1050000},
-		{"context.compact_margin_tokens", cfg.Context.CompactMarginTokens, 32000},
-		{"context.mask_after_turns", cfg.Context.MaskAfterTurns, 8},
-		{"runtime.max_iterations", cfg.Agent.MaxIterations, 100},
-		{"watch.max_checks_per_tick", cfg.Watch.MaxChecksPerTick, 5},
-		{"briefing.at", cfg.Briefing.At, "08:00"},
+		{"runtime.storage_dir", cfg.Runtime.StorageDir, "~/.acorn"},
+		{"backup.keep", cfg.Backup.Keep, 14},
+		{"files.max_upload_mib", cfg.Files.MaxUploadMiB, 50},
 	}
 
 	for _, tt := range tests {

@@ -47,12 +47,13 @@ func SupportsAttachment(mime string) bool {
 }
 
 // VaultConfig carries the dependencies of a Vault; all are required.
-// StorageDir holds attachments/.
+// StorageDir holds attachments/, filed by the owner-local month Settings
+// gives.
 type VaultConfig struct {
 	Store      core.KnowledgeStore
 	StorageDir string
 	Clock      func() time.Time
-	Location   *time.Location
+	Settings   core.SettingsReader
 }
 
 // Vault is the only writer of the knowledge base.
@@ -60,7 +61,7 @@ type Vault struct {
 	store      core.KnowledgeStore
 	storageDir string
 	clock      func() time.Time
-	loc        *time.Location
+	settings   core.SettingsReader
 }
 
 func NewVault(cfg VaultConfig) (*Vault, error) {
@@ -71,10 +72,10 @@ func NewVault(cfg VaultConfig) (*Vault, error) {
 		return nil, errors.New("knowledge vault: storage dir is required")
 	case cfg.Clock == nil:
 		return nil, errors.New("knowledge vault: clock is required")
-	case cfg.Location == nil:
-		return nil, errors.New("knowledge vault: location is required")
+	case cfg.Settings == nil:
+		return nil, errors.New("knowledge vault: settings are required")
 	}
-	return &Vault{store: cfg.Store, storageDir: cfg.StorageDir, clock: cfg.Clock, loc: cfg.Location}, nil
+	return &Vault{store: cfg.Store, storageDir: cfg.StorageDir, clock: cfg.Clock, settings: cfg.Settings}, nil
 }
 
 // WriteNote is a whole-note write. RunID attributes it to an agent run.
@@ -164,7 +165,7 @@ func (v *Vault) Recent(ctx context.Context, prefix string, limit int) ([]core.Kn
 // SaveAttachment stores an image under attachments/YYYY/MM/ in the storage
 // dir and returns its path relative to the storage dir. The extension
 // follows mime; other types are rejected.
-func (v *Vault) SaveAttachment(_ context.Context, mime string, data []byte) (string, error) {
+func (v *Vault) SaveAttachment(ctx context.Context, mime string, data []byte) (string, error) {
 	ext, ok := attachmentExtensions[mime]
 	if !ok {
 		return "", fmt.Errorf("unsupported attachment type %q", mime)
@@ -176,7 +177,11 @@ func (v *Vault) SaveAttachment(_ context.Context, mime string, data []byte) (str
 	if _, err := rand.Read(id); err != nil {
 		return "", fmt.Errorf("attachment id: %w", err)
 	}
-	now := v.clock().In(v.loc)
+	settings, err := v.settings.Settings(ctx)
+	if err != nil {
+		return "", err
+	}
+	now := v.clock().In(settings.Location)
 	rel := path.Join(attachmentsDir, now.Format("2006"), now.Format("01"), hex.EncodeToString(id)+"."+ext)
 	if err := writeFileAtomic(filepath.Join(v.storageDir, filepath.FromSlash(rel)), data); err != nil {
 		return "", err

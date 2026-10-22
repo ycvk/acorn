@@ -16,10 +16,11 @@ type ThinkingStatus struct {
 
 func (c *Container) ThinkingStatus(ctx context.Context) (ThinkingStatus, error) {
 	var status ThinkingStatus
-	loc, err := c.cfg.OwnerLocation()
+	current, err := c.settings.Settings(ctx)
 	if err != nil {
 		return status, err
 	}
+	loc := current.Location
 	now := c.clock()
 	local := now.In(loc)
 	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)

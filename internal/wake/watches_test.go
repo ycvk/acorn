@@ -310,7 +310,7 @@ func TestWatchFailureDoesNotStopOthers(t *testing.T) {
 }
 
 func TestMorningBriefingRunsOncePerDay(t *testing.T) {
-	h := newHarnessWith(t, 0, Briefing{Enabled: true, At: 8 * time.Hour})
+	h := newHarnessWith(t, 0, core.DailyTime{Enabled: true, At: 8 * time.Hour})
 	h.now = time.Date(2026, 10, 5, 23, 0, 0, 0, time.UTC) // 07:00 on the 6th in Shanghai
 	blog := h.watch(t, "blog", core.WatchModeDigest)
 	h.find(blog, "post-1", "post-2")
@@ -366,7 +366,7 @@ func TestMorningBriefingRunsOncePerDay(t *testing.T) {
 }
 
 func TestBriefingStartFailureReleasesTheDay(t *testing.T) {
-	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	h.commit(t, "today", h.now.Add(time.Hour), "")
 	h.runs.fail = errors.New("execution not ready")
 	if err := h.sched.Tick(context.Background()); err == nil {

@@ -19,16 +19,16 @@ make test-architecture             # 架构边界守卫
 make generate                      # go generate ./internal/api
 make release-linux-amd64           # 纯 Go 交叉编译
 
-acorn serve | run | smoke | init | doctor | skills | persona | owner | pair | token | devices | memory reindex | backup | restore
+acorn serve | run | smoke | init | doctor | skills | persona | owner | settings | pair | token | devices | memory reindex | backup | restore
 cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assembleDebug
 ```
 
 ## 架构
 
-- `internal/wire.Container` 是唯一实例化具体实现的组合根;`cmd/acorn → cli → wire → {api, runtime, store, memory, wake, notify, knowledge, watch, news}`。`serve` 是唯一长驻的后端命令,同时运行 wake 调度器;`workstation serve` 只在工作机容器里运行。
+- `internal/wire.Container` 是唯一实例化具体实现的组合根;`cmd/acorn → cli → wire → {api, runtime, store, settings, memory, wake, notify, knowledge, watch, news}`。`serve` 是唯一长驻的后端命令,同时运行 wake 调度器;`workstation serve` 只在工作机容器里运行。
 - `internal/core` 只放 domain 类型与 consumer-owned 接口,不导入任何内部包。业务包只依赖 core 接口;只有 `internal/wire` 导入 `internal/store`。
 - 运行时主链在 `internal/runtime`:`Executor → RunnerFactory → Eino ChatModelAgent → adk.Runner`,事件投影写入 SQLite。
-- SQLite(modernc.org/sqlite)是运行时、记忆、约定与索引的真相;写入经单连接串行执行,记忆召回与整合候选读取走 `query_only` 的 WAL 只读连接池。人格存在 SQLite,每次保存是一个新 revision,只由 owner 经 App 接口或 `acorn persona` 修改;启动时没有人格才写入默认人格。Acorn 对 owner 的称呼也存在 SQLite,只由 owner 经 App 接口或 `acorn owner` 设置,run 与记忆抽取读当前称呼。
+- SQLite(modernc.org/sqlite)是运行时、记忆、约定与索引的真相;写入经单连接串行执行,记忆召回与整合候选读取走 `query_only` 的 WAL 只读连接池。人格存在 SQLite,每次保存是一个新 revision,只由 owner 经 App 接口或 `acorn persona` 修改;启动时没有人格才写入默认人格。Acorn 对 owner 的称呼也存在 SQLite,只由 owner 经 App 接口或 `acorn owner` 设置,run 与记忆抽取读当前称呼。owner 的设置(时区、早安卡与夜思游思的时间、免打扰、每小时推送上限、每日预算、审批规则)存在 SQLite 的 `owner_settings`,由 `internal/settings` 定义键、默认值与校验,只由 owner 经 `/v1/settings` 或 `acorn settings` 修改;没存过的项用代码里的默认值。用到设置的地方每次读当前值,不在进程里缓存:run 开始时读审批规则与时区,wake 调度器每次检查读一次,预算每次预留时读,推送每次发送时读。调高或取消记忆、新闻预算时,当天因它推迟的记忆任务与新闻批次立即重新排上。
 - `docs/openapi.yaml` 是唯一 wire contract,mobile 客户端由它生成;客户端只接收 `internal/api/projection.go` 投影的 RunEvent。
 
 ## 硬边界
@@ -37,16 +37,16 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 - 每个 run 一个 `ChatModelAgent`,没有 multi-agent/subagent。middleware 顺序固定:memory visibility → patchtoolcalls → summarization → reduction(clear-only) → toolsearch → skill → presence → approval → tool errors。
 - 工具串行执行。普通工具失败与未知工具调用是模型可见的 tool result,不是 run failure;interrupt 与 context 取消照常传播。
-- 工具调用先按 owner 的规则:`approval.block` 拒绝,`approval.require` 审批,`approval.allow` 直接执行(block 优先于 require,require 优先于 allow)。规则未覆盖的 `shell` 与 MCP 调用由 `internal/review` 经 TypeSafe 的 Jev 审查:只读命令不审查,会对外产生后果的转审批,审查失败也转审批。审批登记 `tool_approval` pending action 并发起工具级 interrupt;resume 参数必须与登记一致。规则未覆盖的 `news_source` 调用转审批。require 与 block 不能命中 `ask_operator`。续跑只由服务端驱动,没有客户端 resume 端点。
+- 工具调用先按 owner 设置里的规则:`approval.block` 拒绝,`approval.require` 审批,`approval.allow` 直接执行(block 优先于 require,require 优先于 allow)。规则未覆盖的 `shell` 与 MCP 调用由 `internal/review` 经 TypeSafe 的 Jev 审查:只读命令不审查,会对外产生后果的转审批,审查失败也转审批。审批登记 `tool_approval` pending action 并发起工具级 interrupt;resume 参数必须与登记一致。规则未覆盖的 `news_source` 调用转审批。require 与 block 不能命中 `ask_operator`。续跑只由服务端驱动,没有客户端 resume 端点。
 - web 工具默认加载;所有外部抓取走 `webaccess` 的共享 URL policy。
 - agent 的工作机是一个容器,里面运行只读挂载的 `acorn workstation serve`;`shell` 与 `files` 经 `internal/workstation` 的 HTTP 客户端和 bearer token 调用它,backend 不接触容器引擎。浏览器只有工作机自带的 Chromium,agent 经 `bsk`(BrowserSkill)操作;owner 在 App 里经 `/v1/browser/*` 实时查看并操作它来登录网站;`web_rendered` 追踪也由工作机渲染。
 - `<memory_context>` 与 `<presence>` 是每次模型调用临时追加的 system 消息,不进入可被总结的消息序列,各自受预算约束。
 
 ### 技能
 
-- 技能是 Agent Skills 格式的包:frontmatter 严格解析的 `SKILL.md` 加附带文件,存在 SQLite,每次写入是一个新 revision;编辑基于读到的 revision,并发修改显式失败。agent 经 `skill_write`/`skill_retire` 新建、修改和停用技能,经 `skill_inspect` 把工作机上的目录或 zip 按内容哈希暂存、`skill_import` 按哈希导入;starter config 默认把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`。owner 经 `acorn skills import` 安装技能包,在 App 技能页查看历史与后端算好的差异,回滚、停用与恢复技能:基于读到的 revision 写作者为 owner 的新 revision,不经审批。每次 run 前,在用技能的附带文件按哈希同步到工作机的 `~/skills/<name>/`;没有工作机或同步失败时,带文件的技能不列出。技能经 Eino skill middleware 提供,加载结果带全文、revision 与文件所在目录。内置技能在 `internal/skills/seed` 编进二进制,启动时内容变了才以 release 身份写新 revision。
+- 技能是 Agent Skills 格式的包:frontmatter 严格解析的 `SKILL.md` 加附带文件,存在 SQLite,每次写入是一个新 revision;编辑基于读到的 revision,并发修改显式失败。agent 经 `skill_write`/`skill_retire` 新建、修改和停用技能,经 `skill_inspect` 把工作机上的目录或 zip 按内容哈希暂存、`skill_import` 按哈希导入;`approval.require` 设置默认含 `skill_write`、`skill_import`、`skill_retire`。owner 经 `acorn skills import` 安装技能包,在 App 技能页查看历史与后端算好的差异,回滚、停用与恢复技能:基于读到的 revision 写作者为 owner 的新 revision,不经审批。每次 run 前,在用技能的附带文件按哈希同步到工作机的 `~/skills/<name>/`;没有工作机或同步失败时,带文件的技能不列出。技能经 Eino skill middleware 提供,加载结果带全文、revision 与文件所在目录。内置技能在 `internal/skills/seed` 编进二进制,启动时内容变了才以 release 身份写新 revision。
 - 包根目录可带 `acorn-package.yaml`(KnownFields 严格解析:`mcp` 的 command、args,`triggers` 的 name、schedule、run、deliver,包级 `secrets`),写入与导入时校验,审批详情先列出 MCP 服务器、每个触发器的时间表与命令和密钥名。同步之后,工作机按清单以包目录为工作目录运行并守护在用技能的 stdio MCP 服务器,经 bearer token 以 streamable HTTP 暴露在 `/v1/mcp/<name>`;backend 每次 run 连接,工具名 `mcp__<name>__<tool>`,只出现在该技能在用的 run 里,照常经审批规则与审查。缺密钥或服务器起不来时该技能本次不列出,`acorn doctor` 说明原因。包名不能与 `mcp.providers` 的名字相同,配置后来新增同名 provider 时启动失败。
-- 触发器只由 wake 调度器运行:按 owner 时区的 cron 表达式,每个(触发器, 时刻)经条件更新认领一次,在工作机上以包目录为工作目录执行 `run`,受 `workstation.command_timeout_seconds` 约束;每行标准输出是事件 `{"key","text"}` 或新闻条目 `{"item":{...}}`(写进跟随该触发器的 `trigger` 类新闻源,首次输出是基线,没有跟随的源时本次运行失败),没有输出不调用模型,事件按(技能, 触发器, key)只登记一次并作为外部记忆来源。immediate 事件在以技能名为标题的包线程里起 run(输入以 `[trigger <skill>/<trigger>]` 开头,计入每日唤醒预算并记 `wake.fired`),超预算或起 run 失败与 digest 事件进早安卡;连续 5 次失败标为 failing,进 System health,按追踪项的退避重试。停用的技能与缺密钥的包的触发器不运行。
+- 触发器只由 wake 调度器运行:按 owner 时区的 cron 表达式,每个(触发器, 时刻)经条件更新认领一次,在工作机上以包目录为工作目录执行 `run`,受工作机命令 300 秒的时限约束;每行标准输出是事件 `{"key","text"}` 或新闻条目 `{"item":{...}}`(写进跟随该触发器的 `trigger` 类新闻源,首次输出是基线,没有跟随的源时本次运行失败),没有输出不调用模型,事件按(技能, 触发器, key)只登记一次并作为外部记忆来源。immediate 事件在以技能名为标题的包线程里起 run(输入以 `[trigger <skill>/<trigger>]` 开头,计入每日唤醒预算并记 `wake.fired`),超预算或起 run 失败与 digest 事件进早安卡;连续 5 次失败标为 failing,进 System health,按追踪项的退避重试。停用的技能与缺密钥的包的触发器不运行。
 - 密钥存在 SQLite 的 `skill_secrets`,经 `acorn skills secret set` 或 App 技能页写入,只写不读,只作为环境变量交给该包的 MCP 进程与触发器命令,不进入模型输入、审批详情、API 响应与日志。
 
 ### 记忆与约定
@@ -56,12 +56,12 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - 遗忘需要当前 owner 的请求,排除来源及派生记录、向量与摘要;旧 epoch 的 checkpoint 禁止恢复;agent 的知识库读取遵守相同排除。删除对话是 owner 的遗忘请求:先排除对话的消息与工具结果来源,再删除对话、对话里的文件及其 run 留下的记录,在这个对话里建立的关切随之排除,它们在工作机上的 `~/work/<id>/` 在下一次 run 前删除;笔记、技能、约定与追踪项保留。删除笔记同样是遗忘请求:先排除它每个 revision 的来源,再删除笔记与全部 revision。
 - 约定分规则与每次发生,发生只能被认领一次;完成需要 owner 确认或成功的工具结果。
 - 关切属于建立它的对话。游思每次推进到期关切里最久没有修订的一件,在它所在的对话里运行,对话里有 run 在运行或等待审批时跳过它。有 outcome 的关切由游思在工作机的 `~/work/<id>/` 里推进,交付到所在对话后转为 waiting,只由 owner 的确认解决。
-- 后台记忆调用受 `memory.daily_tokens` 约束,自主唤醒受 `wake.daily_limit`/`wake.daily_tokens` 约束;预算耗尽时任务保留到下一本地日。
+- 后台记忆调用受 `memory.daily_tokens` 设置约束,自主唤醒受 `wake.daily_limit`/`wake.daily_tokens` 设置约束;预算耗尽时任务保留到下一本地日。
 
 ### 追踪与早安卡
 
 - 追踪项(RSS/Atom/JSON Feed、`rsshub:` 路由、GitHub、网页)只由 wake 调度器检查,首次检查是基线;追踪用的 URL policy 只额外放行 `watch.rsshub_base_url` 的 origin,`web_fetch` 不放行。digest 与 immediate 追踪项逐条报告;早安卡的 100 个名额按追踪项轮流分配,其余留到下次。
-- `news` 模式的追踪项是新闻源,属于 `news_sections` 的一个板块,条目不登记为记忆来源。`internal/news` 在后台按租约认领待报条目,由模型在 `news.daily_tokens` 内打 1–5 分并归入事件,期刊页拆成条目;一批失败 3 次即放弃。早安卡生成前刷新新闻源并等整理追上,按板块给出有新条目的事件、它们的新条目与上一份早安卡,由模型挑约 10 件与今日关注 3 件;整理过的与暂停源的条目随之标为已报。新闻源从试用开始:照常抓取与整理,不进早安卡;转正与停用在用源只经 `news_source`,每次由 owner 审批;夜思每周日或试用满一周时看各源近 7 天的数字提出建议。条目与事件保留 14 天,agent 经 `news_search` 检索;过期条目只留键与状态,源里仍在的条目不会再次出现。
+- `news` 模式的追踪项是新闻源,属于 `news_sections` 的一个板块,条目不登记为记忆来源。`internal/news` 在后台按租约认领待报条目,由模型在 `news.daily_tokens` 设置内打 1–5 分并归入事件,期刊页拆成条目;一批失败 3 次即放弃。早安卡生成前刷新新闻源并等整理追上,按板块给出有新条目的事件、它们的新条目与上一份早安卡,由模型挑约 10 件与今日关注 3 件;整理过的与暂停源的条目随之标为已报。新闻源从试用开始:照常抓取与整理,不进早安卡;转正与停用在用源只经 `news_source`,每次由 owner 审批;夜思每周日或试用满一周时看各源近 7 天的数字提出建议。条目与事件保留 14 天,agent 经 `news_search` 检索;过期条目只留键与状态,源里仍在的条目不会再次出现。
 
 ### 知识库
 
@@ -111,7 +111,8 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ## 配置和文档
 
-- starter config 只有 `internal/cli/acorn.init.yaml` 一份;新增或删除配置字段时同步 config struct、defaults、validation、这份模板与测试。config 以 `KnownFields` 严格解析,删除的字段不保留兼容读取。
+- 配置文件只放部署时定一次、带密钥或要和主机上其他服务一起改的项;owner 的偏好与预算是设置,调参数值是代码常量。starter config 只有 `internal/cli/acorn.init.yaml` 一份;新增或删除配置字段时同步 config struct、defaults、validation、这份模板与测试。config 以 `KnownFields` 严格解析,删除的字段不保留兼容读取。
+- 新增或删除设置时同步 `internal/settings` 的键与默认值、`docs/openapi.yaml`、生成的客户端、App 设置页与测试。
 - `configs/acorn.local.yaml` 是被忽略的本地配置。
 - 不变量 ↔ 测试见 `docs/architecture/INVARIANTS.md`,用户指南在 `docs/user/`,方向级决策在 `docs/adr/`。不写复述代码的架构文档,不把未来计划写成现状。
 

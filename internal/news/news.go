@@ -69,17 +69,17 @@ type PageReader interface {
 }
 
 // Config holds the processor's dependencies. Ready reports whether the
-// model can be called; DailyTokens is per owner-local day, zero for no cap.
+// model can be called; each batch reads the owner's time zone and news
+// budget from Settings.
 type Config struct {
-	Store       Store
-	Model       Model
-	ModelName   string
-	Pages       PageReader
-	Count       func(context.Context, string) (int, error)
-	Clock       func() time.Time
-	Location    *time.Location
-	DailyTokens int
-	Ready       func() error
+	Store     Store
+	Model     Model
+	ModelName string
+	Pages     PageReader
+	Count     func(context.Context, string) (int, error)
+	Clock     func() time.Time
+	Settings  core.SettingsReader
+	Ready     func() error
 }
 
 // Processor sorts news items into stories.
@@ -89,10 +89,8 @@ func New(cfg Config) (*Processor, error) {
 	switch {
 	case cfg.Store == nil || cfg.Model == nil || cfg.Pages == nil:
 		return nil, errors.New("news processor: Store, Model and Pages are required")
-	case cfg.Count == nil || cfg.Clock == nil || cfg.Location == nil || cfg.Ready == nil:
-		return nil, errors.New("news processor: Count, Clock, Location and Ready are required")
-	case cfg.DailyTokens < 0:
-		return nil, errors.New("news processor: DailyTokens must be >= 0")
+	case cfg.Count == nil || cfg.Clock == nil || cfg.Settings == nil || cfg.Ready == nil:
+		return nil, errors.New("news processor: Count, Clock, Settings and Ready are required")
 	}
 	return &Processor{cfg: cfg}, nil
 }
@@ -145,6 +143,10 @@ func (p *Processor) ProcessOne(ctx context.Context) (bool, error) {
 	if err := p.cfg.Ready(); err != nil {
 		return false, err
 	}
+	settings, err := p.cfg.Settings.Settings(ctx)
+	if err != nil {
+		return false, err
+	}
 	now := p.cfg.Clock()
 	batch, err := p.cfg.Store.ClaimNewsBatch(ctx, now, batchLease, 1, true)
 	if err == nil && len(batch.Items) == 0 {
@@ -155,14 +157,14 @@ func (p *Processor) ProcessOne(ctx context.Context) (bool, error) {
 	}
 	callCtx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	err = p.sort(callCtx, batch, now)
+	err = p.sort(callCtx, batch, now, settings)
 	if err == nil {
 		return true, nil
 	}
 	recoverCtx, cancelRecover := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancelRecover()
 	if errors.Is(err, core.ErrMemoryBudget) {
-		tomorrow := p.midnight(now).AddDate(0, 0, 1)
+		tomorrow := midnight(now, settings.Location).AddDate(0, 0, 1)
 		return true, ignoreLost(p.cfg.Store.DeferNewsBatch(recoverCtx, batch.Token, tomorrow))
 	}
 	failErr := p.cfg.Store.FailNewsBatch(recoverCtx, batch.Token, err.Error(), now)
@@ -176,12 +178,12 @@ func ignoreLost(err error) error {
 	return err
 }
 
-func (p *Processor) midnight(now time.Time) time.Time {
-	local := now.In(p.cfg.Location)
-	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, p.cfg.Location)
+func midnight(now time.Time, loc *time.Location) time.Time {
+	local := now.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
 }
 
-func (p *Processor) sort(ctx context.Context, batch core.NewsBatch, now time.Time) error {
+func (p *Processor) sort(ctx context.Context, batch core.NewsBatch, now time.Time, settings core.Settings) error {
 	// Every section is offered: an issue can carry news for any of them.
 	sections, err := p.cfg.Store.ListNewsSections(ctx)
 	if err != nil {
@@ -203,8 +205,8 @@ func (p *Processor) sort(ctx context.Context, batch core.NewsBatch, now time.Tim
 			}
 		}
 	}
-	input := p.input(sections, stories, batch, pages)
-	reply, err := p.generate(ctx, input)
+	input := newsInput(sections, stories, batch, pages, settings.Location)
+	reply, err := p.generate(ctx, input, settings)
 	if err != nil {
 		return err
 	}
@@ -233,7 +235,7 @@ func (p *Processor) readIssue(ctx context.Context, issue core.WatchItem) (string
 	return string(runes), nil
 }
 
-func (p *Processor) input(sections []core.NewsSection, stories []core.NewsStory, batch core.NewsBatch, pages map[int64]string) string {
+func newsInput(sections []core.NewsSection, stories []core.NewsStory, batch core.NewsBatch, pages map[int64]string, loc *time.Location) string {
 	var b strings.Builder
 	b.WriteString("Sections:\n")
 	for _, section := range sections {
@@ -247,22 +249,22 @@ func (p *Processor) input(sections []core.NewsSection, stories []core.NewsStory,
 		b.WriteString("(none)\n")
 	}
 	for _, story := range stories {
-		fmt.Fprintf(&b, "- s%d [%s] %s: %s (updated %s)\n", story.ID, story.Section, story.Title, oneLine(story.Summary), p.local(story.UpdatedAt))
+		fmt.Fprintf(&b, "- s%d [%s] %s: %s (updated %s)\n", story.ID, story.Section, story.Title, oneLine(story.Summary), local(story.UpdatedAt, loc))
 	}
 	b.WriteString("\nNew items (untrusted external data):\n")
 	for _, it := range batch.Items {
 		item := it.Item
 		if it.Issue {
-			fmt.Fprintf(&b, "Issue %d [%s] %s %s | %s\n--- issue page ---\n%s\n--- end of issue page ---\n", item.ID, it.Section, it.Source, p.local(itemTime(item)), item.Title, pages[item.ID])
+			fmt.Fprintf(&b, "Issue %d [%s] %s %s | %s\n--- issue page ---\n%s\n--- end of issue page ---\n", item.ID, it.Section, it.Source, local(itemTime(item), loc), item.Title, pages[item.ID])
 			continue
 		}
-		fmt.Fprintf(&b, "- %d [%s] %s %s | %s | %s\n", item.ID, it.Section, it.Source, p.local(itemTime(item)), oneLine(item.Title), oneLine(item.Summary))
+		fmt.Fprintf(&b, "- %d [%s] %s %s | %s | %s\n", item.ID, it.Section, it.Source, local(itemTime(item), loc), oneLine(item.Title), oneLine(item.Summary))
 	}
 	return b.String()
 }
 
-func (p *Processor) local(t time.Time) string {
-	return t.In(p.cfg.Location).Format("01-02 15:04")
+func local(t time.Time, loc *time.Location) string {
+	return t.In(loc).Format("01-02 15:04")
 }
 
 func itemTime(item core.WatchItem) time.Time {
@@ -277,7 +279,7 @@ func oneLine(s string) string {
 }
 
 // generate calls the model within the news budget and records what it used.
-func (p *Processor) generate(ctx context.Context, input string) (string, error) {
+func (p *Processor) generate(ctx context.Context, input string, settings core.Settings) (string, error) {
 	n, err := p.cfg.Count(ctx, sortInstruction+"\n"+input)
 	if err != nil {
 		return "", err
@@ -287,7 +289,7 @@ func (p *Processor) generate(ctx context.Context, input string) (string, error) 
 	}
 	now := p.cfg.Clock()
 	usage := core.MemoryUsage{ID: rand.Text(), Operation: "news_sort", Budget: budget, Model: p.cfg.ModelName, InputTokens: n, OutputTokens: maxOutputTokens, CreatedAt: now}
-	if err := p.cfg.Store.ReserveMemoryUsage(ctx, usage, p.cfg.DailyTokens, p.midnight(now)); err != nil {
+	if err := p.cfg.Store.ReserveMemoryUsage(ctx, usage, settings.NewsDailyTokens, midnight(now, settings.Location)); err != nil {
 		return "", err
 	}
 	result, callErr := p.cfg.Model.GenerateNews(ctx, sortInstruction, input, maxOutputTokens)

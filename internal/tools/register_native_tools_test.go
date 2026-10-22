@@ -10,6 +10,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/views"
 )
@@ -40,10 +41,10 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		OperatorStore:   stubOperatorStore{},
 		OperatorContext: bridge,
 		Presence:        presenceDeps,
-		Notify:          NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Location: time.UTC},
-		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Location: time.UTC},
-		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Location: time.UTC},
-		Watch:           WatchToolDeps{Store: &toolWatchStore{}, News: &toolNewsSearcher{}, Feeds: &toolFeedDiscoverer{}, Triggers: triggersFake{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Location: time.UTC},
+		Notify:          NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
+		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
+		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
+		Watch:           WatchToolDeps{Store: &toolWatchStore{}, News: &toolNewsSearcher{}, Feeds: &toolFeedDiscoverer{}, Triggers: triggersFake{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
 		Views:           ViewToolDeps{Store: &viewStoreFake{}, Sources: views.Sources{Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: bridge},
 	}
 }
@@ -112,7 +113,7 @@ func TestRegisterNativeToolsFailsOnMissingDependency(t *testing.T) {
 		{"OperatorStore", "ask_operator", func(d *NativeToolDeps) { d.OperatorStore = nil }},
 		{"OperatorContext", "ask_operator", func(d *NativeToolDeps) { d.OperatorContext = nil }},
 		{"Presence.Store", "keep", func(d *NativeToolDeps) { d.Presence.Store = nil }},
-		{"Presence.Location", "keep", func(d *NativeToolDeps) { d.Presence.Location = nil }},
+		{"Presence.Settings", "keep", func(d *NativeToolDeps) { d.Presence.Settings = nil }},
 		{"Skills.Library", "skill_write", func(d *NativeToolDeps) { d.Skills.Library = nil }},
 	}
 	for _, tc := range cases {

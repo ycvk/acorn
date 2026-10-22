@@ -78,7 +78,7 @@ func packageTrigger(skill, name string, deliver skills.Deliver) skills.PackageTr
 	return skills.PackageTrigger{Trigger: skills.Trigger{Name: name, Schedule: "*/30 * * * *", Run: "scripts/check.py", Deliver: deliver}, Skill: skill, Revision: 1, Hash: "hash"}
 }
 
-func newTriggerHarness(t *testing.T, limit int, briefing Briefing, triggers ...skills.PackageTrigger) (*harness, *fakeTriggers) {
+func newTriggerHarness(t *testing.T, limit int, briefing core.DailyTime, triggers ...skills.PackageTrigger) (*harness, *fakeTriggers) {
 	t.Helper()
 	h := newHarnessWith(t, limit, briefing)
 	f := &fakeTriggers{triggers: triggers, outputs: map[string][][]skills.Event{}, items: map[string][][]skills.Item{}, viewData: map[string][]map[string]any{}, failures: map[string]error{}}
@@ -96,18 +96,18 @@ func (h *harness) tick(t *testing.T) {
 
 // at moves the harness clock to an owner-local time on 2026-10-05.
 func (h *harness) at(hour, minute int) {
-	h.now = time.Date(2026, 10, 5, hour, minute, 0, 0, h.sched.cfg.Location)
+	h.now = time.Date(2026, 10, 5, hour, minute, 0, 0, h.settings.Location)
 }
 
 func TestTriggerSlotsFireOnceAndQuietCommandsCallNoModel(t *testing.T) {
-	h, f := newTriggerHarness(t, 20, Briefing{}, packageTrigger("price-watch", "price", skills.DeliverImmediate))
+	h, f := newTriggerHarness(t, 20, core.DailyTime{}, packageTrigger("price-watch", "price", skills.DeliverImmediate))
 	h.at(9, 7)
 	h.tick(t) // schedules the first slot, 09:30
 	if f.firedCount() != 0 {
 		t.Fatalf("fired before its first slot: %v", f.fired)
 	}
 	states, err := h.data.ListTriggers(context.Background())
-	if err != nil || len(states) != 1 || !states[0].NextAt.Equal(time.Date(2026, 10, 5, 9, 30, 0, 0, h.sched.cfg.Location)) {
+	if err != nil || len(states) != 1 || !states[0].NextAt.Equal(time.Date(2026, 10, 5, 9, 30, 0, 0, h.settings.Location)) {
 		t.Fatalf("states = %+v, %v", states, err)
 	}
 	h.at(9, 30)
@@ -136,7 +136,7 @@ func TestTriggerSlotsFireOnceAndQuietCommandsCallNoModel(t *testing.T) {
 }
 
 func TestImmediateTriggerEventsRunOncePerNewKey(t *testing.T) {
-	h, f := newTriggerHarness(t, 20, Briefing{}, packageTrigger("price-watch", "price", skills.DeliverImmediate))
+	h, f := newTriggerHarness(t, 20, core.DailyTime{}, packageTrigger("price-watch", "price", skills.DeliverImmediate))
 	f.outputs["price-watch/price"] = [][]skills.Event{
 		{{Key: "price-120", Text: "BTC crossed 120k"}},
 		{{Key: "price-120", Text: "BTC crossed 120k"}, {Key: "price-130", Text: "BTC crossed 130k"}},
@@ -177,7 +177,7 @@ func TestImmediateTriggerEventsRunOncePerNewKey(t *testing.T) {
 }
 
 func TestTriggerEventsOverBudgetAndDigestWaitForTheBriefing(t *testing.T) {
-	h, f := newTriggerHarness(t, 0, Briefing{Enabled: true, At: 8 * time.Hour},
+	h, f := newTriggerHarness(t, 0, core.DailyTime{Enabled: true, At: 8 * time.Hour},
 		packageTrigger("price-watch", "price", skills.DeliverImmediate),
 		packageTrigger("issues", "weekly", skills.DeliverDigest))
 	f.outputs["price-watch/price"] = [][]skills.Event{{{Key: "price-120", Text: "BTC crossed 120k"}}}
@@ -193,7 +193,7 @@ func TestTriggerEventsOverBudgetAndDigestWaitForTheBriefing(t *testing.T) {
 	if err != nil || len(pending) != 2 {
 		t.Fatalf("pending = %+v, %v", pending, err)
 	}
-	h.now = time.Date(2026, 10, 6, 8, 0, 0, 0, h.sched.cfg.Location)
+	h.now = time.Date(2026, 10, 6, 8, 0, 0, 0, h.settings.Location)
 	h.tick(t)
 	briefing := h.runs.starts[len(h.runs.starts)-1]
 	for _, want := range []string{
@@ -215,7 +215,7 @@ func TestTriggerEventsOverBudgetAndDigestWaitForTheBriefing(t *testing.T) {
 }
 
 func TestTriggerFailingAfterFiveFailuresWithBackoff(t *testing.T) {
-	h, f := newTriggerHarness(t, 20, Briefing{Enabled: true, At: 8 * time.Hour}, packageTrigger("price-watch", "price", skills.DeliverImmediate))
+	h, f := newTriggerHarness(t, 20, core.DailyTime{Enabled: true, At: 8 * time.Hour}, packageTrigger("price-watch", "price", skills.DeliverImmediate))
 	f.failures["price-watch/price"] = errors.New("the command exited with status 1: connection refused")
 	h.at(9, 7)
 	h.tick(t)
@@ -241,7 +241,7 @@ func TestTriggerFailingAfterFiveFailuresWithBackoff(t *testing.T) {
 	}
 	// The first failure at 09:30 waits twice the 30-minute gap, and each
 	// further failure longer than the one before.
-	if want := time.Date(2026, 10, 5, 10, 30, 0, 0, h.sched.cfg.Location); !nexts[0].Equal(want) {
+	if want := time.Date(2026, 10, 5, 10, 30, 0, 0, h.settings.Location); !nexts[0].Equal(want) {
 		t.Fatalf("first retry at %v, want %v", nexts[0], want)
 	}
 	for i := 2; i < len(nexts); i++ {
@@ -249,7 +249,7 @@ func TestTriggerFailingAfterFiveFailuresWithBackoff(t *testing.T) {
 			t.Fatalf("the wait does not grow: %v", nexts)
 		}
 	}
-	h.now = time.Date(2026, 10, 6, 8, 0, 0, 0, h.sched.cfg.Location)
+	h.now = time.Date(2026, 10, 6, 8, 0, 0, 0, h.settings.Location)
 	delete(f.failures, "price-watch/price")
 	if err := h.sched.Tick(context.Background()); err != nil {
 		t.Fatalf("tick: %v", err)
@@ -269,7 +269,7 @@ func TestTriggerFailingAfterFiveFailuresWithBackoff(t *testing.T) {
 func TestRetiredSkillsAndMissingSecretsStopTriggers(t *testing.T) {
 	locked := packageTrigger("issues", "weekly", skills.DeliverDigest)
 	locked.Missing = []string{"GITHUB_TOKEN"}
-	h, f := newTriggerHarness(t, 20, Briefing{}, packageTrigger("price-watch", "price", skills.DeliverImmediate), locked)
+	h, f := newTriggerHarness(t, 20, core.DailyTime{}, packageTrigger("price-watch", "price", skills.DeliverImmediate), locked)
 	h.at(9, 7)
 	h.tick(t)
 	h.at(9, 30)
@@ -293,7 +293,7 @@ func TestRetiredSkillsAndMissingSecretsStopTriggers(t *testing.T) {
 // panel rejects counts as the trigger's failure while the events printed with
 // it still count.
 func TestViewDataFeedsPanelsWithoutAModel(t *testing.T) {
-	h, f := newTriggerHarness(t, 20, Briefing{}, packageTrigger("repo-releases", "check", skills.DeliverImmediate))
+	h, f := newTriggerHarness(t, 20, core.DailyTime{}, packageTrigger("repo-releases", "check", skills.DeliverImmediate))
 	f.viewData["repo-releases/check"] = []map[string]any{{"latest": "v0.9.21"}, {"latest": "v0.9.22"}}
 	h.at(9, 7)
 	h.tick(t)
@@ -322,7 +322,7 @@ func TestViewDataFeedsPanelsWithoutAModel(t *testing.T) {
 }
 
 func TestTriggerItemsFeedTheNewsSourcesThatFollowIt(t *testing.T) {
-	h, f := newTriggerHarness(t, 20, Briefing{}, packageTrigger("hot-lists", "zhihu", skills.DeliverDigest))
+	h, f := newTriggerHarness(t, 20, core.DailyTime{}, packageTrigger("hot-lists", "zhihu", skills.DeliverDigest))
 	ctx := context.Background()
 	f.items["hot-lists/zhihu"] = [][]skills.Item{
 		{{Key: "q0", Title: "无人跟随"}},

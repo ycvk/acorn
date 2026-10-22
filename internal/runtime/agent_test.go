@@ -15,6 +15,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -100,9 +101,11 @@ func handlerKinds(handlers []adk.TypedChatModelAgentMiddleware[*schema.AgenticMe
 }
 
 func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Approval.Require = []string{"["}
-	_, err := buildAgentHandlers(context.Background(), handlerTestDeps(cfg), agentRunnerRequest{ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Memory: &runMemory{}}, nil)
+	deps := handlerTestDeps(config.DefaultConfig())
+	owner := settings.Defaults()
+	owner.Approval.Require = []string{"["}
+	deps.Settings = settings.Fixed(owner)
+	_, err := buildAgentHandlers(context.Background(), deps, agentRunnerRequest{ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Memory: &runMemory{}}, nil)
 	if err == nil {
 		t.Fatal("expected malformed approval pattern to fail handler assembly")
 	}
@@ -118,7 +121,7 @@ func handlerTestDeps(cfg *config.Config) RuntimeDeps {
 		Commitments:        newMemPresenceStore(),
 		PhoneNotifications: newMemPresenceStore(),
 		Clock:              time.Now,
-		Location:           time.UTC,
+		Settings:           settings.Fixed(settings.Defaults()),
 	}
 }
 

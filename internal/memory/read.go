@@ -35,9 +35,9 @@ func (e *Engine) Read(ctx context.Context, in ReadInput) (ReadPage, error) {
 
 	budget := in.MaxTokens
 	if budget <= 0 {
-		budget = e.cfg.ContextTokens
+		budget = ContextTokens
 	}
-	budget = min(budget, e.cfg.ContextTokens)
+	budget = min(budget, ContextTokens)
 	phase, index, offset := "v", 0, 0
 	if in.Cursor != "" {
 		parts := strings.Split(in.Cursor, ":")

@@ -93,24 +93,24 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		{"Presence.ForgetBarrier", deps.Presence.ForgetBarrier != nil},
 		{"Presence.Context", deps.Presence.Context != nil},
 		{"Presence.Clock", deps.Presence.Clock != nil},
-		{"Presence.Location", deps.Presence.Location != nil},
+		{"Presence.Settings", deps.Presence.Settings != nil},
 	}
 	knowledgeDeps := []nativeToolDep{
 		{"Knowledge.Vault", deps.Knowledge.Vault != nil},
 		{"Knowledge.Context", deps.Knowledge.Context != nil},
-		{"Knowledge.Location", deps.Knowledge.Location != nil},
+		{"Knowledge.Settings", deps.Knowledge.Settings != nil},
 	}
 	skillDeps := []nativeToolDep{
 		{"Skills.Library", deps.Skills.Library != nil},
 		{"Skills.Context", deps.Skills.Context != nil},
-		{"Skills.Location", deps.Skills.Location != nil},
+		{"Skills.Settings", deps.Skills.Settings != nil},
 	}
 	watchDeps := []nativeToolDep{
 		{"Watch.Store", deps.Watch.Store != nil},
 		{"Watch.Checker", deps.Watch.Checker != nil},
 		{"Watch.Context", deps.Watch.Context != nil},
 		{"Watch.Clock", deps.Watch.Clock != nil},
-		{"Watch.Location", deps.Watch.Location != nil},
+		{"Watch.Settings", deps.Watch.Settings != nil},
 	}
 	var needs []nativeToolDep
 	var build func() (einotool.BaseTool, error)
@@ -171,7 +171,7 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		needs = []nativeToolDep{
 			{"Notify.Notifier", deps.Notify.Notifier != nil},
 			{"Notify.Context", deps.Notify.Context != nil},
-			{"Notify.Location", deps.Notify.Location != nil},
+			{"Notify.Settings", deps.Notify.Settings != nil},
 		}
 		build = func() (einotool.BaseTool, error) { return buildNotifyOwnerTool(deps.Notify) }
 	case "knowledge_write":

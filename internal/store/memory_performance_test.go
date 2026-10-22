@@ -18,6 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
 	agentruntime "github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/settings"
 )
 
 // TestMemoryVectorPerformance measures scaled candidate scans and exact reranking against the real
@@ -126,7 +127,7 @@ func TestMemoryVectorPerformance(t *testing.T) {
 			t.Fatal(err)
 		}
 		measured := &timedMemoryStore{MemoryStore: db}
-		engine, err := memory.New(memory.Config{Store: measured, Owner: db, Model: capacityModel{}, ModelName: "unused", Embedder: corpus, Index: index, Count: counter.CountText, Clock: time.Now, Location: time.UTC, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
+		engine, err := memory.New(memory.Config{Store: measured, Owner: db, Model: capacityModel{}, ModelName: "unused", Embedder: corpus, Index: index, Count: counter.CountText, Clock: time.Now, Settings: settings.Fixed(core.Settings{Location: time.UTC})})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -148,7 +149,7 @@ func TestMemoryVectorPerformance(t *testing.T) {
 		value.StandardP95MS, value.KeywordP95MS, value.GraphP95MS, value.VectorReadP95MS = percentile95(standard), percentile95(keyword), percentile95(graph), percentile95(vectorRead)
 		value.ExactReadP95MS = percentile95(exactRead)
 		value.SQLiteWaitMS = milliseconds(db.db.Stats().WaitDuration - waitBefore)
-		worker, err := memory.New(memory.Config{Store: db, Owner: db, Model: capacityWorkerModel{}, ModelName: "local-capacity-fixture", Embedder: corpus, Index: index, Count: counter.CountText, Clock: time.Now, Location: time.UTC, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
+		worker, err := memory.New(memory.Config{Store: db, Owner: db, Model: capacityWorkerModel{}, ModelName: "local-capacity-fixture", Embedder: corpus, Index: index, Count: counter.CountText, Clock: time.Now, Settings: settings.Fixed(core.Settings{Location: time.UTC})})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,5 +1,11 @@
 # Acorn self-hosted starter config (created by `acorn init`).
 #
+# This file holds what is set once at deployment: model and service keys,
+# addresses, and limits other services on the host share. Your time zone,
+# the times of the morning briefing and the reflections, push quiet hours,
+# daily budgets and approval rules are settings: change them in the app's
+# settings or with `acorn settings set`.
+#
 # Quick start:
 #   1. Set OPENAI_API_KEY and VOYAGE_API_KEY in your environment (self-hosted systemd reads ~/.acorn/acorn.env).
 #   2. Run `acorn doctor`   — should report `Ready: ready`.
@@ -8,9 +14,9 @@
 
 runtime:
   storage_dir: ~/.acorn
-  run_timeout_seconds: 0
 
 providers:
+  # A model the model table does not know also needs context_window_tokens.
   - name: primary
     api: responses
     model: gpt-6-astra
@@ -21,62 +27,23 @@ providers:
     max_output_tokens: 128000
     enabled: true
 
-approval:
-  # Tool-name glob patterns. block refuses a call, require pauses it for your
-  # approval on the phone, allow runs it without review. block wins over
-  # require, and require over allow; review judges the rest. news_source,
-  # which takes a news source into the briefing or stops one, always asks
-  # unless allow names it.
-  require:
-    - "mcp__*"
-    - skill_write
-    - skill_import
-    - skill_retire
-  block: []
-  allow: []
-
 review:
-  # TypeSafe's Jev judges shell commands, browser actions and MCP calls no rule
-  # settles; those with consequences outside the workstation (paying, sending,
-  # deleting, changing settings) pause for your approval. Empty turns it off.
+  # TypeSafe's Jev judges shell commands, browser actions and MCP calls no
+  # approval rule settles; those with consequences outside the workstation
+  # (paying, sending, deleting, changing settings) pause for your approval.
+  # Empty turns it off.
   api_key: ${TYPESAFE_API_KEY}
   model: jev-preview
   timeout_seconds: 20
 
-owner:
-  # IANA timezone used to show times and to read wake times given in local time,
-  # e.g. Asia/Shanghai.
-  timezone: UTC
-
 memory:
-  daily_tokens: 100000
-  batch_tokens: 8192
-  context_tokens: 8192
-  history_tokens: 32768
   embedding:
     base_url: https://api.voyageai.com/v1
     api_key: ${VOYAGE_API_KEY}
     model: voyage-4
     dimensions: 1024
 
-presence:
-  # Token cap for the working-memory block shown to the model before each call.
-  max_tokens: 4000
-
-wake:
-  # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
-  daily_limit: 20
-  daily_tokens: 0
-thinking:
-  night_at: "03:00"
-  wander_at: []
-
 notify:
-  max_per_hour: 6
-  # Notifications inside this window wait until it ends (owner timezone).
-  quiet_hours:
-    start: "23:00"
-    end: "08:00"
   fcm:
     # Firebase service account key file; empty disables push notifications.
     service_account_file: ""
@@ -87,17 +54,6 @@ watch:
   rsshub_base_url: ""
   # Optional GitHub token for a higher API rate limit, e.g. ${GITHUB_TOKEN}.
   github_token: ""
-  max_checks_per_tick: 5
-
-briefing:
-  # Morning briefing time in owner.timezone; empty turns it off. Daily
-  # digests you follow as news sources often publish after 08:00.
-  at: "08:00"
-
-news:
-  # Tokens per local day for sorting news items into scored stories in the
-  # background; 0 means no cap. Items wait for the next day once it is spent.
-  daily_tokens: 100000
 
 backup:
   # Where `acorn backup` writes snapshots; empty turns backups off.
@@ -109,28 +65,16 @@ workstation:
   # Empty url turns the shell and files tools off.
   url: ""
   token: ${ACORN_WORKSTATION_TOKEN}
-  command_timeout_seconds: 300
-  max_output_bytes: 32768
 
 files:
   # Size caps, in MiB, for a file you send the agent from the app and for one
-  # it sends you from its workstation.
+  # it sends you from its workstation. A reverse proxy in front of Acorn needs
+  # a request body limit above max_upload_mib.
   max_upload_mib: 50
   max_send_mib: 100
-
-context:
-  window_tokens: 1050000
-  compact_margin_tokens: 32000
-  mask_after_turns: 8
 
 web:
   listen_addr: 127.0.0.1:8080
 
-agent:
-  name: coordinator
-  description: Self-hosted personal agent that works on its owner's behalf and asks for approval before sensitive actions.
-  max_iterations: 100
-
 mcp:
   providers: []
-
