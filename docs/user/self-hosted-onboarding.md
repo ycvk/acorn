@@ -281,7 +281,7 @@ Do not expose `/v1` without device auth. Acorn does not provide a local/dev auth
 Acorn can use native runtime tools for public web research:
 
 - `web_search` uses Exa for search discovery.
-- `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts.
+- `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts. It reads HTML, plain text and XML; an RSS or Atom feed comes back as a list of its entries.
 
 Pages that need JavaScript or interaction open in a real browser on the agent's workstation; see [Agent Workstation](#15-agent-workstation).
 

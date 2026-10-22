@@ -259,3 +259,12 @@ func truncate(s string, n int) string {
 func collapse(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}

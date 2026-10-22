@@ -96,7 +96,7 @@ func (s *FetchService) Fetch(ctx context.Context, req FetchRequest) (FetchResult
 	if err != nil {
 		return FetchResult{}, err
 	}
-	extracted, err := s.extract(got.url, got.finalURL, got.contentType, text, req.ExtractMode)
+	extracted, err := s.extract(got.url, got.finalURL, got.contentType, got.body, text, req.ExtractMode)
 	if err != nil {
 		return FetchResult{}, err
 	}
@@ -210,24 +210,53 @@ func decodeUTF8(body []byte, contentTypeHeader string) ([]byte, error) {
 	return decoded, nil
 }
 
-func (s *FetchService) extract(originalURL, finalURL, contentType string, raw []byte, mode ExtractionMode) (ExtractResult, error) {
-	switch contentType {
-	case "text/html", "application/xhtml+xml":
-		return ExtractHTML(ExtractRequest{URL: finalURL, HTML: raw, Mode: mode})
-	case "text/plain":
-		text := strings.TrimSpace(string(raw))
-		if text == "" {
-			return ExtractResult{}, errors.New("plain text response is empty")
-		}
-		return ExtractResult{
-			URL:           finalURL,
-			Markdown:      text,
-			Method:        "plain_text",
-			MarkdownBytes: len([]byte(text)),
-		}, nil
+// extract turns a response into Markdown. body is the response as sent and
+// text the same decoded to UTF-8; XML is parsed from body, so the encoding
+// its declaration names is the one read.
+func (s *FetchService) extract(originalURL, finalURL, contentType string, body, text []byte, mode ExtractionMode) (ExtractResult, error) {
+	switch {
+	case contentType == "text/html" || contentType == "application/xhtml+xml":
+		return ExtractHTML(ExtractRequest{URL: finalURL, HTML: text, Mode: mode})
+	case contentType == "text/plain":
+		return textResult(finalURL, text, "plain_text")
+	case contentType == "application/xml" || contentType == "text/xml" || strings.HasSuffix(contentType, "+xml"):
+		return extractXML(finalURL, body, text)
 	default:
 		return ExtractResult{}, fmt.Errorf("unsupported web fetch content type %q for %s", contentType, originalURL)
 	}
+}
+
+// extractXML lists the entries of an RSS or Atom feed; other XML comes back
+// as its text.
+func extractXML(finalURL string, body, text []byte) (ExtractResult, error) {
+	feed, err := ParseFeed(body)
+	if errors.Is(err, ErrNotFeed) {
+		return textResult(finalURL, text, "xml")
+	}
+	if err != nil {
+		return ExtractResult{}, err
+	}
+	markdown := feedMarkdown(feed)
+	return ExtractResult{
+		URL:           finalURL,
+		Title:         feed.Title,
+		Markdown:      markdown,
+		Method:        "feed",
+		MarkdownBytes: len(markdown),
+	}, nil
+}
+
+func textResult(finalURL string, raw []byte, method string) (ExtractResult, error) {
+	text := strings.TrimSpace(string(raw))
+	if text == "" {
+		return ExtractResult{}, fmt.Errorf("%s response is empty", method)
+	}
+	return ExtractResult{
+		URL:           finalURL,
+		Markdown:      text,
+		Method:        method,
+		MarkdownBytes: len(text),
+	}, nil
 }
 
 func readBounded(r io.Reader, maxBytes int64) ([]byte, error) {
