@@ -369,8 +369,8 @@ func TestFeedDiscoverListsTheFeedsFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	discoverer := &toolFeedDiscoverer{found: webaccess.FeedDiscovery{Tried: 9, Feeds: []webaccess.DiscoveredFeed{
-		{URL: "https://blog.test/feed", FoundBy: "link", Title: "Blog", Entries: 20, PerDay: 2.345, Latest: watchToolNow, Samples: []string{"a", "b"}},
-		{URL: "https://blog.test/old.xml", FoundBy: "path", Entries: 3},
+		{URL: "https://blog.test/feed", FoundBy: "link", Title: "Blog", Entries: 20, PerDay: 2.346, Latest: watchToolNow, Samples: []string{"a", "b"}},
+		{URL: "https://blog.test/old.xml", FoundBy: "path", Entries: 128, PerDay: 0.0291},
 	}}}
 	tool, err := buildFeedDiscoverTool(WatchToolDeps{Feeds: discoverer, Location: loc})
 	if err != nil {
@@ -380,7 +380,7 @@ func TestFeedDiscoverListsTheFeedsFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"url":"https://blog.test/feed","found_by":"link","title":"Blog","entries":20,"per_day":2.3,"latest":"2026-10-03 Sat 09:00","samples":["a","b"]`, `"tried":9`} {
+	for _, want := range []string{`"url":"https://blog.test/feed","found_by":"link","title":"Blog","entries":20,"per_day":2.35,"latest":"2026-10-03 Sat 09:00","samples":["a","b"]`, `"entries":128,"per_day":0.03`, `"tried":9`} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("feed_discover output lacks %s: %s", want, out)
 		}

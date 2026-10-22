@@ -56,7 +56,7 @@ func buildFeedDiscoverTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			for _, f := range found.Feeds {
 				feed := DiscoveredFeedOutput{
 					URL: f.URL, FoundBy: f.FoundBy, Title: f.Title, Entries: f.Entries,
-					PerDay: math.Round(f.PerDay*10) / 10, Samples: f.Samples,
+					PerDay: math.Round(f.PerDay*100) / 100, Samples: f.Samples,
 				}
 				if !f.Latest.IsZero() {
 					feed.Latest = f.Latest.In(deps.Location).Format(localTimeLayout)
