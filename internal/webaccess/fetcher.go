@@ -220,18 +220,20 @@ func (s *FetchService) extract(originalURL, finalURL, contentType string, body, 
 	case contentType == "text/plain":
 		return textResult(finalURL, text, "plain_text")
 	case contentType == "application/xml" || contentType == "text/xml" || strings.HasSuffix(contentType, "+xml"):
-		return extractXML(finalURL, body, text)
+		return extractFeed(finalURL, body, text, "xml")
+	case contentType == "application/json" || contentType == "application/feed+json":
+		return extractFeed(finalURL, body, text, "json")
 	default:
 		return ExtractResult{}, fmt.Errorf("unsupported web fetch content type %q for %s", contentType, originalURL)
 	}
 }
 
-// extractXML lists the entries of an RSS or Atom feed; other XML comes back
-// as its text.
-func extractXML(finalURL string, body, text []byte) (ExtractResult, error) {
+// extractFeed lists the entries of a feed; other XML or JSON comes back as
+// its text.
+func extractFeed(finalURL string, body, text []byte, format string) (ExtractResult, error) {
 	feed, err := ParseFeed(body)
 	if errors.Is(err, ErrNotFeed) {
-		return textResult(finalURL, text, "xml")
+		return textResult(finalURL, text, format)
 	}
 	if err != nil {
 		return ExtractResult{}, err

@@ -38,6 +38,7 @@ var localToolNames = []string{
 	"watch_list",
 	"news_sections",
 	"news_search",
+	"feed_discover",
 	"show_view",
 	"update_view",
 	"web_fetch",
@@ -99,7 +100,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "keep", "think", "schedule_wake", "settle", "memory_correct", "memory_forget", "concern":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryMemory
-	case "recall", "memory_read", "knowledge_read", "knowledge_search", "knowledge_list", "skill_inspect", "watch_list", "news_search":
+	case "recall", "memory_read", "knowledge_read", "knowledge_search", "knowledge_list", "skill_inspect", "watch_list", "news_search", "feed_discover":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
 	case "web_fetch", "web_search":

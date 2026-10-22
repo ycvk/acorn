@@ -281,7 +281,7 @@ Do not expose `/v1` without device auth. Acorn does not provide a local/dev auth
 Acorn can use native runtime tools for public web research:
 
 - `web_search` uses Exa for search discovery.
-- `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts. It reads HTML, plain text and XML; an RSS or Atom feed comes back as a list of its entries.
+- `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts. It reads HTML, plain text, XML and JSON; an RSS, Atom or JSON feed comes back as a list of its entries.
 
 Pages that need JavaScript or interaction open in a real browser on the agent's workstation; see [Agent Workstation](#15-agent-workstation).
 
@@ -448,7 +448,7 @@ watch:
 
 Sources a watch can follow:
 
-- RSS or Atom feeds by URL.
+- RSS, Atom or JSON feeds by URL. Give the agent a site's address and it finds the site's feeds with `feed_discover`: the feeds the page names, links on it that look like feeds and common feed paths, each checked, with how many entries a day it carries and when it last published.
 - Anything RSSHub can turn into a feed (X, Weibo, and many more) as `rsshub:/route`. Run your own RSSHub next to Acorn; public instances are often rate limited:
 
   ```bash

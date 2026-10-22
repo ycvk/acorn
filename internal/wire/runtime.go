@@ -188,6 +188,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Watch: tools.WatchToolDeps{
 			Store:    db,
 			News:     db,
+			Feeds:    webFetcher,
 			Checker:  watchChecker,
 			Context:  ctxBridge,
 			Clock:    options.clock,

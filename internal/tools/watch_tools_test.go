@@ -13,7 +13,19 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/watch"
+	"github.com/ycvk/acorn/internal/webaccess"
 )
+
+// toolFeedDiscoverer returns a fixed discovery and records the pages asked.
+type toolFeedDiscoverer struct {
+	found webaccess.FeedDiscovery
+	pages []string
+}
+
+func (d *toolFeedDiscoverer) DiscoverFeeds(_ context.Context, page string) (webaccess.FeedDiscovery, error) {
+	d.pages = append(d.pages, page)
+	return d.found, nil
+}
 
 // toolNewsSearcher returns fixed stories and records the queries.
 type toolNewsSearcher struct {
@@ -346,5 +358,36 @@ func TestNewsSearchListsStoriesWithTheirItems(t *testing.T) {
 	}
 	if len(searcher.queries) != 2 {
 		t.Fatalf("rejected searches reached the store: %+v", searcher.queries)
+	}
+}
+
+func TestFeedDiscoverListsTheFeedsFound(t *testing.T) {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	discoverer := &toolFeedDiscoverer{found: webaccess.FeedDiscovery{Tried: 9, Feeds: []webaccess.DiscoveredFeed{
+		{URL: "https://blog.test/feed", FoundBy: "link", Title: "Blog", Entries: 20, PerDay: 2.345, Latest: watchToolNow, Samples: []string{"a", "b"}},
+		{URL: "https://blog.test/old.xml", FoundBy: "path", Entries: 3},
+	}}}
+	tool, err := buildFeedDiscoverTool(WatchToolDeps{Feeds: discoverer, Location: loc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := runPresenceTool(t, tool, `{"url":" https://blog.test/ "}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"url":"https://blog.test/feed","found_by":"link","title":"Blog","entries":20,"per_day":2.3,"latest":"2026-10-03 Sat 09:00","samples":["a","b"]`, `"tried":9`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("feed_discover output lacks %s: %s", want, out)
+		}
+	}
+	if strings.Contains(out, "note") || discoverer.pages[0] != "https://blog.test/" {
+		t.Fatalf("output %s, pages %v", out, discoverer.pages)
+	}
+	discoverer.found = webaccess.FeedDiscovery{Tried: 12}
+	if out, err := runPresenceTool(t, tool, `{"url":"https://nofeed.test"}`); err != nil || !strings.Contains(out, `"feeds":[]`) || !strings.Contains(out, "rsshub:/route") {
+		t.Fatalf("no feed: %s, %v", out, err)
 	}
 }

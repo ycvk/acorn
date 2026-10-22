@@ -29,6 +29,7 @@ type NewsSearcher interface {
 type WatchToolDeps struct {
 	Store    core.WatchStore
 	News     NewsSearcher
+	Feeds    FeedDiscoverer
 	Checker  WatchChecker
 	Context  core.ToolCallContextBridge
 	Clock    func() time.Time
