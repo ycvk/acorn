@@ -66,31 +66,31 @@ class RunEventProjection {
                 ),
             )
 
+            // Waiting rows are keyed by action id so the decided event clears its pending row.
             is RunEventPacket.ElicitationPending -> state.copy(
                 activities = state.activities + ActivityItem(
-                    id = packet.eventId,
+                    id = packet.event.`data`.actionId,
                     label = "等你补充信息",
                     kind = ActivityKind.Elicitation,
                 ),
             )
 
             is RunEventPacket.ElicitationDecided -> state.copy(
-                activities = state.activities.filter { it.id != packet.eventId },
+                activities = state.activities.filter { it.id != packet.event.`data`.actionId },
             )
 
             is RunEventPacket.OperatorQuestionPending -> state.copy(
                 activities = state.activities + ActivityItem(
-                    id = packet.eventId,
+                    id = packet.event.`data`.actionId,
                     label = "Acorn 在问你",
                     kind = ActivityKind.OperatorQuestion,
                 ),
             )
 
             is RunEventPacket.OperatorQuestionDecided -> state.copy(
-                activities = state.activities.filter { it.id != packet.eventId },
+                activities = state.activities.filter { it.id != packet.event.`data`.actionId },
             )
 
-            // Keyed by action id so the decided event clears its pending row.
             is RunEventPacket.ToolApprovalPending -> state.copy(
                 activities = state.activities + ActivityItem(
                     id = packet.event.`data`.actionId,
