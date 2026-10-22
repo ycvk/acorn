@@ -293,6 +293,7 @@
   - `internal/wake/news_test.go`
   - `internal/store/store_news_test.go`
   - `internal/tools/watch_tools_test.go`
+  - `internal/wire/news_acceptance_e2e_test.go`
 
 ## 空闲思考、用量与手机通知
 
