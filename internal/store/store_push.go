@@ -149,7 +149,9 @@ func (s *Store) ListDueNotifications(ctx context.Context, now time.Time) ([]core
 }
 
 func (s *Store) FinishNotification(ctx context.Context, id int64, status core.NotificationStatus, errText string, at time.Time) error {
-	if status != core.NotificationSent && status != core.NotificationFailed {
+	switch status {
+	case core.NotificationSent, core.NotificationFailed, core.NotificationDropped:
+	default:
 		return fmt.Errorf("finish notification %d: unsupported status %q", id, status)
 	}
 	result, err := s.db.ExecContext(ctx,

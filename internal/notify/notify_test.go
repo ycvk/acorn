@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -234,9 +235,18 @@ type senderHarness struct {
 	sender   *Sender
 	now      time.Time
 	settings core.Settings
+	actions  map[string]core.PendingActionStatus
 }
 
 func (h *senderHarness) Settings(context.Context) (core.Settings, error) { return h.settings, nil }
+
+func (h *senderHarness) LoadPendingAction(_ context.Context, actionID string) (*core.PendingActionRecord, error) {
+	status, ok := h.actions[actionID]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", core.ErrPendingActionNotFound, actionID)
+	}
+	return &core.PendingActionRecord{ActionID: actionID, Status: status}, nil
+}
 
 func newSenderHarness(t *testing.T, quiet core.QuietHours) *senderHarness {
 	t.Helper()
@@ -249,9 +259,10 @@ func newSenderHarness(t *testing.T, quiet core.QuietHours) *senderHarness {
 		pusher:   &recordingPusher{errs: map[string]error{}},
 		now:      time.Date(2026, 10, 5, 4, 0, 0, 0, time.UTC), // 12:00 Shanghai
 		settings: core.Settings{Location: loc, MaxPushesPerHour: 2, QuietHours: quiet},
+		actions:  map[string]core.PendingActionStatus{},
 	}
 	h.sender, err = NewSender(SenderConfig{
-		Store: h.store, Pusher: h.pusher, Clock: func() time.Time { return h.now }, Settings: h,
+		Store: h.store, Actions: h, Pusher: h.pusher, Clock: func() time.Time { return h.now }, Settings: h,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -321,6 +332,48 @@ func TestNotifyQueuesInsideQuietHoursAndFlushesAfter(t *testing.T) {
 	}
 	if h.store.notes[0].Status != core.NotificationSent {
 		t.Fatalf("status = %s", h.store.notes[0].Status)
+	}
+}
+
+func TestFlushDropsQueuedPushesForDecidedActions(t *testing.T) {
+	h := newSenderHarness(t, overnight)
+	h.settings.MaxPushesPerHour = 5
+	ctx := context.Background()
+	h.now = time.Date(2026, 10, 5, 16, 30, 0, 0, time.UTC) // 00:30 Shanghai
+	store := announceStore{
+		run: core.RunRecord{RunID: "run_1", SessionID: "thread_1"},
+		actions: []core.PendingActionRecord{
+			{ActionID: "a1", Kind: core.PendingActionKindToolApproval, Subject: "发送邮件", PayloadJSON: `{"message":"给张三"}`, Status: core.PendingActionStatusPending},
+			{ActionID: "a2", Kind: core.PendingActionKindOperatorQuestion, PayloadJSON: `{"question":"周几方便？"}`, Status: core.PendingActionStatusPending},
+		},
+	}
+	h.actions["a1"], h.actions["a2"] = core.PendingActionStatusPending, core.PendingActionStatusPending
+	announcer, err := NewPendingActionAnnouncer(store, h.sender)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := announcer.AnnounceRun(ctx, "run_1"); err != nil {
+		t.Fatalf("announce: %v", err)
+	}
+	if _, err := h.sender.Notify(ctx, core.Notification{Title: "夜里", Body: "b"}); err != nil {
+		t.Fatalf("notify: %v", err)
+	}
+	h.actions["a1"] = core.PendingActionStatusRejected
+
+	h.now = time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC) // 08:00 Shanghai
+	if err := h.sender.FlushDue(ctx); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if want := []string{"fid_a:operator_question", "fid_a:夜里"}; strings.Join(h.pusher.sent, ",") != strings.Join(want, ",") {
+		t.Fatalf("sent = %v, want %v", h.pusher.sent, want)
+	}
+	if n := h.store.notes[0]; n.Status != core.NotificationDropped || !strings.Contains(n.Error, "rejected") {
+		t.Fatalf("push for the decided action = %+v, want dropped", n)
+	}
+	for _, n := range h.store.notes[1:] {
+		if n.Status != core.NotificationSent {
+			t.Fatalf("push %d = %+v, want sent", n.ID, n)
+		}
 	}
 }
 
