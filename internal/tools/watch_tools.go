@@ -37,7 +37,9 @@ type WatchCreateInput struct {
 	Kind     string `json:"kind" jsonschema_description:"rss (feed URL or rsshub:/route), github (target owner/repo), web (page URL) or web_rendered (page that needs JavaScript)."`
 	Target   string `json:"target" jsonschema_description:"Feed URL, rsshub:/route, owner/repo, or page URL."`
 	Selector string `json:"selector,omitempty" jsonschema_description:"web and web_rendered: CSS selector of the part to follow, e.g. .price; empty follows the main text. github: releases (default) or issues."`
-	Mode     string `json:"mode,omitempty" jsonschema_description:"digest (default) keeps new items for the morning briefing; immediate wakes you as soon as something new appears."`
+	Mode     string `json:"mode,omitempty" jsonschema_description:"digest (default) keeps new items for the morning briefing; immediate wakes you as soon as something new appears; news offers new items to the briefing's news section to pick from, for news sources with many items a day."`
+	Section  string `json:"section,omitempty" jsonschema_description:"news: the news section the source belongs to, from news_sections."`
+	Issue    bool   `json:"issue,omitempty" jsonschema_description:"news: each entry is an issue, such as a daily digest, whose items are on the entry's page."`
 	Every    string `json:"every,omitempty" jsonschema_description:"How often to check, e.g. 30m, 6h. Default 1h, minimum 15m."`
 }
 
@@ -46,7 +48,9 @@ type WatchUpdateInput struct {
 	ID       int64  `json:"id" jsonschema_description:"Watch id from watch_list."`
 	Name     string `json:"name,omitempty" jsonschema_description:"New name."`
 	Selector string `json:"selector,omitempty" jsonschema_description:"New selector; the watch takes a new baseline."`
-	Mode     string `json:"mode,omitempty" jsonschema_description:"digest or immediate."`
+	Mode     string `json:"mode,omitempty" jsonschema_description:"digest, immediate or news; news needs a section."`
+	Section  string `json:"section,omitempty" jsonschema_description:"news: move the source to this news section."`
+	Issue    *bool  `json:"issue,omitempty" jsonschema_description:"news: whether each entry is an issue whose items are on its page."`
 	Every    string `json:"every,omitempty" jsonschema_description:"New check interval, minimum 15m."`
 	Status   string `json:"status,omitempty" jsonschema_description:"active to resume, paused to stop checking."`
 }
@@ -59,6 +63,8 @@ type WatchOutput struct {
 	Target      string `json:"target"`
 	Selector    string `json:"selector,omitempty"`
 	Mode        string `json:"mode"`
+	Section     string `json:"section,omitempty"`
+	Issue       bool   `json:"issue,omitempty"`
 	Every       string `json:"every"`
 	Status      string `json:"status"`
 	NextCheck   string `json:"next_check"`
@@ -96,6 +102,10 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 			}
+			section := strings.TrimSpace(input.Section)
+			if err := newsFields(mode, section, input.Issue); err != nil {
+				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
+			}
 			every, err := watchEvery(input.Every, defaultWatchEvery)
 			if err != nil {
 				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
@@ -105,7 +115,7 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			}
 			now := deps.Clock()
 			w := core.Watch{
-				Name: name, Kind: kind, Target: target, Selector: selector, Mode: mode, Interval: every,
+				Name: name, Kind: kind, Target: target, Selector: selector, Mode: mode, Section: section, Issue: input.Issue, Interval: every,
 				Status: core.WatchActive, SessionID: deps.Context.CurrentSessionID(ctx), NextCheckAt: now, CreatedAt: now,
 			}
 			fetched, err := deps.Checker.Fetch(ctx, w)
@@ -129,7 +139,7 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 
 func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 	return inferProgressTool("watch_update",
-		"Change a watch: rename it, change what part of the page it follows, switch between digest and immediate, change how often it is checked, or pause and resume it.",
+		"Change a watch: rename it, change what part of the page it follows, switch between digest, immediate and news, move a news source to another section, change how often it is checked, or pause and resume it.",
 		func(ctx context.Context, input WatchUpdateInput, _ ToolProgressEmitter) (WatchOutput, error) {
 			loaded, err := deps.Store.LoadWatch(ctx, input.ID)
 			if err != nil {
@@ -144,6 +154,18 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				if w.Mode, err = watchMode(input.Mode, w.Mode); err != nil {
 					return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 				}
+			}
+			if section := strings.TrimSpace(input.Section); section != "" {
+				w.Section = section
+			}
+			if input.Issue != nil {
+				w.Issue = *input.Issue
+			}
+			if w.Mode != core.WatchModeNews && input.Section == "" && input.Issue == nil {
+				w.Section, w.Issue = "", false
+			}
+			if err := newsFields(w.Mode, w.Section, w.Issue); err != nil {
+				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 			}
 			if input.Every != "" {
 				if w.Interval, err = watchEvery(input.Every, w.Interval); err != nil {
@@ -223,9 +245,23 @@ func watchMode(value string, fallback core.WatchMode) (core.WatchMode, error) {
 		return core.WatchModeDigest, nil
 	case core.WatchModeImmediate:
 		return core.WatchModeImmediate, nil
+	case core.WatchModeNews:
+		return core.WatchModeNews, nil
 	default:
-		return "", fmt.Errorf("mode %q must be digest or immediate", value)
+		return "", fmt.Errorf("mode %q must be digest, immediate or news", value)
 	}
+}
+
+// newsFields checks that a news watch has a section and that only news
+// watches have a section or issues.
+func newsFields(mode core.WatchMode, section string, issue bool) error {
+	switch {
+	case mode == core.WatchModeNews && section == "":
+		return errors.New("a news source needs a section; list or add one with news_sections")
+	case mode != core.WatchModeNews && (section != "" || issue):
+		return fmt.Errorf("section and issue apply to news sources, not mode %s", mode)
+	}
+	return nil
 }
 
 func watchEvery(value string, fallback time.Duration) (time.Duration, error) {
@@ -246,7 +282,7 @@ func watchEvery(value string, fallback time.Duration) (time.Duration, error) {
 func watchOutput(w core.Watch, pending int, loc *time.Location) WatchOutput {
 	out := WatchOutput{
 		ID: w.ID, Name: w.Name, Kind: string(w.Kind), Target: w.Target, Selector: w.Selector,
-		Mode: string(w.Mode), Every: w.Interval.String(), Status: string(w.Status),
+		Mode: string(w.Mode), Section: w.Section, Issue: w.Issue, Every: w.Interval.String(), Status: string(w.Status),
 		NextCheck: w.NextCheckAt.In(loc).Format(localTimeLayout), LastError: w.LastError, Pending: pending,
 	}
 	if !w.LastCheckedAt.IsZero() {

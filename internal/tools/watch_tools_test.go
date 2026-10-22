@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,11 +15,52 @@ import (
 	"github.com/ycvk/acorn/internal/watch"
 )
 
-// toolWatchStore keeps watches and pending items in memory.
+// toolWatchStore keeps watches, pending items and news sections in memory.
 type toolWatchStore struct {
 	core.WatchStore
-	watches []core.Watch
-	pending []core.WatchItem
+	watches  []core.Watch
+	pending  []core.WatchItem
+	sections []core.NewsSection
+}
+
+func (s *toolWatchStore) ListNewsSections(context.Context) ([]core.NewsSection, error) {
+	return slices.Clone(s.sections), nil
+}
+
+func (s *toolWatchStore) SaveNewsSection(_ context.Context, section core.NewsSection) (core.NewsSection, error) {
+	for i := range s.sections {
+		if s.sections[i].Name == section.Name {
+			s.sections[i] = section
+			return section, nil
+		}
+	}
+	s.sections = append(s.sections, section)
+	return section, nil
+}
+
+func (s *toolWatchStore) RenameNewsSection(_ context.Context, from, to string, _ time.Time) error {
+	for i := range s.sections {
+		if s.sections[i].Name == from {
+			s.sections[i].Name = to
+			for j := range s.watches {
+				if s.watches[j].Section == from {
+					s.watches[j].Section = to
+				}
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %q", core.ErrNewsSectionNotFound, from)
+}
+
+func (s *toolWatchStore) DeleteNewsSection(_ context.Context, name string) error {
+	for _, w := range s.watches {
+		if w.Section == name {
+			return fmt.Errorf("%w: %q has %s", core.ErrNewsSectionInUse, name, w.Name)
+		}
+	}
+	s.sections = slices.DeleteFunc(s.sections, func(section core.NewsSection) bool { return section.Name == name })
+	return nil
 }
 
 func (s *toolWatchStore) AddWatch(_ context.Context, w core.Watch) (core.Watch, error) {
@@ -95,6 +137,7 @@ func newWatchToolsForTest(t *testing.T) (*toolWatchStore, *fakeWatchChecker, map
 	tools := map[string]einotool.BaseTool{}
 	for name, build := range map[string]func(WatchToolDeps) (einotool.BaseTool, error){
 		"watch_create": buildWatchCreateTool, "watch_update": buildWatchUpdateTool, "watch_list": buildWatchListTool,
+		"news_sections": buildNewsSectionsTool,
 	} {
 		tool, err := build(deps)
 		if err != nil {
@@ -180,5 +223,71 @@ func TestWatchUpdateAndList(t *testing.T) {
 	out, err := runPresenceTool(t, tools["watch_list"], `{}`)
 	if err != nil || !strings.Contains(out, `"pending_for_briefing":2`) || !strings.Contains(out, `"selector":".sale-price"`) {
 		t.Fatalf("list = %s, %v", out, err)
+	}
+}
+
+func TestNewsSectionsAndNewsSources(t *testing.T) {
+	store, _, tools := newWatchToolsForTest(t)
+	if _, err := runPresenceTool(t, tools["watch_create"], `{"name":"中新网要闻","kind":"rss","target":"https://n.test/importnews.xml","mode":"news"}`); err == nil || !strings.Contains(err.Error(), "needs a section") {
+		t.Fatalf("news without a section err = %v", err)
+	}
+	if _, err := runPresenceTool(t, tools["news_sections"], `{"action":"set","name":"国内要闻","preference":"1. 政策与民生"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPresenceTool(t, tools["news_sections"], `{"action":"set","name":"AI"}`); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.sections; len(got) != 2 || got[0].Position != 1 || got[1].Position != 2 || got[0].Preference != "1. 政策与民生" {
+		t.Fatalf("sections = %+v", got)
+	}
+	if _, err := runPresenceTool(t, tools["watch_create"], `{"name":"AI225","kind":"rss","target":"https://ai225.test/rss.xml","mode":"news","section":"AI","issue":true}`); err != nil {
+		t.Fatal(err)
+	}
+	if w := store.watches[0]; w.Mode != core.WatchModeNews || w.Section != "AI" || !w.Issue {
+		t.Fatalf("news source = %+v", w)
+	}
+	if _, err := runPresenceTool(t, tools["watch_create"], `{"name":"x","kind":"rss","target":"https://x.test","section":"AI"}`); err == nil {
+		t.Fatal("a digest watch takes no section")
+	}
+
+	out, err := runPresenceTool(t, tools["news_sections"], `{"action":"set","name":"AI","rename":"AI 与科技前沿","preference":"1. 模型与 agent\n2. 开发工具"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"name":"AI 与科技前沿"`, `"preference":"1. 模型与 agent\n2. 开发工具"`, `"name":"AI225"`, `"issue":true`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output lacks %s: %s", want, out)
+		}
+	}
+	if store.watches[0].Section != "AI 与科技前沿" {
+		t.Fatalf("the source did not move with the rename: %+v", store.watches[0])
+	}
+	if _, err := runPresenceTool(t, tools["news_sections"], `{"action":"remove","name":"AI 与科技前沿"}`); !errors.Is(err, core.ErrNewsSectionInUse) {
+		t.Fatalf("remove in use err = %v", err)
+	}
+	if _, err := runPresenceTool(t, tools["news_sections"], `{"action":"set","name":"体育","rename":"运动"}`); !errors.Is(err, core.ErrNewsSectionNotFound) {
+		t.Fatalf("rename missing err = %v", err)
+	}
+
+	if _, err := runPresenceTool(t, tools["watch_update"], `{"id":1,"mode":"digest"}`); err != nil {
+		t.Fatal(err)
+	}
+	if w := store.watches[0]; w.Mode != core.WatchModeDigest || w.Section != "" || w.Issue {
+		t.Fatalf("a digest watch keeps no section: %+v", w)
+	}
+	if _, err := runPresenceTool(t, tools["watch_update"], `{"id":1,"section":"国内要闻"}`); err == nil {
+		t.Fatal("a digest watch cannot take a section")
+	}
+	if _, err := runPresenceTool(t, tools["watch_update"], `{"id":1,"mode":"news","section":"国内要闻","issue":false}`); err != nil {
+		t.Fatal(err)
+	}
+	if w := store.watches[0]; w.Mode != core.WatchModeNews || w.Section != "国内要闻" || w.Issue {
+		t.Fatalf("back to news = %+v", w)
+	}
+	if _, err := runPresenceTool(t, tools["news_sections"], `{"action":"remove","name":"AI 与科技前沿"}`); err != nil {
+		t.Fatalf("remove an empty section: %v", err)
+	}
+	if _, err := runPresenceTool(t, tools["news_sections"], `{"action":"drop"}`); err == nil {
+		t.Fatal("an unknown action must fail")
 	}
 }
