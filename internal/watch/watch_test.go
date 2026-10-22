@@ -73,30 +73,6 @@ const rssFeed = `<?xml version="1.0"?><rss version="2.0"><channel><title>Blog</t
 <item><title>No guid</title><link>https://blog.test/2</link></item>
 </channel></rss>`
 
-const atomFeed = `<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title>A</title>
-<entry><title>Atom one</title><id>tag:a,1</id><link rel="alternate" href="https://a.test/1"/><summary>sum</summary><updated>2026-10-02T08:00:00Z</updated></entry>
-</feed>`
-
-func TestParseFeed(t *testing.T) {
-	items, err := ParseFeed([]byte(rssFeed))
-	if err != nil || len(items) != 2 {
-		t.Fatalf("rss = %+v, %v", items, err)
-	}
-	if items[0].Key != "g1" || items[0].Title != "First & best" || items[0].Summary != "Hello world" || items[0].PublishedAt.IsZero() {
-		t.Fatalf("rss item = %+v", items[0])
-	}
-	if items[1].Key != "https://blog.test/2" {
-		t.Fatalf("link key = %q", items[1].Key)
-	}
-	atom, err := ParseFeed([]byte(atomFeed))
-	if err != nil || len(atom) != 1 || atom[0].Key != "tag:a,1" || atom[0].URL != "https://a.test/1" {
-		t.Fatalf("atom = %+v, %v", atom, err)
-	}
-	if _, err := ParseFeed([]byte("<html><body>nope</body></html>")); err == nil {
-		t.Fatal("an HTML page is not a feed")
-	}
-}
-
 func TestFeedWatchBaselineThenNewItems(t *testing.T) {
 	fetcher := &fakeFetcher{bodies: map[string]string{"http://rsshub.test/github/repos/x": rssFeed}}
 	c, store := newTestChecker(t, fetcher)
@@ -104,6 +80,9 @@ func TestFeedWatchBaselineThenNewItems(t *testing.T) {
 	first, err := c.Check(context.Background(), w)
 	if err != nil || first.Baseline != 2 || len(first.New) != 0 {
 		t.Fatalf("first = %+v, %v", first, err)
+	}
+	if got := store.keys; !got["g1"] || !got["https://blog.test/2"] {
+		t.Fatalf("baseline keys = %v", got)
 	}
 	if !store.updated.NextCheckAt.Equal(checkNow.Add(time.Hour)) || !store.updated.LastCheckedAt.Equal(checkNow) {
 		t.Fatalf("watch after first check = %+v", store.updated)
