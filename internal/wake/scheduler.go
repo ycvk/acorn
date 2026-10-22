@@ -55,9 +55,11 @@ type Config struct {
 	Runs               RunStarter
 	Watches            core.WatchStore
 	Checker            WatchChecker
-	Triggers           core.TriggerStore
-	Clock              func() time.Time
-	Location           *time.Location
+	// Pages reads the pages of news issues.
+	Pages    PageReader
+	Triggers core.TriggerStore
+	Clock    func() time.Time
+	Location *time.Location
 	// DailyLimit caps commitment and watch wakes per owner-local day; zero
 	// disables them.
 	DailyLimit  int
@@ -111,6 +113,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Watches is required")
 	case cfg.Checker == nil:
 		return nil, errors.New("wake scheduler: Checker is required")
+	case cfg.Pages == nil:
+		return nil, errors.New("wake scheduler: Pages is required")
 	case cfg.Triggers == nil:
 		return nil, errors.New("wake scheduler: Triggers is required")
 	case cfg.MaxChecksPerTick <= 0:

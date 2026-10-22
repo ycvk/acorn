@@ -303,6 +303,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Runs:               &wakeRunStarter{runs: container.runs, store: db},
 		Watches:            db,
 		Checker:            deps.watchChecker,
+		Pages:              deps.newsPages,
 		Triggers:           db,
 		Clock:              clock,
 		Location:           location,

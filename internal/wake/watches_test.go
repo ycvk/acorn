@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,9 +16,84 @@ import (
 
 // memWatches is an in-memory core.WatchStore.
 type memWatches struct {
-	mu      sync.Mutex
-	watches []core.Watch
-	items   []core.WatchItem
+	mu       sync.Mutex
+	watches  []core.Watch
+	items    []core.WatchItem
+	sections []core.NewsSection
+}
+
+func (m *memWatches) PendingBriefingItems(_ context.Context, limit int) (core.PendingBriefing, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	queues := map[int64][]core.WatchItem{}
+	out := core.PendingBriefing{Counts: map[int64]int{}}
+	for _, item := range m.items {
+		if item.Status == core.WatchItemPending && m.watches[item.WatchID-1].Mode != core.WatchModeNews {
+			queues[item.WatchID] = append(queues[item.WatchID], item)
+			out.Counts[item.WatchID]++
+		}
+	}
+	for turn := 0; len(out.Items) < limit; turn++ {
+		took := false
+		for _, w := range m.watches {
+			if turn < len(queues[w.ID]) && len(out.Items) < limit {
+				out.Items, took = append(out.Items, queues[w.ID][turn]), true
+			}
+		}
+		if !took {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *memWatches) PendingNewsItems(_ context.Context, perWatch int) (core.PendingNews, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := core.PendingNews{Counts: map[int64]int{}}
+	for _, w := range m.watches {
+		if w.Mode != core.WatchModeNews {
+			continue
+		}
+		var items []core.WatchItem
+		for _, item := range m.items {
+			if item.WatchID == w.ID && item.Status == core.WatchItemPending {
+				items = append(items, item)
+				out.Counts[w.ID]++
+				out.IDs = append(out.IDs, item.ID)
+			}
+		}
+		if w.Status == core.WatchPaused {
+			continue
+		}
+		slices.Reverse(items)
+		out.Items = append(out.Items, items[:min(perWatch, len(items))]...)
+	}
+	slices.Sort(out.IDs)
+	return out, nil
+}
+
+func (m *memWatches) ListNewsSections(context.Context) ([]core.NewsSection, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	sections := slices.Clone(m.sections)
+	slices.SortFunc(sections, func(a, b core.NewsSection) int { return a.Position - b.Position })
+	return sections, nil
+}
+
+func (m *memWatches) SaveNewsSection(_ context.Context, section core.NewsSection) (core.NewsSection, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sections = append(m.sections, section)
+	return section, nil
+}
+
+func (m *memWatches) RenameNewsSection(context.Context, string, string, time.Time) error {
+	return errors.New("not used by the scheduler")
+}
+
+func (m *memWatches) DeleteNewsSection(context.Context, string) error {
+	return errors.New("not used by the scheduler")
 }
 
 func newMemWatches() *memWatches { return &memWatches{} }
@@ -113,7 +189,9 @@ func (m *memWatches) MarkWatchItems(_ context.Context, ids []int64, status core.
 }
 
 // fakeChecker returns the items queued for a watch as new, stored pending.
+// News watches are checked concurrently before a briefing.
 type fakeChecker struct {
+	mu      sync.Mutex
 	watches *memWatches
 	found   map[int64][]core.WatchItem
 	failing map[int64]error
@@ -122,12 +200,15 @@ type fakeChecker struct {
 }
 
 func (c *fakeChecker) Check(ctx context.Context, w core.Watch) (watch.Result, error) {
+	c.mu.Lock()
 	c.checked = append(c.checked, w.ID)
-	if err := c.failing[w.ID]; err != nil {
-		return watch.Result{Watch: w}, err
-	}
+	failure := c.failing[w.ID]
 	items := c.found[w.ID]
 	delete(c.found, w.ID)
+	c.mu.Unlock()
+	if failure != nil {
+		return watch.Result{Watch: w}, failure
+	}
 	for i := range items {
 		items[i].WatchID, items[i].Status, items[i].SeenAt = w.ID, core.WatchItemPending, c.clock()
 	}

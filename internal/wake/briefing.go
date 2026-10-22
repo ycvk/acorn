@@ -82,7 +82,11 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	if err := s.briefingNotes(ctx, &m, since); err != nil {
 		return routineInput{}, err
 	}
-	items, err := s.cfg.Watches.ListWatchItems(ctx, core.WatchItemPending, maxBriefingItems)
+	news, err := s.prepareNews(ctx, &m)
+	if err != nil {
+		return routineInput{}, err
+	}
+	pending, err := s.cfg.Watches.PendingBriefingItems(ctx, maxBriefingItems)
 	if err != nil {
 		return routineInput{}, err
 	}
@@ -90,9 +94,9 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	if err != nil {
 		return routineInput{}, err
 	}
-	m.add(watchChanges(watches, items), true)
+	m.add(watchChanges(watches, pending), true)
 	m.add(failingWatches(watches), true)
-	m.sources = append(m.sources, watchSourceIDs(items)...)
+	m.sources = append(m.sources, watchSourceIDs(pending.Items)...)
 	events, err := s.cfg.Triggers.ListTriggerEvents(ctx, core.TriggerEventPending, maxBriefingItems)
 	if err != nil {
 		return routineInput{}, err
@@ -118,10 +122,13 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 		b.WriteString("\n" + section)
 	}
 	return routineInput{sources: m.sources, wake: "morning briefing " + day, input: b.String(), standalone: true, after: func(ctx context.Context, runID string) error {
-		if err := s.cfg.Watches.MarkWatchItems(ctx, itemIDs(items), core.WatchItemBriefed, runID); err != nil {
+		if err := s.cfg.Watches.MarkWatchItems(ctx, append(itemIDs(pending.Items), news.ids...), core.WatchItemBriefed, runID); err != nil {
 			return err
 		}
-		return s.cfg.Triggers.MarkTriggerEvents(ctx, eventIDs(events), core.TriggerEventBriefed, runID)
+		if err := s.cfg.Triggers.MarkTriggerEvents(ctx, eventIDs(events), core.TriggerEventBriefed, runID); err != nil {
+			return err
+		}
+		return news.failures
 	}}, nil
 }
 
@@ -276,20 +283,24 @@ func phoneBriefing(page core.PhoneNotificationPage, loc *time.Location) string {
 	return b.String()
 }
 
-// watchChanges lists pending items grouped by watch.
-func watchChanges(watches []core.Watch, items []core.WatchItem) string {
-	if len(items) == 0 {
+// watchChanges lists pending items grouped by watch. Items past a watch's
+// turns wait for the next briefing.
+func watchChanges(watches []core.Watch, pending core.PendingBriefing) string {
+	if len(pending.Items) == 0 {
 		return ""
 	}
 	byWatch := map[int64][]core.WatchItem{}
-	for _, item := range items {
+	for _, item := range pending.Items {
 		byWatch[item.WatchID] = append(byWatch[item.WatchID], item)
 	}
 	var b strings.Builder
 	b.WriteString("Watch changes since the last briefing:\n")
 	for _, w := range watches {
 		if found := byWatch[w.ID]; len(found) > 0 {
-			fmt.Fprintf(&b, "\n## #%d %s (%s, %d new)\n%s", w.ID, w.Name, w.Kind, len(found), formatItems(found))
+			fmt.Fprintf(&b, "\n## #%d %s (%s, %d new)\n%s", w.ID, w.Name, w.Kind, pending.Counts[w.ID], formatItems(found))
+			if more := pending.Counts[w.ID] - len(found); more > 0 {
+				fmt.Fprintf(&b, "- and %d more waiting for the next briefing\n", more)
+			}
 		}
 	}
 	return b.String()

@@ -36,6 +36,9 @@ type RoutineStore interface {
 	LatestRoutineThread(ctx context.Context, routine string) (string, error)
 	// LatestRoutineRun is the newest started run of routine; zero when none.
 	LatestRoutineRun(ctx context.Context, routine string) (RoutineRun, error)
+	// LatestRoutineOutput is the reply of routine's newest succeeded run;
+	// zero when none succeeded or its thread was deleted with the run.
+	LatestRoutineOutput(ctx context.Context, routine string) (RoutineOutput, error)
 	// LastRoutineAt excludes skipped slots and the current slot.
 	LastRoutineAt(ctx context.Context, routine, beforeSlot string) (time.Time, error)
 }

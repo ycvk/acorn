@@ -117,6 +117,17 @@ type harness struct {
 	now     time.Time
 	data    *store.Store
 	panels  *fakePanels
+	pages   *fakePages
+}
+
+// fakePages serves fixed pages by URL; any other URL fails.
+type fakePages struct{ pages map[string]string }
+
+func (p *fakePages) ReadPage(_ context.Context, url string) (string, error) {
+	if page, ok := p.pages[url]; ok {
+		return page, nil
+	}
+	return "", errors.New("HTTP 404 " + url)
 }
 
 func newHarness(t *testing.T, limit int) *harness {
@@ -130,7 +141,7 @@ func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC)}
+	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), pages: &fakePages{pages: map[string]string{}}, now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC)}
 	h.data, err = store.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +156,7 @@ func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 	h.store = &memStore{clock: func() time.Time { return h.now }}
 	h.checker = &fakeChecker{watches: h.watches, found: map[int64][]core.WatchItem{}, clock: func() time.Time { return h.now }}
 	h.sched, err = NewScheduler(Config{
-		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Knowledge: memKnowledge{h.data}, RunRecords: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker, Triggers: h.data,
+		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Knowledge: memKnowledge{h.data}, RunRecords: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker, Pages: h.pages, Triggers: h.data,
 		Clock: func() time.Time { return h.now }, Location: loc, DailyLimit: limit,
 		MaxChecksPerTick: 5, Briefing: briefing, Interval: time.Second,
 		DailyTokens: 300000, Routines: h.data, PhoneNotifications: h.data,

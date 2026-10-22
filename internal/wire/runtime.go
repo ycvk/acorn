@@ -36,6 +36,7 @@ type containerRuntimeDeps struct {
 	notifier     *notify.Sender
 	vault        *knowledge.Vault
 	watchChecker *watch.Checker
+	newsPages    newsPages
 	// triggers is nil without a workstation.
 	triggers      *skills.TriggerRunner
 	panels        *views.Feeder
@@ -125,7 +126,11 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, fmt.Errorf("memory: %w", err)
 	}
-	watchChecker, err := buildWatchChecker(cfg, db, options)
+	webFetcher, webPolicy, err := buildWebFetcher(cfg)
+	if err != nil {
+		return nil, err
+	}
+	watchChecker, err := buildWatchChecker(cfg, db, webFetcher, webPolicy, options)
 	if err != nil {
 		return nil, err
 	}
@@ -267,6 +272,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		notifier:              notifier,
 		vault:                 vault,
 		watchChecker:          watchChecker,
+		newsPages:             newsPages{fetcher: webFetcher},
 		triggers:              triggers,
 		panels:                panels,
 		packageStatus:         packageStatus,
