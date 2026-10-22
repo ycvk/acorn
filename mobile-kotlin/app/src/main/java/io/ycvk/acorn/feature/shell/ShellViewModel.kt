@@ -51,6 +51,11 @@ sealed interface Page {
         override val key = "persona"
     }
 
+    /** The owner's time zone, routine times, quiet hours, budgets and approval rules. */
+    data object OwnerSettings : Page {
+        override val key = "owner-settings"
+    }
+
     data class PersonaRevision(val revision: Long) : Page {
         override val key = "persona:$revision"
     }

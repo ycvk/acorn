@@ -67,6 +67,7 @@ import io.ycvk.acorn.feature.pairing.PairingScreen
 import io.ycvk.acorn.feature.persona.PersonaRevisionScreen
 import io.ycvk.acorn.feature.persona.PersonaScreen
 import io.ycvk.acorn.feature.persona.PersonaViewModel
+import io.ycvk.acorn.feature.settings.OwnerSettingsScreen
 import io.ycvk.acorn.feature.settings.SettingsScreen
 import io.ycvk.acorn.feature.skills.SkillRevisionScreen
 import io.ycvk.acorn.feature.skills.SkillScreen
@@ -242,7 +243,9 @@ private fun Pages(shellViewModel: ShellViewModel) {
                     onBack = shellViewModel::back,
                     onOpenPersona = { shellViewModel.open(Page.Persona) },
                     onOpenSkills = { shellViewModel.open(Page.Skills) },
+                    onOpenOwnerSettings = { shellViewModel.open(Page.OwnerSettings) },
                 )
+                Page.OwnerSettings -> OwnerSettingsScreen(onBack = shellViewModel::back)
                 Page.Persona -> PersonaScreen(
                     viewModel = personaViewModel,
                     onBack = shellViewModel::back,
