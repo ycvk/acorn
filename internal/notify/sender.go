@@ -41,11 +41,17 @@ func quietEnd(q core.QuietHours, t time.Time) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// PendingActionReader reads the decision a pending action push asks for.
+type PendingActionReader interface {
+	LoadPendingAction(ctx context.Context, actionID string) (*core.PendingActionRecord, error)
+}
+
 // SenderConfig holds the sender's dependencies; every field is required.
 // Each notification reads the owner's time zone, quiet hours and hourly cap
 // from Settings.
 type SenderConfig struct {
 	Store    core.NotificationStore
+	Actions  PendingActionReader
 	Pusher   Pusher
 	Clock    func() time.Time
 	Settings core.SettingsReader
@@ -61,6 +67,8 @@ func NewSender(cfg SenderConfig) (*Sender, error) {
 	switch {
 	case cfg.Store == nil:
 		return nil, errors.New("notify sender: Store is required")
+	case cfg.Actions == nil:
+		return nil, errors.New("notify sender: Actions is required")
 	case cfg.Pusher == nil:
 		return nil, errors.New("notify sender: Pusher is required")
 	case cfg.Clock == nil:
@@ -109,7 +117,8 @@ func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notifica
 	return s.deliver(ctx, queued, installations)
 }
 
-// FlushDue delivers queued notifications whose time has come.
+// FlushDue delivers queued notifications whose time has come. A push for a
+// pending action the owner already decided is dropped.
 func (s *Sender) FlushDue(ctx context.Context) error {
 	due, err := s.cfg.Store.ListDueNotifications(ctx, s.cfg.Clock())
 	if err != nil {
@@ -124,11 +133,38 @@ func (s *Sender) FlushDue(ctx context.Context) error {
 	}
 	var errs []error
 	for _, n := range due {
+		decided, err := s.decided(ctx, n)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("notification %d: %w", n.ID, err))
+			continue
+		}
+		if decided != "" {
+			if err := s.cfg.Store.FinishNotification(ctx, n.ID, core.NotificationDropped, decided, s.cfg.Clock()); err != nil {
+				errs = append(errs, fmt.Errorf("notification %d: %w", n.ID, err))
+			}
+			continue
+		}
 		if _, err := s.deliver(ctx, n, installations); err != nil {
 			errs = append(errs, fmt.Errorf("notification %d: %w", n.ID, err))
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// decided says why n no longer needs delivering: the pending action it asks
+// about has been decided. It returns "" for a push that still applies.
+func (s *Sender) decided(ctx context.Context, n core.Notification) (string, error) {
+	if n.ActionID == "" {
+		return "", nil
+	}
+	action, err := s.cfg.Actions.LoadPendingAction(ctx, n.ActionID)
+	if err != nil {
+		return "", err
+	}
+	if action.Status == core.PendingActionStatusPending {
+		return "", nil
+	}
+	return fmt.Sprintf("pending action %s is %s", action.ActionID, action.Status), nil
 }
 
 // deliver sends n to every installation. An installation FCM no longer knows

@@ -98,6 +98,16 @@ func TestNotificationQueueAndCount(t *testing.T) {
 	if n, err := s.CountNotificationsSince(ctx, now.Add(-time.Minute)); err != nil || n != 2 {
 		t.Fatalf("count = %d err=%v", n, err)
 	}
+	approval, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", ActionID: "action_1", SendAfter: now.Add(-time.Second), CreatedAt: now})
+	if err != nil {
+		t.Fatalf("queue approval: %v", err)
+	}
+	if err := s.FinishNotification(ctx, approval.ID, core.NotificationDropped, "pending action action_1 is approved", now); err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if due, _ := s.ListDueNotifications(ctx, now); len(due) != 0 {
+		t.Fatalf("dropped notification still due: %+v", due)
+	}
 	if err := s.FinishNotification(ctx, soon.ID, core.NotificationQueued, "", now); err == nil {
 		t.Fatal("finishing as queued must fail")
 	}

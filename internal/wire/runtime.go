@@ -66,7 +66,7 @@ func buildNotifier(cfg *config.Config, db *store.Store, owner core.SettingsReade
 	if err != nil {
 		return nil, "", err
 	}
-	sender, err := notify.NewSender(notify.SenderConfig{Store: db, Pusher: client, Clock: options.clock, Settings: owner})
+	sender, err := notify.NewSender(notify.SenderConfig{Store: db, Actions: db, Pusher: client, Clock: options.clock, Settings: owner})
 	return sender, "", err
 }
 

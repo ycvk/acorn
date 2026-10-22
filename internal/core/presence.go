@@ -15,6 +15,9 @@ const (
 	NotificationQueued NotificationStatus = "queued"
 	NotificationSent   NotificationStatus = "sent"
 	NotificationFailed NotificationStatus = "failed"
+	// NotificationDropped is a queued push for a pending action the owner
+	// decided before quiet hours ended; it is never delivered.
+	NotificationDropped NotificationStatus = "dropped"
 )
 
 // Notification is a push message to the owner. SendAfter defers delivery
