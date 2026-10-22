@@ -113,10 +113,11 @@ ADR 0004 里的 `memory.batch_tokens`、`memory.context_tokens`、`memory.histor
 
 配置照旧以 KnownFields 严格解析，挪走和删掉的字段没有兼容读取。新版本遇到它们拒绝启动，报错按行列出全部未知字段；CLI 读同一份配置，同样拒绝。安装器原样保留已有配置，升级后服务起不来，owner 按下面的步骤处理：
 
-1. 记下 `acorn.yaml` 里改过默认值的设置。
-2. 删掉 `owner`、`briefing`、`thinking`、`wake`、`news`、`approval`、`presence`、`context`、`agent` 整节，以及 `runtime.run_timeout_seconds`、`memory` 下 `embedding` 以外的行、`notify.max_per_hour` 与 `notify.quiet_hours`、`watch.max_checks_per_tick`、`workstation.command_timeout_seconds` 与 `workstation.max_output_bytes`、`web_access` 下的调参行。用的是模型表以外的模型时，在 provider 里加 `context_window_tokens`。
-3. 用 `acorn settings set` 写回第 1 步记下的值，例如 `acorn settings set owner.timezone Asia/Singapore`。
-4. 启动 `acorn.service`。
+1. 停掉 `acorn.service`。systemd 每隔几秒重启失败的服务，不停的话文件一能读，服务就先用默认设置跑起来。
+2. 记下 `acorn.yaml` 里改过默认值的设置。
+3. 删掉 `owner`、`briefing`、`thinking`、`wake`、`news`、`approval`、`presence`、`context`、`agent` 整节，以及 `runtime.run_timeout_seconds`、`memory` 下 `embedding` 以外的行、`notify.max_per_hour` 与 `notify.quiet_hours`、`watch.max_checks_per_tick`、`workstation.command_timeout_seconds` 与 `workstation.max_output_bytes`、`web_access` 下的调参行。用的是模型表以外的模型时，在 provider 里加 `context_window_tokens`。
+4. 用 `acorn settings set` 写回第 2 步记下的值，例如 `acorn settings set owner.timezone Asia/Singapore`。
+5. 启动 `acorn.service`。
 
 没改过默认值的项删掉即可。用户指南的配置迁移一节列出同样的步骤。
 

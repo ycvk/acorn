@@ -399,10 +399,11 @@ A run you start from the phone shows as a silent ongoing notification while it r
 
 Config is parsed strictly: unknown keys stop the backend, and the error names each with its line. `acorn` commands read the same file and stop the same way, and the installer keeps an existing config as it is. When an upgrade stops on old keys:
 
-1. Note the values of the settings below that you changed from their defaults.
-2. Remove the old keys from `~/.acorn/acorn.yaml`.
-3. Save the noted values with `acorn settings set`, for example `acorn settings set owner.timezone Asia/Singapore`.
-4. Start Acorn with `sudo systemctl start acorn` and run `acorn doctor`.
+1. Stop Acorn with `sudo systemctl stop acorn`. systemd restarts a failed service every few seconds, so otherwise it starts with default settings as soon as the file loads.
+2. Note the values of the settings below that you changed from their defaults.
+3. Remove the old keys from `~/.acorn/acorn.yaml`.
+4. Save the noted values with `acorn settings set`, for example `acorn settings set owner.timezone Asia/Singapore`.
+5. Start Acorn with `sudo systemctl start acorn` and run `acorn doctor`.
 
 Keys that are now [settings](#settings): the whole `owner`, `briefing`, `thinking`, `wake`, `news` and `approval` blocks, `memory.daily_tokens`, `notify.max_per_hour` and `notify.quiet_hours`.
 
