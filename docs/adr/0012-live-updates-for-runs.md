@@ -1,7 +1,7 @@
 ---
 adr: 0012
 title: 进行中的 run 在 App 外可见
-status: Proposed
+status: Accepted
 date: 2026-10-21
 supersedes: []
 ---
@@ -26,9 +26,9 @@ run 走到 `run.completed` 或 `run.failed`、停下来等 owner 决定，或者
 
 ### 通知
 
-前台服务的通知就是 Live Update：ongoing，请求提升（`setRequestPromotedOngoing`），`ProgressStyle` 不定进度，因为 run 没有总步数。标题是对话标题，正文是当前步骤，沿用对话页里工具步骤的说法，例如"在搜索网页""整理成视图"；状态栏胶囊用 `setShortCriticalText` 显示不超过 6 个字的状态，例如"思考中""搜索中""写笔记"。点通知回到对话；通知上有一个"停止"，与对话页的停止相同。通知走单独的"正在处理"频道，只在出现时提示一次，之后的更新不响铃不振动。
+前台服务的通知就是 Live Update：ongoing，请求提升（`setRequestPromotedOngoing`），`ProgressStyle` 不定进度，因为 run 没有总步数。标题是对话标题，正文是当前步骤，沿用对话页里工具步骤的说法，例如"搜索网页：eino 最新版本""整理成视图"；状态栏胶囊用 `setShortCriticalText` 显示不超过 6 个字的状态，例如"思考中""搜索中""写笔记"。点通知回到对话；通知上有一个"停止"，与对话页的停止相同。通知走单独的"正在处理"频道，不响铃不振动。
 
-run 结束时 Live Update 消失。App 不在前台时：完成的 run 在"Acorn 消息"频道留一条普通通知，正文是回复开头，点开进入对话；失败的 run 留一条说明失败的通知；停下来等审批的 run 不另发通知，由现有的审批推送接手。
+run 结束时 Live Update 消失。App 不在前台时：完成的 run 在"Acorn 消息"频道留一条普通通知，正文是回复开头，点开进入对话；失败的 run 留一条说明失败的通知，owner 停止的 run 不留；停下来等审批的 run 不另发通知，由现有的审批推送接手。
 
 ### 系统版本
 

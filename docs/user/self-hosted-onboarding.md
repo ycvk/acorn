@@ -379,6 +379,10 @@ The agent reaches you with `notify_owner` through Firebase Cloud Messaging. With
 
 After pairing, allow notifications when the app asks. Settings (the gear on the 今天 tab) shows whether push is registered. Notifications held during quiet hours are sent when they end. Tapping a notification opens its thread. When a run stops for your approval or answer, a notification arrives right away; tool approvals carry 批准 and 拒绝 so you can decide without opening the app, and tapping the notification opens the thread with the decision on screen. These notifications count toward `notify.max_per_hour`; past the limit the decision still waits on the 今天 tab. Notification text passes through Google's servers; the agent keeps it to a short summary and leaves details in the thread.
 
+### Runs in progress
+
+A run you start from the phone shows as a silent ongoing notification while it runs: a message, a view's button or choice, something shared from another app, or a run that continues after you approve or answer on the phone. It names the conversation and the current step and has 停止 to stop the run. On Android 16 QPR1 and later the system promotes it to a Live Update, with a status bar chip such as 搜索中 or 回复中 and a card at the top of the shade and on the lock screen; on older Android, or with Live Updates for Acorn turned off in system settings, it stays an ordinary ongoing notification. It goes away when the run ends or stops to wait for you, in which case the approval notification arrives as usual. When the app is not in front at the end, a notification with the opening of the reply, or the reason the run failed, takes its place; a run you stopped leaves none. Runs the agent starts on its own and runs started from other devices show no progress. This works without Firebase: the app reads the run's events in a data sync foreground service, which Android 15 and later limit to six hours a day.
+
 ## 11. Config Migration
 
 Config is parsed strictly: unknown keys stop the backend. When upgrading from a release before the personal-agent rework, remove these keys from `~/.acorn/acorn.yaml`:

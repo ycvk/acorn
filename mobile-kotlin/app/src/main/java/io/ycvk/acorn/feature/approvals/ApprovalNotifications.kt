@@ -25,6 +25,7 @@ import io.ycvk.acorn.core.auth.SecureStore
 import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
 import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
 import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.feature.live.RunFollower
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -64,6 +65,7 @@ fun notificationDecisions(detail: PendingActionDetail): List<Pair<String, Decide
 class ApprovalNotifications @Inject constructor(
     @ApplicationContext private val context: Context,
     private val secureStore: SecureStore,
+    private val follower: RunFollower,
 ) {
     private val manager = context.getSystemService(NotificationManager::class.java)
 
@@ -88,16 +90,17 @@ class ApprovalNotifications @Inject constructor(
         } catch (e: ClientException) {
             // Already decided, or gone with its thread: nothing waits any more.
             if (e.statusCode == 404 || e.statusCode == 409) return
-            notify(push.actionId, push.threadId, "Acorn 在等你确认", push.title, kind = null, decisions = emptyList())
+            notify(push.actionId, push.threadId, runId = null, "Acorn 在等你确认", push.title, kind = null, decisions = emptyList())
             return
         } catch (_: Exception) {
-            notify(push.actionId, push.threadId, "Acorn 在等你确认", push.title, kind = null, decisions = emptyList())
+            notify(push.actionId, push.threadId, runId = null, "Acorn 在等你确认", push.title, kind = null, decisions = emptyList())
             return
         }
         if (detail.status != PendingActionDetail.Status.pending) return
         notify(
             actionId = detail.actionId,
             threadId = detail.threadId,
+            runId = detail.runId,
             title = approvalTitle(detail.title, detail.toolName),
             body = approvalBody(detail.body, detail.toolName, detail.toolSummary) ?: kindLabel(detail.kind.value),
             kind = kindLabel(detail.kind.value),
@@ -109,11 +112,15 @@ class ApprovalNotifications @Inject constructor(
         manager.cancel(notificationId(actionId))
     }
 
-    /** Sends a decision chosen on a notification and replaces the notification with the outcome. */
-    fun decide(actionId: String, threadId: String, optionId: String, decision: DecidePendingActionRequest.Decision) {
+    /**
+     * Sends a decision chosen on a notification and replaces the notification
+     * with the outcome. The run it resumes shows as a Live Update.
+     */
+    fun decide(actionId: String, threadId: String, runId: String?, optionId: String, decision: DecidePendingActionRequest.Decision) {
         val profile = secureStore.getConnection() ?: return
         try {
             api(profile).clientDecidePendingAction(actionId, DecidePendingActionRequest(decision = decision, selectedOptionId = optionId))
+            runId?.let { follower.follow(profile, it, threadId, title = null, live = true, decided = actionId) }
             val done = if (decision == DecidePendingActionRequest.Decision.accept) "已批准，Acorn 会继续" else "已拒绝"
             manager.notify(
                 notificationId(actionId),
@@ -144,6 +151,7 @@ class ApprovalNotifications @Inject constructor(
     private fun notify(
         actionId: String,
         threadId: String,
+        runId: String?,
         title: String,
         body: String,
         kind: String?,
@@ -158,7 +166,7 @@ class ApprovalNotifications @Inject constructor(
         kind?.let { builder.setSubText(it) }
         decisions.forEach { (optionId, decision) ->
             val label = if (decision == DecidePendingActionRequest.Decision.accept) "批准" else "拒绝"
-            builder.addAction(0, label, decisionIntent(actionId, threadId, optionId, decision))
+            builder.addAction(0, label, decisionIntent(actionId, threadId, runId, optionId, decision))
         }
         manager.notify(notificationId(actionId), builder.build())
     }
@@ -179,10 +187,11 @@ class ApprovalNotifications @Inject constructor(
         return PendingIntent.getActivity(context, notificationId(actionId), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
-    private fun decisionIntent(actionId: String, threadId: String, optionId: String, decision: DecidePendingActionRequest.Decision): PendingIntent {
+    private fun decisionIntent(actionId: String, threadId: String, runId: String?, optionId: String, decision: DecidePendingActionRequest.Decision): PendingIntent {
         val intent = Intent(context, ApprovalDecisionReceiver::class.java).apply {
             putExtra(EXTRA_ACTION_ID, actionId)
             putExtra(EXTRA_THREAD_ID, threadId)
+            runId?.let { putExtra(EXTRA_RUN_ID, it) }
             putExtra(EXTRA_OPTION_ID, optionId)
             putExtra(EXTRA_DECISION, decision.value)
         }
@@ -203,6 +212,7 @@ class ApprovalNotifications @Inject constructor(
         const val CHANNEL_ID = "acorn_approvals"
         const val EXTRA_OPTION_ID = "option_id"
         const val EXTRA_DECISION = "decision"
+        const val EXTRA_RUN_ID = "run_id"
         private const val OUTCOME_TIMEOUT_MS = 4_000L
 
         fun notificationId(actionId: String): Int = actionId.hashCode()
@@ -222,7 +232,7 @@ class ApprovalDecisionReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                notifications.decide(actionId, threadId, optionId, decision)
+                notifications.decide(actionId, threadId, intent.getStringExtra(ApprovalNotifications.EXTRA_RUN_ID), optionId, decision)
             } finally {
                 pending.finish()
             }

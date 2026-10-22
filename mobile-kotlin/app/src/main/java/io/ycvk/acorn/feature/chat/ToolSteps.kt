@@ -73,6 +73,7 @@ fun toolLabel(name: String): String = when (name) {
     "files" -> "读写文件"
     "send_file" -> "发送文件"
     "show_view" -> "整理成视图"
+    "update_view" -> "更新视图"
     "artifact_write" -> "保存文件"
     "artifact_read" -> "读取文件"
     "artifact_list" -> "查看文件"
@@ -94,7 +95,7 @@ fun toolOrb(name: String): OrbState = when {
         "shell", "files", "browser", "send_file", "skill_inspect" -> OrbState.Working
         "skill", "skill_write", "skill_import", "skill_retire", "watch_create", "watch_update" -> OrbState.Connecting
         "think", "concern", "settle", "schedule_wake", "ask_operator", "notify_owner" -> OrbState.Solving
-        "keep", "memory_correct", "memory_forget", "knowledge_write", "knowledge_edit", "artifact_write", "show_view" -> OrbState.Weaving
+        "keep", "memory_correct", "memory_forget", "knowledge_write", "knowledge_edit", "artifact_write", "show_view", "update_view" -> OrbState.Weaving
         else -> OrbState.Working
     }
 }

@@ -80,7 +80,7 @@ class RunEventStreamClient(
 
     fun streamRunEvents(
         runId: String,
-        afterSeq: Int = 0,
+        afterSeq: Long,
         onEvent: (RunEventPacket) -> Unit,
         onError: (Throwable) -> Unit,
         onClosed: () -> Unit,

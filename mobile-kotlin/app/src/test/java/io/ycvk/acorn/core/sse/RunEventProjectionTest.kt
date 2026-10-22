@@ -2,11 +2,17 @@ package io.ycvk.acorn.core.sse
 
 import io.ycvk.acorn.api.models.AssistantDeltaData
 import io.ycvk.acorn.api.models.ClientAssistantDeltaEvent
+import io.ycvk.acorn.api.models.ClientElicitationDecidedEvent
+import io.ycvk.acorn.api.models.ClientElicitationPendingEvent
+import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
+import io.ycvk.acorn.api.models.ClientOperatorQuestionPendingEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
 import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
+import io.ycvk.acorn.api.models.ElicitationData
+import io.ycvk.acorn.api.models.OperatorQuestionData
 import io.ycvk.acorn.api.models.RunCompletedData
 import io.ycvk.acorn.api.models.RunEventAssistantDelta
 import io.ycvk.acorn.api.models.RunEventMessage
@@ -228,6 +234,52 @@ class RunEventProjectionTest {
                 ClientToolApprovalDecidedEvent(
                     eventId = "run-1:5", runId = "run-1", seq = 5, ts = now, type = null,
                     data = ToolApprovalData(actionId = "action_1", decision = ToolApprovalData.Decision.accept),
+                ),
+            ),
+        )
+        assertTrue(state.activities.isEmpty())
+    }
+
+    @Test
+    fun `a question and an elicitation add waiting rows that their decisions clear`() {
+        var state = projection.apply(ChatState(), RunEventPacket.Started(startedEvent()))
+        state = projection.apply(
+            state,
+            RunEventPacket.OperatorQuestionPending(
+                ClientOperatorQuestionPendingEvent(
+                    eventId = "run-1:2", runId = "run-1", seq = 2, ts = now, type = null,
+                    data = OperatorQuestionData(actionId = "action_q", question = "要继续吗？"),
+                ),
+            ),
+        )
+        state = projection.apply(
+            state,
+            RunEventPacket.ElicitationPending(
+                ClientElicitationPendingEvent(
+                    eventId = "run-1:3", runId = "run-1", seq = 3, ts = now, type = null,
+                    data = ElicitationData(actionId = "action_e", message = "要哪个账号？"),
+                ),
+            ),
+        )
+        assertEquals(listOf("Acorn 在问你", "等你补充信息"), state.activities.map { it.label })
+
+        state = projection.apply(
+            state,
+            RunEventPacket.OperatorQuestionDecided(
+                ClientOperatorQuestionDecidedEvent(
+                    eventId = "run-1:5", runId = "run-1", seq = 5, ts = now, type = null,
+                    data = OperatorQuestionData(actionId = "action_q"),
+                ),
+            ),
+        )
+        assertEquals(listOf("等你补充信息"), state.activities.map { it.label })
+
+        state = projection.apply(
+            state,
+            RunEventPacket.ElicitationDecided(
+                ClientElicitationDecidedEvent(
+                    eventId = "run-1:6", runId = "run-1", seq = 6, ts = now, type = null,
+                    data = ElicitationData(actionId = "action_e"),
                 ),
             ),
         )

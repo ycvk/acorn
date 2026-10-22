@@ -83,6 +83,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - Remote clients 只走 `/v1` 与 `/healthz`。改 DTO/RunEvent/schema 必须同步 openapi.yaml、生成客户端与测试。
 - 设备鉴权是 pairing code → bearer token,SQLite 只存 hash;token 缺失、未知或吊销必须显式失败。
 - Mobile 不本地执行 run,不持有或猜测后端事实;inbox 与 pending actions 以后端接口为准。
+- App 的 run 事件流都由 `RunFollower` 持有,对话页读它的投影。这台手机发起或批准的 run 进行期间,`dataSync` 前台服务在后台保持这条事件流并显示为 Live Update;其他 run 只在它的对话页打开时跟随。
 - 涉及 mobile 视觉/交互的改动必须在真机或模拟器验证;无法验证时说明。
 
 ### 发布
