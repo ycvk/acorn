@@ -39,6 +39,8 @@ import com.squareup.moshi.JsonClass
  * @param intervalSeconds 
  * @param nextCheckAt 
  * @param failures 
+ * @param section The news section of a news watch.
+ * @param issue A news watch whose entries are issues read on their pages.
  * @param lastCheckedAt 
  * @param lastError 
  */
@@ -73,6 +75,14 @@ data class NowWatch (
     @Json(name = "failures")
     val failures: kotlin.Int,
 
+    /* The news section of a news watch. */
+    @Json(name = "section")
+    val section: kotlin.String? = null,
+
+    /* A news watch whose entries are issues read on their pages. */
+    @Json(name = "issue")
+    val issue: kotlin.Boolean? = null,
+
     @Json(name = "last_checked_at")
     val lastCheckedAt: java.time.OffsetDateTime? = null,
 
@@ -96,12 +106,13 @@ data class NowWatch (
     /**
      * 
      *
-     * Values: digest,immediate
+     * Values: digest,immediate,news
      */
     @JsonClass(generateAdapter = false)
     enum class Mode(val value: kotlin.String) {
         @Json(name = "digest") digest("digest"),
-        @Json(name = "immediate") immediate("immediate");
+        @Json(name = "immediate") immediate("immediate"),
+        @Json(name = "news") news("news");
     }
     /**
      * 

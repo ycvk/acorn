@@ -101,6 +101,8 @@ type NowWatchDTO struct {
 	Kind            string     `json:"kind"`
 	Target          string     `json:"target"`
 	Mode            string     `json:"mode"`
+	Section         string     `json:"section,omitempty"`
+	Issue           bool       `json:"issue,omitempty"`
 	Status          string     `json:"status"`
 	IntervalSeconds int64      `json:"interval_seconds"`
 	NextCheckAt     time.Time  `json:"next_check_at"`
@@ -217,7 +219,7 @@ func nowWatches(watches []core.Watch) []NowWatchDTO {
 				continue
 			}
 			out = append(out, NowWatchDTO{
-				ID: w.ID, Name: w.Name, Kind: string(w.Kind), Target: w.Target, Mode: string(w.Mode), Status: string(w.Status),
+				ID: w.ID, Name: w.Name, Kind: string(w.Kind), Target: w.Target, Mode: string(w.Mode), Section: w.Section, Issue: w.Issue, Status: string(w.Status),
 				IntervalSeconds: int64(w.Interval / time.Second), NextCheckAt: w.NextCheckAt.UTC(),
 				LastCheckedAt: optionalUTC(w.LastCheckedAt), LastError: w.LastError, Failures: w.Failures,
 			})

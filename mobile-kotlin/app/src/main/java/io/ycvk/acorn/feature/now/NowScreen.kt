@@ -476,7 +476,8 @@ private fun WatchRow(watch: NowWatch, onPause: () -> Unit, onResume: () -> Unit)
         }
         val meta = listOfNotNull(
             watchKindLabel(watch.kind),
-            if (watch.mode == NowWatch.Mode.immediate) "即时提醒" else "汇总进简报",
+            watchModeLabel(watch),
+            if (watch.issue == true) "期刊" else null,
             intervalLabel(watch.intervalSeconds),
             watch.lastCheckedAt?.let { "${ago(it, OffsetDateTime.now())}检查" },
         ).joinToString(" · ")
@@ -487,6 +488,13 @@ private fun WatchRow(watch: NowWatch, onPause: () -> Unit, onResume: () -> Unit)
             }
         }
     }
+}
+
+/** What happens with a watch's new items; a news source names its section. */
+fun watchModeLabel(watch: NowWatch): String = when (watch.mode) {
+    NowWatch.Mode.immediate -> "即时提醒"
+    NowWatch.Mode.digest -> "汇总进简报"
+    NowWatch.Mode.news -> watch.section?.let { "新闻：$it" } ?: "新闻"
 }
 
 fun watchKindLabel(kind: NowWatch.Kind): String = when (kind) {

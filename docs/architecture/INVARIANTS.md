@@ -281,7 +281,7 @@
   - `internal/store/store_skills_test.go`
   - `internal/wire/package_triggers_e2e_test.go`
   - `internal/runtime/agent_test.go`
-- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、全部待简报条目、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，或有 failing 的触发器。
+- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、新闻候选（见下一条）、其他追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，或有 failing 的触发器。
   - `internal/wake/briefing_test.go`
   - `internal/wake/health_test.go`
   - `internal/wake/watches_test.go`
@@ -289,6 +289,10 @@
   - `internal/memory/context_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
+- **新闻源只供早安卡挑选，用过即丢，不进记忆**：`news` 模式的追踪项属于 `news_sections` 的一个板块（外键随板块改名级联，有源的板块不能删除），只有新闻源带板块与期刊标记。新闻源的条目不登记为记忆来源，也不作为早安卡的输入来源。早安卡生成前，未暂停的新闻源全部再检查一次（至多 4 个并发）；失败照常记在追踪项上，错误交给调度日志，早安卡照常生成。输入按板块顺序列出板块偏好和每个源上次早安卡以来最新的至多 30 条；期刊源最新一期的页面正文（至多 24000 字，夹在起止标记之间，读不到时附该期摘要）；以及上一份写成的早安卡。起 run 时全部待报新闻条目标为 briefed，包括没列出的和暂停的源的。
+  - `internal/wake/news_test.go`
+  - `internal/store/store_news_test.go`
+  - `internal/tools/watch_tools_test.go`
 
 ## 空闲思考、用量与手机通知
 

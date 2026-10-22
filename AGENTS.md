@@ -58,6 +58,11 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - 关切属于建立它的对话。游思每次推进到期关切里最久没有修订的一件,在它所在的对话里运行,对话里有 run 在运行或等待审批时跳过它。有 outcome 的关切由游思在工作机的 `~/work/<id>/` 里推进,交付到所在对话后转为 waiting,只由 owner 的确认解决。
 - 后台记忆调用受 `memory.daily_tokens` 约束,自主唤醒受 `wake.daily_limit`/`wake.daily_tokens` 约束;预算耗尽时任务保留到下一本地日。
 
+### 追踪与早安卡
+
+- 追踪项(RSS、GitHub、网页)只由 wake 调度器检查,首次检查是基线。digest 与 immediate 追踪项逐条报告;早安卡的 100 个名额按追踪项轮流分配,其余留到下次。
+- `news` 模式的追踪项是新闻源,属于 `news_sections` 的一个板块,条目不登记为记忆来源。早安卡生成前刷新新闻源,按板块给出偏好、每个源上次早安卡以来最新的至多 30 条、期刊源最新一期的页面与上一份早安卡,由模型挑约 10 条与今日关注 3 件;候选用过即标为已报。
+
 ### 知识库
 
 - 知识库笔记存在 SQLite,只经 `knowledge.Vault` 写入;每次写入是一个新 revision,并在同一事务里登记为记忆来源。编辑基于读到的 revision,并发修改显式失败。agent 不删除、不移动笔记,只有 owner 经 App 删除笔记;同一路径重建的笔记接着已登记来源的最大 revision 编号。早安卡不写笔记。笔记路径是相对 `.md` 路径,不含 `..`、隐藏段或 `attachments/`。分享的图片存为 `{storage_dir}/attachments/` 下的文件,笔记以 `![描述](attachments/...)` 引用,客户端经 `/v1/knowledge/attachment` 读取。

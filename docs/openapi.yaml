@@ -3890,7 +3890,13 @@ components:
           type: string
         mode:
           type: string
-          enum: [digest, immediate]
+          enum: [digest, immediate, news]
+        section:
+          type: string
+          description: The news section of a news watch.
+        issue:
+          type: boolean
+          description: A news watch whose entries are issues read on their pages.
         status:
           type: string
           enum: [active, paused, failing]
