@@ -60,7 +60,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ### 追踪与早安卡
 
-- 追踪项(RSS、GitHub、网页)只由 wake 调度器检查,首次检查是基线。digest 与 immediate 追踪项逐条报告;早安卡的 100 个名额按追踪项轮流分配,其余留到下次。
+- 追踪项(RSS/Atom/JSON Feed、`rsshub:` 路由、GitHub、网页)只由 wake 调度器检查,首次检查是基线;追踪用的 URL policy 只额外放行 `watch.rsshub_base_url` 的 origin,`web_fetch` 不放行。digest 与 immediate 追踪项逐条报告;早安卡的 100 个名额按追踪项轮流分配,其余留到下次。
 - `news` 模式的追踪项是新闻源,属于 `news_sections` 的一个板块,条目不登记为记忆来源。`internal/news` 在后台按租约认领待报条目,由模型在 `news.daily_tokens` 内打 1–5 分并归入事件,期刊页拆成条目;一批失败 3 次即放弃。早安卡生成前刷新新闻源并等整理追上,按板块给出有新条目的事件、它们的新条目与上一份早安卡,由模型挑约 10 件与今日关注 3 件;整理过的与暂停源的条目随之标为已报。新闻源从试用开始:照常抓取与整理,不进早安卡;转正与停用在用源只经 `news_source`,每次由 owner 审批;夜思每周日或试用满一周时看各源近 7 天的数字提出建议。条目与事件保留 14 天,agent 经 `news_search` 检索;过期条目只留键与状态,源里仍在的条目不会再次出现。
 
 ### 知识库
