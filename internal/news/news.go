@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -97,8 +98,13 @@ func New(cfg Config) (*Processor, error) {
 }
 
 // Run sorts batches until ctx ends, waiting a while when nothing is waiting
-// or a batch failed. Failures are logged and retried.
+// or a batch failed. Failures are logged and retried. Without a usable model
+// it does not start; the briefing's catch-up reports why.
 func (p *Processor) Run(ctx context.Context) {
+	if err := p.cfg.Ready(); err != nil {
+		slog.Warn("news processor not ready", "error", err)
+		return
+	}
 	for ctx.Err() == nil {
 		worked, err := p.ProcessOne(ctx)
 		if err != nil && ctx.Err() == nil {
@@ -192,7 +198,9 @@ func (p *Processor) sort(ctx context.Context, batch core.NewsBatch, now time.Tim
 	pages := map[int64]string{}
 	for _, it := range batch.Items {
 		if it.Issue {
-			pages[it.Item.ID] = p.readIssue(ctx, it.Item)
+			if pages[it.Item.ID], err = p.readIssue(ctx, it.Item); err != nil {
+				return err
+			}
 		}
 	}
 	input := p.input(sections, stories, batch, pages)
@@ -208,22 +216,21 @@ func (p *Processor) sort(ctx context.Context, batch core.NewsBatch, now time.Tim
 	return p.cfg.Store.CommitNewsBatch(ctx, batch.Token, commit)
 }
 
-// readIssue reads an issue's page; when it cannot be read the model sorts
-// the issue's own summary instead.
-func (p *Processor) readIssue(ctx context.Context, issue core.WatchItem) string {
+// readIssue reads an issue's page, or gives its own summary when the feed
+// links no page.
+func (p *Processor) readIssue(ctx context.Context, issue core.WatchItem) (string, error) {
 	if issue.URL == "" {
-		return issue.Summary
+		return issue.Summary, nil
 	}
 	page, err := p.cfg.Pages.ReadPage(ctx, issue.URL)
 	if err != nil {
-		slog.Warn("news issue page", "url", issue.URL, "error", err)
-		return issue.Summary
+		return "", fmt.Errorf("read the page of issue %d: %w", issue.ID, err)
 	}
 	runes := []rune(strings.TrimSpace(page))
 	if len(runes) > maxIssueRunes {
 		runes = append(runes[:maxIssueRunes], '…')
 	}
-	return string(runes)
+	return string(runes), nil
 }
 
 func (p *Processor) input(sections []core.NewsSection, stories []core.NewsStory, batch core.NewsBatch, pages map[int64]string) string {
@@ -330,24 +337,24 @@ type sorting struct {
 
 // parseSorting checks the model's sorting against the batch: every item that
 // is not an issue scored once from 1 to 5, entries only for the batch's
-// issues, and stories either new or among the recent stories offered. A new
-// story no item joined is not created.
+// issues with web links, and stories either new or among the recent stories
+// offered. A new story no item joined is not created.
 func parseSorting(reply string, batch core.NewsBatch, recent []core.NewsStory, sections []string) (core.NewsCommit, error) {
 	var out sorting
 	if err := json.Unmarshal([]byte(stripFence(reply)), &out); err != nil {
 		return core.NewsCommit{}, fmt.Errorf("news sorting reply is not the JSON asked for: %w", err)
 	}
-	issues, others := map[int64]bool{}, map[int64]bool{}
+	issues, others := map[int64]string{}, map[int64]bool{}
 	for _, it := range batch.Items {
 		if it.Issue {
-			issues[it.Item.ID] = true
+			issues[it.Item.ID] = it.Item.URL
 		} else {
 			others[it.Item.ID] = true
 		}
 	}
-	known := map[string]bool{}
+	known := map[string]int64{}
 	for _, story := range recent {
-		known["s"+strconv.FormatInt(story.ID, 10)] = true
+		known["s"+strconv.FormatInt(story.ID, 10)] = story.ID
 	}
 	defined := map[string]int{}
 	for i, story := range out.Stories {
@@ -357,7 +364,7 @@ func parseSorting(reply string, batch core.NewsBatch, recent []core.NewsStory, s
 		switch {
 		case strings.TrimSpace(story.Title) == "":
 			return core.NewsCommit{}, fmt.Errorf("news sorting: story %q needs a title", story.Ref)
-		case known[story.Ref]:
+		case known[story.Ref] != 0:
 		case strings.HasPrefix(story.Ref, "n") && story.Ref != "n":
 			if !slices.Contains(sections, story.Section) {
 				return core.NewsCommit{}, fmt.Errorf("news sorting: new story %q needs a title and one of the sections %v, not %q", story.Ref, sections, story.Section)
@@ -372,7 +379,7 @@ func parseSorting(reply string, batch core.NewsBatch, recent []core.NewsStory, s
 		if story == "" {
 			return nil
 		}
-		if _, ok := defined[story]; !ok && !known[story] {
+		if _, ok := defined[story]; !ok && known[story] == 0 {
 			return fmt.Errorf("news sorting: story %q is not defined", story)
 		}
 		used[story] = true
@@ -404,8 +411,9 @@ func parseSorting(reply string, batch core.NewsBatch, recent []core.NewsStory, s
 		commit.Scores = append(commit.Scores, core.NewsItemScore{ItemID: id})
 	}
 	for _, entry := range out.Entries {
+		page, isIssue := issues[entry.Issue]
 		switch {
-		case !issues[entry.Issue]:
+		case !isIssue:
 			return core.NewsCommit{}, fmt.Errorf("news sorting reads entries from %d, which is not an issue of the batch", entry.Issue)
 		case strings.TrimSpace(entry.Title) == "" || entry.Score < 1 || entry.Score > 5:
 			return core.NewsCommit{}, fmt.Errorf("news sorting: an entry of issue %d needs a title and a score from 1 to 5", entry.Issue)
@@ -415,22 +423,43 @@ func parseSorting(reply string, batch core.NewsBatch, recent []core.NewsStory, s
 		if err := ref(entry.Story); err != nil {
 			return core.NewsCommit{}, err
 		}
-		commit.Entries = append(commit.Entries, core.NewsIssueEntry{IssueID: entry.Issue, Title: oneLine(entry.Title), URL: strings.TrimSpace(entry.URL), Summary: oneLine(entry.Summary), Score: entry.Score, Story: entry.Story})
+		link, err := entryLink(page, entry.URL)
+		if err != nil {
+			return core.NewsCommit{}, fmt.Errorf("news sorting: an entry of issue %d: %w", entry.Issue, err)
+		}
+		commit.Entries = append(commit.Entries, core.NewsIssueEntry{IssueID: entry.Issue, Title: oneLine(entry.Title), URL: link, Summary: oneLine(entry.Summary), Score: entry.Score, Story: entry.Story})
 	}
 	for _, story := range out.Stories {
 		if !used[story.Ref] {
 			continue
 		}
 		change := core.NewsStoryChange{Ref: story.Ref, Section: story.Section, Title: oneLine(story.Title), Summary: oneLine(story.Summary), Development: oneLine(story.Development)}
-		if known[story.Ref] {
-			change.ID, _ = strconv.ParseInt(strings.TrimPrefix(story.Ref, "s"), 10, 64)
-			change.Section = ""
+		if id := known[story.Ref]; id != 0 {
+			change.ID, change.Section = id, ""
 		} else {
 			change.Development = ""
 		}
 		commit.Stories = append(commit.Stories, change)
 	}
 	return commit, nil
+}
+
+// entryLink resolves an entry's link against its issue page; an entry the
+// page gives no link for links to the page itself.
+func entryLink(page, link string) (string, error) {
+	base, err := url.Parse(page)
+	if err != nil {
+		return "", fmt.Errorf("issue page link %q: %w", page, err)
+	}
+	ref, err := url.Parse(strings.TrimSpace(link))
+	if err != nil {
+		return "", fmt.Errorf("link %q: %w", link, err)
+	}
+	resolved := base.ResolveReference(ref)
+	if resolved.Scheme != "http" && resolved.Scheme != "https" || resolved.Host == "" {
+		return "", fmt.Errorf("link %q is not a web address", link)
+	}
+	return resolved.String(), nil
 }
 
 // stripFence removes a Markdown code fence some models wrap JSON in.

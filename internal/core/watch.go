@@ -108,15 +108,6 @@ type NewsSection struct {
 	UpdatedAt  time.Time
 }
 
-// PendingNews is what news watches found since the last briefing: up to a
-// number of the newest items of each watch, every watch's pending count, and
-// the ids of all pending items, which the briefing marks whether listed or not.
-type PendingNews struct {
-	Items  []WatchItem
-	Counts map[int64]int
-	IDs    []int64
-}
-
 // PendingBriefing is what the other watches hold for the briefing: items
 // taken from each watch in turn up to a limit, and every watch's pending count.
 type PendingBriefing struct {
@@ -172,9 +163,6 @@ type WatchStore interface {
 	// PendingBriefingItems takes the pending items of the watches other than
 	// news watches in turns, oldest first within a watch, up to limit.
 	PendingBriefingItems(ctx context.Context, limit int) (PendingBriefing, error)
-	// PendingNewsItems lists the newest pending items of each news watch, at
-	// most perWatch of each.
-	PendingNewsItems(ctx context.Context, perWatch int) (PendingNews, error)
 
 	ListNewsSections(ctx context.Context) ([]NewsSection, error)
 	// SaveNewsSection adds a section or changes the position and preference

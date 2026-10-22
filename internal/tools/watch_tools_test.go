@@ -15,6 +15,17 @@ import (
 	"github.com/ycvk/acorn/internal/watch"
 )
 
+// toolNewsSearcher returns fixed stories and records the queries.
+type toolNewsSearcher struct {
+	stories []core.NewsStory
+	queries []core.NewsQuery
+}
+
+func (s *toolNewsSearcher) SearchNewsStories(_ context.Context, query core.NewsQuery) ([]core.NewsStory, error) {
+	s.queries = append(s.queries, query)
+	return s.stories, nil
+}
+
 // toolWatchStore keeps watches, pending items and news sections in memory.
 type toolWatchStore struct {
 	core.WatchStore
@@ -133,7 +144,7 @@ func newWatchToolsForTest(t *testing.T) (*toolWatchStore, *fakeWatchChecker, map
 	if err != nil {
 		t.Fatal(err)
 	}
-	deps := WatchToolDeps{Store: store, Checker: checker, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_7", callID: "call_1"}, Clock: func() time.Time { return watchToolNow }, Location: loc}
+	deps := WatchToolDeps{Store: store, News: &toolNewsSearcher{}, Checker: checker, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_7", callID: "call_1"}, Clock: func() time.Time { return watchToolNow }, Location: loc}
 	tools := map[string]einotool.BaseTool{}
 	for name, build := range map[string]func(WatchToolDeps) (einotool.BaseTool, error){
 		"watch_create": buildWatchCreateTool, "watch_update": buildWatchUpdateTool, "watch_list": buildWatchListTool,
@@ -289,5 +300,51 @@ func TestNewsSectionsAndNewsSources(t *testing.T) {
 	}
 	if _, err := runPresenceTool(t, tools["news_sections"], `{"action":"drop"}`); err == nil {
 		t.Fatal("an unknown action must fail")
+	}
+}
+
+func TestNewsSearchListsStoriesWithTheirItems(t *testing.T) {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	searcher := &toolNewsSearcher{stories: []core.NewsStory{{
+		Title: "停火谈判", Section: "国际", Score: 5, Summary: "双方在开罗谈判。", Development: "进入第二轮。",
+		FirstSeen: watchToolNow.Add(-48 * time.Hour), UpdatedAt: watchToolNow.Add(-time.Hour),
+		Items: []core.NewsStoryItem{
+			{WatchItem: core.WatchItem{Title: "停火谈判进入第二轮", URL: "https://bbc.test/1", SeenAt: watchToolNow.Add(-2 * time.Hour)}, Source: "BBC", Score: 5},
+		},
+	}}}
+	store := &toolWatchStore{sections: []core.NewsSection{{Name: "国际"}, {Name: "AI"}}}
+	tool, err := buildNewsSearchTool(WatchToolDeps{Store: store, News: searcher, Clock: func() time.Time { return watchToolNow }, Location: loc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := runPresenceTool(t, tool, `{"query":"停火","section":"国际"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"title":"停火谈判"`, `"development":"进入第二轮。"`, `"first_seen":"2026-10-01 Thu 09:00"`, `"source":"BBC"`, `"url":"https://bbc.test/1"`, `"published":"2026-10-03 Sat 07:00"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("news_search output lacks %s: %s", want, out)
+		}
+	}
+	if q := searcher.queries[0]; q.Text != "停火" || q.Section != "国际" || q.Limit != 10 || !q.Since.Equal(watchToolNow.Add(-72*time.Hour)) {
+		t.Fatalf("query = %+v", q)
+	}
+	if _, err := runPresenceTool(t, tool, `{"days":14,"limit":30}`); err != nil || !searcher.queries[1].Since.Equal(watchToolNow.Add(-14*24*time.Hour)) || searcher.queries[1].Section != "" {
+		t.Fatalf("widest search: %v %+v", err, searcher.queries[1])
+	}
+	for input, want := range map[string]string{
+		`{"section":"体育"}`: "the sections are 国际, AI",
+		`{"days":15}`:      "days 15 must be from 1 to 14",
+		`{"limit":31}`:     "limit 31 must be from 1 to 30",
+	} {
+		if _, err := runPresenceTool(t, tool, input); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("%s err = %v", input, err)
+		}
+	}
+	if len(searcher.queries) != 2 {
+		t.Fatalf("rejected searches reached the store: %+v", searcher.queries)
 	}
 }

@@ -171,6 +171,21 @@ func TestProcessorSortsIssuesThenItemsIntoStories(t *testing.T) {
 	}
 }
 
+func TestProcessorGivesUpOnAnIssueWhosePageCannotBeRead(t *testing.T) {
+	f := newFixture(t, 0)
+	f.source(t, "daily", "AI 与科技前沿", true, core.WatchItem{Key: "gone", Title: "AI 日报 10-21", URL: "https://daily.test/gone", Summary: "本期概览"})
+	err := f.proc.CatchUp(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "read the page of issue") || !strings.Contains(err.Error(), "HTTP 404") {
+		t.Fatalf("catch up err = %v", err)
+	}
+	if len(f.model.inputs) != 0 {
+		t.Fatalf("model calls = %d; an issue is not sorted without its page", len(f.model.inputs))
+	}
+	if n, err := f.store.FailedNewsItems(context.Background(), testNow.Add(-time.Hour)); err != nil || n != 1 {
+		t.Fatalf("failed = %d, %v", n, err)
+	}
+}
+
 func TestProcessorGivesUpOnABatchAfterThreeBadSortings(t *testing.T) {
 	f := newFixture(t, 0)
 	f.source(t, "bbc", "国际与财经", false, core.WatchItem{Key: "b1", Title: "t"})
@@ -211,7 +226,7 @@ func TestParseSortingChecksTheBatch(t *testing.T) {
 	batch := core.NewsBatch{Items: []core.NewsBatchItem{
 		{Item: core.WatchItem{ID: 1}, Section: "国际"},
 		{Item: core.WatchItem{ID: 2}, Section: "国际"},
-		{Item: core.WatchItem{ID: 3}, Section: "AI", Issue: true},
+		{Item: core.WatchItem{ID: 3, URL: "https://daily.test/2026-10-22"}, Section: "AI", Issue: true},
 	}}
 	recent := []core.NewsStory{{ID: 7, Section: "国际", Title: "旧事"}}
 	sections := []string{"国际", "AI"}
@@ -226,12 +241,13 @@ func TestParseSortingChecksTheBatch(t *testing.T) {
 		"bad section":        `{"items":[{"id":1,"score":3,"story":"n1"},{"id":2,"score":1}],"stories":[{"ref":"n1","section":"体育","title":"x"}]}`,
 		"entry of non-issue": `{"items":[{"id":1,"score":3,"story":"s7"},{"id":2,"score":1}],"entries":[{"issue":1,"title":"x","score":2,"story":"s7"}]}`,
 		"rewrite no title":   `{"items":[{"id":1,"score":3,"story":"s7"},{"id":2,"score":1}],"stories":[{"ref":"s7","summary":"x"}]}`,
+		"script link":        `{"items":[{"id":1,"score":3,"story":"s7"},{"id":2,"score":1}],"entries":[{"issue":3,"title":"x","url":"javascript:alert(1)","score":2,"story":"s7"}]}`,
 	} {
 		if _, err := parseSorting(reply, batch, recent, sections); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
 	}
-	commit, err := parseSorting(`{"items":[{"id":1,"score":4,"story":"s7"},{"id":2,"score":1}],"entries":[{"issue":3,"title":" 新 事 ","summary":"x","score":5,"story":"n1"}],"stories":[{"ref":"s7","title":"旧事","summary":"更新","development":"有新进展"},{"ref":"n1","section":"AI","title":"新事","summary":"s","development":"ignored"},{"ref":"n2","section":"AI","title":"无人用"}]}`, batch, recent, sections)
+	commit, err := parseSorting(`{"items":[{"id":1,"score":4,"story":"s7"},{"id":2,"score":1}],"entries":[{"issue":3,"title":" 新 事 ","summary":"x","score":5,"story":"n1"},{"issue":3,"title":"另一件","url":"/p/2","score":2,"story":"n1"}],"stories":[{"ref":"s7","title":"旧事","summary":"更新","development":"有新进展"},{"ref":"n1","section":"AI","title":"新事","summary":"s","development":"ignored"},{"ref":"n2","section":"AI","title":"无人用"}]}`, batch, recent, sections)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,5 +256,8 @@ func TestParseSortingChecksTheBatch(t *testing.T) {
 	}
 	if len(commit.Scores) != 3 || commit.Scores[2].ItemID != 3 || commit.Scores[2].Score != 0 || commit.Entries[0].Title != "新 事" {
 		t.Fatalf("commit = %+v", commit)
+	}
+	if commit.Entries[0].URL != "https://daily.test/2026-10-22" || commit.Entries[1].URL != "https://daily.test/p/2" {
+		t.Fatalf("entry links = %q, %q; links resolve against the issue page", commit.Entries[0].URL, commit.Entries[1].URL)
 	}
 }

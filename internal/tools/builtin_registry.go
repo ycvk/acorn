@@ -213,6 +213,9 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "news_sections":
 		needs = watchDeps
 		build = func() (einotool.BaseTool, error) { return buildNewsSectionsTool(deps.Watch) }
+	case "news_search":
+		needs = append(slices.Clone(watchDeps), nativeToolDep{"Watch.News", deps.Watch.News != nil})
+		build = func() (einotool.BaseTool, error) { return buildNewsSearchTool(deps.Watch) }
 	case "show_view", "update_view":
 		needs = []nativeToolDep{
 			{"Views.Store", deps.Views.Store != nil},

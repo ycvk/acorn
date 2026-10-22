@@ -47,32 +47,6 @@ func (m *memWatches) PendingBriefingItems(_ context.Context, limit int) (core.Pe
 	return out, nil
 }
 
-func (m *memWatches) PendingNewsItems(_ context.Context, perWatch int) (core.PendingNews, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := core.PendingNews{Counts: map[int64]int{}}
-	for _, w := range m.watches {
-		if w.Mode != core.WatchModeNews {
-			continue
-		}
-		var items []core.WatchItem
-		for _, item := range m.items {
-			if item.WatchID == w.ID && item.Status == core.WatchItemPending {
-				items = append(items, item)
-				out.Counts[w.ID]++
-				out.IDs = append(out.IDs, item.ID)
-			}
-		}
-		if w.Status == core.WatchPaused {
-			continue
-		}
-		slices.Reverse(items)
-		out.Items = append(out.Items, items[:min(perWatch, len(items))]...)
-	}
-	slices.Sort(out.IDs)
-	return out, nil
-}
-
 func (m *memWatches) ListNewsSections(context.Context) ([]core.NewsSection, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

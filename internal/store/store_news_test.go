@@ -131,17 +131,15 @@ func TestBriefingItemsTakeEachWatchInTurn(t *testing.T) {
 	}
 }
 
-func TestNewsItemsOfferTheNewestOfEachWatchAndStayOutOfMemory(t *testing.T) {
+func TestNewsItemsStayOutOfWatchChangesAndMemory(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	if _, err := s.SaveNewsSection(ctx, core.NewsSection{Name: "国际", UpdatedAt: watchTestNow}); err != nil {
 		t.Fatal(err)
 	}
 	bbc := addNewsWatch(t, s, "bbc", "国际", false)
-	ft := addNewsWatch(t, s, "ft", "国际", false)
 	paused := addNewsWatch(t, s, "paused", "国际", false)
-	bbcItems := recordItems(t, s, bbc, "b0", "b1", "b2")
-	recordItems(t, s, ft, "f0")
+	bbcItems := recordItems(t, s, bbc, "b0", "b1")
 	pausedItems := recordItems(t, s, paused, "p0")
 	paused.Status, paused.UpdatedAt = core.WatchPaused, watchTestNow
 	if err := s.UpdateWatch(ctx, paused); err != nil {
@@ -150,21 +148,13 @@ func TestNewsItemsOfferTheNewestOfEachWatchAndStayOutOfMemory(t *testing.T) {
 	digest := addTestWatch(t, s, "digest", core.WatchActive, watchTestNow)
 	digestItems := recordItems(t, s, digest, "d0")
 
-	news, err := s.PendingNewsItems(ctx, 2)
+	pending, err := s.PendingBriefingItems(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var listed []string
-	for _, item := range news.Items {
-		listed = append(listed, item.Key)
+	if len(pending.Items) != 1 || pending.Items[0].Key != "d0" || len(pending.Counts) != 1 {
+		t.Fatalf("watch changes = %v, counts = %v", pending.Items, pending.Counts)
 	}
-	if strings.Join(listed, ",") != "b2,b1,f0" {
-		t.Fatalf("listed = %v", listed)
-	}
-	if news.Counts[bbc.ID] != 3 || news.Counts[ft.ID] != 1 || news.Counts[paused.ID] != 1 || len(news.IDs) != 5 {
-		t.Fatalf("counts = %v, ids = %v", news.Counts, news.IDs)
-	}
-
 	for _, item := range append(bbcItems, pausedItems...) {
 		if sourceExists(t, s, fmt.Sprintf("watch:%d", item.ID)) {
 			t.Fatalf("news item %s became a memory source", item.Key)

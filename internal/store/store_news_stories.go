@@ -67,10 +67,10 @@ func (s *Store) ClaimNewsBatch(ctx context.Context, now time.Time, lease time.Du
 		 FROM watch_items i JOIN watches w ON w.id = i.watch_id
 		 LEFT JOIN news_scores s ON s.item_id = i.id
 		 LEFT JOIN news_claims c ON c.item_id = i.id
-		 WHERE w.mode = ? AND w.status <> ? AND i.status <> ? AND s.item_id IS NULL AND w.issue = ?
+		 WHERE w.mode = ? AND w.status <> ? AND i.status = ? AND i.seen_at >= ? AND s.item_id IS NULL AND w.issue = ?
 		   AND (c.item_id IS NULL OR c.lease_until <= ?)
 		 ORDER BY i.id LIMIT ?`,
-		string(core.WatchModeNews), string(core.WatchPaused), string(core.WatchItemBaseline), issues, formatTimestamp(now), limit)
+		string(core.WatchModeNews), string(core.WatchPaused), string(core.WatchItemPending), formatTimestamp(now.Add(-core.NewsRetention)), issues, formatTimestamp(now), limit)
 	if err != nil {
 		return core.NewsBatch{}, fmt.Errorf("claim news batch: %w", err)
 	}
@@ -357,18 +357,25 @@ func (s *Store) BriefingNewsStories(ctx context.Context, perSection int) (core.B
 // newsItemsPerStory bounds the items a search lists under each story.
 const newsItemsPerStory = 5
 
+// SearchNewsStories lists the stories changed since query.Since, highest
+// score first, whose title, summary, development or items contain every word
+// of query.Text.
 func (s *Store) SearchNewsStories(ctx context.Context, query core.NewsQuery) ([]core.NewsStory, error) {
 	if query.Limit <= 0 {
 		return nil, errors.New("search news stories: limit must be positive")
 	}
-	text := "%" + strings.TrimSpace(query.Text) + "%"
+	where := []string{"st.updated_at >= ?", "(? = '' OR st.section = ?)"}
+	args := []any{formatTimestamp(query.Since), query.Section, query.Section}
+	for _, word := range strings.Fields(query.Text) {
+		where = append(where, `(st.title LIKE ? ESCAPE '\' OR st.summary LIKE ? ESCAPE '\' OR st.development LIKE ? ESCAPE '\' OR EXISTS (
+		     SELECT 1 FROM news_scores s JOIN watch_items i ON i.id = s.item_id WHERE s.story_id = st.id AND (i.title LIKE ? ESCAPE '\' OR i.summary LIKE ? ESCAPE '\')))`)
+		pattern := "%" + escapeLike(word) + "%"
+		args = append(args, pattern, pattern, pattern, pattern, pattern)
+	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+newsStoryColumns+` FROM news_stories st
-		 WHERE st.updated_at >= ? AND (? = '' OR st.section = ?)
-		   AND (st.title LIKE ? OR st.summary LIKE ? OR st.development LIKE ? OR EXISTS (
-		     SELECT 1 FROM news_scores s JOIN watch_items i ON i.id = s.item_id WHERE s.story_id = st.id AND (i.title LIKE ? OR i.summary LIKE ?)))
+		`SELECT `+newsStoryColumns+` FROM news_stories st WHERE `+strings.Join(where, " AND ")+`
 		 ORDER BY st.score DESC, st.updated_at DESC, st.id DESC LIMIT ?`,
-		formatTimestamp(query.Since), query.Section, query.Section, text, text, text, text, text, query.Limit)
+		append(args, query.Limit)...)
 	if err != nil {
 		return nil, fmt.Errorf("search news stories: %w", err)
 	}
@@ -436,11 +443,14 @@ func (s *Store) PruneNews(ctx context.Context, before time.Time) (pruned int, er
 		return 0, fmt.Errorf("prune news: %w", err)
 	}
 	defer rollbackOnErr(tx, &err, "prune news")
+	const expired = `SELECT i.id FROM watch_items i JOIN watches w ON w.id = i.watch_id
+		WHERE w.mode = ? AND i.seen_at < ? AND NOT EXISTS (SELECT 1 FROM memory_sources m WHERE m.id = 'watch:' || i.id)`
+	args := []any{string(core.WatchModeNews), formatTimestamp(before)}
+	if _, err := tx.ExecContext(ctx, `UPDATE news_scores SET story_id = NULL WHERE story_id IS NOT NULL AND item_id IN (`+expired+`)`, args...); err != nil {
+		return 0, fmt.Errorf("prune news scores: %w", err)
+	}
 	result, err := tx.ExecContext(ctx,
-		`DELETE FROM watch_items WHERE id IN (
-		   SELECT i.id FROM watch_items i JOIN watches w ON w.id = i.watch_id
-		   WHERE w.mode = ? AND i.seen_at < ? AND NOT EXISTS (SELECT 1 FROM memory_sources m WHERE m.id = 'watch:' || i.id))`,
-		string(core.WatchModeNews), formatTimestamp(before))
+		`UPDATE watch_items SET title = '', url = '', summary = '' WHERE (title <> '' OR url <> '' OR summary <> '') AND id IN (`+expired+`)`, args...)
 	if err != nil {
 		return 0, fmt.Errorf("prune news items: %w", err)
 	}

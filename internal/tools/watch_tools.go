@@ -20,9 +20,15 @@ type WatchChecker interface {
 	Apply(ctx context.Context, w core.Watch, fetched watch.Fetched) (watch.Result, error)
 }
 
+// NewsSearcher finds the stories news items were sorted into.
+type NewsSearcher interface {
+	SearchNewsStories(ctx context.Context, query core.NewsQuery) ([]core.NewsStory, error)
+}
+
 // WatchToolDeps are what the watch tools need.
 type WatchToolDeps struct {
 	Store    core.WatchStore
+	News     NewsSearcher
 	Checker  WatchChecker
 	Context  core.ToolCallContextBridge
 	Clock    func() time.Time

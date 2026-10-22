@@ -37,50 +37,6 @@ func (s *Store) PendingBriefingItems(ctx context.Context, limit int) (core.Pendi
 	return core.PendingBriefing{Items: items, Counts: counts}, nil
 }
 
-func (s *Store) PendingNewsItems(ctx context.Context, perWatch int) (core.PendingNews, error) {
-	if perWatch <= 0 {
-		return core.PendingNews{}, errors.New("pending news items: perWatch must be positive")
-	}
-	// A paused watch's items are dropped with the others but not offered.
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+watchItemColumns+` FROM (
-		   SELECT i.*, ROW_NUMBER() OVER (PARTITION BY i.watch_id
-		     ORDER BY COALESCE(NULLIF(i.published_at, ''), i.seen_at) DESC, i.id DESC) AS rank
-		   FROM watch_items i JOIN watches w ON w.id = i.watch_id
-		   WHERE i.status = ? AND w.mode = ? AND w.status <> ?)
-		 WHERE rank <= ? ORDER BY watch_id, rank`,
-		string(core.WatchItemPending), string(core.WatchModeNews), string(core.WatchPaused), perWatch)
-	if err != nil {
-		return core.PendingNews{}, fmt.Errorf("pending news items: %w", err)
-	}
-	items, err := scanWatchItems(rows)
-	if err != nil {
-		return core.PendingNews{}, fmt.Errorf("pending news items: %w", err)
-	}
-	counts, err := s.pendingCounts(ctx, `w.mode = ?`, string(core.WatchModeNews))
-	if err != nil {
-		return core.PendingNews{}, fmt.Errorf("pending news items: %w", err)
-	}
-	idRows, err := s.db.QueryContext(ctx,
-		`SELECT i.id FROM watch_items i JOIN watches w ON w.id = i.watch_id WHERE i.status = ? AND w.mode = ? ORDER BY i.id`,
-		string(core.WatchItemPending), string(core.WatchModeNews))
-	if err != nil {
-		return core.PendingNews{}, fmt.Errorf("pending news items: %w", err)
-	}
-	var ids []int64
-	if err := scanRows(idRows, func(scan func(...any) error) error {
-		var id int64
-		if err := scan(&id); err != nil {
-			return err
-		}
-		ids = append(ids, id)
-		return nil
-	}); err != nil {
-		return core.PendingNews{}, fmt.Errorf("pending news items: %w", err)
-	}
-	return core.PendingNews{Items: items, Counts: counts, IDs: ids}, nil
-}
-
 // pendingCounts counts the pending items of each watch matching where, a
 // condition on the watch w with one argument.
 func (s *Store) pendingCounts(ctx context.Context, where string, arg any) (map[int64]int, error) {

@@ -21,8 +21,9 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// fakeOpenAI replays scripted chat-completion streams in request order and
-// records every request body.
+// fakeOpenAI replays scripted chat completions in request order and records
+// every request body. Streaming requests get an SSE script, the others a JSON
+// completion.
 type fakeOpenAI struct {
 	mu       sync.Mutex
 	replies  []string
@@ -64,7 +65,14 @@ func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("no scripted reply for request %d", index), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "text/event-stream")
+	if stream, _ := request["stream"].(bool); stream {
+		w.Header().Set("Content-Type", "text/event-stream")
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+	}
+	if strings.Contains(reply, "__item:") {
+		reply = newsItemIDs(reply, requestMessages(request))
+	}
 	// __input_source__ stands for the run's input message, __notify_source__
 	// for its notify_owner result.
 	if strings.Contains(reply, "__notify_source__") || strings.Contains(reply, "__input_source__") {

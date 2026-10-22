@@ -55,8 +55,10 @@ type Config struct {
 	Runs               RunStarter
 	Watches            core.WatchStore
 	Checker            WatchChecker
-	// Pages reads the pages of news issues.
-	Pages    PageReader
+	// News offers the sorted news stories to the briefing; Sorter sorts
+	// what is waiting before it.
+	News     core.NewsStore
+	Sorter   NewsSorter
 	Triggers core.TriggerStore
 	Clock    func() time.Time
 	Location *time.Location
@@ -113,8 +115,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Watches is required")
 	case cfg.Checker == nil:
 		return nil, errors.New("wake scheduler: Checker is required")
-	case cfg.Pages == nil:
-		return nil, errors.New("wake scheduler: Pages is required")
+	case cfg.News == nil || cfg.Sorter == nil:
+		return nil, errors.New("wake scheduler: News and Sorter are required")
 	case cfg.Triggers == nil:
 		return nil, errors.New("wake scheduler: Triggers is required")
 	case cfg.MaxChecksPerTick <= 0:
@@ -198,6 +200,9 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		errs = append(errs, fmt.Errorf("routines: %w", err))
 	}
 	if _, err := s.cfg.PhoneNotifications.PrunePhoneNotifications(ctx, now.Add(-7*24*time.Hour)); err != nil {
+		errs = append(errs, err)
+	}
+	if _, err := s.cfg.News.PruneNews(ctx, now.Add(-core.NewsRetention)); err != nil {
 		errs = append(errs, err)
 	}
 	if s.notifications != nil {

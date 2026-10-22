@@ -25,7 +25,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ## 架构
 
-- `internal/wire.Container` 是唯一实例化具体实现的组合根;`cmd/acorn → cli → wire → {api, runtime, store, memory, wake, notify, knowledge, watch}`。`serve` 是唯一长驻的后端命令,同时运行 wake 调度器;`workstation serve` 只在工作机容器里运行。
+- `internal/wire.Container` 是唯一实例化具体实现的组合根;`cmd/acorn → cli → wire → {api, runtime, store, memory, wake, notify, knowledge, watch, news}`。`serve` 是唯一长驻的后端命令,同时运行 wake 调度器;`workstation serve` 只在工作机容器里运行。
 - `internal/core` 只放 domain 类型与 consumer-owned 接口,不导入任何内部包。业务包只依赖 core 接口;只有 `internal/wire` 导入 `internal/store`。
 - 运行时主链在 `internal/runtime`:`Executor → RunnerFactory → Eino ChatModelAgent → adk.Runner`,事件投影写入 SQLite。
 - SQLite(modernc.org/sqlite)是运行时、记忆、约定与索引的真相;写入经单连接串行执行,记忆召回与整合候选读取走 `query_only` 的 WAL 只读连接池。人格存在 SQLite,每次保存是一个新 revision,只由 owner 经 App 接口或 `acorn persona` 修改;启动时没有人格才写入默认人格。Acorn 对 owner 的称呼也存在 SQLite,只由 owner 经 App 接口或 `acorn owner` 设置,run 与记忆抽取读当前称呼。
@@ -61,7 +61,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 ### 追踪与早安卡
 
 - 追踪项(RSS、GitHub、网页)只由 wake 调度器检查,首次检查是基线。digest 与 immediate 追踪项逐条报告;早安卡的 100 个名额按追踪项轮流分配,其余留到下次。
-- `news` 模式的追踪项是新闻源,属于 `news_sections` 的一个板块,条目不登记为记忆来源。早安卡生成前刷新新闻源,按板块给出偏好、每个源上次早安卡以来最新的至多 30 条、期刊源最新一期的页面与上一份早安卡,由模型挑约 10 条与今日关注 3 件;候选用过即标为已报。
+- `news` 模式的追踪项是新闻源,属于 `news_sections` 的一个板块,条目不登记为记忆来源。`internal/news` 在后台按租约认领待报条目,由模型在 `news.daily_tokens` 内打 1–5 分并归入事件,期刊页拆成条目;一批失败 3 次即放弃。早安卡生成前刷新新闻源并等整理追上,按板块给出有新条目的事件、它们的新条目与上一份早安卡,由模型挑约 10 件与今日关注 3 件;整理过的与暂停源的条目随之标为已报。条目与事件保留 14 天,agent 经 `news_search` 检索;过期条目只留键与状态,源里仍在的条目不会再次出现。
 
 ### 知识库
 

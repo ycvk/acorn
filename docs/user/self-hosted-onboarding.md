@@ -462,7 +462,16 @@ A watch that keeps failing (five times in a row) is marked failing and listed in
 
 ### News in the briefing
 
-Ask the agent for the news you want each morning, for example "国内要闻、国际与财经、AI 与科技前沿，每天十条左右". It sets up sections with `news_sections`, each with a few lines of what you want from it, most important first, and adds news sources under them: watches in `news` mode. Before each briefing the backend checks every news source again and offers the model what they published since the last briefing, the newest 30 items of each, together with the previous briefing. A source whose entries are issues, such as a daily AI digest, is marked as one, and the model reads the page of its newest issue. The briefing opens with about ten items across the sections, each a title, one sentence and a link, then 今日关注 with the three that matter most; the push carries those three. Items it did not pick are dropped, and a story told the day before comes back only with something new. News sources are not part of memory.
+Ask the agent for the news you want each morning, for example "国内要闻、国际与财经、AI 与科技前沿，每天十条左右". It sets up sections with `news_sections`, each with a few lines of what you want from it, most important first, and adds news sources under them: watches in `news` mode. A source whose entries are issues, such as a daily AI digest, is marked as one.
+
+In the background Acorn sorts what the sources publish into stories: each item gets a score from 1 to 5 for general importance and fit with its section, reports of the same event from different sources share a story, and each piece of news on an issue's page becomes an item of its own. Sorting calls the model and counts against its own daily budget:
+
+```yaml
+news:
+  daily_tokens: 100000   # 0 means no cap
+```
+
+Once the budget is spent, items wait for the next local day. Before each briefing the backend checks every news source again and waits for the sorting to catch up, then offers the model the stories with new items since the last briefing, by section and highest score first, with the previous briefing. The briefing opens with about ten stories across the sections, each a title, one sentence and a link, then 今日关注 with the three that matter most; the push carries those three. Stories it did not pick are dropped, and a story told the day before comes back only with something new. Ask "最近 AI 圈有什么" or "那个停火谈判后来怎样" in any conversation and the agent answers from the stories of the last two weeks with `news_search`. Items older than two weeks keep only what tells them apart, so a feed that still lists them does not bring them back. News sources are not part of memory, and the morning briefing lists items the sorting gave up on under System health.
 
 Pick sources someone already ranked: top stories, front pages and daily digests. A feed of hundreds of items a day in order of time gives the model only the last hour or two. Daily digests often appear after 08:00; set `briefing.at` after the ones you follow publish, or the briefing carries the previous issue. Say what you want changed in any conversation ("AI 板块少报融资", "加一个财经源"), and the agent edits the sections and sources.
 

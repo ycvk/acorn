@@ -2,6 +2,7 @@ package wire
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -54,6 +55,42 @@ func newsFeed(title, prefix string, keys []string) string {
 	return b.String()
 }
 
+// completionReply is a JSON chat completion with text, for calls that do not
+// stream.
+func completionReply(text string) string {
+	reply, err := json.Marshal(map[string]any{
+		"id": "c", "object": "chat.completion", "created": 1, "model": "fake",
+		"choices": []any{map[string]any{"index": 0, "message": map[string]any{"role": "assistant", "content": text}, "finish_reason": "stop"}},
+		"usage":   map[string]any{"prompt_tokens": 900, "completion_tokens": 100, "total_tokens": 1000},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(reply)
+}
+
+// newsItemIDs replaces __item:<title>__ in reply with the id the news sorting
+// input in messages gives the item or issue titled <title>.
+func newsItemIDs(reply string, messages []map[string]any) string {
+	for _, msg := range messages {
+		if msg["role"] != "user" {
+			continue
+		}
+		for _, line := range strings.Split(chatContentText(msg["content"]), "\n") {
+			if !strings.HasPrefix(line, "- ") && !strings.HasPrefix(line, "Issue ") {
+				continue
+			}
+			parts := strings.Split(line, " | ")
+			head := strings.Fields(parts[0])
+			if len(parts) < 2 || len(head) < 2 {
+				continue
+			}
+			reply = strings.ReplaceAll(reply, "__item:"+parts[1]+"__", head[1])
+		}
+	}
+	return reply
+}
+
 func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	src := &newsSources{news: []string{"旧闻"}, issues: []string{"2026-10-04"}, pages: map[string]string{}}
 	web := newPrivateNetworkServer(t, src)
@@ -67,6 +104,13 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 		toolCallChunk("call_news", "watch_create", map[string]any{"name": "中新网要闻", "kind": "rss", "target": web.URL + "/news", "mode": "news", "section": "国内要闻"}),
 		toolCallChunk("call_daily", "watch_create", map[string]any{"name": "AI 日报", "kind": "rss", "target": web.URL + "/daily", "mode": "news", "section": "AI 与科技前沿", "issue": true}),
 		textReply("配好了"),
+		completionReply(`{"items":[],"entries":[` +
+			`{"issue":__item:2026-10-05__,"title":"DeepSeek 开源推理框架","summary":"DeepSeek 开源了云上使用的推理框架。","score":5,"story":"n1"},` +
+			`{"issue":__item:2026-10-05__,"title":"谷歌开源 TorchTPU","summary":"PyTorch 可以直接在 TPU 上训练。","url":"/daily/torchtpu","score":4,"story":"n2"}],` +
+			`"stories":[{"ref":"n1","section":"AI 与科技前沿","title":"DeepSeek 开源推理框架","summary":"DeepSeek 开源了它在云上使用的推理框架。"},` +
+			`{"ref":"n2","section":"AI 与科技前沿","title":"谷歌开源 TorchTPU","summary":"谷歌开源 TorchTPU，PyTorch 可以直接在 TPU 上训练与推理。"}]}`),
+		completionReply(`{"items":[{"id":__item:国务院常务会议__,"score":5,"story":"n1"},{"id":__item:高铁新线开通__,"score":3,"story":"n2"}],` +
+			`"stories":[{"ref":"n1","section":"国内要闻","title":"国务院常务会议","summary":"国务院常务会议部署民生工作。"},{"ref":"n2","section":"国内要闻","title":"高铁新线开通","summary":"一条高铁新线开通运营。"}]}`),
 		toolCallChunk("call_skill", "skill", map[string]string{"skill": "morning-briefing"}),
 		toolCallChunk("call_push", "notify_owner", map[string]string{"title": "早安", "body": "1. 国务院常务会议"}),
 		textReply("## 国内要闻\n1. **国务院常务会议**：部署民生工作。[中新网](http://news.test/n/国务院常务会议)\n\n## 今日关注\n1. 国务院常务会议"),
@@ -96,7 +140,7 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	}
 
 	// Published after the sources' last check; only the refresh before the
-	// briefing finds them.
+	// briefing finds them, and the catch-up sorts them into stories.
 	src.mu.Lock()
 	src.news = append(src.news, "国务院常务会议", "高铁新线开通")
 	src.issues = append(src.issues, "2026-10-05")
@@ -113,24 +157,35 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 		t.Fatalf("briefing thread = %q, %v", briefingThread, err)
 	}
 	waitNewRun(t, c, briefingThread, "")
-	messages := requestMessages(provider.request(5))
+	issueInput := chatContentText(requestMessages(provider.request(5))[1]["content"])
+	for _, want := range []string{"Sections:\n## 国内要闻\nPreference:\n1. 政策与民生\n## AI 与科技前沿\n", "\n--- issue page ---\n", "DeepSeek 开源推理框架 ★★★★★", "谷歌开源 TorchTPU"} {
+		if !strings.Contains(issueInput, want) {
+			t.Fatalf("issue sorting input lacks %q:\n%s", want, issueInput)
+		}
+	}
+	if itemsInput := chatContentText(requestMessages(provider.request(6))[1]["content"]); !strings.Contains(itemsInput, "[AI 与科技前沿] DeepSeek 开源推理框架: DeepSeek 开源了它在云上使用的推理框架。") || strings.Contains(itemsInput, "旧闻") {
+		t.Fatalf("items sorting input:\n%s", itemsInput)
+	}
+	messages := requestMessages(provider.request(7))
 	input := chatContentText(messages[len(messages)-3]["content"])
 	for _, want := range []string{
 		"[briefing 2026-10-05] morning briefing",
-		"\n## 国内要闻\nPreference:\n1. 政策与民生\n\n### #1 中新网要闻 (2 new)\n- 10-05 07:00 高铁新线开通 — http://news.test/n/高铁新线开通\n  关于高铁新线开通\n- 10-05 06:00 国务院常务会议",
-		"\n## AI 与科技前沿\n\n### #2 AI 日报 (1 new)\nIssue 10-05 07:00 2026-10-05 — " + web.URL + "/daily/2026-10-05\n--- issue page ---\n",
-		"DeepSeek 开源推理框架 ★★★★★",
-		"谷歌开源 TorchTPU",
+		"\n## 国内要闻\nPreference:\n1. 政策与民生\n- [5] 国务院常务会议 (new)\n  国务院常务会议部署民生工作。\n  · 中新网要闻 10-05 06:00 国务院常务会议 — http://news.test/n/国务院常务会议\n- [3] 高铁新线开通 (new)\n",
+		"\n## AI 与科技前沿\n- [5] DeepSeek 开源推理框架 (new)\n  DeepSeek 开源了它在云上使用的推理框架。\n  · AI 日报 10-05 07:00 DeepSeek 开源推理框架 — " + web.URL + "/daily/2026-10-05\n",
+		"  · AI 日报 10-05 07:00 谷歌开源 TorchTPU — " + web.URL + "/daily/torchtpu",
 	} {
 		if !strings.Contains(input, want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, input)
 		}
 	}
-	if strings.Contains(input, "旧闻") {
-		t.Fatalf("a baseline item reached the briefing:\n%s", input)
+	if strings.Contains(input, "旧闻") || strings.Contains(input, "issue page") {
+		t.Fatalf("a baseline item or an issue page reached the briefing:\n%s", input)
 	}
 	if left, err := c.store.ListWatchItems(ctx, core.WatchItemPending, 10); err != nil || len(left) != 0 {
 		t.Fatalf("news items left pending: %+v, %v", left, err)
+	}
+	if used, err := c.store.MemoryUsageSince(ctx, start, "news"); err != nil || used != 2000 {
+		t.Fatalf("news usage = %d, %v", used, err)
 	}
 	if sent := harness.fcm.sent(); len(sent) != 1 {
 		t.Fatalf("pushes = %v", sent)

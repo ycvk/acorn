@@ -10,6 +10,10 @@ import (
 // took its items, so the batch's result was not written.
 var ErrNewsLeaseLost = errors.New("news batch lease lost")
 
+// NewsRetention is how long news items are sorted, offered and searchable
+// after they are first seen.
+const NewsRetention = 14 * 24 * time.Hour
+
 // NewsStory is one event across news sources: the items that report it, a
 // summary of it so far and what its latest items added.
 type NewsStory struct {
@@ -105,10 +109,10 @@ type NewsQuery struct {
 
 // NewsStore keeps the sorting of news items into scored stories.
 type NewsStore interface {
-	// ClaimNewsBatch claims up to limit news items that are not baseline,
-	// not sorted and not claimed by a live lease, oldest first. With issues
-	// it claims issues only, otherwise other items only. An empty batch
-	// means nothing is waiting.
+	// ClaimNewsBatch claims up to limit pending news items first seen within
+	// NewsRetention, not sorted and not claimed by a live lease, oldest
+	// first. With issues it claims issues only, otherwise other items only.
+	// An empty batch means nothing is waiting.
 	ClaimNewsBatch(ctx context.Context, now time.Time, lease time.Duration, limit int, issues bool) (NewsBatch, error)
 	// CommitNewsBatch writes a batch's sorting in one transaction while its
 	// claim holds, else ErrNewsLeaseLost.
@@ -129,8 +133,10 @@ type NewsStore interface {
 	SearchNewsStories(ctx context.Context, query NewsQuery) ([]NewsStory, error)
 	// FailedNewsItems counts the items given up on since since.
 	FailedNewsItems(ctx context.Context, since time.Time) (int, error)
-	// PruneNews deletes news items first seen before before, their sorting
-	// and the stories left without items. Items registered as memory
-	// sources, from before their watch became a news source, stay.
+	// PruneNews keeps only the key and status of news items first seen
+	// before before, so a feed that still lists them does not bring them
+	// back, takes them out of their stories and deletes the stories left
+	// without items. Items registered as memory sources, from before their
+	// watch became a news source, stay whole. It returns the items pruned.
 	PruneNews(ctx context.Context, before time.Time) (int, error)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/knowledge"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/news"
 	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/presence"
 	"github.com/ycvk/acorn/internal/runtime"
@@ -36,7 +37,7 @@ type containerRuntimeDeps struct {
 	notifier     *notify.Sender
 	vault        *knowledge.Vault
 	watchChecker *watch.Checker
-	newsPages    newsPages
+	news         *news.Processor
 	// triggers is nil without a workstation.
 	triggers      *skills.TriggerRunner
 	panels        *views.Feeder
@@ -134,6 +135,10 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
+	newsProcessor, err := buildNews(ctx, cfg, db, webFetcher, options.clock)
+	if err != nil {
+		return nil, fmt.Errorf("news: %w", err)
+	}
 	workstationClient, err := buildWorkstationClient(cfg)
 	if err != nil {
 		return nil, err
@@ -182,6 +187,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Skills: skillDeps,
 		Watch: tools.WatchToolDeps{
 			Store:    db,
+			News:     db,
 			Checker:  watchChecker,
 			Context:  ctxBridge,
 			Clock:    options.clock,
@@ -272,7 +278,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		notifier:              notifier,
 		vault:                 vault,
 		watchChecker:          watchChecker,
-		newsPages:             newsPages{fetcher: webFetcher},
+		news:                  newsProcessor,
 		triggers:              triggers,
 		panels:                panels,
 		packageStatus:         packageStatus,

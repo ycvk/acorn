@@ -30,7 +30,11 @@ func newsStoryFixture(t *testing.T) (*Store, core.Watch, core.Watch, core.Watch)
 func TestNewsBatchesSortItemsIntoStoriesOnce(t *testing.T) {
 	s, bbc, ft, daily := newsStoryFixture(t)
 	ctx := context.Background()
-	bbcItems := recordItems(t, s, bbc, "b1", "b2")
+	recorded := recordItems(t, s, bbc, "told", "b1", "b2")
+	told, bbcItems := recorded[0], recorded[1:]
+	if err := s.MarkWatchItems(ctx, []int64{told.ID}, core.WatchItemBriefed, "run_0"); err != nil {
+		t.Fatal(err)
+	}
 	ftItems := recordItems(t, s, ft, "f1")
 	issues := recordItems(t, s, daily, "2026-10-03")
 
@@ -104,6 +108,14 @@ func TestNewsBatchesSortItemsIntoStoriesOnce(t *testing.T) {
 	if found, err := s.SearchNewsStories(ctx, core.NewsQuery{Section: "国际", Since: watchTestNow, Limit: 5}); err != nil || len(found) != 1 || found[0].Title != "停火谈判" {
 		t.Fatalf("section search = %+v, %v", found, err)
 	}
+	if found, err := s.SearchNewsStories(ctx, core.NewsQuery{Text: " 谈判  芯片 ", Since: watchTestNow, Limit: 5}); err != nil || len(found) != 1 || found[0].Title != "停火谈判" {
+		t.Fatalf("every word matches in the story or its items: %+v, %v", found, err)
+	}
+	for _, text := range []string{"谈判 DeepSeek", "%", "停_谈判"} {
+		if found, err := s.SearchNewsStories(ctx, core.NewsQuery{Text: text, Since: watchTestNow, Limit: 5}); err != nil || len(found) != 0 {
+			t.Fatalf("search %q = %+v, %v", text, found, err)
+		}
+	}
 	recent, err := s.RecentNewsStories(ctx, []string{"国际"}, watchTestNow, 10)
 	if err != nil || len(recent) != 1 || recent[0].ID != ceasefire.ID {
 		t.Fatalf("recent = %+v, %v", recent, err)
@@ -147,7 +159,7 @@ func TestNewsBatchesWaitOutTheBudgetAndGiveUpAfterThreeFailures(t *testing.T) {
 	}
 }
 
-func TestPruneNewsKeepsItemsThatAreMemorySources(t *testing.T) {
+func TestPruneNewsKeepsKeysAndItemsThatAreMemorySources(t *testing.T) {
 	s, bbc, _, _ := newsStoryFixture(t)
 	ctx := context.Background()
 	legacy := addTestWatch(t, s, "legacy", core.WatchActive, watchTestNow)
@@ -171,6 +183,19 @@ func TestPruneNewsKeepsItemsThatAreMemorySources(t *testing.T) {
 	pruned, err := s.PruneNews(ctx, watchTestNow.Add(time.Hour))
 	if err != nil || pruned != 1 {
 		t.Fatalf("pruned = %d, %v", pruned, err)
+	}
+	if again, err := s.PruneNews(ctx, watchTestNow.Add(time.Hour)); err != nil || again != 0 {
+		t.Fatalf("pruning again = %d, %v", again, err)
+	}
+	current, err := s.LoadWatch(ctx, bbc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refound := recordItems(t, s, *current, "b1"); len(refound) != 0 {
+		t.Fatalf("a pruned item still in the feed came back: %+v", refound)
+	}
+	if batch, err := s.ClaimNewsBatch(ctx, watchTestNow.Add(core.NewsRetention), time.Minute, 10, false); err != nil || len(batch.Items) != 0 {
+		t.Fatalf("items first seen before the retention were claimed: %+v, %v", batch, err)
 	}
 	if !sourceExists(t, s, fmt.Sprintf("watch:%d", legacyItems[0].ID)) {
 		t.Fatal("the legacy item's source must stay")
