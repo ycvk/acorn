@@ -18,7 +18,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 25
+const schemaVersion = 26
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -46,6 +46,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	addNewsStories,
 	addNewsTrials,
 	addOwnerSettings,
+	requeueCanceledWork,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -245,6 +246,18 @@ var skillNameRun = regexp.MustCompile(`[^a-z0-9]+`)
 // the job's context.
 func requeueBudgetFailedMemoryJobs(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='pending',attempts=0,available_at=?,lease_until='' WHERE state='failed' AND error LIKE ?`, formatTimestamp(time.Now()), "%"+core.ErrMemoryBudget.Error()+"%")
+	return err
+}
+
+// requeueCanceledWork (25 to 26) puts back the memory jobs and news items
+// given up on because Acorn stopped during their model calls, which earlier
+// builds counted as failures.
+func requeueCanceledWork(ctx context.Context, tx *sql.Tx) error {
+	canceled := "%" + context.Canceled.Error() + "%"
+	if _, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='pending',attempts=0,available_at=?,lease_until='' WHERE state='failed' AND error LIKE ?`, formatTimestamp(time.Now()), canceled); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM news_scores WHERE story_id IS NULL AND error LIKE ?`, canceled)
 	return err
 }
 
