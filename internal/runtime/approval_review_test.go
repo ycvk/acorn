@@ -120,7 +120,7 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 	if got.OwnerRequest != "帮我把购物车里的东西买了" || got.Browser == nil || *got.Browser != want {
 		t.Fatalf("review call = %+v %+v", got, got.Browser)
 	}
-	if len(f.store.actions) != 1 || f.store.actions[0].Reason != "review" {
+	if len(f.store.actions) != 1 || f.store.actions[0].Reason != reviewReason {
 		t.Fatalf("actions = %+v", f.store.actions)
 	}
 	var payload map[string]any
@@ -175,7 +175,7 @@ func TestGateRulesComeBeforeReview(t *testing.T) {
 	if err != nil || !strings.Contains(out, "approval.block") || len(f.ran) != 0 {
 		t.Fatalf("block: out=%q err=%v ran=%v", out, err, f.ran)
 	}
-	if _, err := f.call(t, "mcp__mail__send", `{}`); err == nil || len(f.store.actions) != 1 || f.store.actions[0].Reason != "approval.require" {
+	if _, err := f.call(t, "mcp__mail__send", `{}`); err == nil || len(f.store.actions) != 1 || f.store.actions[0].Reason != requireReason {
 		t.Fatalf("require: err=%v actions=%+v", err, f.store.actions)
 	}
 	if _, err := f.call(t, "mcp__calendar__list", `{"command":"x"}`); err != nil || len(f.reviewer.calls) != 0 {
