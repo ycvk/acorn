@@ -46,6 +46,10 @@ class ApprovalNotificationsTest {
     fun `tool approvals read as what Acorn wants to do`() {
         assertEquals("Acorn 想读取网页", approvalTitle("Approve web_fetch", "web_fetch"))
         assertEquals("https://go.dev", approvalBody("web_fetch wants to run with arguments: {}", "web_fetch", "https://go.dev"))
+        assertEquals("Acorn 想调整新闻源", approvalTitle("Approve news_source", "news_source"))
+        assertEquals(null, approvalDetail("把新闻源「知乎热榜」转正。理由：x", "把新闻源「知乎热榜」转正。理由：x"))
+        assertEquals("全文，摘要只是开头", approvalDetail("全文，摘要只是开头", "全文…"))
+        assertEquals(null, approvalDetail(" ", "正文"))
         assertEquals("周几方便？", approvalTitle("周几方便？", null))
         assertEquals("说明", approvalBody("说明", null, null))
         assertNull(approvalBody("ignored", "knowledge_list", ""))

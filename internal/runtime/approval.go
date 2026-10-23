@@ -35,6 +35,12 @@ type approvalStore interface {
 	LoadRun(ctx context.Context, runID string) (*core.RunRecord, error)
 }
 
+// ApprovalDescriber says, in the owner's words, what a call the owner decides
+// on does, for the approval the owner reads.
+type ApprovalDescriber interface {
+	DescribeApproval(ctx context.Context, toolName, arguments string) (string, error)
+}
+
 // ActionReviewer judges whether a call needs the owner's approval.
 type ActionReviewer interface {
 	Review(ctx context.Context, call review.Call) (review.Verdict, error)
@@ -48,6 +54,7 @@ type approvalMiddleware struct {
 	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
 	rules    core.ApprovalRules
 	reviewer ActionReviewer
+	describe ApprovalDescriber
 	store    approvalStore
 
 	mu    sync.Mutex
@@ -68,9 +75,9 @@ type approvalRequest struct {
 
 // newApprovalMiddleware builds the gate for one run. A nil reviewer leaves
 // calls no rule settles to run unreviewed.
-func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, store approvalStore) (*approvalMiddleware, error) {
-	if store == nil {
-		return nil, errors.New("approval middleware requires a store")
+func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, describe ApprovalDescriber, store approvalStore) (*approvalMiddleware, error) {
+	if store == nil || describe == nil {
+		return nil, errors.New("approval middleware requires a store and an approval describer")
 	}
 	for _, patterns := range [][]string{rules.Require, rules.Block, rules.Allow} {
 		for i, p := range patterns {
@@ -87,6 +94,7 @@ func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, st
 			Allow:   slices.Clone(rules.Allow),
 		},
 		reviewer: reviewer,
+		describe: describe,
 		store:    store,
 		pages:    map[pageKey]review.Page{},
 	}, nil
@@ -102,6 +110,9 @@ func matchesAny(patterns []string, name string) bool {
 	}
 	return false
 }
+
+// ownerDecidesReason is why such a call waits, as the owner reads it.
+const ownerDecidesReason = "新闻源进出早安卡由你决定"
 
 // ownerDecides are the tools whose calls wait for the owner unless
 // approval.allow names them: news_source changes which sources the briefing
@@ -130,8 +141,12 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 			return &approvalRequest{reason: "approval.require"}, nil
 		}), nil
 	case ownerDecides(tCtx.Name) && !matchesAny(m.rules.Allow, tCtx.Name):
-		return m.gated(run, tCtx, func(context.Context, string) (*approvalRequest, error) {
-			return &approvalRequest{reason: "owner decides"}, nil
+		return m.gated(run, tCtx, func(ctx context.Context, args string) (*approvalRequest, error) {
+			summary, err := m.describe.DescribeApproval(ctx, tCtx.Name, args)
+			if err != nil {
+				return nil, fmt.Errorf("describe %s for approval: %w", tCtx.Name, err)
+			}
+			return &approvalRequest{reason: ownerDecidesReason, summary: summary}, nil
 		}), nil
 	case matchesAny(m.rules.Allow, tCtx.Name) || m.reviewer == nil || !reviewed(tCtx.Name):
 		return run, nil

@@ -483,3 +483,22 @@ func TestNewsSourcesStartOnTrialAndStopOnlyThroughNewsSource(t *testing.T) {
 		t.Fatalf("a watch switched to news = %s, %v", out, err)
 	}
 }
+
+func TestNewsSourceApprovalSaysWhatTheOwnerDecides(t *testing.T) {
+	store := &toolWatchStore{watches: []core.Watch{{ID: 1, Name: "知乎热榜", Kind: core.WatchRSS, Mode: core.WatchModeNews, Section: "热榜", Trial: true}}}
+	describe := ApprovalDescriber{Watches: store}
+	ctx := context.Background()
+	for args, want := range map[string]string{
+		`{"action":"promote","id":1,"reason":"一周 70 条，3 条 4 分以上"}`: "把新闻源「知乎热榜」（板块：热榜）转正，从下一份早安卡起采用它。理由：一周 70 条，3 条 4 分以上",
+		`{"action":"stop","id":1,"reason":"一周只被引用一次"}`:             "停用新闻源「知乎热榜」（板块：热榜），早安卡不再采用它。理由：一周只被引用一次",
+		`{"action":"drop","id":1,"reason":"x"}`:                    "对新闻源「知乎热榜」（板块：热榜）的动作 \"drop\" 既不是 promote 也不是 stop，这次调用会失败。理由：x",
+		`{"action":"promote","id":7,"reason":"x"}`:                 "新闻源 #7 不存在，这次调用会失败。",
+	} {
+		if got, err := describe.DescribeApproval(ctx, "news_source", args); err != nil || got != want {
+			t.Fatalf("%s = %q, %v", args, got, err)
+		}
+	}
+	if _, err := describe.DescribeApproval(ctx, "shell", `{}`); err == nil {
+		t.Fatal("a tool the owner does not decide on was described")
+	}
+}

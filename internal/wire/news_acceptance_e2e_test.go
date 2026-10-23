@@ -57,7 +57,7 @@ func newsFeed(title, prefix string, keys []string) string {
 }
 
 // approveNext waits for a pending action not in approved and accepts it as
-// the app does, returning the detail the owner saw.
+// the app does, returning the summary and the detail the owner saw.
 func approveNext(t *testing.T, c *Container, approved map[string]bool) string {
 	t.Helper()
 	ctx := context.Background()
@@ -79,7 +79,7 @@ func approveNext(t *testing.T, c *Container, approved map[string]bool) string {
 				t.Fatalf("approve %s: %v", a.ActionID, err)
 			}
 			approved[a.ActionID] = true
-			return detail.ToolDetail
+			return detail.ToolSummary + "\n" + detail.ToolDetail
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("no new pending action; approved %v", approved)
@@ -167,7 +167,10 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	}
 	// New sources start on trial; the owner approves taking each in.
 	approved := map[string]bool{}
-	for _, want := range []string{"Take news source #1 中新网要闻 (", "Take news source #2 AI 日报 ("} {
+	for _, want := range []string{
+		"把新闻源「中新网要闻」（板块：国内要闻）转正，从下一份早安卡起采用它。理由：你要的国内要闻\n把新闻源「中新网要闻」",
+		"把新闻源「AI 日报」（板块：AI 与科技前沿）转正，从下一份早安卡起采用它。理由：你要的 AI 新闻\n把新闻源「AI 日报」",
+	} {
 		if detail := approveNext(t, c, approved); !strings.HasPrefix(detail, want) {
 			t.Fatalf("approval detail = %q, want %q…", detail, want)
 		}

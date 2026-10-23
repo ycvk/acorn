@@ -248,13 +248,20 @@ func (s newsSourcesStub) LoadWatch(_ context.Context, id int64) (*core.Watch, er
 func TestNewsSourceApprovalNamesTheSource(t *testing.T) {
 	service := NewPendingActionService(nil).WithNewsSources(newsSourcesStub{12: {ID: 12, Name: "知乎热榜", Target: "hot-lists/zhihu", Section: "热榜"}})
 	ctx := context.Background()
-	for args, want := range map[string]string{
-		`{"action":"promote","id":12,"reason":"一周 70 条，3 条 4 分以上"}`: "Take news source #12 知乎热榜 (hot-lists/zhihu, section 热榜) into the morning briefing.\n\nReason: 一周 70 条，3 条 4 分以上",
-		`{"action":"stop","id":12,"reason":"没被引用"}`:                 "Stop news source #12 知乎热榜 (hot-lists/zhihu, section 热榜); the morning briefing no longer takes it.\n\nReason: 没被引用",
-		`{"action":"promote","id":7,"reason":"x"}`:                  "News source #7 does not exist; the call will fail.",
-	} {
-		if got, err := service.toolDetail(ctx, "news_source", args); err != nil || got != want {
-			t.Fatalf("detail of %s = %q, %v", args, got, err)
-		}
+	args := `{"action":"promote","id":12,"reason":"一周 70 条，3 条 4 分以上"}`
+	if got, err := service.toolDetail(ctx, "news_source", args); err != nil || got != "把新闻源「知乎热榜」（板块：热榜）转正，从下一份早安卡起采用它。理由：一周 70 条，3 条 4 分以上" {
+		t.Fatalf("detail = %q, %v", got, err)
+	}
+	// The list and the phone read the description stored with the approval.
+	payload, err := json.Marshal(map[string]any{"tool_name": "news_source", "arguments": args, "summary": "把新闻源「知乎热榜」（板块：热榜）转正"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary, err := buildPendingActionSummary(core.PendingActionRecord{
+		ActionID: "action_1", RunID: "run_1", Kind: core.PendingActionKindToolApproval, Status: core.PendingActionStatusPending,
+		Subject: "Approve news_source", PayloadJSON: string(payload),
+	}, core.RunRecord{RunID: "run_1", SessionID: "thread_1"})
+	if err != nil || summary.ToolSummary != "把新闻源「知乎热榜」（板块：热榜）转正" {
+		t.Fatalf("summary = %+v, %v", summary, err)
 	}
 }

@@ -76,7 +76,7 @@ type gateFixture struct {
 func newGateFixture(t *testing.T, rules core.ApprovalRules) *gateFixture {
 	t.Helper()
 	f := &gateFixture{store: &approvalTestStore{input: "帮我把购物车里的东西买了"}, reviewer: &fakeReviewer{}}
-	mw, err := newApprovalMiddleware(rules, f.reviewer, f.store)
+	mw, err := newApprovalMiddleware(rules, f.reviewer, describedCalls{}, f.store)
 	if err != nil {
 		t.Fatal(err)
 	}

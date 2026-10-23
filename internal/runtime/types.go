@@ -89,6 +89,7 @@ type RuntimeDeps struct {
 	Work        WorkHost
 	Workstation tools.WorkstationToolsConfig
 	Reviewer    ActionReviewer
+	Describer   ApprovalDescriber
 	Clock       func() time.Time
 	// Settings gives each run the owner's time zone and approval rules.
 	Settings core.SettingsReader

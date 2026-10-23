@@ -116,6 +116,7 @@ func handlerTestDeps(cfg *config.Config) RuntimeDeps {
 		Config:             cfg,
 		Memory:             handlerMemory{},
 		Store:              approvalHandlersStore{},
+		Describer:          describedCalls{},
 		Activity:           newMemPresenceStore(),
 		MemoryStore:        newMemPresenceStore(),
 		Commitments:        newMemPresenceStore(),
