@@ -296,6 +296,10 @@ func (s *Store) FailNewsBatch(ctx context.Context, token, reason string, at time
 
 const newsStoryColumns = `st.id, st.section, st.title, st.summary, st.development, st.score, st.first_seen, st.updated_at`
 
+// briefingSource holds for a watch w whose items the briefing takes: a news
+// source neither on trial nor paused.
+const briefingSource = `w.trial = 0 AND w.status <> 'paused'`
+
 func (s *Store) RecentNewsStories(ctx context.Context, sections []string, since time.Time, limit int) ([]core.NewsStory, error) {
 	if len(sections) == 0 {
 		return nil, nil
@@ -318,14 +322,25 @@ func (s *Store) BriefingNewsStories(ctx context.Context, perSection int) (core.B
 	if perSection <= 0 {
 		return core.BriefingNews{}, errors.New("briefing news stories: perSection must be positive")
 	}
+	// A story shows in its own section when a source the briefing takes is
+	// in that section, else in the section of its best offered item's
+	// source, so a story a trial source started does not bring the trial's
+	// section into the briefing.
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, section, title, summary, development, score, first_seen, updated_at FROM (
-		   SELECT `+newsStoryColumns+`, ROW_NUMBER() OVER (PARTITION BY st.section ORDER BY st.score DESC, st.updated_at DESC, st.id DESC) AS rank
-		   FROM news_stories st
-		   WHERE EXISTS (SELECT 1 FROM news_scores s JOIN watch_items i ON i.id = s.item_id JOIN watches w ON w.id = i.watch_id
-		     WHERE s.story_id = st.id AND i.status = ? AND w.trial = 0))
+		`WITH offered AS (
+		   SELECT `+newsStoryColumns+`, (
+		     SELECT w.section FROM news_scores s JOIN watch_items i ON i.id = s.item_id JOIN watches w ON w.id = i.watch_id
+		     WHERE s.story_id = st.id AND i.status = ? AND `+briefingSource+`
+		     ORDER BY s.score DESC, i.id DESC LIMIT 1) AS best
+		   FROM news_stories st),
+		 shown AS (
+		   SELECT id, CASE WHEN EXISTS (SELECT 1 FROM watches w WHERE w.mode = ? AND w.section = offered.section AND `+briefingSource+`)
+		     THEN section ELSE best END AS section, title, summary, development, score, first_seen, updated_at
+		   FROM offered WHERE best IS NOT NULL)
+		 SELECT id, section, title, summary, development, score, first_seen, updated_at FROM (
+		   SELECT shown.*, ROW_NUMBER() OVER (PARTITION BY section ORDER BY score DESC, updated_at DESC, id DESC) AS rank FROM shown)
 		 WHERE rank <= ? ORDER BY section, rank`,
-		string(core.WatchItemPending), perSection)
+		string(core.WatchItemPending), string(core.WatchModeNews), perSection)
 	if err != nil {
 		return core.BriefingNews{}, fmt.Errorf("briefing news stories: %w", err)
 	}
@@ -393,8 +408,8 @@ func (s *Store) SearchNewsStories(ctx context.Context, query core.NewsQuery) ([]
 }
 
 // attachStoryItems adds each story's items, newest first and at most limit
-// of them when limit is positive: for a briefing the pending items of sources
-// not on trial, otherwise all of them.
+// of them when limit is positive: for a briefing the pending items of the
+// sources it takes, otherwise all of them.
 func (s *Store) attachStoryItems(ctx context.Context, stories []core.NewsStory, briefing bool, limit int) error {
 	rowLimit := limit
 	if rowLimit <= 0 {
@@ -404,7 +419,7 @@ func (s *Store) attachStoryItems(ctx context.Context, stories []core.NewsStory, 
 		rows, err := s.db.QueryContext(ctx,
 			`SELECT i.id, i.watch_id, i.item_key, i.title, i.url, i.summary, i.published_at, i.status, i.run_id, i.seen_at, w.name, s.score
 			 FROM news_scores s JOIN watch_items i ON i.id = s.item_id JOIN watches w ON w.id = i.watch_id
-			 WHERE s.story_id = ? AND (NOT ? OR (i.status = ? AND w.trial = 0))
+			 WHERE s.story_id = ? AND (NOT ? OR (i.status = ? AND `+briefingSource+`))
 			 ORDER BY COALESCE(NULLIF(i.published_at, ''), i.seen_at) DESC, i.id DESC LIMIT ?`,
 			stories[i].ID, briefing, string(core.WatchItemPending), rowLimit)
 		if err != nil {

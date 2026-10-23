@@ -333,3 +333,56 @@ INSERT INTO memory_jobs (operation, object_id, version, state, attempts, availab
 		t.Fatalf("other failure state=%s attempts=%d err=%v", state, attempts, err)
 	}
 }
+
+// A v25 database kept memory jobs and news items given up on because Acorn
+// stopped during their model calls. The upgrade requeues them and leaves
+// other failures alone.
+func TestSchemaTwentySixRequeuesWorkAStopCancelled(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	at := "2026-10-22T00:00:00.000000000Z"
+	if _, err := raw.Exec(readLayout(t, 25)+`PRAGMA user_version = 25;
+INSERT INTO memory_state (id, epoch) VALUES (1, 0);
+INSERT INTO memory_jobs (operation, object_id, version, state, attempts, available_at, created_at, error) VALUES
+ ('consolidate', 'fact:stopped', '1', 'failed', 3, ?1, ?1, 'memory job 9 consolidate fact:stopped version 1: memory consolidate: failed to create response: context canceled'),
+ ('consolidate', 'fact:broken', '1', 'failed', 3, ?1, ?1, 'memory model JSON: unexpected end of JSON input');
+INSERT INTO news_sections (name, position, created_at, updated_at) VALUES ('国际', 1, ?1, ?1);
+INSERT INTO watches (id, name, kind, target, mode, section, interval_seconds, status, next_check_at, created_at, updated_at)
+ VALUES (1, 'bbc', 'rss', 'https://bbc.test/feed', 'news', '国际', 3600, 'active', ?1, ?1, ?1);
+INSERT INTO watch_items (id, watch_id, item_key, title, status, seen_at) VALUES (1, 1, 'stopped', 'stopped', 'pending', ?1), (2, 1, 'broken', 'broken', 'pending', ?1);
+INSERT INTO news_scores (item_id, score, error, sorted_at) VALUES (1, 0, 'news sorting model call: context canceled', ?1), (2, 0, 'news sorting reply is not the JSON asked for', ?1);`, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	ctx := context.Background()
+	now := time.Now().Add(time.Minute)
+	job, err := s.ClaimMemoryJob(ctx, now, time.Minute, "consolidate")
+	if err != nil || job == nil || job.ObjectID != "fact:stopped" || job.Attempts != 1 {
+		t.Fatalf("requeued job=%+v err=%v", job, err)
+	}
+	if next, err := s.ClaimMemoryJob(ctx, now, time.Minute, "consolidate"); err != nil || next != nil {
+		t.Fatalf("a job failed for another reason was requeued: %+v err=%v", next, err)
+	}
+	rows, err := s.db.Query(`SELECT item_id FROM news_scores ORDER BY item_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []int64
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var id int64
+		if err := scan(&id); err != nil {
+			return err
+		}
+		left = append(left, id)
+		return nil
+	}); err != nil || len(left) != 1 || left[0] != 2 {
+		t.Fatalf("news scores left = %v, %v; only the stopped item is put back", left, err)
+	}
+}
