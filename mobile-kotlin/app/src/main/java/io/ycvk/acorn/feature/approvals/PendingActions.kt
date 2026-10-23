@@ -91,6 +91,10 @@ fun approvalTitle(title: String, toolName: String?): String =
 fun approvalBody(body: String?, toolName: String?, toolSummary: String?): String? =
     if (toolName.isNullOrBlank()) body?.takeIf { it.isNotBlank() } else toolSummary?.takeIf { it.isNotBlank() }
 
+/** The whole text a call acts on, unless the body above already says all of it. */
+fun approvalDetail(detail: String?, body: String?): String? =
+    detail?.takeIf { it.isNotBlank() && it.trim() != body?.trim() }
+
 fun kindLabel(kind: String): String = when (kind) {
     "tool_approval" -> "需要你批准"
     "operator_question" -> "Acorn 在问你"
@@ -186,12 +190,13 @@ fun PendingActionSheet(
             Text(kindLabel(detail.kind.value), style = AcornTheme.type.eyebrow, color = colors.warningInk)
             Spacer(Modifier.height(6.dp))
             Text(approvalTitle(detail.title, detail.toolName), style = AcornTheme.type.title, color = colors.ink)
-            approvalBody(detail.body, detail.toolName, detail.toolSummary)?.let {
+            val body = approvalBody(detail.body, detail.toolName, detail.toolSummary)
+            body?.let {
                 Spacer(Modifier.height(10.dp))
                 Text(it, style = AcornTheme.type.body, color = colors.ink)
             }
             // The whole text the call acts on, such as the skill a skill_write or skill_import stores.
-            detail.toolDetail?.takeIf { it.isNotBlank() }?.let { text ->
+            approvalDetail(detail.toolDetail, body)?.let { text ->
                 Spacer(Modifier.height(16.dp))
                 Text("完整内容", style = AcornTheme.type.caption, color = colors.inkFaint)
                 Spacer(Modifier.height(4.dp))

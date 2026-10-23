@@ -66,6 +66,10 @@ fun toolLabel(name: String): String = when (name) {
     "watch_create" -> "新建追踪"
     "watch_update" -> "调整追踪"
     "watch_list" -> "查看追踪"
+    "news_sections" -> "调整新闻板块"
+    "news_source" -> "调整新闻源"
+    "news_search" -> "查新闻"
+    "feed_discover" -> "找订阅源"
     "web_search" -> "搜索网页"
     "web_fetch" -> "读取网页"
     "browser" -> "用浏览器打开"
@@ -90,10 +94,10 @@ fun toolLabel(name: String): String = when (name) {
 fun toolOrb(name: String): OrbState = when {
     name.startsWith("mcp__") -> OrbState.Connecting
     else -> when (name) {
-        "recall", "memory_read", "knowledge_read", "knowledge_search", "knowledge_list", "watch_list",
+        "recall", "memory_read", "knowledge_read", "knowledge_search", "knowledge_list", "watch_list", "news_search", "feed_discover",
         "web_search", "web_fetch", "artifact_read", "artifact_list", "tool_search" -> OrbState.Searching
         "shell", "files", "browser", "send_file", "skill_inspect" -> OrbState.Working
-        "skill", "skill_write", "skill_import", "skill_retire", "watch_create", "watch_update" -> OrbState.Connecting
+        "skill", "skill_write", "skill_import", "skill_retire", "watch_create", "watch_update", "news_sections", "news_source" -> OrbState.Connecting
         "think", "concern", "settle", "schedule_wake", "ask_operator", "notify_owner" -> OrbState.Solving
         "keep", "memory_correct", "memory_forget", "knowledge_write", "knowledge_edit", "artifact_write", "show_view", "update_view" -> OrbState.Weaving
         else -> OrbState.Working

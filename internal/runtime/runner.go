@@ -161,6 +161,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		PhoneNotifications: opts.PhoneNotifications,
 		Workstation:        opts.Workstation,
 		Reviewer:           opts.Reviewer,
+		Describer:          opts.Describer,
 		Clock:              opts.Clock,
 		Settings:           opts.Settings,
 	}, nil
@@ -289,8 +290,10 @@ type RunnerFactoryOptions struct {
 	Workstation tools.WorkstationToolsConfig
 	// Reviewer judges calls the approval rules leave open; nil turns review off.
 	Reviewer ActionReviewer
-	Clock    func() time.Time
-	Settings core.SettingsReader
+	// Describer writes the owner-facing summary of calls the owner decides on.
+	Describer ApprovalDescriber
+	Clock     func() time.Time
+	Settings  core.SettingsReader
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.

@@ -163,7 +163,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	approval, err := newApprovalMiddleware(settings.Approval, deps.Reviewer, deps.Store)
+	approval, err := newApprovalMiddleware(settings.Approval, deps.Reviewer, deps.Describer, deps.Store)
 	if err != nil {
 		return nil, err
 	}

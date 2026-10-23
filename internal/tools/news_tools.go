@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -244,6 +245,52 @@ func buildNewsSourceTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			}
 			return watchOutput(w, 0, loc), nil
 		})
+}
+
+// WatchLoader reads one watch.
+type WatchLoader interface {
+	LoadWatch(ctx context.Context, id int64) (*core.Watch, error)
+}
+
+// ApprovalDescriber says, in the owner's words, what a call the owner
+// decides on does: which news source a news_source call takes in or stops,
+// and why.
+type ApprovalDescriber struct {
+	Watches WatchLoader
+}
+
+func (d ApprovalDescriber) DescribeApproval(ctx context.Context, toolName, arguments string) (string, error) {
+	if toolName != "news_source" {
+		return "", fmt.Errorf("no approval description for %s", toolName)
+	}
+	return NewsSourceApproval(ctx, d.Watches, arguments)
+}
+
+// NewsSourceApproval says which news source a news_source call takes into
+// the briefing or stops, and why.
+func NewsSourceApproval(ctx context.Context, watches WatchLoader, arguments string) (string, error) {
+	var args NewsSourceInput
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return "", fmt.Errorf("news_source arguments: %w", err)
+	}
+	w, err := watches.LoadWatch(ctx, args.ID)
+	if errors.Is(err, core.ErrWatchNotFound) {
+		return fmt.Sprintf("新闻源 #%d 不存在，这次调用会失败。", args.ID), nil
+	}
+	if err != nil {
+		return "", err
+	}
+	source := fmt.Sprintf("新闻源「%s」（板块：%s）", w.Name, w.Section)
+	var what string
+	switch args.Action {
+	case "promote":
+		what = "把" + source + "转正，从下一份早安卡起采用它。"
+	case "stop":
+		what = "停用" + source + "，早安卡不再采用它。"
+	default:
+		what = fmt.Sprintf("对%s的动作 %q 既不是 promote 也不是 stop，这次调用会失败。", source, args.Action)
+	}
+	return what + "理由：" + strings.TrimSpace(args.Reason), nil
 }
 
 func nextPosition(sections []core.NewsSection) int {

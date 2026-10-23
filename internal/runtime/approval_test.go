@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -12,6 +13,14 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
 )
+
+// describedCalls describes a call the owner decides on by its tool and
+// arguments.
+type describedCalls struct{}
+
+func (describedCalls) DescribeApproval(_ context.Context, toolName, arguments string) (string, error) {
+	return "owner decides " + toolName + " " + arguments, nil
+}
 
 type approvalTestStore struct {
 	mu       sync.Mutex
@@ -84,7 +93,7 @@ func (t *echoTool) callCount() int {
 func newApprovalTestRunner(t *testing.T, model *scriptedModel, tool *echoTool, store *approvalTestStore, checkpoints adk.CheckPointStore) *adk.TypedRunner[*schema.AgenticMessage] {
 	t.Helper()
 	ctx := context.Background()
-	mw, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_*"}}, nil, store)
+	mw, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_*"}}, nil, describedCalls{}, store)
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
@@ -232,7 +241,7 @@ func TestApprovalDeclineSkipsCall(t *testing.T) {
 
 func TestApprovalRejectsMalformedPatterns(t *testing.T) {
 	for _, rules := range []core.ApprovalRules{{Require: []string{"["}}, {Block: []string{"["}}, {Allow: []string{"["}}} {
-		if _, err := newApprovalMiddleware(rules, nil, &approvalTestStore{}); err == nil {
+		if _, err := newApprovalMiddleware(rules, nil, describedCalls{}, &approvalTestStore{}); err == nil {
 			t.Fatalf("expected malformed pattern in %+v to be rejected", rules)
 		}
 	}
@@ -272,7 +281,7 @@ func TestNewsSourceWaitsForTheOwnerUnlessAllowed(t *testing.T) {
 			ctx := core.WithRunID(context.Background(), "run_news")
 			store := &approvalTestStore{}
 			tool := &newsSourceTool{}
-			mw, err := newApprovalMiddleware(tc.rules, nil, store)
+			mw, err := newApprovalMiddleware(tc.rules, nil, describedCalls{}, store)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -299,8 +308,16 @@ func TestNewsSourceWaitsForTheOwnerUnlessAllowed(t *testing.T) {
 				}
 				return
 			}
-			if interrupted == nil || len(store.actions) != 1 || store.actions[0].Reason != "owner decides" || tool.callCount() != 0 {
+			if interrupted == nil || len(store.actions) != 1 || store.actions[0].Reason != ownerDecidesReason || tool.callCount() != 0 {
 				t.Fatalf("interrupted %v, actions %+v, calls %d", interrupted, store.actions, tool.callCount())
+			}
+			var payload struct{ Summary, Message string }
+			if err := json.Unmarshal([]byte(store.actions[0].PayloadJSON), &payload); err != nil {
+				t.Fatal(err)
+			}
+			want := `owner decides news_source {"action":"promote","id":12,"reason":"一周 40 条，独家 5 条"}`
+			if payload.Summary != want || payload.Message != want {
+				t.Fatalf("the approval the owner reads = %+v", payload)
 			}
 		})
 	}

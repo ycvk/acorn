@@ -14,6 +14,8 @@ class ToolStepsTest {
         assertEquals("搜索网页、读取网页", stepDetail(ToolStep("1", "tool_search", "select:web_search,web_fetch", StepStatus.Succeeded)))
         assertEquals("go 1.28", stepDetail(ToolStep("2", "web_search", "go 1.28", StepStatus.Running)))
         assertEquals("mystery_tool", toolLabel("mystery_tool"))
+        assertEquals("调整新闻源", toolLabel("news_source"))
+        assertEquals("找订阅源", toolLabel("feed_discover"))
     }
 
     @Test
