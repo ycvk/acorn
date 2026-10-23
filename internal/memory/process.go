@@ -82,9 +82,11 @@ func (e *Engine) processOne(ctx context.Context, operation string) (bool, error)
 
 // recoverMemoryJobs releases leased jobs whose work ended in cause. Budget
 // exhaustion defers them to the next local day with their attempt returned;
-// any other error records a failed attempt. A lease lost meanwhile is not an
-// error of its own.
+// work its caller cancelled, as when Acorn stops, is released at once with
+// its attempt returned; any other error records a failed attempt. A lease
+// lost meanwhile is not an error of its own.
 func (e *Engine) recoverMemoryJobs(ctx context.Context, jobs []core.MemoryJob, cause error) error {
+	interrupted := errors.Is(ctx.Err(), context.Canceled)
 	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	now := e.cfg.Clock()
@@ -99,9 +101,12 @@ func (e *Engine) recoverMemoryJobs(ctx context.Context, jobs []core.MemoryJob, c
 	var errs []error
 	for _, job := range jobs {
 		var err error
-		if errors.Is(cause, core.ErrMemoryBudget) {
+		switch {
+		case errors.Is(cause, core.ErrMemoryBudget):
 			err = e.cfg.Store.DeferMemoryJob(recoveryCtx, job, cause.Error(), tomorrow)
-		} else {
+		case interrupted:
+			err = e.cfg.Store.DeferMemoryJob(recoveryCtx, job, cause.Error(), now)
+		default:
 			err = e.cfg.Store.FailMemoryJob(recoveryCtx, job, cause.Error(), now)
 		}
 		if err != nil && !errors.Is(err, core.ErrMemoryLeaseLost) {

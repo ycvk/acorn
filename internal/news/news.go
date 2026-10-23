@@ -163,9 +163,14 @@ func (p *Processor) ProcessOne(ctx context.Context) (bool, error) {
 	}
 	recoverCtx, cancelRecover := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancelRecover()
-	if errors.Is(err, core.ErrMemoryBudget) {
+	switch {
+	case errors.Is(err, core.ErrMemoryBudget):
 		tomorrow := midnight(now, settings.Location).AddDate(0, 0, 1)
 		return true, ignoreLost(p.cfg.Store.DeferNewsBatch(recoverCtx, batch.Token, tomorrow))
+	case ctx.Err() != nil:
+		// The caller stopped waiting, as when Acorn stops or a briefing's
+		// catch-up runs out of time: the batch was cut short, not failed.
+		return true, errors.Join(err, ignoreLost(p.cfg.Store.DeferNewsBatch(recoverCtx, batch.Token, now)))
 	}
 	failErr := p.cfg.Store.FailNewsBatch(recoverCtx, batch.Token, err.Error(), now)
 	return true, fmt.Errorf("sort %d news items: %w", len(batch.Items), errors.Join(err, ignoreLost(failErr)))

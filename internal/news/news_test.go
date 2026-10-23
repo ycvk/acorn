@@ -23,9 +23,16 @@ type scriptedModel struct {
 	mu      sync.Mutex
 	inputs  []string
 	replies []func(input string) string
+	// fail, when set, decides the call's error before any reply.
+	fail func(ctx context.Context) error
 }
 
-func (m *scriptedModel) GenerateNews(_ context.Context, instruction, input string, _ int) (Generation, error) {
+func (m *scriptedModel) GenerateNews(ctx context.Context, instruction, input string, _ int) (Generation, error) {
+	if m.fail != nil {
+		if err := m.fail(ctx); err != nil {
+			return Generation{}, err
+		}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.inputs = append(m.inputs, input)
@@ -188,6 +195,34 @@ func TestProcessorGivesUpOnAnIssueWhosePageCannotBeRead(t *testing.T) {
 	}
 	if n, err := f.store.FailedNewsItems(context.Background(), testNow.Add(-time.Hour)); err != nil || n != 1 {
 		t.Fatalf("failed = %d, %v", n, err)
+	}
+}
+
+func TestProcessorReleasesABatchItsCallerStopped(t *testing.T) {
+	f := newFixture(t, 0)
+	f.source(t, "bbc", "国际与财经", false, core.WatchItem{Key: "b1", Title: "t"})
+	// The caller stops waiting while the model call is in flight, more often
+	// than a batch has attempts.
+	for range 4 {
+		ctx, stop := context.WithCancel(context.Background())
+		f.model.fail = func(call context.Context) error {
+			stop()
+			<-call.Done()
+			return call.Err()
+		}
+		if worked, err := f.proc.ProcessOne(ctx); !worked || !errors.Is(err, context.Canceled) {
+			t.Fatalf("worked=%v err=%v", worked, err)
+		}
+	}
+	if n, err := f.store.FailedNewsItems(context.Background(), testNow.Add(-time.Hour)); err != nil || n != 0 {
+		t.Fatalf("failed = %d, %v", n, err)
+	}
+	f.model.fail = nil
+	f.model.replies = []func(string) string{func(string) string {
+		return fmt.Sprintf(`{"items":[{"id":%d,"score":3,"story":"n1"}],"stories":[{"ref":"n1","section":"国际与财经","title":"t"}]}`, f.ids["b1"])
+	}}
+	if err := f.proc.CatchUp(context.Background()); err != nil || len(f.model.inputs) != 1 {
+		t.Fatalf("the batch did not go on after the stops: %v, calls %d", err, len(f.model.inputs))
 	}
 }
 

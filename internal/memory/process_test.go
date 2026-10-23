@@ -18,15 +18,22 @@ import (
 )
 
 type protocolModel struct {
-	calls       int
+	calls int
+	// fail, when set, decides the call's error before any reply.
+	fail        func(ctx context.Context) error
 	beforeReply func()
 	seen        []string
 	maxOutputs  []int
 	summary     string
 }
 
-func (m *protocolModel) GenerateMemory(_ context.Context, instruction, input string, maxOutput int) (Generation, error) {
+func (m *protocolModel) GenerateMemory(ctx context.Context, instruction, input string, maxOutput int) (Generation, error) {
 	m.calls++
+	if m.fail != nil {
+		if err := m.fail(ctx); err != nil {
+			return Generation{}, err
+		}
+	}
 	m.seen = append(m.seen, input)
 	m.maxOutputs = append(m.maxOutputs, maxOutput)
 	if m.beforeReply != nil {
@@ -173,6 +180,37 @@ func TestWorkerBudgetDefersWithoutCallingModel(t *testing.T) {
 	}
 	if worked, err := engine.ProcessOne(ctx); worked || err != nil {
 		t.Fatalf("budget task immediately repeated: %v %v", worked, err)
+	}
+}
+
+func TestWorkerReleasesJobsItsStopInterrupts(t *testing.T) {
+	model := &protocolModel{}
+	engine, db := testEngine(t, model, 0)
+	if _, err := db.RegisterMemorySource(context.Background(), core.MemorySource{ID: "owner:1", Kind: "import", ObjectID: "1", Version: "1", Speaker: "owner", Body: "我不吃香菜", RecordedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	// Acorn stops while the model call is in flight, more often than a job
+	// has attempts.
+	for range 4 {
+		ctx, stop := context.WithCancel(context.Background())
+		model.fail = func(call context.Context) error {
+			stop()
+			<-call.Done()
+			return fmt.Errorf("failed to create response: %w", call.Err())
+		}
+		if worked, err := engine.ProcessOne(ctx); !worked || !errors.Is(err, context.Canceled) {
+			t.Fatalf("worked=%v err=%v", worked, err)
+		}
+		status, err := db.MemoryProcessingStatus(context.Background())
+		if err != nil || status.Pending != 1 || status.Failed != 0 {
+			t.Fatalf("an interrupted job counted as a failure: %+v %v", status, err)
+		}
+	}
+	model.fail = nil
+	drainMemory(t, engine)
+	facts, err := db.MemorySourceFacts(context.Background(), "owner:1")
+	if err != nil || len(facts) != 1 {
+		t.Fatalf("the job did not go on after the stops: %+v %v", facts, err)
 	}
 }
 
