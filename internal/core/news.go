@@ -142,8 +142,10 @@ type NewsStore interface {
 	// newest first.
 	RecentNewsStories(ctx context.Context, sections []string, since time.Time, limit int) ([]NewsStory, error)
 	// BriefingNewsStories lists, per section, up to perSection stories with
-	// pending sorted items of sources not on trial, highest score first, each
-	// with those items.
+	// pending sorted items of sources neither on trial nor paused, highest
+	// score first, each with those items. A story shows in its own section
+	// when that section has such a source, else in the section of its best
+	// offered item's source.
 	BriefingNewsStories(ctx context.Context, perSection int) (BriefingNews, error)
 	SearchNewsStories(ctx context.Context, query NewsQuery) ([]NewsStory, error)
 	// FailedNewsItems counts the items given up on since since.

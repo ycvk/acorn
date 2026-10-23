@@ -315,7 +315,7 @@
   - `internal/store/store_news_test.go`
   - `internal/tools/watch_tools_test.go`
   - `internal/wire/news_acceptance_e2e_test.go`
-- **新闻源先试用，进出早安卡由 owner 决定**：新建的新闻源与改成 news 模式的追踪项都从试用开始；试用源照常抓取与整理，它的条目不出现在早安卡的事件里，早安卡开始时与其他整理过的条目一样标为已报。`news_source` 把试用源转正（暂停的同时恢复）或停用早安卡在用的源，`approval.allow` 没有放行时每次调用都等 owner 审批；`watch_update` 不能暂停在用的新闻源，也不能把它改成别的模式。夜思在 owner 时区的周日，或有试用源在上次夜思之后满一周时，列出每个未暂停的新闻源近 7 天的条目数、平均分、4–5 分条数、与其他源同属一个事件的比例和被早安卡链接的条数。
+- **新闻源先试用，进出早安卡由 owner 决定**：新建的新闻源与改成 news 模式的追踪项都从试用开始；试用源照常抓取与整理，它的条目不出现在早安卡的事件里，早安卡开始时与其他整理过的条目一样标为已报；早安卡只列在用且未暂停的源的条目，事件所在板块没有这样的源时（例如试用源先建立的事件），按它分数最高的可报条目所在源的板块列出。`news_source` 把试用源转正（暂停的同时恢复）或停用早安卡在用的源，`approval.allow` 没有放行时每次调用都等 owner 审批；`watch_update` 不能暂停在用的新闻源，也不能把它改成别的模式。夜思在 owner 时区的周日，或有试用源在上次夜思之后满一周时，列出每个未暂停的新闻源近 7 天的条目数、平均分、4–5 分条数、与其他源同属一个事件的比例和被早安卡链接的条数。
   - `internal/store/store_news_stories_test.go`
   - `internal/tools/watch_tools_test.go`
   - `internal/runtime/approval_test.go`

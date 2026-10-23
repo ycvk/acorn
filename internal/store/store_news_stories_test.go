@@ -308,3 +308,56 @@ func TestTrialSourcesStayOutOfBriefingsAndEachSourceIsCounted(t *testing.T) {
 		t.Fatalf("paused sources are not counted: %d, %v", len(stats), err)
 	}
 }
+
+func TestStoriesATrialSourceStartedShowInASectionTheBriefingTakes(t *testing.T) {
+	s, bbc, _, _ := newsStoryFixture(t)
+	ctx := context.Background()
+	if _, err := s.SaveNewsSection(ctx, core.NewsSection{Name: "热榜", Position: 3, UpdatedAt: watchTestNow}); err != nil {
+		t.Fatal(err)
+	}
+	zhihu := addNewsWatch(t, s, "zhihu", "热榜", false)
+	zhihu.Trial, zhihu.UpdatedAt = true, watchTestNow
+	if err := s.UpdateWatch(ctx, zhihu); err != nil {
+		t.Fatal(err)
+	}
+	quake := recordItems(t, s, zhihu, "z1")
+	reports := recordItems(t, s, bbc, "b1")
+	batch, err := s.ClaimNewsBatch(ctx, watchTestNow, time.Minute, 10, false)
+	if err != nil || len(batch.Items) != 2 {
+		t.Fatalf("batch = %+v, %v", batch, err)
+	}
+	if err := s.CommitNewsBatch(ctx, batch.Token, core.NewsCommit{
+		At:      watchTestNow,
+		Stories: []core.NewsStoryChange{{Ref: "n1", Section: "热榜", Title: "地震"}},
+		Scores:  []core.NewsItemScore{{ItemID: quake[0].ID, Score: 5, Story: "n1"}, {ItemID: reports[0].ID, Score: 4, Story: "n1"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	shown := func() []core.NewsStory {
+		t.Helper()
+		news, err := s.BriefingNewsStories(ctx, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return news.Stories
+	}
+	if got := shown(); len(got) != 1 || got[0].Section != "国际" || len(got[0].Items) != 1 || got[0].Items[0].Key != "b1" {
+		t.Fatalf("a story in a section of trial sources only = %+v", got)
+	}
+	zhihu.Trial = false
+	if err := s.UpdateWatch(ctx, zhihu); err != nil {
+		t.Fatal(err)
+	}
+	if got := shown(); len(got) != 1 || got[0].Section != "热榜" || len(got[0].Items) != 2 {
+		t.Fatalf("after the trial source was taken in = %+v", got)
+	}
+	for _, w := range []core.Watch{zhihu, bbc} {
+		paused := w.Pause(watchTestNow)
+		if err := s.UpdateWatch(ctx, paused); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := shown(); len(got) != 0 {
+		t.Fatalf("stories of paused sources were offered: %+v", got)
+	}
+}
