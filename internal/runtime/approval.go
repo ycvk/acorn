@@ -111,8 +111,12 @@ func matchesAny(patterns []string, name string) bool {
 	return false
 }
 
-// ownerDecidesReason is why such a call waits, as the owner reads it.
-const ownerDecidesReason = "新闻源进出早安卡由你决定"
+// Why a call waits for the owner, as the owner reads it on the approval.
+const (
+	requireReason      = "这个工具在你的「每次等我批准」名单里"
+	reviewReason       = "审查判断这一步需要你确认"
+	ownerDecidesReason = "新闻源进出早安卡由你决定"
+)
 
 // ownerDecides are the tools whose calls wait for the owner unless
 // approval.allow names them: news_source changes which sources the briefing
@@ -138,7 +142,7 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 		}, nil
 	case matchesAny(m.rules.Require, tCtx.Name):
 		return m.gated(run, tCtx, func(context.Context, string) (*approvalRequest, error) {
-			return &approvalRequest{reason: "approval.require"}, nil
+			return &approvalRequest{reason: requireReason}, nil
 		}), nil
 	case ownerDecides(tCtx.Name) && !matchesAny(m.rules.Allow, tCtx.Name):
 		return m.gated(run, tCtx, func(ctx context.Context, args string) (*approvalRequest, error) {
@@ -225,7 +229,7 @@ func (m *approvalMiddleware) review(toolName string) func(context.Context, strin
 			}
 			if v.NeedsApproval && request == nil {
 				request = &approvalRequest{
-					reason:  "review",
+					reason:  reviewReason,
 					summary: review.Describe(call) + " —— " + strings.Join(v.Reasons, "、"),
 					verdict: &v,
 				}
