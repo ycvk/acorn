@@ -1,9 +1,11 @@
 package io.ycvk.acorn.feature.now
 
+import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowWatch
 import io.ycvk.acorn.api.models.View
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -71,5 +73,37 @@ class NowLabelsTest {
             ),
             briefingSections(body),
         )
+    }
+
+    private fun story(id: Long, section: String, focus: Boolean = false, reaction: NowBriefingStory.Reaction? = null) =
+        NowBriefingStory(storyId = id, section = section, title = "事件 $id", url = "https://x.test/$id", focus = focus, reaction = reaction)
+
+    @Test
+    fun `choosing the current reaction again takes it back`() {
+        val more = NowBriefingStory.Reaction.more
+        val less = NowBriefingStory.Reaction.less
+        assertEquals(less, nextReaction(null, less))
+        assertEquals(more, nextReaction(less, more))
+        assertNull(nextReaction(less, less))
+    }
+
+    @Test
+    fun `stories group by section in the briefing's order`() {
+        val stories = listOf(story(1, "国际"), story(2, "AI", focus = true), story(3, "国际"))
+        assertEquals(
+            listOf("国际" to listOf(stories[0], stories[2]), "AI" to listOf(stories[1])),
+            storySections(stories),
+        )
+    }
+
+    @Test
+    fun `with stories listed the preview leaves out the news and the focus`() {
+        val sections = listOf(
+            BriefingSection("国际", "1. 停火谈判"),
+            BriefingSection("今日关注", "第 1 条：停火"),
+            BriefingSection("今天", "10:00 开会"),
+        )
+        assertEquals(listOf(sections[2]), previewSections(sections, listOf(story(1, "国际"))))
+        assertEquals(sections, previewSections(sections, emptyList()))
     }
 }

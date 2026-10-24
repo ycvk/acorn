@@ -1,8 +1,10 @@
 package io.ycvk.acorn.feature.now
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -49,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.NowBriefing
+import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowCommitment
 import io.ycvk.acorn.api.models.NowConcern
 import io.ycvk.acorn.api.models.NowPanel
@@ -83,6 +87,7 @@ import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
+import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.core.ui.weekdayName
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
@@ -180,6 +185,7 @@ fun NowScreen(
                         zone = zone,
                         profile = viewModel.connection(),
                         onThreadClick = onThreadClick,
+                        onReact = viewModel::react,
                         onUnpin = viewModel::unpinView,
                         onCancel = { cancelling = it },
                         onPause = viewModel::pauseWatch,
@@ -257,6 +263,7 @@ private fun LazyListScope.nowSections(
     zone: ZoneId,
     profile: ConnectionProfile?,
     onThreadClick: (String) -> Unit,
+    onReact: (NowBriefingStory, NowBriefingStory.Reaction) -> Unit,
     onUnpin: (NowPanel) -> Unit,
     onCancel: (NowCommitment) -> Unit,
     onPause: (Long) -> Unit,
@@ -278,7 +285,7 @@ private fun LazyListScope.nowSections(
 
     if (briefing != null) {
         item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
-        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onThreadClick(briefing.threadId) }) }
+        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onThreadClick(briefing.threadId) }, onReact = onReact) }
     }
 
     if (now.panels.isNotEmpty()) {
@@ -319,8 +326,18 @@ private fun LazyListScope.nowSections(
     }
 }
 
+/**
+ * The latest briefing: the stories it picked by section, today's focus and
+ * the owner's reactions marked, then a preview of the rest. A tap opens the
+ * briefing; a long press on a story asks for more or less of its kind.
+ */
 @Composable
-private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>, onClick: () -> Unit) {
+private fun BriefingCard(
+    briefing: NowBriefing,
+    sections: List<BriefingSection>,
+    onClick: () -> Unit,
+    onReact: (NowBriefingStory, NowBriefingStory.Reaction) -> Unit,
+) {
     val colors = AcornTheme.colors
     val preview = AcornTheme.type.callout
     Panel(modifier = Modifier.padding(horizontal = ScreenPadding), onClick = onClick, contentPadding = PaddingValues(18.dp)) {
@@ -340,7 +357,14 @@ private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>,
                 Text(ago(briefing.finishedAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
             }
         }
-        sections.take(4).forEach { section ->
+        storySections(briefing.stories).forEach { (section, stories) ->
+            Spacer(Modifier.height(12.dp))
+            Text(section, style = AcornTheme.type.eyebrow, color = colors.accentInk)
+            Spacer(Modifier.height(2.dp))
+            stories.forEach { story -> StoryRow(story, onClick = onClick, onReact = { onReact(story, it) }) }
+        }
+        val previews = previewSections(sections, briefing.stories)
+        previews.take(if (briefing.stories.isEmpty()) 4 else 3).forEach { section ->
             Spacer(Modifier.height(12.dp))
             section.heading?.let {
                 Text(it, style = AcornTheme.type.eyebrow, color = colors.accentInk)
@@ -353,6 +377,61 @@ private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>,
             Text("阅读全文", style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = colors.accent)
             Spacer(Modifier.width(2.dp))
             Icon(AcornIcons.ChevronRight, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+/** One picked story: its title, whether it is today's focus, and the owner's reaction. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun StoryRow(story: NowBriefingStory, onClick: () -> Unit, onReact: (NowBriefingStory.Reaction) -> Unit) {
+    val colors = AcornTheme.colors
+    val haptics = rememberHaptics()
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(AcornShapes.small)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClickLabel = "多报或少报这类",
+                    onLongClick = {
+                        haptics.longPress()
+                        menu = true
+                    },
+                )
+                .heightIn(min = 36.dp)
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                story.title,
+                style = AcornTheme.type.callout,
+                color = if (story.reaction == NowBriefingStory.Reaction.less) colors.inkSoft else colors.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (story.focus) {
+                Spacer(Modifier.width(8.dp))
+                Tag("关注", color = colors.warningInk, container = colors.warningSoft)
+            }
+            when (story.reaction) {
+                NowBriefingStory.Reaction.more -> { Spacer(Modifier.width(6.dp)); Tag("多报", color = colors.accentInk, container = colors.accentSoft) }
+                NowBriefingStory.Reaction.less -> { Spacer(Modifier.width(6.dp)); Tag("少报") }
+                null -> Unit
+            }
+        }
+        AcornMenu(expanded = menu, onDismiss = { menu = false }) {
+            AcornMenuItem("多报这类", onClick = {
+                menu = false
+                onReact(NowBriefingStory.Reaction.more)
+            }, checked = story.reaction == NowBriefingStory.Reaction.more)
+            AcornMenuItem("少报这类", onClick = {
+                menu = false
+                onReact(NowBriefingStory.Reaction.less)
+            }, checked = story.reaction == NowBriefingStory.Reaction.less)
         }
     }
 }

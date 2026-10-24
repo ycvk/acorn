@@ -3,6 +3,7 @@ package io.ycvk.acorn.feature.now
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.core.auth.AuthController
@@ -66,6 +67,14 @@ class NowViewModel @Inject constructor(
     fun resumeWatch(id: Long) = change { repository.resumeWatch(it, id) }
 
     fun unpinView(panel: NowPanel) = change { repository.unpinView(it, panel.threadId, panel.view.id) }
+
+    /** Marks a story more or less of what the owner wants; choosing its current reaction again takes it back. */
+    fun react(story: NowBriefingStory, chosen: NowBriefingStory.Reaction) = change {
+        when (val next = nextReaction(story.reaction, chosen)) {
+            null -> repository.clearStoryReaction(it, story.storyId)
+            else -> repository.reactToStory(it, story.storyId, next)
+        }
+    }
 
     /** The paired server, for loading a panel's images. */
     fun connection(): ConnectionProfile? = profile()
@@ -162,4 +171,25 @@ fun briefingSections(body: String): List<BriefingSection> {
     }
     flush()
     return sections.filter { it.text.isNotEmpty() }
+}
+
+/** The reaction after the owner chooses one: the same one again takes it back. */
+fun nextReaction(current: NowBriefingStory.Reaction?, chosen: NowBriefingStory.Reaction): NowBriefingStory.Reaction? =
+    if (current == chosen) null else chosen
+
+/** The stories a briefing picked, by section in the order the briefing gave them. */
+fun storySections(stories: List<NowBriefingStory>): List<Pair<String, List<NowBriefingStory>>> =
+    stories.groupBy { it.section }.toList()
+
+/** The heading of the briefing's focus, listed with the stories it names. */
+const val FocusHeading = "今日关注"
+
+/**
+ * The parts of the briefing the card previews: with stories listed, the
+ * parts other than the news sections and today's focus.
+ */
+fun previewSections(sections: List<BriefingSection>, stories: List<NowBriefingStory>): List<BriefingSection> {
+    if (stories.isEmpty()) return sections
+    val news = stories.map { it.section }.toSet() + FocusHeading
+    return sections.filter { it.heading !in news }
 }
