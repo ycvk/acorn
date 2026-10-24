@@ -158,9 +158,9 @@ func (s *Scheduler) Run(ctx context.Context) {
 }
 
 // Tick wakes every due commitment within the daily limit,
-// checks due watches, fires due skill package triggers, starts the morning
-// briefing when its time has come, then sends notifications whose quiet hours
-// ended.
+// checks due watches, fires due skill package triggers, records what finished
+// briefings picked, starts the morning briefing when its time has come, then
+// sends notifications whose quiet hours ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) Tick(ctx context.Context) error {
 	settings, err := s.cfg.Settings.Settings(ctx)
@@ -187,6 +187,9 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	if err := s.fireTriggers(ctx, now, settings); err != nil {
 		errs = append(errs, err)
 	}
+	if err := s.recordBriefingPicks(ctx, now); err != nil {
+		errs = append(errs, fmt.Errorf("record briefing picks: %w", err))
+	}
 	if err := s.runRoutines(ctx, now, settings); err != nil {
 		errs = append(errs, fmt.Errorf("routines: %w", err))
 	}
@@ -194,6 +197,9 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		errs = append(errs, err)
 	}
 	if _, err := s.cfg.News.PruneNews(ctx, now.Add(-core.NewsRetention)); err != nil {
+		errs = append(errs, err)
+	}
+	if err := s.cfg.News.PruneNewsReactions(ctx, now.Add(-core.NewsReactionRetention)); err != nil {
 		errs = append(errs, err)
 	}
 	if s.notifications != nil {

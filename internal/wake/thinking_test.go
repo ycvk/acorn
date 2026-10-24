@@ -389,16 +389,17 @@ func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
 func TestNightReviewsNewsSourcesOnSundayAndAfterATrialWeek(t *testing.T) {
 	monday := time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC) // 09:00 on Monday in Shanghai
 	bbc := core.NewsSourceStats{Watch: core.Watch{ID: 3, Name: "BBC 中文", Section: "国际与财经", CreatedAt: monday.Add(-30 * 24 * time.Hour)},
-		Items: 40, Scored: 38, ScoreSum: 114, High: 12, Shared: 19, Links: 6}
+		Items: 40, Scored: 38, ScoreSum: 114, High: 12, Shared: 19, Picked: 6, Focus: 2, More: 1, Less: 3}
 	trial := core.NewsSourceStats{Watch: core.Watch{ID: 12, Name: "知乎热榜", Section: "热榜", Trial: true, CreatedAt: monday.Add(-7*24*time.Hour - time.Hour)},
 		Items: 70, Scored: 70, ScoreSum: 140, High: 3, Shared: 7}
 	for _, tc := range []struct {
-		name   string
-		now    time.Time
-		stats  []core.NewsSourceStats
-		review bool
+		name      string
+		now       time.Time
+		stats     []core.NewsSourceStats
+		review    bool
+		reactions bool
 	}{
-		{name: "a trial week ends", now: monday, stats: []core.NewsSourceStats{bbc, trial}, review: true},
+		{name: "a trial week ends", now: monday, stats: []core.NewsSourceStats{bbc, trial}, review: true, reactions: true},
 		{name: "sunday", now: monday.Add(-24 * time.Hour), stats: []core.NewsSourceStats{bbc}, review: true},
 		{name: "another day", now: monday, stats: []core.NewsSourceStats{bbc}, review: false},
 	} {
@@ -407,6 +408,14 @@ func TestNightReviewsNewsSourcesOnSundayAndAfterATrialWeek(t *testing.T) {
 			h.settings.Night = core.DailyTime{Enabled: true, At: 0}
 			h.now = tc.now
 			h.news.stats = tc.stats
+			if tc.reactions {
+				h.section(t, "国际与财经", 1, "1. 大国关系")
+				h.news.reactions = []core.StoryReaction{
+					{StoryID: 9, Reaction: core.NewsReactionLess, Section: "国际与财经", Title: "印尼央行降息", At: tc.now.Add(-time.Hour)},
+					{StoryID: 8, Reaction: core.NewsReactionLess, Section: "国际与财经", Title: "菲律宾央行加息", At: tc.now.Add(-24 * time.Hour)},
+					{StoryID: 7, Reaction: core.NewsReactionMore, Section: "热榜", Title: "高铁票改签新规", At: tc.now.Add(-48 * time.Hour)},
+				}
+			}
 			if err := h.sched.Tick(context.Background()); err != nil {
 				t.Fatal(err)
 			}
@@ -422,11 +431,27 @@ func TestNightReviewsNewsSourcesOnSundayAndAfterATrialWeek(t *testing.T) {
 			night := h.runs.starts[0]
 			for _, want := range []string{
 				"News sources over the last 7 days.",
-				"- news source #3 BBC 中文 [国际与财经] in the briefing: 40 items (5.7 a day), average score 3.0, 12 scored 4 or 5, 50% share a story with another source, 6 links to it in briefings\n",
+				"- news source #3 BBC 中文 [国际与财经] in the briefing: 40 items (5.7 a day), average score 3.0, 12 scored 4 or 5, 50% share a story with another source; briefings picked 6 stories with its items, 2 of them in today's focus; the owner marked 1 more and 3 less of their kind\n",
 			} {
 				if !strings.Contains(night, want) {
 					t.Fatalf("night input lacks %q:\n%s", want, night)
 				}
+			}
+			reactions := "propose rewriting the section's preference with news_sections set"
+			if tc.reactions {
+				for _, want := range []string{
+					reactions,
+					"\n## 国际与财经\nPreference:\n1. 大国关系\n- less of this kind: 印尼央行降息 (10-05)\n- less of this kind: 菲律宾央行加息 (10-04)\n## 热榜\n- more of this kind: 高铁票改签新规 (10-03)\n",
+				} {
+					if !strings.Contains(night, want) {
+						t.Fatalf("night input lacks %q:\n%s", want, night)
+					}
+				}
+				if len(h.news.reactionsSince) != 1 || !h.news.reactionsSince[0].Equal(tc.now.Add(-7*24*time.Hour)) {
+					t.Fatalf("reactions since %v", h.news.reactionsSince)
+				}
+			} else if strings.Contains(night, reactions) {
+				t.Fatalf("a week without reactions asks for preferences:\n%s", night)
 			}
 			if len(tc.stats) == 2 && !strings.Contains(night, "- news source #12 知乎热榜 [热榜] on trial since 09-28: 70 items (10.0 a day), average score 2.0, 3 scored 4 or 5, 10% share a story") {
 				t.Fatalf("night input lacks the trial source:\n%s", night)

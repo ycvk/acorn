@@ -23,6 +23,7 @@
 
 package io.ycvk.acorn.api.models
 
+import io.ycvk.acorn.api.models.NowBriefingStory
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -35,6 +36,7 @@ import com.squareup.moshi.JsonClass
  * @param date The owner-local day the briefing is for.
  * @param body The briefing in Markdown, one section per `##` heading.
  * @param finishedAt 
+ * @param stories The stories the briefing picked, in its order; empty until the backend has read them from the reply, shortly after the run, and for a briefing without news.
  */
 
 
@@ -56,7 +58,11 @@ data class NowBriefing (
     val body: kotlin.String,
 
     @Json(name = "finished_at")
-    val finishedAt: java.time.OffsetDateTime
+    val finishedAt: java.time.OffsetDateTime,
+
+    /* The stories the briefing picked, in its order; empty until the backend has read them from the reply, shortly after the run, and for a briefing without news. */
+    @Json(name = "stories")
+    val stories: kotlin.collections.List<NowBriefingStory>
 
 ) {
 

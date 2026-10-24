@@ -33,6 +33,7 @@ type approvalStore interface {
 	CreatePendingAction(ctx context.Context, input core.PendingActionInput) (*core.PendingActionRecord, error)
 	AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error)
 	LoadRun(ctx context.Context, runID string) (*core.RunRecord, error)
+	RunWoken(ctx context.Context, runID string) (bool, error)
 }
 
 // ApprovalDescriber says, in the owner's words, what a call the owner decides
@@ -116,13 +117,15 @@ const (
 	requireReason      = "这个工具在你的「每次等我批准」名单里"
 	reviewReason       = "审查判断这一步需要你确认"
 	ownerDecidesReason = "新闻源进出早安卡由你决定"
+	sectionsReason     = "Acorn 自己提出的早安卡板块改动由你决定"
 )
 
 // ownerDecides are the tools whose calls wait for the owner unless
 // approval.allow names them: news_source changes which sources the briefing
-// takes.
+// takes, news_sections what its sections are and want when Acorn changes
+// them in a run it woke itself.
 func ownerDecides(name string) bool {
-	return name == "news_source"
+	return name == "news_source" || name == "news_sections"
 }
 
 // reviewed are the tools whose effects can leave Acorn and the workstation.
@@ -145,18 +148,51 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 			return &approvalRequest{reason: requireReason}, nil
 		}), nil
 	case ownerDecides(tCtx.Name) && !matchesAny(m.rules.Allow, tCtx.Name):
-		return m.gated(run, tCtx, func(ctx context.Context, args string) (*approvalRequest, error) {
-			summary, err := m.describe.DescribeApproval(ctx, tCtx.Name, args)
-			if err != nil {
-				return nil, fmt.Errorf("describe %s for approval: %w", tCtx.Name, err)
-			}
-			return &approvalRequest{reason: ownerDecidesReason, summary: summary}, nil
-		}), nil
+		return m.gated(run, tCtx, m.ownerDecision(tCtx.Name)), nil
 	case matchesAny(m.rules.Allow, tCtx.Name) || m.reviewer == nil || !reviewed(tCtx.Name):
 		return run, nil
 	default:
 		return m.gated(run, tCtx, m.review(tCtx.Name)), nil
 	}
+}
+
+// ownerDecision returns the check for a tool the owner decides on. A
+// news_sections call waits only when it changes the sections in a run Acorn
+// woke itself; in the owner's conversation the owner asked for it.
+func (m *approvalMiddleware) ownerDecision(toolName string) func(context.Context, string) (*approvalRequest, error) {
+	return func(ctx context.Context, args string) (*approvalRequest, error) {
+		reason := ownerDecidesReason
+		if toolName == "news_sections" {
+			if !changesSections(args) {
+				return nil, nil
+			}
+			runID := core.CurrentRunID(ctx)
+			if runID == "" {
+				return nil, errors.New("news_sections approval requires a run id in context")
+			}
+			woken, err := m.store.RunWoken(ctx, runID)
+			if err != nil {
+				return nil, fmt.Errorf("news_sections approval: %w", err)
+			}
+			if !woken {
+				return nil, nil
+			}
+			reason = sectionsReason
+		}
+		summary, err := m.describe.DescribeApproval(ctx, toolName, args)
+		if err != nil {
+			return nil, fmt.Errorf("describe %s for approval: %w", toolName, err)
+		}
+		return &approvalRequest{reason: reason, summary: summary}, nil
+	}
+}
+
+// changesSections reports whether a news_sections call would change the
+// sections. The tool rejects arguments it cannot read without changing
+// anything.
+func changesSections(args string) bool {
+	var call struct{ Action string }
+	return json.Unmarshal([]byte(args), &call) == nil && call.Action != "list"
 }
 
 // gated runs check on the first execution; a non-nil request interrupts for

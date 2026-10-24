@@ -486,7 +486,7 @@ func TestNewsSourcesStartOnTrialAndStopOnlyThroughNewsSource(t *testing.T) {
 
 func TestNewsSourceApprovalSaysWhatTheOwnerDecides(t *testing.T) {
 	store := &toolWatchStore{watches: []core.Watch{{ID: 1, Name: "知乎热榜", Kind: core.WatchRSS, Mode: core.WatchModeNews, Section: "热榜", Trial: true}}}
-	describe := ApprovalDescriber{Watches: store}
+	describe := ApprovalDescriber{News: store}
 	ctx := context.Background()
 	for args, want := range map[string]string{
 		`{"action":"promote","id":1,"reason":"一周 70 条，3 条 4 分以上"}`: "把新闻源「知乎热榜」（板块：热榜）转正，从下一份早安卡起采用它。理由：一周 70 条，3 条 4 分以上",
@@ -500,5 +500,32 @@ func TestNewsSourceApprovalSaysWhatTheOwnerDecides(t *testing.T) {
 	}
 	if _, err := describe.DescribeApproval(ctx, "shell", `{}`); err == nil {
 		t.Fatal("a tool the owner does not decide on was described")
+	}
+}
+
+func TestNewsSectionsApprovalShowsTheChange(t *testing.T) {
+	store := &toolWatchStore{sections: []core.NewsSection{
+		{Name: "国际与财经", Position: 2, Preference: "1. 大国关系"},
+		{Name: "AI", Position: 3},
+	}}
+	describe := ApprovalDescriber{News: store}
+	ctx := context.Background()
+	for args, want := range map[string]string{
+		`{"action":"set","name":"国际与财经","preference":"1. 大国关系\n2. 小国央行少报","reason":"两次少报小国央行"}`: "板块「国际与财经」的偏好改为：\n1. 大国关系\n2. 小国央行少报\n原来是：\n1. 大国关系\n理由：两次少报小国央行",
+		`{"action":"set","name":"AI","preference":"1. 模型","position":1}`:                        "板块「AI」的偏好改为：\n1. 模型\n原来是：\n（没有偏好）\n板块「AI」的顺序从 3 改为 1。",
+		`{"action":"set","name":"AI","rename":"AI 与科技"}`:                                        "把板块「AI」改名为「AI 与科技」。",
+		`{"action":"set","name":"AI","preference":""}`:                                          "板块「AI」没有变化。",
+		`{"action":"set","name":"体育","preference":"1. 只报决赛"}`:                                   "新增板块「体育」。\n偏好：\n1. 只报决赛",
+		`{"action":"remove","name":"AI","reason":"一个月没有反馈"}`:                                    "删除板块「AI」。\n理由：一个月没有反馈",
+		`{"action":"remove","name":"体育"}`:                                                       "板块「体育」不存在，这次调用会失败。",
+		`{"action":"set"}`:                                                                      "没有给出板块名，这次调用会失败。",
+		`{"action":"drop","name":"AI"}`:                                                         "对板块「AI」的动作 \"drop\" 既不是 set 也不是 remove，这次调用会失败。",
+	} {
+		if got, err := describe.DescribeApproval(ctx, "news_sections", args); err != nil || got != want {
+			t.Errorf("%s = %q, %v", args, got, err)
+		}
+	}
+	if _, err := describe.DescribeApproval(ctx, "news_sections", `{`); err == nil {
+		t.Fatal("unreadable arguments were described")
 	}
 }

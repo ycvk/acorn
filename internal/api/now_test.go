@@ -28,6 +28,25 @@ type nowStoreFake struct {
 	briefing    core.RoutineOutput
 	routine     string
 	panels      []core.Panel
+	stories     map[string][]core.BriefingStory
+	reactions   map[int64]core.StoryReaction
+}
+
+func (f *nowStoreFake) BriefingStories(_ context.Context, runID string) ([]core.BriefingStory, error) {
+	return f.stories[runID], nil
+}
+
+func (f *nowStoreFake) ReactToNewsStory(_ context.Context, storyID int64, reaction core.NewsReaction, deviceID string, at time.Time) error {
+	if storyID != 41 {
+		return fmt.Errorf("%w: %d", core.ErrNewsStoryNotFound, storyID)
+	}
+	f.reactions[storyID] = core.StoryReaction{StoryID: storyID, Reaction: reaction, DeviceID: deviceID, At: at}
+	return nil
+}
+
+func (f *nowStoreFake) ClearNewsReaction(_ context.Context, storyID int64) error {
+	delete(f.reactions, storyID)
+	return nil
 }
 
 func (f *nowStoreFake) Panels(context.Context) ([]core.Panel, error) {
@@ -112,6 +131,10 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 			{ID: 3, Name: "AI225", Kind: core.WatchRSS, Mode: core.WatchModeNews, Section: "AI 与科技前沿", Issue: true, Trial: true, Status: core.WatchActive, Interval: time.Hour, NextCheckAt: nowTestTime},
 		},
 		briefing: core.RoutineOutput{Slot: "2026-10-11", ThreadID: "thread_briefings", RunID: "run_briefing", Text: "## 今天\n交房租", FinishedAt: nowTestTime},
+		stories: map[string][]core.BriefingStory{"run_briefing": {
+			{StoryID: 41, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://news.test/ph", Sources: []int64{3}, Reaction: core.NewsReactionLess},
+			{StoryID: 42, Section: "国际与财经", Title: "普京提议中美俄三方会谈", URL: "https://news.test/talks", Focus: true, Sources: []int64{3, 4}},
+		}},
 		panels: []core.Panel{{ThreadTitle: "仓库版本", View: core.ThreadView{ID: "view_1", SessionID: "thread_repos", Title: "eino 最新版本", Catalog: "acorn.views.v1",
 			Components: []byte(`[{"id":"root","component":"Text","text":{"path":"/latest"}}]`), Data: []byte(`{"latest":"v0.9.22"}`), Source: "repo-releases/check",
 			CreatedAt: nowTestTime.Add(-2 * time.Hour), UpdatedAt: nowTestTime.Add(-time.Minute), PinnedAt: nowTestTime.Add(-time.Hour)}}},
@@ -124,8 +147,11 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 	}
 	var got NowResponse
 	decodeClientTestJSON(t, rec, &got)
-	want := NowBriefingDTO{ThreadID: "thread_briefings", RunID: "run_briefing", Date: "2026-10-11", Body: "## 今天\n交房租", FinishedAt: nowTestTime}
-	if store.routine != "briefing" || got.Briefing == nil || *got.Briefing != want {
+	want := NowBriefingDTO{ThreadID: "thread_briefings", RunID: "run_briefing", Date: "2026-10-11", Body: "## 今天\n交房租", FinishedAt: nowTestTime, Stories: []NowBriefingStoryDTO{
+		{StoryID: 41, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://news.test/ph", Reaction: "less"},
+		{StoryID: 42, Section: "国际与财经", Title: "普京提议中美俄三方会谈", URL: "https://news.test/talks", Focus: true},
+	}}
+	if store.routine != "briefing" || got.Briefing == nil || !reflect.DeepEqual(*got.Briefing, want) {
 		t.Fatalf("briefing = %+v from routine %q", got.Briefing, store.routine)
 	}
 	if len(got.Panels) != 1 || got.Panels[0].ThreadID != "thread_repos" || got.Panels[0].ThreadTitle != "仓库版本" || !got.Panels[0].UpdatedAt.Equal(nowTestTime.Add(-time.Minute)) ||
@@ -228,5 +254,42 @@ func TestPauseAndResumeWatch(t *testing.T) {
 	rec := performClientRequest(router, http.MethodPost, "/v1/watches/8:pause", "")
 	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "watch_not_found") {
 		t.Fatalf("missing watch status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestReactToBriefingStory(t *testing.T) {
+	store := &nowStoreFake{reactions: map[int64]core.StoryReaction{}}
+	router := newNowRouter(t, store)
+
+	if rec := performClientRequest(router, http.MethodPut, "/v1/news/stories/41/reaction", `{"reaction":"less"}`); rec.Code != http.StatusNoContent {
+		t.Fatalf("react status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	want := core.StoryReaction{StoryID: 41, Reaction: core.NewsReactionLess, DeviceID: "device_test", At: nowTestTime}
+	if got := store.reactions[41]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("reaction = %+v", got)
+	}
+	if rec := performClientRequest(router, http.MethodPut, "/v1/news/stories/41/reaction", `{"reaction":"more"}`); rec.Code != http.StatusNoContent || store.reactions[41].Reaction != core.NewsReactionMore {
+		t.Fatalf("changed reaction status = %d, reaction %+v", rec.Code, store.reactions[41])
+	}
+	if rec := performClientRequest(router, http.MethodDelete, "/v1/news/stories/41/reaction", ""); rec.Code != http.StatusNoContent || len(store.reactions) != 0 {
+		t.Fatalf("clear status = %d, reactions %+v", rec.Code, store.reactions)
+	}
+	for _, tc := range []struct {
+		path, body string
+		status     int
+		code       string
+	}{
+		{"/v1/news/stories/41/reaction", `{"reaction":"like"}`, http.StatusBadRequest, "reaction must be more or less"},
+		{"/v1/news/stories/41/reaction", `{}`, http.StatusBadRequest, "reaction must be more or less"},
+		{"/v1/news/stories/x/reaction", `{"reaction":"more"}`, http.StatusBadRequest, "story_id must be a positive integer"},
+		{"/v1/news/stories/7/reaction", `{"reaction":"more"}`, http.StatusNotFound, "story_not_found"},
+	} {
+		rec := performClientRequest(router, http.MethodPut, tc.path, tc.body)
+		if rec.Code != tc.status || !strings.Contains(rec.Body.String(), tc.code) {
+			t.Errorf("%s %s: status = %d body=%s", tc.path, tc.body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := performClientRequestWithoutAuth(router, http.MethodPut, "/v1/news/stories/41/reaction", `{"reaction":"more"}`); rec.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated status = %d", rec.Code)
 	}
 }

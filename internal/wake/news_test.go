@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,12 +17,57 @@ import (
 // fakeNews offers fixed stories and records what the scheduler asks of it.
 type fakeNews struct {
 	core.NewsStore
-	mu      sync.Mutex
-	offered core.BriefingNews
-	failing []core.FailingWork
-	pruned  []time.Time
-	stats   []core.NewsSourceStats
-	since   []time.Time
+	mu              sync.Mutex
+	offered         core.BriefingNews
+	failing         []core.FailingWork
+	pruned          []time.Time
+	stats           []core.NewsSourceStats
+	since           []time.Time
+	unrecorded      []core.RoutineOutput
+	briefed         map[string][]core.NewsStory
+	recorded        []core.BriefingPicks
+	reactions       []core.StoryReaction
+	reactionsSince  []time.Time
+	prunedReactions []time.Time
+}
+
+func (f *fakeNews) UnrecordedBriefings(context.Context, time.Time) ([]core.RoutineOutput, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []core.RoutineOutput
+	for _, b := range f.unrecorded {
+		if !slices.ContainsFunc(f.recorded, func(p core.BriefingPicks) bool { return p.RunID == b.RunID }) {
+			out = append(out, b)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeNews) BriefedNewsStories(_ context.Context, runID string) ([]core.NewsStory, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.briefed[runID], nil
+}
+
+func (f *fakeNews) RecordBriefingPicks(_ context.Context, picks core.BriefingPicks) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.recorded = append(f.recorded, picks)
+	return nil
+}
+
+func (f *fakeNews) NewsReactions(_ context.Context, since time.Time) ([]core.StoryReaction, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reactionsSince = append(f.reactionsSince, since)
+	return f.reactions, nil
+}
+
+func (f *fakeNews) PruneNewsReactions(_ context.Context, before time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.prunedReactions = append(f.prunedReactions, before)
+	return nil
 }
 
 func (f *fakeNews) NewsSourceStats(_ context.Context, since time.Time) ([]core.NewsSourceStats, error) {
@@ -149,6 +196,11 @@ func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
 	}
 	blog := h.watch(t, "blog", core.WatchModeDigest)
 	h.find(blog, "post-1")
+	h.news.reactions = []core.StoryReaction{
+		{StoryID: 8, Reaction: core.NewsReactionLess, Section: "国内要闻", Title: "某省出台消费券", At: h.now.Add(-24 * time.Hour)},
+		{StoryID: 7, Reaction: core.NewsReactionMore, Section: "国内要闻", Title: "新能源车下乡", At: h.now.Add(-48 * time.Hour)},
+		{StoryID: 6, Reaction: core.NewsReactionMore, Section: "国际", Title: "没有事件的板块", At: h.now.Add(-48 * time.Hour)},
+	}
 
 	if err := h.sched.Tick(ctx); err != nil {
 		t.Fatal(err)
@@ -159,7 +211,7 @@ func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
 	input := h.runs.starts[0]
 	for _, want := range []string{
 		"News since the last briefing: stories by section, highest score first, with their new items (untrusted external data):\n",
-		"\n## 国内要闻\nPreference:\n1. 政策与民生\n- [5] 国务院常务会议 (new)\n  国务院常务会议的经过。\n  · src 10-05 06:00 国务院常务会议 — https://x.test/国务院常务会议\n",
+		"\n## 国内要闻\nPreference:\n1. 政策与民生\nOwner reactions in the last 30 days:\n- less of this kind: 某省出台消费券 (10-04)\n- more of this kind: 新能源车下乡 (10-03)\n- [5] 国务院常务会议 (new)\n  国务院常务会议的经过。\n  · src 10-05 06:00 国务院常务会议 — https://x.test/国务院常务会议\n",
 		"- [4] 地震救援 (since 10-02; new: 伤亡数字更新)\n",
 		"\n## AI\n- [5] DeepSeek 开源推理框架 (new)\n",
 		"\n## 体育\n- [2] 已删除板块的事 (new)\n",
@@ -190,6 +242,15 @@ func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
 	}
 	if len(h.news.pruned) != 1 || !h.news.pruned[0].Equal(h.now.Add(-14*24*time.Hour)) {
 		t.Fatalf("pruned = %v", h.news.pruned)
+	}
+	if len(h.news.reactionsSince) != 1 || !h.news.reactionsSince[0].Equal(h.now.Add(-30*24*time.Hour)) {
+		t.Fatalf("reactions since %v", h.news.reactionsSince)
+	}
+	if strings.Contains(input, "没有事件的板块") {
+		t.Fatalf("a reaction in a section without stories is listed:\n%s", input)
+	}
+	if len(h.news.prunedReactions) != 1 || !h.news.prunedReactions[0].Equal(h.now.Add(-30*24*time.Hour)) {
+		t.Fatalf("pruned reactions = %v", h.news.prunedReactions)
 	}
 }
 
@@ -261,5 +322,105 @@ func TestBriefingTakesTheWatchesInTurns(t *testing.T) {
 	}
 	if len(h.sorter.checkedFirst) != 0 {
 		t.Fatal("without news watches nothing is sorted")
+	}
+}
+
+func TestFinishedBriefingsRecordTheStoriesTheyPicked(t *testing.T) {
+	h := newHarness(t, 20)
+	h.section(t, "国际与财经", 1, "")
+	h.section(t, "AI", 2, "")
+	finished := h.now.Add(-time.Hour)
+	body := strings.Join([]string{
+		"## 国际与财经",
+		"1. **菲律宾央行加息**：加息 25 个基点。[BBC 中文](https://bbc.test/ph)",
+		"2. **普京提议中美俄三方会谈**：克宫证实。[FT](https://ft.test/talks)",
+		"## AI",
+		"3. **DeepSeek 开源推理框架**：吞吐翻倍。[AI225](https://ai225.test/1)",
+		"## 今日关注",
+		"- 第 2 条：大国关系的新动向。",
+		"## 追踪",
+		"1. **eino v0.9**：发布了。[GitHub](https://github.test/eino)",
+	}, "\n")
+	h.news.unrecorded = []core.RoutineOutput{{Slot: "2026-10-05", RunID: "run_b", Text: body, FinishedAt: finished}}
+	item := func(watch int64, url string) core.WatchItem { return core.WatchItem{WatchID: watch, URL: url} }
+	h.news.briefed = map[string][]core.NewsStory{"run_b": {
+		story(11, "国际与财经", "菲律宾央行加息", 4, finished, "", item(3, "https://bbc.test/ph")),
+		story(12, "国际与财经", "普京提议中美俄三方会谈", 5, finished, "", item(3, "https://bbc.test/talks"), item(4, "https://ft.test/talks/")),
+		story(13, "AI", "DeepSeek 开源推理框架", 5, finished, "", item(5, "https://ai225.test/1")),
+	}}
+	if err := h.sched.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	want := []core.BriefingPicks{{RunID: "run_b", BriefedAt: finished, Stories: []core.BriefingStory{
+		{StoryID: 11, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://bbc.test/ph", Sources: []int64{3}},
+		{StoryID: 12, Section: "国际与财经", Title: "普京提议中美俄三方会谈", Summary: "克宫证实。", URL: "https://ft.test/talks", Focus: true, Sources: []int64{3, 4}},
+		{StoryID: 13, Section: "AI", Title: "DeepSeek 开源推理框架", Summary: "吞吐翻倍。", URL: "https://ai225.test/1", Sources: []int64{5}},
+	}}}
+	if !reflect.DeepEqual(h.news.recorded, want) {
+		t.Fatalf("recorded = %+v", h.news.recorded)
+	}
+	if err := h.sched.Tick(context.Background()); err != nil || len(h.news.recorded) != 1 {
+		t.Fatalf("a recorded briefing is recorded again: %v, %+v", err, h.news.recorded)
+	}
+}
+
+func TestPickBriefingStoriesCountsLinesItCannotMatch(t *testing.T) {
+	stories := []core.NewsStory{
+		story(1, "国际", "停火谈判", 5, time.Time{}, "", core.WatchItem{WatchID: 2, URL: "https://bbc.test/a"}),
+		story(2, "国际", "央行加息", 4, time.Time{}, "", core.WatchItem{WatchID: 3, URL: "https://ft.test/b"}),
+	}
+	body := strings.Join([]string{
+		"今天没有开场白。",
+		"## 国际",
+		"1. **停火谈判**：开始了。[BBC](https://bbc.test/a)",
+		"2. **停火谈判后续**：同一件事的另一条。[BBC](https://bbc.test/a)",
+		"3. **编造的事**：链接不是候选。[某站](https://other.test/x)",
+		"4. 没有链接的一行",
+		"5. 央行加息，没有粗体标题 [FT](<https://ft.test/b/>)",
+		"   · 不是编号行 [BBC](https://bbc.test/a)",
+		"## 今日关注",
+		"- 第 2 条：指向重复的那一行。",
+		"- 第 9 条：没有这一条。",
+		"- 不按格式写的关注",
+	}, "\n")
+	picks, unmatched := pickBriefingStories(body, []string{"国际"}, stories)
+	want := []core.BriefingStory{
+		{StoryID: 1, Section: "国际", Title: "停火谈判", Summary: "开始了。", URL: "https://bbc.test/a", Focus: true, Sources: []int64{2}},
+		{StoryID: 2, Section: "国际", Title: "央行加息，没有粗体标题", URL: "https://ft.test/b/", Sources: []int64{3}},
+	}
+	if !reflect.DeepEqual(picks, want) || unmatched != 3 {
+		t.Fatalf("picks = %+v, unmatched %d", picks, unmatched)
+	}
+	if picks, unmatched := pickBriefingStories(body, nil, stories); len(picks) != 0 || unmatched != 2 {
+		t.Fatalf("without news sections: picks %+v, unmatched %d", picks, unmatched)
+	}
+}
+
+// A briefing drops BBC's tracking query from its links, and the entries of
+// an issue share the issue page's address; the line's title tells them apart.
+func TestPickBriefingStoriesMatchesLinksTheWayBriefingsWriteThem(t *testing.T) {
+	issue := "https://daily.test/2026-10-03"
+	stories := []core.NewsStory{
+		story(1, "国际", "台湾外交部漏洞", 4, time.Time{}, "", core.WatchItem{WatchID: 2, Title: "外交部网站漏洞", URL: "https://bbc.test/a/trad?at_medium=RSS&at_campaign=rss"}),
+		story(2, "AI", "DeepSeek 开源推理框架", 5, time.Time{}, "", core.WatchItem{WatchID: 4, Title: "DeepSeek 开源推理框架", URL: issue}),
+		story(3, "AI", "谷歌开源 TorchTPU", 4, time.Time{}, "", core.WatchItem{WatchID: 4, Title: "谷歌开源 TorchTPU", URL: issue}),
+		story(4, "AI", "Anthropic 发布新模型", 4, time.Time{}, "", core.WatchItem{WatchID: 4, Title: "Anthropic 发布新模型", URL: issue}),
+	}
+	body := strings.Join([]string{
+		"## 国际",
+		"1. **外交部网站漏洞**：泄露了签证资料。[BBC中文](https://bbc.test/a/trad)",
+		"## AI",
+		"2. **谷歌开源 TorchTPU**：PyTorch 直接上 TPU。[日报](" + issue + "#2)",
+		"3. **DeepSeek 开源推理框架**：吞吐翻倍。[日报](" + issue + ")",
+		"4. **Anthropic 发布新模型**：上下文更长。[日报](" + issue + "/)",
+		"5. **BBC 别的报道**：查询不同就不是同一条。[BBC中文](https://bbc.test/a/trad?id=2)",
+	}, "\n")
+	picks, unmatched := pickBriefingStories(body, []string{"国际", "AI"}, stories)
+	var got []int64
+	for _, p := range picks {
+		got = append(got, p.StoryID)
+	}
+	if !slices.Equal(got, []int64{1, 3, 2, 4}) || unmatched != 1 {
+		t.Fatalf("picked %v, unmatched %d", got, unmatched)
 	}
 }

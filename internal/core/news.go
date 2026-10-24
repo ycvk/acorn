@@ -6,13 +6,70 @@ import (
 	"time"
 )
 
-// ErrNewsLeaseLost means a news batch's claim expired and another worker
-// took its items, so the batch's result was not written.
-var ErrNewsLeaseLost = errors.New("news batch lease lost")
+var (
+	// ErrNewsLeaseLost means a news batch's claim expired and another worker
+	// took its items, so the batch's result was not written.
+	ErrNewsLeaseLost = errors.New("news batch lease lost")
+	// ErrNewsStoryNotFound means no story has the id, or it was pruned.
+	ErrNewsStoryNotFound = errors.New("news story not found")
+)
 
 // NewsRetention is how long news items are sorted, offered and searchable
 // after they are first seen.
 const NewsRetention = 14 * 24 * time.Hour
+
+// NewsReactionRetention is how long the owner's reactions and the stories
+// briefings picked are kept.
+const NewsReactionRetention = 30 * 24 * time.Hour
+
+// NewsReaction is what the owner wants of a story's kind.
+type NewsReaction string
+
+const (
+	NewsReactionMore NewsReaction = "more"
+	NewsReactionLess NewsReaction = "less"
+)
+
+// Valid reports whether r is more or less.
+func (r NewsReaction) Valid() bool {
+	return r == NewsReactionMore || r == NewsReactionLess
+}
+
+// BriefingStory is a story a briefing picked: the section it stood in, the
+// title and sentence the briefing wrote and the link it gave, whether it was
+// among today's focus, the news sources of its items, and the owner's
+// reaction to the story, empty without one.
+type BriefingStory struct {
+	StoryID  int64
+	Section  string
+	Title    string
+	Summary  string
+	URL      string
+	Focus    bool
+	Sources  []int64
+	Reaction NewsReaction
+}
+
+// BriefingPicks is what a finished briefing picked, in its order, and how
+// many of its news lines or focus lines matched no story it offered.
+type BriefingPicks struct {
+	RunID     string
+	BriefedAt time.Time
+	Stories   []BriefingStory
+	Unmatched int
+}
+
+// StoryReaction is the owner's reaction to a story, with the story's
+// section, title and news sources when the owner reacted.
+type StoryReaction struct {
+	StoryID  int64
+	Reaction NewsReaction
+	Section  string
+	Title    string
+	Sources  []int64
+	DeviceID string
+	At       time.Time
+}
 
 // NewsStory is one event across news sources: the items that report it, a
 // summary of it so far and what its latest items added.
@@ -100,8 +157,10 @@ type BriefingNews struct {
 
 // NewsSourceStats is what a news source brought since a time: items first
 // seen, how many were sorted with a score and the sum of those scores, how
-// many scored 4 or 5, how many share their story with another source, and
-// how many links in the briefings written since point to its items.
+// many scored 4 or 5, how many share their story with another source, how
+// many stories with its items briefings picked and how many of those were
+// among today's focus, and how many stories with its items the owner
+// reacted to with more or less.
 type NewsSourceStats struct {
 	Watch    Watch
 	Items    int
@@ -109,7 +168,10 @@ type NewsSourceStats struct {
 	ScoreSum int
 	High     int
 	Shared   int
-	Links    int
+	Picked   int
+	Focus    int
+	More     int
+	Less     int
 }
 
 // NewsQuery finds stories updated since a time, optionally in a section and
@@ -161,4 +223,28 @@ type NewsStore interface {
 	// without items. Items registered as memory sources, from before their
 	// watch became a news source, stay whole. It returns the items pruned.
 	PruneNews(ctx context.Context, before time.Time) (int, error)
+
+	// UnrecordedBriefings lists the succeeded briefing runs finished since
+	// since whose picks are not recorded, oldest first.
+	UnrecordedBriefings(ctx context.Context, since time.Time) ([]RoutineOutput, error)
+	// BriefedNewsStories lists the stories with items the briefing run
+	// marked, each with all its items.
+	BriefedNewsStories(ctx context.Context, runID string) ([]NewsStory, error)
+	// RecordBriefingPicks records what a briefing picked once; a briefing
+	// already recorded is left as it is.
+	RecordBriefingPicks(ctx context.Context, picks BriefingPicks) error
+	// BriefingStories lists the stories a briefing picked, in its order,
+	// each with the owner's current reaction; empty when the briefing is
+	// not recorded.
+	BriefingStories(ctx context.Context, runID string) ([]BriefingStory, error)
+	// ReactToNewsStory records the owner's reaction to a story, replacing
+	// an earlier one, else ErrNewsStoryNotFound.
+	ReactToNewsStory(ctx context.Context, storyID int64, reaction NewsReaction, deviceID string, at time.Time) error
+	// ClearNewsReaction drops the owner's reaction to a story.
+	ClearNewsReaction(ctx context.Context, storyID int64) error
+	// NewsReactions lists the reactions since since, newest first.
+	NewsReactions(ctx context.Context, since time.Time) ([]StoryReaction, error)
+	// PruneNewsReactions drops the reactions and the recorded briefing picks
+	// from before before.
+	PruneNewsReactions(ctx context.Context, before time.Time) error
 }

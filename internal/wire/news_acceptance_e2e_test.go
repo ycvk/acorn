@@ -3,6 +3,7 @@ package wire
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -148,7 +149,7 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 			`"stories":[{"ref":"n1","section":"国内要闻","title":"国务院常务会议","summary":"国务院常务会议部署民生工作。"},{"ref":"n2","section":"国内要闻","title":"高铁新线开通","summary":"一条高铁新线开通运营。"}]}`),
 		toolCallChunk("call_skill", "skill", map[string]string{"skill": "morning-briefing"}),
 		toolCallChunk("call_push", "notify_owner", map[string]string{"title": "早安", "body": "1. 国务院常务会议"}),
-		textReply("## 国内要闻\n1. **国务院常务会议**：部署民生工作。[中新网](http://news.test/n/国务院常务会议)\n\n## 今日关注\n1. 国务院常务会议"),
+		textReply("## 国内要闻\n1. **国务院常务会议**：部署民生工作。[中新网](http://news.test/n/国务院常务会议)\n\n## 今日关注\n- 第 1 条：民生工作的部署。"),
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
@@ -240,5 +241,31 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	}
 	if briefings != 1 {
 		t.Fatalf("briefing pushes = %d: %v", briefings, harness.fcm.sent())
+	}
+
+	// The next tick reads the stories the briefing picked from its reply;
+	// the now page lists them and the owner reacts to one.
+	if err := c.wake.Tick(ctx); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	client := newPairedClient(t, c)
+	now := loadNow(t, client)
+	if now.Briefing == nil || len(now.Briefing.Stories) != 1 {
+		t.Fatalf("briefing = %+v", now.Briefing)
+	}
+	picked := now.Briefing.Stories[0]
+	want := api.NowBriefingStoryDTO{StoryID: picked.StoryID, Section: "国内要闻", Title: "国务院常务会议", Summary: "部署民生工作。", URL: "http://news.test/n/国务院常务会议", Focus: true}
+	if picked != want {
+		t.Fatalf("picked story = %+v", picked)
+	}
+	react := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/v1/news/stories/%d/reaction", picked.StoryID), strings.NewReader(`{"reaction":"less"}`))
+	react.Header.Set("Content-Type", "application/json")
+	client.do(t, react, http.StatusNoContent, nil)
+	if now := loadNow(t, client); now.Briefing.Stories[0].Reaction != "less" {
+		t.Fatalf("story after the reaction = %+v", now.Briefing.Stories[0])
+	}
+	stats, err := c.store.NewsSourceStats(ctx, start)
+	if err != nil || len(stats) != 2 || stats[0].Watch.Name != "中新网要闻" || stats[0].Picked != 1 || stats[0].Focus != 1 || stats[0].Less != 1 || stats[1].Picked != 0 {
+		t.Fatalf("source stats = %+v, %v", stats, err)
 	}
 }

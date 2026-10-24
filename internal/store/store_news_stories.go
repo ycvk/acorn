@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -487,20 +486,26 @@ func (s *Store) NewsSourceStats(ctx context.Context, since time.Time) ([]core.Ne
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT w.id, COUNT(i.id), COALESCE(SUM(s.score > 0), 0), COALESCE(SUM(s.score), 0), COALESCE(SUM(s.score >= 4), 0),
 		   COALESCE(SUM(s.story_id IS NOT NULL AND EXISTS (
-		     SELECT 1 FROM news_scores o JOIN watch_items oi ON oi.id = o.item_id WHERE o.story_id = s.story_id AND oi.watch_id <> w.id)), 0)
+		     SELECT 1 FROM news_scores o JOIN watch_items oi ON oi.id = o.item_id WHERE o.story_id = s.story_id AND oi.watch_id <> w.id)), 0),
+		   (SELECT COUNT(DISTINCT b.story_id) FROM briefing_stories b JOIN briefing_picks p ON p.run_id = b.run_id
+		     WHERE p.briefed_at >= ? AND EXISTS (SELECT 1 FROM json_each(b.sources) j WHERE j.value = w.id)),
+		   (SELECT COUNT(DISTINCT b.story_id) FROM briefing_stories b JOIN briefing_picks p ON p.run_id = b.run_id
+		     WHERE p.briefed_at >= ? AND b.focus AND EXISTS (SELECT 1 FROM json_each(b.sources) j WHERE j.value = w.id)),
+		   (SELECT COUNT(*) FROM news_reactions r WHERE r.created_at >= ? AND r.reaction = 'more' AND EXISTS (SELECT 1 FROM json_each(r.sources) j WHERE j.value = w.id)),
+		   (SELECT COUNT(*) FROM news_reactions r WHERE r.created_at >= ? AND r.reaction = 'less' AND EXISTS (SELECT 1 FROM json_each(r.sources) j WHERE j.value = w.id))
 		 FROM watches w
 		 LEFT JOIN watch_items i ON i.watch_id = w.id AND i.seen_at >= ? AND i.status <> ?
 		 LEFT JOIN news_scores s ON s.item_id = i.id
 		 WHERE w.mode = ? AND w.status <> ?
 		 GROUP BY w.id ORDER BY w.id`,
-		at, string(core.WatchItemBaseline), string(core.WatchModeNews), string(core.WatchPaused))
+		at, at, at, at, at, string(core.WatchItemBaseline), string(core.WatchModeNews), string(core.WatchPaused))
 	if err != nil {
 		return nil, fmt.Errorf("news source stats: %w", err)
 	}
 	var stats []core.NewsSourceStats
 	if err := scanRows(rows, func(scan func(...any) error) error {
 		var st core.NewsSourceStats
-		if err := scan(&st.Watch.ID, &st.Items, &st.Scored, &st.ScoreSum, &st.High, &st.Shared); err != nil {
+		if err := scan(&st.Watch.ID, &st.Items, &st.Scored, &st.ScoreSum, &st.High, &st.Shared, &st.Picked, &st.Focus, &st.More, &st.Less); err != nil {
 			return err
 		}
 		stats = append(stats, st)
@@ -508,106 +513,14 @@ func (s *Store) NewsSourceStats(ctx context.Context, since time.Time) ([]core.Ne
 	}); err != nil {
 		return nil, fmt.Errorf("news source stats: %w", err)
 	}
-	links, err := s.briefingLinks(ctx, at)
-	if err != nil {
-		return nil, err
-	}
-	targets, err := s.newsItemURLs(ctx, at)
-	if err != nil {
-		return nil, err
-	}
 	for i := range stats {
 		w, err := s.LoadWatch(ctx, stats[i].Watch.ID)
 		if err != nil {
 			return nil, fmt.Errorf("news source stats: %w", err)
 		}
 		stats[i].Watch = *w
-		for _, link := range links {
-			if targets[w.ID].linked(link) {
-				stats[i].Links++
-			}
-		}
 	}
 	return stats, nil
-}
-
-// briefingLink finds the web addresses a briefing writes, in Markdown links
-// or bare.
-var briefingLink = regexp.MustCompile(`https?://[^\s()<>\[\]"'，。；、）]+`)
-
-// briefingLinks lists every link in the briefings written since at, once per
-// time it is written: a briefing that links one issue page for three stories
-// counts three.
-func (s *Store) briefingLinks(ctx context.Context, at string) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT u.output_text FROM routine_runs r JOIN runs u ON u.run_id = r.run_id WHERE r.routine = 'briefing' AND r.created_at >= ?`, at)
-	if err != nil {
-		return nil, fmt.Errorf("briefing links: %w", err)
-	}
-	var links []string
-	if err := scanRows(rows, func(scan func(...any) error) error {
-		var output string
-		if err := scan(&output); err != nil {
-			return err
-		}
-		links = append(links, briefingLink.FindAllString(output, -1)...)
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("briefing links: %w", err)
-	}
-	return links, nil
-}
-
-// itemURLs are the addresses of a news source's items without their
-// fragments, and the same addresses without their queries.
-type itemURLs struct {
-	full, bare map[string]bool
-}
-
-// linked reports whether link points to one of the items. A briefing often
-// drops a feed's tracking query (BBC's ?at_medium=RSS), so a link without a
-// query also matches an item's address without its query.
-func (u itemURLs) linked(link string) bool {
-	link, _, _ = strings.Cut(link, "#")
-	if u.full[link] {
-		return true
-	}
-	return !strings.Contains(link, "?") && u.bare[link]
-}
-
-// newsItemURLs maps each news source to the addresses of its items first
-// seen since at, as NewsSourceStats counts them.
-func (s *Store) newsItemURLs(ctx context.Context, at string) (map[int64]itemURLs, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT i.watch_id, i.url FROM watch_items i JOIN watches w ON w.id = i.watch_id
-		 WHERE w.mode = ? AND i.seen_at >= ? AND i.status <> ? AND i.url <> ''`,
-		string(core.WatchModeNews), at, string(core.WatchItemBaseline))
-	if err != nil {
-		return nil, fmt.Errorf("news item urls: %w", err)
-	}
-	targets := map[int64]itemURLs{}
-	if err := scanRows(rows, func(scan func(...any) error) error {
-		var (
-			watchID int64
-			url     string
-		)
-		if err := scan(&watchID, &url); err != nil {
-			return err
-		}
-		t, ok := targets[watchID]
-		if !ok {
-			t = itemURLs{full: map[string]bool{}, bare: map[string]bool{}}
-			targets[watchID] = t
-		}
-		url, _, _ = strings.Cut(url, "#")
-		t.full[url] = true
-		bare, _, _ := strings.Cut(url, "?")
-		t.bare[bare] = true
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("news item urls: %w", err)
-	}
-	return targets, nil
 }
 
 func (s *Store) PruneNews(ctx context.Context, before time.Time) (pruned int, err error) {

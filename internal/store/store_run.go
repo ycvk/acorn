@@ -177,6 +177,15 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*core.RunRecord, err
 	return rec, nil
 }
 
+// RunWoken implements core.SessionStore.
+func (s *Store) RunWoken(ctx context.Context, runID string) (bool, error) {
+	var woken bool
+	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM session_messages WHERE run_id = ? AND role = ?)`, runID, core.MessageRoleWake).Scan(&woken); err != nil {
+		return false, fmt.Errorf("run woken: %w", err)
+	}
+	return woken, nil
+}
+
 // ListActiveRuns and ListRecentTerminalRuns list runs that belong to a thread.
 func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]core.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,

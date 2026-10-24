@@ -720,13 +720,15 @@ fun AcornMenu(expanded: Boolean, onDismiss: () -> Unit, content: @Composable Col
     )
 }
 
+/** A menu entry; a checked one carries a check at its end. */
 @Composable
-fun AcornMenuItem(text: String, onClick: () -> Unit, danger: Boolean = false, icon: ImageVector? = null) {
+fun AcornMenuItem(text: String, onClick: () -> Unit, danger: Boolean = false, icon: ImageVector? = null, checked: Boolean = false) {
     val colors = AcornTheme.colors
     val tint = if (danger) colors.danger else colors.ink
     DropdownMenuItem(
         text = { Text(text, style = AcornTheme.type.callout, color = tint) },
         leadingIcon = icon?.let { { Icon(it, contentDescription = null, tint = if (danger) colors.danger else colors.inkSoft, modifier = Modifier.size(18.dp)) } },
+        trailingIcon = if (checked) ({ Icon(AcornIcons.Check, contentDescription = "已选", tint = colors.accent, modifier = Modifier.size(18.dp)) }) else null,
         onClick = onClick,
     )
 }

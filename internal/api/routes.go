@@ -143,6 +143,8 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Post("/commitments/{commitment_id}:cancel", s.handleCancelCommitment)
 			r.Post("/watches/{watch_id}:pause", s.handlePauseWatch)
 			r.Post("/watches/{watch_id}:resume", s.handleResumeWatch)
+			r.Put("/news/stories/{story_id}/reaction", s.handleReactToStory)
+			r.Delete("/news/stories/{story_id}/reaction", s.handleClearStoryReaction)
 			r.Post("/phone-notifications", s.handlePhoneNotifications)
 			r.Post("/captures", s.handleCreateCapture)
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)

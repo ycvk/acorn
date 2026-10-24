@@ -260,7 +260,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.threads = threads
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
-	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithNewsSources(db).WithResumer(container.runResume)
+	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithNews(db).WithResumer(container.runResume)
 
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = api.NewDeviceAuthService(db).WithPushInstallations(db)

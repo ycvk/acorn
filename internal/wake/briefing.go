@@ -69,7 +69,7 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	if err := s.briefingNotes(ctx, &m, since); err != nil {
 		return routineInput{}, err
 	}
-	news, err := s.prepareNews(ctx, &m, since, loc)
+	news, err := s.prepareNews(ctx, &m, since, now, loc)
 	if err != nil {
 		return routineInput{}, err
 	}

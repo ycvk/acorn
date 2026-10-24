@@ -19,7 +19,7 @@ type PendingActionService struct {
 	store    core.SessionStore
 	resumer  runResumer
 	packages skillPackages
-	watches  tools.WatchLoader
+	news     tools.NewsLoader
 }
 
 // skillPackages reads the package a skill_import would store and the files a
@@ -45,10 +45,10 @@ func (s *PendingActionService) WithSkillPackages(packages skillPackages) *Pendin
 	return s
 }
 
-// WithNewsSources names the news source a news_source call changes in its
-// detail.
-func (s *PendingActionService) WithNewsSources(watches tools.WatchLoader) *PendingActionService {
-	s.watches = watches
+// WithNews says in their detail which news source a news_source call
+// changes and how a news_sections call changes a section.
+func (s *PendingActionService) WithNews(news tools.NewsLoader) *PendingActionService {
+	s.news = news
 	return s
 }
 
@@ -144,11 +144,11 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 // import fails.
 func (s *PendingActionService) toolDetail(ctx context.Context, toolName, arguments string) (string, error) {
 	switch toolName {
-	case "news_source":
-		if s.watches == nil {
-			return "", errors.New("pending action service: news sources are required to show news_source")
+	case "news_source", "news_sections":
+		if s.news == nil {
+			return "", fmt.Errorf("pending action service: news is required to show %s", toolName)
 		}
-		return tools.NewsSourceApproval(ctx, s.watches, arguments)
+		return tools.ApprovalDescriber{News: s.news}.DescribeApproval(ctx, toolName, arguments)
 	case "skill_write", "skill_import":
 	default:
 		return "", nil

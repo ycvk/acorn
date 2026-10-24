@@ -232,7 +232,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		PhoneNotifications:    db,
 		Workstation:           workstationTools,
 		Reviewer:              actionReviewer,
-		Describer:             tools.ApprovalDescriber{Watches: db},
+		Describer:             tools.ApprovalDescriber{News: db},
 		Clock:                 options.clock,
 		Settings:              ownerSettings,
 	})

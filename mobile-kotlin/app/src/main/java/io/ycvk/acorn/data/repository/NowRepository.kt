@@ -2,7 +2,9 @@ package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
+import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowResponse
+import io.ycvk.acorn.api.models.StoryReactionRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,6 +21,11 @@ class NowRepository @Inject constructor() {
     fun resumeWatch(profile: ConnectionProfile, id: Long) = api(profile).clientResumeWatch(id)
 
     fun unpinView(profile: ConnectionProfile, threadId: String, viewId: String) = api(profile).clientUnpinView(threadId, viewId)
+
+    fun reactToStory(profile: ConnectionProfile, storyId: Long, reaction: NowBriefingStory.Reaction) =
+        api(profile).clientReactToStory(storyId, StoryReactionRequest(StoryReactionRequest.Reaction.valueOf(reaction.name)))
+
+    fun clearStoryReaction(profile: ConnectionProfile, storyId: Long) = api(profile).clientClearStoryReaction(storyId)
 
     private fun api(profile: ConnectionProfile): ClientApi {
         ApiClient.accessToken = profile.accessToken

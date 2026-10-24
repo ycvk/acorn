@@ -235,22 +235,36 @@ func TestSkillApprovalsListThePackageManifestFirst(t *testing.T) {
 	}
 }
 
-type newsSourcesStub map[int64]core.Watch
+type newsStub struct {
+	watches  map[int64]core.Watch
+	sections []core.NewsSection
+}
 
-func (s newsSourcesStub) LoadWatch(_ context.Context, id int64) (*core.Watch, error) {
-	w, ok := s[id]
+func (s newsStub) LoadWatch(_ context.Context, id int64) (*core.Watch, error) {
+	w, ok := s.watches[id]
 	if !ok {
 		return nil, fmt.Errorf("%w: %d", core.ErrWatchNotFound, id)
 	}
 	return &w, nil
 }
 
+func (s newsStub) ListNewsSections(context.Context) ([]core.NewsSection, error) {
+	return s.sections, nil
+}
+
 func TestNewsSourceApprovalNamesTheSource(t *testing.T) {
-	service := NewPendingActionService(nil).WithNewsSources(newsSourcesStub{12: {ID: 12, Name: "知乎热榜", Target: "hot-lists/zhihu", Section: "热榜"}})
+	service := NewPendingActionService(nil).WithNews(newsStub{
+		watches:  map[int64]core.Watch{12: {ID: 12, Name: "知乎热榜", Target: "hot-lists/zhihu", Section: "热榜"}},
+		sections: []core.NewsSection{{Name: "国际与财经", Position: 2, Preference: "1. 大国关系"}},
+	})
 	ctx := context.Background()
 	args := `{"action":"promote","id":12,"reason":"一周 70 条，3 条 4 分以上"}`
 	if got, err := service.toolDetail(ctx, "news_source", args); err != nil || got != "把新闻源「知乎热榜」（板块：热榜）转正，从下一份早安卡起采用它。理由：一周 70 条，3 条 4 分以上" {
 		t.Fatalf("detail = %q, %v", got, err)
+	}
+	sections := `{"action":"set","name":"国际与财经","preference":"1. 大国关系\n2. 小国央行少报","reason":"两次少报小国央行加息"}`
+	if got, err := service.toolDetail(ctx, "news_sections", sections); err != nil || got != "板块「国际与财经」的偏好改为：\n1. 大国关系\n2. 小国央行少报\n原来是：\n1. 大国关系\n理由：两次少报小国央行加息" {
+		t.Fatalf("sections detail = %q, %v", got, err)
 	}
 	// The list and the phone read the description stored with the approval.
 	payload, err := json.Marshal(map[string]any{"tool_name": "news_source", "arguments": args, "summary": "把新闻源「知乎热榜」（板块：热榜）转正"})

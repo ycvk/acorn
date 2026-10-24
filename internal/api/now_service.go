@@ -20,6 +20,9 @@ type nowStore interface {
 	UpdateWatch(ctx context.Context, w core.Watch) error
 	LatestRoutineOutput(ctx context.Context, routine string) (core.RoutineOutput, error)
 	Panels(ctx context.Context) ([]core.Panel, error)
+	BriefingStories(ctx context.Context, runID string) ([]core.BriefingStory, error)
+	ReactToNewsStory(ctx context.Context, storyID int64, reaction core.NewsReaction, deviceID string, at time.Time) error
+	ClearNewsReaction(ctx context.Context, storyID int64) error
 }
 
 // NowService serves the now page: the latest briefing, the views the owner
@@ -45,13 +48,27 @@ type NowResponse struct {
 	Watches     []NowWatchDTO      `json:"watches"`
 }
 
-// NowBriefingDTO is the reply of the newest succeeded briefing run.
+// NowBriefingDTO is the reply of the newest succeeded briefing run with the
+// stories it picked.
 type NowBriefingDTO struct {
-	ThreadID   string    `json:"thread_id"`
-	RunID      string    `json:"run_id"`
-	Date       string    `json:"date"`
-	Body       string    `json:"body"`
-	FinishedAt time.Time `json:"finished_at"`
+	ThreadID   string                `json:"thread_id"`
+	RunID      string                `json:"run_id"`
+	Date       string                `json:"date"`
+	Body       string                `json:"body"`
+	FinishedAt time.Time             `json:"finished_at"`
+	Stories    []NowBriefingStoryDTO `json:"stories"`
+}
+
+// NowBriefingStoryDTO is a story the briefing picked, with the owner's
+// reaction to it.
+type NowBriefingStoryDTO struct {
+	StoryID  int64  `json:"story_id"`
+	Section  string `json:"section"`
+	Title    string `json:"title"`
+	Summary  string `json:"summary,omitempty"`
+	URL      string `json:"url"`
+	Focus    bool   `json:"focus"`
+	Reaction string `json:"reaction,omitempty"`
 }
 
 // NowPanelDTO is a view pinned to the now page, with its conversation and
@@ -140,7 +157,11 @@ func (s *NowService) Load(ctx context.Context) (NowResponse, error) {
 	}
 	out := NowResponse{Panels: nowPanels(panels), Concerns: nowConcerns(concerns), Watches: nowWatches(watches)}
 	if briefing.RunID != "" {
-		out.Briefing = &NowBriefingDTO{ThreadID: briefing.ThreadID, RunID: briefing.RunID, Date: briefing.Slot, Body: briefing.Text, FinishedAt: briefing.FinishedAt.UTC()}
+		stories, err := s.store.BriefingStories(ctx, briefing.RunID)
+		if err != nil {
+			return NowResponse{}, fmt.Errorf("briefing stories: %w", err)
+		}
+		out.Briefing = &NowBriefingDTO{ThreadID: briefing.ThreadID, RunID: briefing.RunID, Date: briefing.Slot, Body: briefing.Text, FinishedAt: briefing.FinishedAt.UTC(), Stories: nowBriefingStories(stories)}
 	}
 	if out.Commitments, err = nowCommitments(commitments, occurrences); err != nil {
 		return NowResponse{}, err
@@ -170,6 +191,27 @@ func (s *NowService) changeWatch(ctx context.Context, id int64, change func(core
 		return err
 	}
 	return s.store.UpdateWatch(ctx, change(*w, s.clock()))
+}
+
+// ReactToStory records the owner's reaction to a story a briefing picked.
+func (s *NowService) ReactToStory(ctx context.Context, storyID int64, reaction core.NewsReaction, deviceID string) error {
+	return s.store.ReactToNewsStory(ctx, storyID, reaction, deviceID, s.clock())
+}
+
+// ClearStoryReaction drops the owner's reaction to a story.
+func (s *NowService) ClearStoryReaction(ctx context.Context, storyID int64) error {
+	return s.store.ClearNewsReaction(ctx, storyID)
+}
+
+func nowBriefingStories(stories []core.BriefingStory) []NowBriefingStoryDTO {
+	out := make([]NowBriefingStoryDTO, 0, len(stories))
+	for _, story := range stories {
+		out = append(out, NowBriefingStoryDTO{
+			StoryID: story.StoryID, Section: story.Section, Title: story.Title, Summary: story.Summary,
+			URL: story.URL, Focus: story.Focus, Reaction: string(story.Reaction),
+		})
+	}
+	return out
 }
 
 func nowCommitments(commitments []core.Commitment, occurrences []core.CommitmentOccurrence) ([]NowCommitmentDTO, error) {
