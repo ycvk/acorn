@@ -20,7 +20,7 @@ var memoryRequiredTables = map[string][]string{
 	"memory_embeddings":        {"record_id", "revision", "generation", "dimensions", "vector"},
 	"memory_vector_sketches":   {"generation", "record_id", "revision", "dimensions", "scale", "codes"},
 	"memory_index_state":       {"id", "generation", "model", "dimensions", "state"},
-	"memory_jobs":              {"id", "operation", "object_id", "version", "processor_version", "state", "token", "epoch", "attempts", "cursor", "lease_until", "available_at", "error", "created_at", "completed_at"},
+	"memory_jobs":              {"id", "operation", "object_id", "version", "processor_version", "state", "token", "epoch", "attempts", "cursor", "lease_until", "available_at", "error", "created_at", "completed_at", "failed_at"},
 	"memory_state":             {"id", "epoch", "request_run_id"},
 	"memory_exclusions":        {"id", "epoch", "source_id", "quote", "request_source_id", "reason", "created_at"},
 	"memory_source_links":      {"source_id", "parent_id"},

@@ -151,11 +151,63 @@ func TestNewsBatchesWaitOutTheBudgetAndGiveUpAfterThreeFailures(t *testing.T) {
 	if left, err := s.ClaimNewsBatch(ctx, at, time.Minute, 10, false); err != nil || len(left.Items) != 0 {
 		t.Fatalf("an item failed three times is claimed again: %+v, %v", left, err)
 	}
-	if n, err := s.FailedNewsItems(ctx, tomorrow); err != nil || n != 1 {
-		t.Fatalf("failed = %d, %v", n, err)
+	failing, err := s.FailingNewsSources(ctx)
+	if err != nil || len(failing) != 1 || failing[0].Kind != "bbc" || failing[0].Failed != 1 || failing[0].LastError != "bad JSON 3" || !failing[0].Since.Equal(tomorrow.Add(2*time.Minute)) {
+		t.Fatalf("failing = %+v, %v", failing, err)
 	}
 	if news, err := s.BriefingNewsStories(ctx, 10); err != nil || len(news.Stories) != 0 || len(news.IDs) != 1 {
 		t.Fatalf("a failed item is dropped without a story: %+v, %v", news, err)
+	}
+}
+
+func TestNewsSourcesFailUntilTheSortingSucceedsAgain(t *testing.T) {
+	s, bbc, ft, _ := newsStoryFixture(t)
+	ctx := context.Background()
+	giveUp := func(w core.Watch, key string, at time.Time) {
+		t.Helper()
+		recordItems(t, s, w, key)
+		for range 3 {
+			batch, err := s.ClaimNewsBatch(ctx, at, time.Minute, 10, false)
+			if err != nil || len(batch.Items) != 1 {
+				t.Fatalf("claim %s: %+v, %v", key, batch, err)
+			}
+			if err := s.FailNewsBatch(ctx, batch.Token, "model unavailable", at); err != nil {
+				t.Fatal(err)
+			}
+			at = at.Add(time.Minute)
+		}
+	}
+	giveUp(bbc, "b1", watchTestNow)
+	giveUp(ft, "f1", watchTestNow)
+	loaded, err := s.LoadWatch(ctx, ft.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateWatch(ctx, loaded.Pause(watchTestNow.Add(time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	if failing, err := s.FailingNewsSources(ctx); err != nil || len(failing) != 1 || failing[0].Kind != "bbc" {
+		t.Fatalf("failing = %+v, %v; a paused source is left out", failing, err)
+	}
+
+	current, err := s.LoadWatch(ctx, bbc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sorted := recordItems(t, s, *current, "b2")
+	batch, err := s.ClaimNewsBatch(ctx, watchTestNow.Add(2*time.Hour), time.Minute, 10, false)
+	if err != nil || len(batch.Items) != 1 {
+		t.Fatalf("claim b2: %+v, %v", batch, err)
+	}
+	if err := s.CommitNewsBatch(ctx, batch.Token, core.NewsCommit{
+		At:      watchTestNow.Add(2 * time.Hour),
+		Stories: []core.NewsStoryChange{{Ref: "n1", Section: "国际", Title: "停火谈判"}},
+		Scores:  []core.NewsItemScore{{ItemID: sorted[0].ID, Score: 3, Story: "n1"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if failing, err := s.FailingNewsSources(ctx); err != nil || len(failing) != 0 {
+		t.Fatalf("failing = %+v, %v; the source sorted an item since", failing, err)
 	}
 }
 

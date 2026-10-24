@@ -193,8 +193,8 @@ func TestProcessorGivesUpOnAnIssueWhosePageCannotBeRead(t *testing.T) {
 	if len(f.model.inputs) != 0 {
 		t.Fatalf("model calls = %d; an issue is not sorted without its page", len(f.model.inputs))
 	}
-	if n, err := f.store.FailedNewsItems(context.Background(), testNow.Add(-time.Hour)); err != nil || n != 1 {
-		t.Fatalf("failed = %d, %v", n, err)
+	if failing, err := f.store.FailingNewsSources(context.Background()); err != nil || len(failing) != 1 || failing[0].Kind != "daily" || failing[0].Failed != 1 || !strings.Contains(failing[0].LastError, "HTTP 404") {
+		t.Fatalf("failing = %+v, %v", failing, err)
 	}
 }
 
@@ -214,8 +214,8 @@ func TestProcessorReleasesABatchItsCallerStopped(t *testing.T) {
 			t.Fatalf("worked=%v err=%v", worked, err)
 		}
 	}
-	if n, err := f.store.FailedNewsItems(context.Background(), testNow.Add(-time.Hour)); err != nil || n != 0 {
-		t.Fatalf("failed = %d, %v", n, err)
+	if failing, err := f.store.FailingNewsSources(context.Background()); err != nil || len(failing) != 0 {
+		t.Fatalf("failing = %+v, %v", failing, err)
 	}
 	f.model.fail = nil
 	f.model.replies = []func(string) string{func(string) string {
@@ -238,8 +238,8 @@ func TestProcessorGivesUpOnABatchAfterThreeBadSortings(t *testing.T) {
 	if len(f.model.inputs) != 3 {
 		t.Fatalf("model calls = %d", len(f.model.inputs))
 	}
-	if n, err := f.store.FailedNewsItems(context.Background(), testNow.Add(-time.Hour)); err != nil || n != 1 {
-		t.Fatalf("failed = %d, %v", n, err)
+	if failing, err := f.store.FailingNewsSources(context.Background()); err != nil || len(failing) != 1 || failing[0].Failed != 1 || !strings.Contains(failing[0].LastError, "not a new item of the batch") {
+		t.Fatalf("failing = %+v, %v", failing, err)
 	}
 }
 

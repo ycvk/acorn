@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -128,6 +129,33 @@ func TestBriefingItemsTakeEachWatchInTurn(t *testing.T) {
 	}
 	if got.Counts[busy.ID] != 6 || got.Counts[quiet.ID] != 1 || len(got.Counts) != 2 {
 		t.Fatalf("counts = %v", got.Counts)
+	}
+}
+
+func TestBriefingItemsLeaveOutPausedWatches(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	blog := addTestWatch(t, s, "blog", core.WatchActive, watchTestNow)
+	recordItems(t, s, blog, "b0")
+	wire := addTestWatch(t, s, "wire", core.WatchActive, watchTestNow)
+	wireItems := recordItems(t, s, wire, "w0", "w1")
+	loaded, err := s.LoadWatch(ctx, wire.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateWatch(ctx, loaded.Pause(watchTestNow)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.PendingBriefingItems(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Items) != 1 || got.Items[0].Key != "b0" || len(got.Counts) != 1 || got.Counts[blog.ID] != 1 {
+		t.Fatalf("items = %+v, counts = %v", got.Items, got.Counts)
+	}
+	if !slices.Equal(got.Paused, []int64{wireItems[0].ID, wireItems[1].ID}) {
+		t.Fatalf("paused = %v, want the ids of %v", got.Paused, wireItems)
 	}
 }
 

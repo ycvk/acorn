@@ -45,7 +45,7 @@ func TestBriefingHealthReportsBackups(t *testing.T) {
 	}
 }
 
-func TestBriefingHealthReportsStuckAndFailedMemoryJobs(t *testing.T) {
+func TestBriefingHealthReportsStuckMemoryJobsAndWorkThatKeepsFailing(t *testing.T) {
 	h := newHarness(t, 0)
 	ctx := context.Background()
 	old := h.now.Add(-30 * time.Hour)
@@ -69,10 +69,25 @@ func TestBriefingHealthReportsStuckAndFailedMemoryJobs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"1 jobs failed after all retries; last error: model unavailable", "1 jobs are waiting, the oldest since 2026-10-04 03:00"} {
+	for _, want := range []string{
+		"Memory processing: 1 extract jobs failed after all retries since 2026-10-05 11:00, and none has succeeded since; last error: model unavailable",
+		"1 jobs are waiting, the oldest since 2026-10-04 03:00",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("health = %q, want %q", got, want)
 		}
+	}
+
+	// Once another extract job succeeds, the job given up on was a one-off.
+	job, err := h.data.ClaimMemoryJob(ctx, later, time.Minute, "extract")
+	if err != nil || job == nil {
+		t.Fatalf("claim the waiting job: %+v %v", job, err)
+	}
+	if err := h.data.FinishMemoryJob(ctx, *job, "", later); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := h.sched.briefingHealth(ctx, later, h.settings.Location); err != nil || got != "" {
+		t.Fatalf("health = %q, %v; want nothing", got, err)
 	}
 }
 

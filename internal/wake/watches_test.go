@@ -28,10 +28,16 @@ func (m *memWatches) PendingBriefingItems(_ context.Context, limit int) (core.Pe
 	queues := map[int64][]core.WatchItem{}
 	out := core.PendingBriefing{Counts: map[int64]int{}}
 	for _, item := range m.items {
-		if item.Status == core.WatchItemPending && m.watches[item.WatchID-1].Mode != core.WatchModeNews {
-			queues[item.WatchID] = append(queues[item.WatchID], item)
-			out.Counts[item.WatchID]++
+		w := m.watches[item.WatchID-1]
+		if item.Status != core.WatchItemPending || w.Mode == core.WatchModeNews {
+			continue
 		}
+		if w.Status == core.WatchPaused {
+			out.Paused = append(out.Paused, item.ID)
+			continue
+		}
+		queues[item.WatchID] = append(queues[item.WatchID], item)
+		out.Counts[item.WatchID]++
 	}
 	for turn := 0; len(out.Items) < limit; turn++ {
 		took := false
@@ -362,6 +368,31 @@ func TestMorningBriefingRunsOncePerDay(t *testing.T) {
 	// The failing watch still needs the owner; it carries the next briefing alone.
 	if len(h.runs.starts) != 2 || !strings.HasPrefix(h.runs.starts[1], "thread_briefings|") || strings.Contains(h.runs.starts[1], "Watch changes") || !strings.Contains(h.runs.starts[1], "Since the last briefing (2026-10-06 08:00).") || !strings.Contains(h.runs.starts[1], "\n\nFailing watches:\n- #2 shop") {
 		t.Fatalf("next day = %v", h.runs.starts)
+	}
+}
+
+func TestBriefingDropsTheItemsOfPausedWatches(t *testing.T) {
+	h := newHarnessWith(t, 0, core.DailyTime{Enabled: true, At: 8 * time.Hour})
+	h.now = time.Date(2026, 10, 5, 23, 0, 0, 0, time.UTC) // 07:00 on the 6th in Shanghai
+	blog := h.watch(t, "blog", core.WatchModeDigest)
+	h.find(blog, "post-1")
+	wire := h.watch(t, "wire", core.WatchModeDigest)
+	h.find(wire, "wire-1", "wire-2")
+	h.tick(t)
+	h.watches.watches[wire.ID-1] = h.watches.watches[wire.ID-1].Pause(h.now)
+
+	h.now = h.now.Add(time.Hour) // 08:00
+	h.tick(t)
+	if len(h.runs.starts) != 1 {
+		t.Fatalf("briefings = %v", h.runs.starts)
+	}
+	if input := h.runs.starts[0]; !strings.Contains(input, "## #1 blog (rss, 1 new)\n") || strings.Contains(input, "wire") {
+		t.Fatalf("the briefing reports a watch paused before it:\n%s", input)
+	}
+	for _, item := range h.watches.items {
+		if item.Status != core.WatchItemBriefed || item.RunID != "run_1" {
+			t.Fatalf("item %s = %s %q, want briefed with the briefing", item.Title, item.Status, item.RunID)
+		}
 	}
 }
 

@@ -116,10 +116,13 @@ type NewsSection struct {
 }
 
 // PendingBriefing is what the other watches hold for the briefing: items
-// taken from each watch in turn up to a limit, and every watch's pending count.
+// taken from each unpaused watch in turn up to a limit, every unpaused
+// watch's pending count, and the pending items of paused watches, which the
+// briefing marks without reporting.
 type PendingBriefing struct {
 	Items  []WatchItem
 	Counts map[int64]int
+	Paused []int64
 }
 
 // WatchItem is one new thing seen on a watch.
@@ -169,8 +172,9 @@ type WatchStore interface {
 	RecordWatchCheck(ctx context.Context, from Watch, check WatchCheck) ([]WatchItem, error)
 	ListWatchItems(ctx context.Context, status WatchItemStatus, limit int) ([]WatchItem, error)
 	MarkWatchItems(ctx context.Context, ids []int64, status WatchItemStatus, runID string) error
-	// PendingBriefingItems takes the pending items of the watches other than
-	// news watches in turns, oldest first within a watch, up to limit.
+	// PendingBriefingItems takes the pending items of the unpaused watches
+	// other than news watches in turns, oldest first within a watch, up to
+	// limit, and lists the pending items of the paused ones.
 	PendingBriefingItems(ctx context.Context, limit int) (PendingBriefing, error)
 
 	ListNewsSections(ctx context.Context) ([]NewsSection, error)
