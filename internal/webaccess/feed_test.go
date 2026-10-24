@@ -55,6 +55,26 @@ func TestParseFeedReadsRSSAtomAndRDF(t *testing.T) {
 	}
 }
 
+func TestParseFeedKeysAnEntryAcrossItsRevisions(t *testing.T) {
+	feed, err := ParseFeed([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>BBC</title>
+<item><title>Edited</title><link>https://www.bbc.test/zhongwen/articles/c37/trad?at_medium=RSS</link><guid isPermaLink="false">https://www.bbc.test/zhongwen/articles/c37/trad#3</guid></item>
+<item><title>Anchor</title><guid>https://blog.test/notes#top</guid></item>
+<item><title>Not a web address</title><guid>tag:blog.test,2026:post#2</guid></item>
+<item><title>Link only</title><link>https://blog.test/changelog#12</link></item>
+</channel></rss>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	for _, item := range feed.Items {
+		keys = append(keys, item.Key)
+	}
+	want := []string{"https://www.bbc.test/zhongwen/articles/c37/trad", "https://blog.test/notes#top", "tag:blog.test,2026:post#2", "https://blog.test/changelog#12"}
+	if !slices.Equal(keys, want) {
+		t.Fatalf("keys = %q, want %q", keys, want)
+	}
+}
+
 func TestParseFeedRejectsOtherDocuments(t *testing.T) {
 	for _, body := range []string{
 		"<html><body>nope</body></html>",

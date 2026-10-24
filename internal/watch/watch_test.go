@@ -94,6 +94,25 @@ func TestFeedWatchBaselineThenNewItems(t *testing.T) {
 	}
 }
 
+// BBC counts an article's edits in its guid's fragment; an edit is not a new item.
+func TestFeedWatchTakesAnEditedEntryAsTheSameItem(t *testing.T) {
+	const feed = `<?xml version="1.0"?><rss version="2.0"><channel><title>BBC</title>
+<item><title>PHP</title><guid isPermaLink="false">https://www.bbc.test/zhongwen/articles/c37/trad#0</guid></item>
+</channel></rss>`
+	fetcher := &fakeFetcher{bodies: map[string]string{"https://feeds.bbc.test/rss.xml": feed}}
+	c, _ := newTestChecker(t, fetcher)
+	w := core.Watch{ID: 1, Name: "bbc", Kind: core.WatchRSS, Target: "https://feeds.bbc.test/rss.xml", Mode: core.WatchModeDigest, Interval: time.Hour, Status: core.WatchActive}
+	first, err := c.Check(context.Background(), w)
+	if err != nil || first.Baseline != 1 {
+		t.Fatalf("first = %+v, %v", first, err)
+	}
+	fetcher.bodies["https://feeds.bbc.test/rss.xml"] = strings.Replace(feed, "trad#0", "trad#1", 1)
+	second, err := c.Check(context.Background(), first.Watch)
+	if err != nil || len(second.New) != 0 {
+		t.Fatalf("second = %+v, %v; the edited article came back as new", second, err)
+	}
+}
+
 func TestGitHubReleasesAndIssues(t *testing.T) {
 	fetcher := &fakeFetcher{bodies: map[string]string{
 		"https://api.github.test/repos/golang/go/releases?per_page=20":                                      `[{"id":7,"tag_name":"go1.27","name":"","html_url":"https://github.com/golang/go/releases/7","body":"notes","published_at":"2026-10-01T00:00:00Z"},{"id":8,"tag_name":"draft","draft":true}]`,

@@ -27,8 +27,8 @@ type Feed struct {
 	Items []FeedItem
 }
 
-// FeedItem is one feed entry. Key is its guid or id, else its link, else a
-// hash of its title and date; Summary is plain text.
+// FeedItem is one feed entry. Key is its guid or id (see entryID), else its
+// link, else a hash of its title and date; Summary is plain text.
 type FeedItem struct {
 	Key         string
 	Title       string
@@ -167,7 +167,7 @@ func rootElement(decoder *xml.Decoder) (xml.StartElement, error) {
 
 func feedEntry(id, link, title, summary, published string) FeedItem {
 	id, link, title = strings.TrimSpace(id), strings.TrimSpace(link), collapseSpace(html.UnescapeString(title))
-	key := firstNonEmpty(id, link)
+	key := firstNonEmpty(entryID(id), link)
 	if key == "" {
 		sum := sha256.Sum256([]byte(title + "\x00" + published))
 		key = hex.EncodeToString(sum[:16])
@@ -179,6 +179,21 @@ func feedEntry(id, link, title, summary, published string) FeedItem {
 		Summary:     plainText(summary),
 		PublishedAt: parseFeedTime(published),
 	}
+}
+
+// entryID is the part of an entry's id that stays the same across its
+// revisions. Some feeds count an entry's revisions in the id's fragment (BBC
+// ids end in #0, #1, … and the number grows with each edit), so an http(s) id
+// with an all-digit fragment loses the fragment.
+func entryID(id string) string {
+	base, fragment, ok := strings.Cut(id, "#")
+	if !ok || fragment == "" || strings.Trim(fragment, "0123456789") != "" {
+		return id
+	}
+	if !strings.HasPrefix(base, "https://") && !strings.HasPrefix(base, "http://") {
+		return id
+	}
+	return base
 }
 
 func atomHref(links []atomLink) string {
