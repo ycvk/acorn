@@ -18,6 +18,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | [0012](0012-live-updates-for-runs.md) | 进行中的 run 在 App 外可见 | Accepted | 2026-10-21 |
 | [0013](0013-news-desk.md) | 新闻编辑部：收集、整理与早安卡精选 | Proposed | 2026-10-22 |
 | [0014](0014-owner-settings-in-app.md) | owner 的设置存进 SQLite，在 App 里修改 | Proposed | 2026-10-22 |
+| [0015](0015-briefing-news-reactions.md) | owner 对早安卡新闻的反馈 | Proposed | 2026-10-24 |
 
 ## Status 约定
 
