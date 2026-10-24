@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -191,5 +192,60 @@ func TestWatchItemsDedupeAndBriefings(t *testing.T) {
 	}
 	if thread, err := s.LatestRoutineThread(ctx, "briefing"); err != nil || thread != "thread_b" {
 		t.Fatalf("latest thread = %q, %v", thread, err)
+	}
+}
+
+// A v26 database keyed each BBC revision of an article apart (…/trad#0,
+// …/trad#1). The upgrade gives the newest revision the key the feed now
+// gets and leaves issue entries, anchors and other kinds alone.
+func TestSchemaTwentySevenKeysFeedEntriesAcrossRevisions(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	at := "2026-10-23T00:00:00.000000000Z"
+	if _, err := raw.Exec(readLayout(t, 26)+`PRAGMA user_version = 26;
+INSERT INTO watches (id, name, kind, target, mode, issue, interval_seconds, status, next_check_at, created_at, updated_at) VALUES
+ (1, 'bbc', 'rss', 'https://feeds.bbc.test/rss.xml', 'digest', 0, 3600, 'active', ?1, ?1, ?1),
+ (2, 'daily', 'rss', 'https://daily.test/feed', 'digest', 1, 3600, 'active', ?1, ?1, ?1),
+ (3, 'trending', 'trigger', 'pkg/check', 'digest', 0, 3600, 'active', ?1, ?1, ?1);
+INSERT INTO watch_items (id, watch_id, item_key, title, status, seen_at) VALUES
+ (1, 1, 'https://bbc.test/articles/a/trad#0', 'a', 'briefed', ?1),
+ (2, 1, 'https://bbc.test/articles/a/trad#1', 'a', 'briefed', ?1),
+ (3, 1, 'https://bbc.test/articles/b/trad#0', 'b', 'pending', ?1),
+ (4, 1, 'https://bbc.test/notes#top', 'anchor', 'briefed', ?1),
+ (5, 2, 'https://daily.test/2026-10-23', 'issue', 'briefed', ?1),
+ (6, 2, 'https://daily.test/2026-10-23#1', 'entry 1', 'briefed', ?1),
+ (7, 2, 'https://daily.test/2026-10-23#2', 'entry 2', 'briefed', ?1),
+ (8, 3, 'https://repo.test/x#1', 'trigger item', 'briefed', ?1);`, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	rows, err := s.db.Query(`SELECT item_key FROM watch_items ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var key string
+		if err := scan(&key); err != nil {
+			return err
+		}
+		keys = append(keys, key)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"https://bbc.test/articles/a/trad#0", "https://bbc.test/articles/a/trad", "https://bbc.test/articles/b/trad", "https://bbc.test/notes#top",
+		"https://daily.test/2026-10-23", "https://daily.test/2026-10-23#1", "https://daily.test/2026-10-23#2", "https://repo.test/x#1",
+	}
+	if !slices.Equal(keys, want) {
+		t.Fatalf("keys = %q, want %q", keys, want)
 	}
 }

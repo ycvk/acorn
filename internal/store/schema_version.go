@@ -18,7 +18,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 26
+const schemaVersion = 27
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -47,6 +47,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	addNewsTrials,
 	addOwnerSettings,
 	requeueCanceledWork,
+	keyFeedEntriesAcrossRevisions,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -259,6 +260,47 @@ func requeueCanceledWork(ctx context.Context, tx *sql.Tx) error {
 	}
 	_, err := tx.ExecContext(ctx, `DELETE FROM news_scores WHERE story_id IS NULL AND error LIKE ?`, canceled)
 	return err
+}
+
+// keyFeedEntriesAcrossRevisions (26 to 27) gives stored feed items the keys
+// feeds that count revisions in an id's fragment (BBC's .../trad#0, #1, …)
+// now get: of each entry's stored revisions the newest takes the id without
+// the fragment, so the entry does not come back as new. A fragment key whose
+// base is already a key of the watch, such as an issue page's entry
+// (<page>#1), stays as it is.
+func keyFeedEntriesAcrossRevisions(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `SELECT i.id, i.watch_id, i.item_key FROM watch_items i JOIN watches w ON w.id = i.watch_id
+		WHERE w.kind = 'rss' AND (i.item_key LIKE 'http://%#%' OR i.item_key LIKE 'https://%#%') ORDER BY i.id`)
+	if err != nil {
+		return err
+	}
+	type entry struct {
+		watchID int64
+		key     string
+	}
+	newest := map[entry]int64{}
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var (
+			id, watchID int64
+			key         string
+		)
+		if err := scan(&id, &watchID, &key); err != nil {
+			return err
+		}
+		base, fragment, _ := strings.Cut(key, "#")
+		if fragment != "" && strings.Trim(fragment, "0123456789") == "" {
+			newest[entry{watchID, base}] = id
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	for e, id := range newest {
+		if _, err := tx.ExecContext(ctx, `UPDATE watch_items SET item_key = ? WHERE id = ? AND NOT EXISTS (SELECT 1 FROM watch_items WHERE watch_id = ? AND item_key = ?)`, e.key, id, e.watchID, e.key); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // openSchema creates the layout of an empty database, upgrades an older one
