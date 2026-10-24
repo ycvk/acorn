@@ -389,7 +389,7 @@ func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
 func TestNightReviewsNewsSourcesOnSundayAndAfterATrialWeek(t *testing.T) {
 	monday := time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC) // 09:00 on Monday in Shanghai
 	bbc := core.NewsSourceStats{Watch: core.Watch{ID: 3, Name: "BBC 中文", Section: "国际与财经", CreatedAt: monday.Add(-30 * 24 * time.Hour)},
-		Items: 40, Scored: 38, ScoreSum: 114, High: 12, Shared: 19, Picked: 6}
+		Items: 40, Scored: 38, ScoreSum: 114, High: 12, Shared: 19, Links: 6}
 	trial := core.NewsSourceStats{Watch: core.Watch{ID: 12, Name: "知乎热榜", Section: "热榜", Trial: true, CreatedAt: monday.Add(-7*24*time.Hour - time.Hour)},
 		Items: 70, Scored: 70, ScoreSum: 140, High: 3, Shared: 7}
 	for _, tc := range []struct {
@@ -422,7 +422,7 @@ func TestNightReviewsNewsSourcesOnSundayAndAfterATrialWeek(t *testing.T) {
 			night := h.runs.starts[0]
 			for _, want := range []string{
 				"News sources over the last 7 days.",
-				"- news source #3 BBC 中文 [国际与财经] in the briefing: 40 items (5.7 a day), average score 3.0, 12 scored 4 or 5, 50% share a story with another source, 6 linked from briefings\n",
+				"- news source #3 BBC 中文 [国际与财经] in the briefing: 40 items (5.7 a day), average score 3.0, 12 scored 4 or 5, 50% share a story with another source, 6 links to it in briefings\n",
 			} {
 				if !strings.Contains(night, want) {
 					t.Fatalf("night input lacks %q:\n%s", want, night)

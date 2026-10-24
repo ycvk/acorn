@@ -289,13 +289,13 @@ func TestTrialSourcesStayOutOfBriefingsAndEachSourceIsCounted(t *testing.T) {
 	}
 	var got []string
 	for _, st := range stats {
-		got = append(got, fmt.Sprintf("%s trial=%t items=%d scored=%d sum=%d high=%d shared=%d picked=%d", st.Watch.Name, st.Watch.Trial, st.Items, st.Scored, st.ScoreSum, st.High, st.Shared, st.Picked))
+		got = append(got, fmt.Sprintf("%s trial=%t items=%d scored=%d sum=%d high=%d shared=%d links=%d", st.Watch.Name, st.Watch.Trial, st.Items, st.Scored, st.ScoreSum, st.High, st.Shared, st.Links))
 	}
 	want := []string{
-		"bbc trial=false items=2 scored=2 sum=6 high=1 shared=1 picked=1",
-		"ft trial=false items=1 scored=1 sum=4 high=1 shared=1 picked=0",
-		"daily trial=false items=0 scored=0 sum=0 high=0 shared=0 picked=0",
-		"trial trial=true items=2 scored=2 sum=9 high=2 shared=1 picked=0",
+		"bbc trial=false items=2 scored=2 sum=6 high=1 shared=1 links=1",
+		"ft trial=false items=1 scored=1 sum=4 high=1 shared=1 links=0",
+		"daily trial=false items=0 scored=0 sum=0 high=0 shared=0 links=0",
+		"trial trial=true items=2 scored=2 sum=9 high=2 shared=1 links=0",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("stats:\n%s", strings.Join(got, "\n"))
@@ -306,6 +306,51 @@ func TestTrialSourcesStayOutOfBriefingsAndEachSourceIsCounted(t *testing.T) {
 	}
 	if stats, err := s.NewsSourceStats(ctx, watchTestNow.Add(-time.Hour)); err != nil || len(stats) != 3 {
 		t.Fatalf("paused sources are not counted: %d, %v", len(stats), err)
+	}
+}
+
+// A briefing drops BBC's tracking query from its links, and an issue's
+// entries share the issue page's address; each link counts once for the
+// source it points to.
+func TestBriefingLinksCountOncePerLinkWhateverTheTrackingQuery(t *testing.T) {
+	s, bbc, ft, daily := newsStoryFixture(t)
+	ctx := context.Background()
+	record := func(w core.Watch, urls map[string]string) {
+		var items []core.WatchItem
+		for key, url := range urls {
+			items = append(items, core.WatchItem{WatchID: w.ID, Key: key, Title: key, URL: url, Status: core.WatchItemPending, SeenAt: watchTestNow})
+		}
+		if _, err := s.RecordWatchCheck(ctx, w, core.WatchCheck{At: watchTestNow, NextCheckAt: watchTestNow.Add(time.Hour), Status: w.Status, Items: items}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	record(bbc, map[string]string{"a": "https://bbc.test/a/trad?at_medium=RSS&at_campaign=rss", "p1": "https://bbc.test/page?id=1"})
+	record(ft, map[string]string{"f": "https://ft.test/story/1"})
+	record(daily, map[string]string{"e1": "https://daily.test/2026-10-03", "e2": "https://daily.test/2026-10-03", "e3": "https://daily.test/2026-10-03", "e4": "https://news.test/x"})
+	if err := s.ClaimRoutine(ctx, "briefing", "2026-10-03", watchTestNow); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_b", Input: "[briefing 2026-10-03]"}); err != nil {
+		t.Fatal(err)
+	}
+	output := "1. **漏洞**：[BBC中文](https://bbc.test/a/trad)\n2. **合并**：[BBC中文](https://bbc.test/page?id=2)。\n" +
+		"3. **模型**：[日报](https://daily.test/2026-10-03)\n4. **开源**：[日报](https://daily.test/2026-10-03#2)\n"
+	if err := s.FinishRun(ctx, "run_b", core.RunStatusSucceeded, output, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRoutineRun(ctx, "briefing", "2026-10-03", "thread_b", "run_b"); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := s.NewsSourceStats(ctx, watchTestNow.Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	links := map[string]int{}
+	for _, st := range stats {
+		links[st.Watch.Name] = st.Links
+	}
+	if links["bbc"] != 1 || links["ft"] != 0 || links["daily"] != 2 {
+		t.Fatalf("links = %v, want bbc 1, ft 0, daily 2", links)
 	}
 }
 

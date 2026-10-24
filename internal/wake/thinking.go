@@ -122,8 +122,8 @@ func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time, loc *ti
 		if st.Scored > 0 {
 			avg, shared = float64(st.ScoreSum)/float64(st.Scored), st.Shared*100/st.Scored
 		}
-		fmt.Fprintf(&b, "- news source #%d %s [%s] %s: %d items (%.1f a day), average score %.1f, %d scored 4 or 5, %d%% share a story with another source, %d linked from briefings\n",
-			w.ID, w.Name, w.Section, state, st.Items, float64(st.Items)/max(days, 1), avg, st.High, shared, st.Picked)
+		fmt.Fprintf(&b, "- news source #%d %s [%s] %s: %d items (%.1f a day), average score %.1f, %d scored 4 or 5, %d%% share a story with another source, %d links to it in briefings\n",
+			w.ID, w.Name, w.Section, state, st.Items, float64(st.Items)/max(days, 1), avg, st.High, shared, st.Links)
 	}
 	return b.String(), nil
 }
