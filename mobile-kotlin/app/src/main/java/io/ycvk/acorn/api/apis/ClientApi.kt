@@ -44,6 +44,7 @@ import io.ycvk.acorn.api.models.Run
 import io.ycvk.acorn.api.models.RunDetail
 import io.ycvk.acorn.api.models.RunEvent
 import io.ycvk.acorn.api.models.SendViewActionRequest
+import io.ycvk.acorn.api.models.StoryReactionRequest
 import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.api.models.ThreadFile
@@ -141,6 +142,77 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.POST,
             path = "/v1/commitments/{commitment_id}:cancel".replace("{"+"commitment_id"+"}", encodeURIComponent(commitmentId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * DELETE /v1/news/stories/{story_id}/reaction
+     * Take back the reaction to a story
+     * 
+     * @param storyId 
+     * @return void
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientClearStoryReaction(storyId: kotlin.Long) : Unit {
+        val localVarResponse = clientClearStoryReactionWithHttpInfo(storyId = storyId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> Unit
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * DELETE /v1/news/stories/{story_id}/reaction
+     * Take back the reaction to a story
+     * 
+     * @param storyId 
+     * @return ApiResponse<Unit?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientClearStoryReactionWithHttpInfo(storyId: kotlin.Long) : ApiResponse<Unit?> {
+        val localVariableConfig = clientClearStoryReactionRequestConfig(storyId = storyId)
+
+        return request<Unit, Unit>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientClearStoryReaction
+     *
+     * @param storyId 
+     * @return RequestConfig
+     */
+    fun clientClearStoryReactionRequestConfig(storyId: kotlin.Long) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.DELETE,
+            path = "/v1/news/stories/{story_id}/reaction".replace("{"+"story_id"+"}", encodeURIComponent(storyId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,
@@ -1757,6 +1829,81 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.POST,
             path = "/v1/threads/{thread_id}/views/{view_id}:pin".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())).replace("{"+"view_id"+"}", encodeURIComponent(viewId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * PUT /v1/news/stories/{story_id}/reaction
+     * React to a story the morning briefing picked
+     * Marks the story as more or less of what the owner wants, replacing an earlier reaction. The briefing and the night review of news read it; nothing runs now.
+     * @param storyId 
+     * @param storyReactionRequest 
+     * @return void
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientReactToStory(storyId: kotlin.Long, storyReactionRequest: StoryReactionRequest) : Unit {
+        val localVarResponse = clientReactToStoryWithHttpInfo(storyId = storyId, storyReactionRequest = storyReactionRequest)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> Unit
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * PUT /v1/news/stories/{story_id}/reaction
+     * React to a story the morning briefing picked
+     * Marks the story as more or less of what the owner wants, replacing an earlier reaction. The briefing and the night review of news read it; nothing runs now.
+     * @param storyId 
+     * @param storyReactionRequest 
+     * @return ApiResponse<Unit?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientReactToStoryWithHttpInfo(storyId: kotlin.Long, storyReactionRequest: StoryReactionRequest) : ApiResponse<Unit?> {
+        val localVariableConfig = clientReactToStoryRequestConfig(storyId = storyId, storyReactionRequest = storyReactionRequest)
+
+        return request<StoryReactionRequest, Unit>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientReactToStory
+     *
+     * @param storyId 
+     * @param storyReactionRequest 
+     * @return RequestConfig
+     */
+    fun clientReactToStoryRequestConfig(storyId: kotlin.Long, storyReactionRequest: StoryReactionRequest) : RequestConfig<StoryReactionRequest> {
+        val localVariableBody = storyReactionRequest
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.PUT,
+            path = "/v1/news/stories/{story_id}/reaction".replace("{"+"story_id"+"}", encodeURIComponent(storyId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

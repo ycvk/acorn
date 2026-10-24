@@ -462,21 +462,25 @@ func (s *Store) NewsSourceStats(ctx context.Context, since time.Time) ([]core.Ne
 		`SELECT w.id, COUNT(i.id), COALESCE(SUM(s.score > 0), 0), COALESCE(SUM(s.score), 0), COALESCE(SUM(s.score >= 4), 0),
 		   COALESCE(SUM(s.story_id IS NOT NULL AND EXISTS (
 		     SELECT 1 FROM news_scores o JOIN watch_items oi ON oi.id = o.item_id WHERE o.story_id = s.story_id AND oi.watch_id <> w.id)), 0),
-		   COALESCE(SUM(i.url <> '' AND EXISTS (
-		     SELECT 1 FROM routine_runs r JOIN runs u ON u.run_id = r.run_id WHERE r.routine = 'briefing' AND r.created_at >= ? AND instr(u.output_text, i.url) > 0)), 0)
+		   (SELECT COUNT(DISTINCT b.story_id) FROM briefing_stories b JOIN briefing_picks p ON p.run_id = b.run_id
+		     WHERE p.briefed_at >= ? AND EXISTS (SELECT 1 FROM json_each(b.sources) j WHERE j.value = w.id)),
+		   (SELECT COUNT(DISTINCT b.story_id) FROM briefing_stories b JOIN briefing_picks p ON p.run_id = b.run_id
+		     WHERE p.briefed_at >= ? AND b.focus AND EXISTS (SELECT 1 FROM json_each(b.sources) j WHERE j.value = w.id)),
+		   (SELECT COUNT(*) FROM news_reactions r WHERE r.created_at >= ? AND r.reaction = 'more' AND EXISTS (SELECT 1 FROM json_each(r.sources) j WHERE j.value = w.id)),
+		   (SELECT COUNT(*) FROM news_reactions r WHERE r.created_at >= ? AND r.reaction = 'less' AND EXISTS (SELECT 1 FROM json_each(r.sources) j WHERE j.value = w.id))
 		 FROM watches w
 		 LEFT JOIN watch_items i ON i.watch_id = w.id AND i.seen_at >= ? AND i.status <> ?
 		 LEFT JOIN news_scores s ON s.item_id = i.id
 		 WHERE w.mode = ? AND w.status <> ?
 		 GROUP BY w.id ORDER BY w.id`,
-		at, at, string(core.WatchItemBaseline), string(core.WatchModeNews), string(core.WatchPaused))
+		at, at, at, at, at, string(core.WatchItemBaseline), string(core.WatchModeNews), string(core.WatchPaused))
 	if err != nil {
 		return nil, fmt.Errorf("news source stats: %w", err)
 	}
 	var stats []core.NewsSourceStats
 	if err := scanRows(rows, func(scan func(...any) error) error {
 		var st core.NewsSourceStats
-		if err := scan(&st.Watch.ID, &st.Items, &st.Scored, &st.ScoreSum, &st.High, &st.Shared, &st.Picked); err != nil {
+		if err := scan(&st.Watch.ID, &st.Items, &st.Scored, &st.ScoreSum, &st.High, &st.Shared, &st.Picked, &st.Focus, &st.More, &st.Less); err != nil {
 			return err
 		}
 		stats = append(stats, st)

@@ -225,6 +225,11 @@ func (s *clientHandlerStore) LoadRun(_ context.Context, runID string) (*core.Run
 	return s.runRecord(runID), nil
 }
 
+func (s *clientHandlerStore) RunWoken(context.Context, string) (bool, error) {
+	_, err := s.stubOrErr()
+	return false, err
+}
+
 func (s *clientHandlerStore) FinishRun(_ context.Context, runID string, status core.RunStatus, output, errText string) error {
 	stub, err := s.stubOrErr()
 	if err != nil {

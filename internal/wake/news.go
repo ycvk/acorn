@@ -47,8 +47,8 @@ type briefingNews struct {
 
 // prepareNews refreshes the news watches, sorts what they found into
 // stories, then adds the stories with items since the last briefing, by
-// section, and the previous briefing.
-func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since time.Time, loc *time.Location) (briefingNews, error) {
+// section with the owner's reactions in it, and the previous briefing.
+func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since, now time.Time, loc *time.Location) (briefingNews, error) {
 	watches, err := s.cfg.Watches.ListWatches(ctx)
 	if err != nil {
 		return briefingNews{}, err
@@ -80,7 +80,11 @@ func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since 
 	if err != nil {
 		return briefingNews{}, err
 	}
-	m.add(s.newsStories(sections, offered.Stories, since, loc), true)
+	reactions, err := s.cfg.News.NewsReactions(ctx, now.Add(-core.NewsReactionRetention))
+	if err != nil {
+		return briefingNews{}, err
+	}
+	m.add(s.newsStories(sections, offered.Stories, reactions, since, loc), true)
 	previous, err := s.previousBriefing(ctx)
 	if err != nil {
 		return briefingNews{}, err
@@ -121,9 +125,10 @@ func (s *Scheduler) refreshNews(ctx context.Context, watches []core.Watch) error
 
 // newsStories lists the stories by section in the sections' order, each
 // with its score, whether it is new since the last briefing or what it
-// added, and its items since then. Stories of a section removed meanwhile
-// come after the others.
-func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.NewsStory, since time.Time, loc *time.Location) string {
+// added, and its items since then. A section first gives its preference and
+// the owner's reactions in it. Stories of a section removed meanwhile come
+// after the others.
+func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.NewsStory, reactions []core.StoryReaction, since time.Time, loc *time.Location) string {
 	grouped := map[string][]core.NewsStory{}
 	for _, story := range stories {
 		grouped[story.Section] = append(grouped[story.Section], story)
@@ -153,6 +158,9 @@ func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.News
 		if section.Preference != "" {
 			fmt.Fprintf(&b, "Preference:\n%s\n", section.Preference)
 		}
+		if listed := reactionLines(section.Name, reactions, loc); listed != "" {
+			b.WriteString("Owner reactions in the last 30 days:\n" + listed)
+		}
 		for _, story := range grouped[section.Name] {
 			fmt.Fprintf(&b, "- [%d] %s", story.Score, story.Title)
 			if story.FirstSeen.After(since) || story.Development == "" {
@@ -173,6 +181,25 @@ func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.News
 		}
 	}
 	return b.String()
+}
+
+// reactionLines lists the owner's reactions to stories of a section, in
+// the order given.
+func reactionLines(section string, reactions []core.StoryReaction, loc *time.Location) string {
+	var b strings.Builder
+	for _, r := range reactions {
+		if r.Section == section {
+			fmt.Fprintf(&b, "- %s: %s (%s)\n", reactionLabel(r.Reaction), r.Title, r.At.In(loc).Format("01-02"))
+		}
+	}
+	return b.String()
+}
+
+func reactionLabel(r core.NewsReaction) string {
+	if r == core.NewsReactionMore {
+		return "more of this kind"
+	}
+	return "less of this kind"
 }
 
 // itemTime is when an item was published, or first seen when its source

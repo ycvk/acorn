@@ -271,16 +271,13 @@ func TestTrialSourcesStayOutOfBriefingsAndEachSourceIsCounted(t *testing.T) {
 		}
 	}
 
-	if err := s.ClaimRoutine(ctx, "briefing", "2026-10-03", watchTestNow); err != nil {
+	story := news.Stories[0]
+	if err := s.RecordBriefingPicks(ctx, core.BriefingPicks{RunID: "run_b", BriefedAt: watchTestNow, Stories: []core.BriefingStory{
+		{StoryID: story.ID, Section: "国际", Title: "停火谈判", URL: "https://bbc.test/b1", Focus: true, Sources: []int64{bbc.ID, ft.ID, trial.ID}},
+	}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_b", Input: "[briefing 2026-10-03]"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.FinishRun(ctx, "run_b", core.RunStatusSucceeded, "1. **停火谈判**：开始了。[BBC](https://bbc.test/b1)", ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SetRoutineRun(ctx, "briefing", "2026-10-03", "thread_b", "run_b"); err != nil {
+	if err := s.ReactToNewsStory(ctx, story.ID, core.NewsReactionLess, "device_1", watchTestNow); err != nil {
 		t.Fatal(err)
 	}
 	stats, err := s.NewsSourceStats(ctx, watchTestNow.Add(-time.Hour))
@@ -289,16 +286,20 @@ func TestTrialSourcesStayOutOfBriefingsAndEachSourceIsCounted(t *testing.T) {
 	}
 	var got []string
 	for _, st := range stats {
-		got = append(got, fmt.Sprintf("%s trial=%t items=%d scored=%d sum=%d high=%d shared=%d picked=%d", st.Watch.Name, st.Watch.Trial, st.Items, st.Scored, st.ScoreSum, st.High, st.Shared, st.Picked))
+		got = append(got, fmt.Sprintf("%s trial=%t items=%d scored=%d sum=%d high=%d shared=%d picked=%d focus=%d more=%d less=%d",
+			st.Watch.Name, st.Watch.Trial, st.Items, st.Scored, st.ScoreSum, st.High, st.Shared, st.Picked, st.Focus, st.More, st.Less))
 	}
 	want := []string{
-		"bbc trial=false items=2 scored=2 sum=6 high=1 shared=1 picked=1",
-		"ft trial=false items=1 scored=1 sum=4 high=1 shared=1 picked=0",
-		"daily trial=false items=0 scored=0 sum=0 high=0 shared=0 picked=0",
-		"trial trial=true items=2 scored=2 sum=9 high=2 shared=1 picked=0",
+		"bbc trial=false items=2 scored=2 sum=6 high=1 shared=1 picked=1 focus=1 more=0 less=1",
+		"ft trial=false items=1 scored=1 sum=4 high=1 shared=1 picked=1 focus=1 more=0 less=1",
+		"daily trial=false items=0 scored=0 sum=0 high=0 shared=0 picked=0 focus=0 more=0 less=0",
+		"trial trial=true items=2 scored=2 sum=9 high=2 shared=1 picked=1 focus=1 more=0 less=1",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("stats:\n%s", strings.Join(got, "\n"))
+	}
+	if stats, err := s.NewsSourceStats(ctx, watchTestNow.Add(time.Hour)); err != nil || stats[0].Picked != 0 || stats[0].Less != 0 {
+		t.Fatalf("picks and reactions before the window are not counted: %+v, %v", stats, err)
 	}
 	ft.Status, ft.UpdatedAt = core.WatchPaused, watchTestNow
 	if err := s.UpdateWatch(ctx, ft); err != nil {

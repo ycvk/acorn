@@ -21,6 +21,7 @@ type NewsSectionsInput struct {
 	Rename     string  `json:"rename,omitempty" jsonschema_description:"set: a new name for the section; its sources move with it."`
 	Position   *int    `json:"position,omitempty" jsonschema_description:"set: order in the briefing, smallest first. A new section without one goes last."`
 	Preference *string `json:"preference,omitempty" jsonschema_description:"set: what the owner wants from the section, a few numbered lines with the most important first, in the owner's words."`
+	Reason     string  `json:"reason,omitempty" jsonschema_description:"set and remove: why, with the owner's reactions it rests on. A change you make in a run you woke for, such as the night reflection, waits for the owner, who reads this before deciding."`
 }
 
 // NewsSectionOutput is one section with its sources.
@@ -38,7 +39,7 @@ type NewsSectionsOutput struct {
 
 func buildNewsSectionsTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 	return inferProgressTool("news_sections",
-		"Manage the sections of the morning briefing's news: list them with their sources, add one or change its order and preference, rename it, or remove one without sources. The briefing picks about ten items across sections by importance, source authority, credibility, fit with each section's preference, and what is new since the last briefing. Sources are news watches made with watch_create mode news.",
+		"Manage the sections of the morning briefing's news: list them with their sources, add one or change its order and preference, rename it, or remove one without sources. The briefing picks about ten items across sections by the owner's reactions, then importance, source authority, credibility, fit with each section's preference, and what is new since the last briefing. Sources are news watches made with watch_create mode news. A change the owner asks for in their conversation takes effect at once; one made in a run Acorn woke itself waits for the owner's approval.",
 		func(ctx context.Context, input NewsSectionsInput, _ ToolProgressEmitter) (NewsSectionsOutput, error) {
 			name := strings.TrimSpace(input.Name)
 			now := deps.Clock()
@@ -247,33 +248,38 @@ func buildNewsSourceTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 		})
 }
 
-// WatchLoader reads one watch.
-type WatchLoader interface {
+// NewsLoader reads the news sources and sections an approval names.
+type NewsLoader interface {
 	LoadWatch(ctx context.Context, id int64) (*core.Watch, error)
+	ListNewsSections(ctx context.Context) ([]core.NewsSection, error)
 }
 
 // ApprovalDescriber says, in the owner's words, what a call the owner
 // decides on does: which news source a news_source call takes in or stops,
-// and why.
+// or how a news_sections call changes the sections, and why.
 type ApprovalDescriber struct {
-	Watches WatchLoader
+	News NewsLoader
 }
 
 func (d ApprovalDescriber) DescribeApproval(ctx context.Context, toolName, arguments string) (string, error) {
-	if toolName != "news_source" {
+	switch toolName {
+	case "news_source":
+		return NewsSourceApproval(ctx, d.News, arguments)
+	case "news_sections":
+		return NewsSectionsApproval(ctx, d.News, arguments)
+	default:
 		return "", fmt.Errorf("no approval description for %s", toolName)
 	}
-	return NewsSourceApproval(ctx, d.Watches, arguments)
 }
 
 // NewsSourceApproval says which news source a news_source call takes into
 // the briefing or stops, and why.
-func NewsSourceApproval(ctx context.Context, watches WatchLoader, arguments string) (string, error) {
+func NewsSourceApproval(ctx context.Context, news NewsLoader, arguments string) (string, error) {
 	var args NewsSourceInput
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return "", fmt.Errorf("news_source arguments: %w", err)
 	}
-	w, err := watches.LoadWatch(ctx, args.ID)
+	w, err := news.LoadWatch(ctx, args.ID)
 	if errors.Is(err, core.ErrWatchNotFound) {
 		return fmt.Sprintf("新闻源 #%d 不存在，这次调用会失败。", args.ID), nil
 	}
@@ -291,6 +297,64 @@ func NewsSourceApproval(ctx context.Context, watches WatchLoader, arguments stri
 		what = fmt.Sprintf("对%s的动作 %q 既不是 promote 也不是 stop，这次调用会失败。", source, args.Action)
 	}
 	return what + "理由：" + strings.TrimSpace(args.Reason), nil
+}
+
+// NewsSectionsApproval says how a news_sections call changes a section:
+// its preference before and after, its order, its name, or its removal, and
+// why.
+func NewsSectionsApproval(ctx context.Context, news NewsLoader, arguments string) (string, error) {
+	var args NewsSectionsInput
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return "", fmt.Errorf("news_sections arguments: %w", err)
+	}
+	sections, err := news.ListNewsSections(ctx)
+	if err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(args.Name)
+	var current *core.NewsSection
+	for i := range sections {
+		if sections[i].Name == name {
+			current = &sections[i]
+		}
+	}
+	var lines []string
+	switch {
+	case args.Action != "set" && args.Action != "remove":
+		lines = append(lines, fmt.Sprintf("对板块「%s」的动作 %q 既不是 set 也不是 remove，这次调用会失败。", name, args.Action))
+	case name == "":
+		lines = append(lines, "没有给出板块名，这次调用会失败。")
+	case args.Action == "remove" && current == nil:
+		lines = append(lines, fmt.Sprintf("板块「%s」不存在，这次调用会失败。", name))
+	case args.Action == "remove":
+		lines = append(lines, fmt.Sprintf("删除板块「%s」。", name))
+	case current == nil:
+		lines = append(lines, fmt.Sprintf("新增板块「%s」。", name))
+		if args.Preference != nil {
+			lines = append(lines, "偏好：\n"+strings.TrimSpace(*args.Preference))
+		}
+	default:
+		if args.Preference != nil && strings.TrimSpace(*args.Preference) != current.Preference {
+			before := current.Preference
+			if before == "" {
+				before = "（没有偏好）"
+			}
+			lines = append(lines, fmt.Sprintf("板块「%s」的偏好改为：\n%s\n原来是：\n%s", name, strings.TrimSpace(*args.Preference), before))
+		}
+		if args.Position != nil && *args.Position != current.Position {
+			lines = append(lines, fmt.Sprintf("板块「%s」的顺序从 %d 改为 %d。", name, current.Position, *args.Position))
+		}
+		if rename := strings.TrimSpace(args.Rename); rename != "" && rename != name {
+			lines = append(lines, fmt.Sprintf("把板块「%s」改名为「%s」。", name, rename))
+		}
+		if len(lines) == 0 {
+			lines = append(lines, fmt.Sprintf("板块「%s」没有变化。", name))
+		}
+	}
+	if reason := strings.TrimSpace(args.Reason); reason != "" {
+		lines = append(lines, "理由："+reason)
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 func nextPosition(sections []core.NewsSection) int {

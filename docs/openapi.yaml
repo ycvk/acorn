@@ -753,6 +753,51 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/news/stories/{story_id}/reaction:
+    put:
+      tags: [client]
+      summary: React to a story the morning briefing picked
+      description: Marks the story as more or less of what the owner wants, replacing an earlier reaction. The briefing and the night review of news read it; nothing runs now.
+      operationId: clientReactToStory
+      parameters:
+        - $ref: '#/components/parameters/StoryID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryReactionRequest'
+      responses:
+        '204':
+          description: Reaction stored
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/StoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [client]
+      summary: Take back the reaction to a story
+      operationId: clientClearStoryReaction
+      parameters:
+        - $ref: '#/components/parameters/StoryID'
+      responses:
+        '204':
+          description: Reaction cleared, or there was none
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/runs/{run_id}/detail:
     get:
       tags: [client]
@@ -1840,6 +1885,13 @@ components:
       schema:
         type: integer
         format: int64
+    StoryID:
+      name: story_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     Limit:
       name: limit
       in: query
@@ -2084,6 +2136,18 @@ components:
                 error:
                   code: watch_not_found
                   message: 'watch not found: 3'
+    StoryNotFound:
+      description: Story not found, or pruned
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            storyNotFound:
+              value:
+                error:
+                  code: story_not_found
+                  message: 'news story not found: 41'
     PayloadTooLarge:
       description: Request body too large
       content:
@@ -3839,7 +3903,7 @@ components:
       type: object
       additionalProperties: false
       description: The reply of the newest succeeded morning briefing run; absent before the first one.
-      required: [thread_id, run_id, date, body, finished_at]
+      required: [thread_id, run_id, date, body, finished_at, stories]
       properties:
         thread_id:
           type: string
@@ -3856,6 +3920,48 @@ components:
         finished_at:
           type: string
           format: date-time
+        stories:
+          type: array
+          description: The stories the briefing picked, in its order; empty until the backend has read them from the reply, shortly after the run, and for a briefing without news.
+          items:
+            $ref: '#/components/schemas/NowBriefingStory'
+
+    NowBriefingStory:
+      type: object
+      additionalProperties: false
+      required: [story_id, section, title, url, focus]
+      properties:
+        story_id:
+          type: integer
+          format: int64
+        section:
+          type: string
+          description: The news section the briefing listed it under.
+        title:
+          type: string
+        summary:
+          type: string
+          description: The sentence the briefing wrote after the title.
+        url:
+          type: string
+          description: The source the briefing linked.
+        focus:
+          type: boolean
+          description: Whether it is one of today's focus.
+        reaction:
+          type: string
+          enum: [more, less]
+          description: The owner's reaction to the story; absent without one.
+
+    StoryReactionRequest:
+      type: object
+      additionalProperties: false
+      required: [reaction]
+      properties:
+        reaction:
+          type: string
+          enum: [more, less]
+          description: more or less of this kind of story.
 
     NowCommitment:
       type: object

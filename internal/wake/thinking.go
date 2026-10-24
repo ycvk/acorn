@@ -91,9 +91,10 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time, l
 // newsReviewWindow is the week of numbers the news review weighs.
 const newsReviewWindow = 7 * 24 * time.Hour
 
-// newsReview lists what each news source brought over the last week, on the
-// owner's Sunday night or when a trial source finished its first week since
-// the last night, so the agent can propose promotions and stops.
+// newsReview lists what each news source brought over the last week, and
+// the owner's reactions of the week by section, on the owner's Sunday night
+// or when a trial source finished its first week since the last night, so
+// the agent can propose promotions, stops and rewritten preferences.
 func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time, loc *time.Location) (string, error) {
 	stats, err := s.cfg.News.NewsSourceStats(ctx, now.Add(-newsReviewWindow))
 	if err != nil || len(stats) == 0 {
@@ -110,7 +111,7 @@ func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time, loc *ti
 		return "", nil
 	}
 	var b strings.Builder
-	b.WriteString("News sources over the last 7 days. A trial source is fetched and sorted but stays out of the briefing. Propose with news_source, which waits for the owner: promote a trial source after its first full week when it brings important news the others miss, stop a source the briefing takes when it brings little the briefing uses. Give the numbers as the reason.\n")
+	b.WriteString("News sources over the last 7 days. A trial source is fetched and sorted but stays out of the briefing. Scores and picks are the model's; the owner's reactions to stories with a source's items are the owner's signal, and a story without a reaction counts as neither. Propose with news_source, which waits for the owner: promote a trial source after its first full week when it brings important news the others miss, stop a source the briefing takes when it brings little the briefing uses or the owner keeps marking less of. Give the numbers as the reason.\n")
 	for _, st := range stats {
 		w := st.Watch
 		days := min(now.Sub(w.CreatedAt), newsReviewWindow).Hours() / 24
@@ -122,8 +123,42 @@ func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time, loc *ti
 		if st.Scored > 0 {
 			avg, shared = float64(st.ScoreSum)/float64(st.Scored), st.Shared*100/st.Scored
 		}
-		fmt.Fprintf(&b, "- news source #%d %s [%s] %s: %d items (%.1f a day), average score %.1f, %d scored 4 or 5, %d%% share a story with another source, %d linked from briefings\n",
-			w.ID, w.Name, w.Section, state, st.Items, float64(st.Items)/max(days, 1), avg, st.High, shared, st.Picked)
+		fmt.Fprintf(&b, "- news source #%d %s [%s] %s: %d items (%.1f a day), average score %.1f, %d scored 4 or 5, %d%% share a story with another source; briefings picked %d stories with its items, %d of them in today's focus; the owner marked %d more and %d less of their kind\n",
+			w.ID, w.Name, w.Section, state, st.Items, float64(st.Items)/max(days, 1), avg, st.High, shared, st.Picked, st.Focus, st.More, st.Less)
+	}
+	reactions, err := s.cfg.News.NewsReactions(ctx, now.Add(-newsReviewWindow))
+	if err != nil {
+		return "", err
+	}
+	if len(reactions) == 0 {
+		return b.String(), nil
+	}
+	sections, err := s.cfg.Watches.ListNewsSections(ctx)
+	if err != nil {
+		return "", err
+	}
+	b.WriteString("\nThe owner's reactions of the last 7 days by section. Where two or more in a section point at the same kind of story, propose rewriting the section's preference with news_sections set, keeping what still holds and quoting those reactions as the reason; the owner approves it before it takes effect.\n")
+	names := make([]string, 0, len(sections))
+	preferences := map[string]string{}
+	for _, section := range sections {
+		names = append(names, section.Name)
+		preferences[section.Name] = section.Preference
+	}
+	for _, r := range reactions {
+		if !slices.Contains(names, r.Section) {
+			names = append(names, r.Section)
+		}
+	}
+	for _, name := range names {
+		listed := reactionLines(name, reactions, loc)
+		if listed == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "## %s\n", name)
+		if preference := preferences[name]; preference != "" {
+			fmt.Fprintf(&b, "Preference:\n%s\n", preference)
+		}
+		b.WriteString(listed)
 	}
 	return b.String(), nil
 }

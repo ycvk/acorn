@@ -32,7 +32,7 @@
 - **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再发 `run.completed`/`run.failed` 并把 run 标记为结束；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
-- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
+- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批，规则未覆盖、在 Acorn 自己醒来的 run（输入是 wake 消息）里改动板块（action 不是 list）的 `news_sections` 调用审批，owner 对话里的直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
   - `internal/runtime/approval_review_test.go`
   - `internal/runtime/approval_test.go`
   - `internal/review/review_test.go`
@@ -111,7 +111,7 @@
 - **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
-- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
+- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
@@ -303,7 +303,7 @@
   - `internal/wake/triggers_test.go`
   - `internal/store/store_news_test.go`
   - `internal/tools/watch_tools_test.go`
-- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at` 设置的时间（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、新闻事件（见下一条）、其他追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，有 failing 的触发器，或近一天有放弃整理的新闻条目。
+- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at` 设置的时间（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、新闻事件（见下一条）、其他追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，有 failing 的触发器，近一天有放弃整理的新闻条目，或最近记下的一份早安卡有对不上候选事件的新闻行或今日关注行。
   - `internal/wake/briefing_test.go`
   - `internal/wake/health_test.go`
   - `internal/wake/watches_test.go`
@@ -311,17 +311,22 @@
   - `internal/memory/context_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-- **新闻源只供早安卡挑选，用过即丢，不进记忆**：`news` 模式的追踪项属于 `news_sections` 的一个板块（外键随板块改名级联，有源的板块不能删除），只有新闻源带板块与期刊标记。新闻源的条目不登记为记忆来源，也不作为早安卡的输入来源。早安卡生成前，未暂停的新闻源全部再检查一次（至多 4 个并发），再等后台整理追上（至多 10 分钟）；检查与整理的失败照常记录，错误交给调度日志，早安卡用已整理好的事件照常生成。输入按板块顺序列出板块偏好、每个板块有待报条目的事件（按分数至多 20 件，标明新事件或之前出现的日期与新进展，附待报条目的来源、时间与链接）以及上一份写成的早安卡。起 run 时整理过的待报条目与暂停的源的待报条目标为 briefed。
+- **新闻源只供早安卡挑选，用过即丢，不进记忆**：`news` 模式的追踪项属于 `news_sections` 的一个板块（外键随板块改名级联，有源的板块不能删除），只有新闻源带板块与期刊标记。新闻源的条目不登记为记忆来源，也不作为早安卡的输入来源。早安卡生成前，未暂停的新闻源全部再检查一次（至多 4 个并发），再等后台整理追上（至多 10 分钟）；检查与整理的失败照常记录，错误交给调度日志，早安卡用已整理好的事件照常生成。输入按板块顺序列出板块偏好、owner 近 30 天对这个板块事件的反馈（多报或少报、标题与日期，新的在前）、每个板块有待报条目的事件（按分数至多 20 件，标明新事件或之前出现的日期与新进展，附待报条目的来源、时间与链接）以及上一份写成的早安卡。起 run 时整理过的待报条目与暂停的源的待报条目标为 briefed。
   - `internal/wake/news_test.go`
   - `internal/store/store_news_test.go`
   - `internal/tools/watch_tools_test.go`
   - `internal/wire/news_acceptance_e2e_test.go`
-- **新闻源先试用，进出早安卡由 owner 决定**：新建的新闻源与改成 news 模式的追踪项都从试用开始；试用源照常抓取与整理，它的条目不出现在早安卡的事件里，早安卡开始时与其他整理过的条目一样标为已报；早安卡只列在用且未暂停的源的条目，事件所在板块没有这样的源时（例如试用源先建立的事件），按它分数最高的可报条目所在源的板块列出。`news_source` 把试用源转正（暂停的同时恢复）或停用早安卡在用的源，`approval.allow` 没有放行时每次调用都等 owner 审批，审批的摘要在发起时写明源、板块、动作与理由；`watch_update` 不能暂停在用的新闻源，也不能把它改成别的模式。夜思在 owner 时区的周日，或有试用源在上次夜思之后满一周时，列出每个未暂停的新闻源近 7 天的条目数、平均分、4–5 分条数、与其他源同属一个事件的比例和被早安卡链接的条数。
+- **新闻源先试用，进出早安卡由 owner 决定**：新建的新闻源与改成 news 模式的追踪项都从试用开始；试用源照常抓取与整理，它的条目不出现在早安卡的事件里，早安卡开始时与其他整理过的条目一样标为已报；早安卡只列在用且未暂停的源的条目，事件所在板块没有这样的源时（例如试用源先建立的事件），按它分数最高的可报条目所在源的板块列出。`news_source` 把试用源转正（暂停的同时恢复）或停用早安卡在用的源，`approval.allow` 没有放行时每次调用都等 owner 审批，审批的摘要在发起时写明源、板块、动作与理由；Acorn 自己醒来的 run 里改动板块的 `news_sections` 同样等审批，摘要写明偏好的改前改后、顺序、改名或删除与理由；`watch_update` 不能暂停在用的新闻源，也不能把它改成别的模式。夜思在 owner 时区的周日，或有试用源在上次夜思之后满一周时，列出每个未暂停的新闻源近 7 天的条目数、平均分、4–5 分条数、与其他源同属一个事件的比例、含它条目的事件被早安卡挑中与进今日关注的件数和 owner 标多报与少报的件数；这一周有反馈时再按板块列出板块偏好与反馈，请 agent 在同一板块两次以上同向时用 `news_sections` 提出改写偏好。
   - `internal/store/store_news_stories_test.go`
   - `internal/tools/watch_tools_test.go`
   - `internal/runtime/approval_test.go`
   - `internal/api/tool_steps_test.go`
   - `internal/wake/thinking_test.go`
+  - `internal/wire/news_acceptance_e2e_test.go`
+- **早安卡挑中的事件按链接记下，owner 的反馈跟着事件走**：每次检查时，wake 调度器取 14 天内成功、还没记下的早安卡，从回复里读挑中的事件：新闻板块（板块名的 `## ` 小标题）下每条编号行取第一个属于候选事件条目的链接（末尾的 `/` 不计），同一事件只记一次；`## 今日关注` 下以 `第 N 条` 开头的行把编号 N 的事件标为今日关注。没有能对上的链接的新闻行与编号不存在的关注行计为对不上。每份早安卡只记一次（按 run 认领），记下事件 id、所在板块、粗体标题、其后的一句话、链接、是否今日关注与事件条目的来源；`/v1/now` 的早安卡按顺序带上它们与 owner 当前的反馈，没记下时为空。owner 经 `PUT /v1/news/stories/{story_id}/reaction`（`more` 或 `less`，其余 400）与 `DELETE` 设置或取消反馈，不起 run；每个事件至多一条，后设的覆盖先设的，记下设备、时间与事件当时的板块、标题与条目来源，事件不存在时 404。反馈与挑中记录保留 30 天，删除早安卡所在对话时挑中记录随之删除，反馈保留。
+  - `internal/wake/news_test.go`
+  - `internal/store/store_news_reactions_test.go`
+  - `internal/api/now_test.go`
   - `internal/wire/news_acceptance_e2e_test.go`
 - **新闻条目整理一次，过期只留键**：后台 worker 认领首见于 14 天内、未整理的待报条目（期刊一次一期，其余一批至多 30 条），租约 5 分钟；模型在 `news.daily_tokens` 设置内给每条打 1–5 分并归入新事件或近 72 小时的事件，期刊页拆成带链接的条目（链接按期刊页解析，只接受 http/https），期刊页读不到时这一批失败。回复逐项校验：批里每条恰好打分一次，事件引用有定义，板块存在；提交在同一事务里按认领 token 校验并写分数、事件与条目，条目已被另一批重新认领时提交失败。预算用尽的批延到下一本地日且不计失败次数，调用方停止等待（Acorn 停止或早安卡的追赶超时）中断的批立即放回且不计失败次数，预算调高或取消时当天放回，其他失败第 3 次放弃并计入 System health。首见超过 14 天的条目只留键与状态（记忆来源除外），移出事件，没有条目的事件删除；源里仍在的条目不会作为新条目回来。`news_search` 按板块、关键词（每个词都要出现）与天数（1 到 14）检索事件。
   - `internal/news/news_test.go`

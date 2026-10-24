@@ -55,6 +55,13 @@ func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time, loc *time
 	if news != "" {
 		problems = append(problems, news)
 	}
+	picks, err := s.picksHealth(ctx)
+	if err != nil {
+		return "", err
+	}
+	if picks != "" {
+		problems = append(problems, picks)
+	}
 	if len(problems) == 0 {
 		return "", nil
 	}

@@ -28,10 +28,15 @@ type approvalTestStore struct {
 	events   []string
 	payloads []any
 	input    string
+	woken    bool
 }
 
 func (s *approvalTestStore) LoadRun(_ context.Context, runID string) (*core.RunRecord, error) {
 	return &core.RunRecord{RunID: runID, Input: s.input}, nil
+}
+
+func (s *approvalTestStore) RunWoken(context.Context, string) (bool, error) {
+	return s.woken, nil
 }
 
 func (s *approvalTestStore) CreatePendingAction(_ context.Context, input core.PendingActionInput) (*core.PendingActionRecord, error) {
@@ -318,6 +323,74 @@ func TestNewsSourceWaitsForTheOwnerUnlessAllowed(t *testing.T) {
 			want := `owner decides news_source {"action":"promote","id":12,"reason":"一周 40 条，独家 5 条"}`
 			if payload.Summary != want || payload.Message != want {
 				t.Fatalf("the approval the owner reads = %+v", payload)
+			}
+		})
+	}
+}
+
+// newsSectionsTool stands in for news_sections.
+type newsSectionsTool struct{ echoTool }
+
+func (t *newsSectionsTool) Info(context.Context) (*schema.ToolInfo, error) {
+	return &schema.ToolInfo{Name: "news_sections", Desc: "changes the briefing's sections"}, nil
+}
+
+func TestNewsSectionsWaitsOnlyForChangesInRunsAcornWoke(t *testing.T) {
+	RegisterTypes()
+	set := `{"action":"set","name":"国际与财经","preference":"1. 大国关系\n2. 小国央行少报","reason":"两次少报"}`
+	for _, tc := range []struct {
+		name  string
+		woken bool
+		args  string
+		rules core.ApprovalRules
+		gated bool
+	}{
+		{name: "the owner's conversation", args: set, gated: false},
+		{name: "night reflection", woken: true, args: set, gated: true},
+		{name: "night reflection lists", woken: true, args: `{"action":"list"}`, gated: false},
+		{name: "night reflection allowed", woken: true, args: set, rules: core.ApprovalRules{Allow: []string{"news_sections"}}, gated: false},
+		{name: "required in the owner's conversation", args: set, rules: core.ApprovalRules{Require: []string{"news_*"}}, gated: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := core.WithRunID(context.Background(), "run_sections")
+			store := &approvalTestStore{woken: tc.woken}
+			tool := &newsSectionsTool{}
+			mw, err := newApprovalMiddleware(tc.rules, nil, describedCalls{}, store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			model := &scriptedModel{replies: []*schema.AgenticMessage{
+				toolCallReply("call_1", "news_sections", tc.args),
+				assistantMessage("done", nil),
+			}}
+			agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
+				Name: "news_sections_test", Description: "news sections approval", Model: model,
+				ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{Tools: []einotool.BaseTool{tool}, ExecuteSequentially: true}},
+				Handlers:    []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{mw}, MaxIterations: 5,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true, CheckPointStore: &memoryCheckpointStore{data: map[string][]byte{}}})
+			interrupted, err := drainEvents(t, runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("go")}, adk.WithCheckPointID("run_sections")))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.gated {
+				if interrupted != nil || len(store.actions) != 0 || tool.callCount() != 1 {
+					t.Fatalf("interrupted %v, actions %+v, calls %d", interrupted, store.actions, tool.callCount())
+				}
+				return
+			}
+			if interrupted == nil || len(store.actions) != 1 || tool.callCount() != 0 {
+				t.Fatalf("interrupted %v, actions %+v, calls %d", interrupted, store.actions, tool.callCount())
+			}
+			want := sectionsReason
+			if len(tc.rules.Require) > 0 {
+				want = requireReason
+			}
+			if store.actions[0].Reason != want {
+				t.Fatalf("reason = %q, want %q", store.actions[0].Reason, want)
 			}
 		})
 	}
