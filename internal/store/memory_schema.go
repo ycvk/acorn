@@ -80,14 +80,7 @@ CREATE TABLE IF NOT EXISTS memory_index_state (
  id INTEGER PRIMARY KEY CHECK(id=1), generation INTEGER NOT NULL, model TEXT NOT NULL,
  dimensions INTEGER NOT NULL, state TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS memory_jobs (
- id INTEGER PRIMARY KEY AUTOINCREMENT, operation TEXT NOT NULL, object_id TEXT NOT NULL, version TEXT NOT NULL,
- processor_version TEXT NOT NULL DEFAULT '1', state TEXT NOT NULL DEFAULT 'pending',
- token INTEGER NOT NULL DEFAULT 0, epoch INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, cursor INTEGER NOT NULL DEFAULT 0,
- lease_until TEXT NOT NULL DEFAULT '', available_at TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
- created_at TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT '',
- UNIQUE(operation,object_id,version,processor_version)
-);
+` + memoryJobsTable + `;
 CREATE TABLE IF NOT EXISTS memory_state (id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL, request_run_id TEXT NOT NULL DEFAULT '');
 INSERT OR IGNORE INTO memory_state(id,epoch) VALUES(1,0);
 CREATE TABLE IF NOT EXISTS memory_exclusions (
@@ -137,6 +130,17 @@ CREATE TRIGGER IF NOT EXISTS memory_records_fts_au AFTER UPDATE OF content,scope
  INSERT INTO memory_records_fts(rowid,content,scope) VALUES(new.rowid,new.content,new.scope);
 END;
 `
+
+// memoryJobsTable holds the background memory work; failed_at is when a job
+// was given up on after its last attempt.
+const memoryJobsTable = `CREATE TABLE IF NOT EXISTS memory_jobs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, operation TEXT NOT NULL, object_id TEXT NOT NULL, version TEXT NOT NULL,
+ processor_version TEXT NOT NULL DEFAULT '1', state TEXT NOT NULL DEFAULT 'pending',
+ token INTEGER NOT NULL DEFAULT 0, epoch INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, cursor INTEGER NOT NULL DEFAULT 0,
+ lease_until TEXT NOT NULL DEFAULT '', available_at TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT '', failed_at TEXT NOT NULL DEFAULT '',
+ UNIQUE(operation,object_id,version,processor_version)
+)`
 
 const memoryQueryIndexes = `
 CREATE INDEX IF NOT EXISTS idx_memory_records_vector_current ON memory_records(id,revision,excluded);

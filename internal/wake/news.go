@@ -24,9 +24,6 @@ const (
 	// newsCatchUpTimeout bounds the sorting a briefing waits for; items not
 	// sorted by then wait for the next briefing.
 	newsCatchUpTimeout = 10 * time.Minute
-	// failedNewsWindow is how far back given-up news items count as a
-	// problem for the briefing's health.
-	failedNewsWindow = 24 * time.Hour
 )
 
 // NewsSorter sorts the waiting news items into stories.
@@ -195,13 +192,19 @@ func (s *Scheduler) previousBriefing(ctx context.Context) (string, error) {
 	return fmt.Sprintf("Previous briefing (%s), for not repeating a story without new developments:\n%s\n", latest.Slot, truncateRunes(strings.TrimSpace(latest.Text), maxPreviousBriefing)), nil
 }
 
-// newsHealth reports the news items given up on in the last day.
-func (s *Scheduler) newsHealth(ctx context.Context, now time.Time) (string, error) {
-	failed, err := s.cfg.News.FailedNewsItems(ctx, now.Add(-failedNewsWindow))
-	if err != nil || failed == 0 {
-		return "", err
+// newsHealth reports the news sources whose items the sorting gave up on
+// and none of which it has sorted since.
+func (s *Scheduler) newsHealth(ctx context.Context, loc *time.Location) ([]string, error) {
+	failing, err := s.cfg.News.FailingNewsSources(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return fmt.Sprintf("News sorting: %d news items could not be sorted into stories in the last day and were left out; check `journalctl -u acorn` for news sorting errors.", failed), nil
+	var lines []string
+	for _, work := range failing {
+		lines = append(lines, fmt.Sprintf("News sorting: %d items of %s were given up since %s, and none of its items has been sorted since; last error: %s; check `journalctl -u acorn` for news sorting errors.",
+			work.Failed, work.Kind, work.Since.In(loc).Format("2006-01-02 15:04"), previewText(work.LastError, 300)))
+	}
+	return lines, nil
 }
 
 // truncateRunes cuts text to limit runes, keeping its lines.

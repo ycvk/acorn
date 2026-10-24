@@ -10,6 +10,28 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
+// addMemoryJobFailures (27 to 28) records when each memory job was given up
+// on. The table is rebuilt from memoryJobsTable so its stored definition
+// matches a new database; a job given up on earlier takes the retry time its
+// last failure set, minutes after the failure.
+func addMemoryJobFailures(ctx context.Context, tx *sql.Tx) error {
+	columns := "id, operation, object_id, version, processor_version, state, token, epoch, attempts, cursor, lease_until, available_at, error, created_at, completed_at"
+	for _, statement := range []string{
+		`CREATE TEMP TABLE memory_jobs_v27 AS SELECT ` + columns + ` FROM memory_jobs`,
+		`DROP TABLE memory_jobs`,
+		memoryJobsTable,
+		`INSERT INTO memory_jobs(` + columns + `, failed_at) SELECT ` + columns + `, CASE state WHEN 'failed' THEN available_at ELSE '' END FROM memory_jobs_v27`,
+		`DROP TABLE memory_jobs_v27`,
+		`CREATE INDEX IF NOT EXISTS idx_memory_jobs_ready ON memory_jobs(state,available_at,lease_until,id)`,
+		`CREATE INDEX IF NOT EXISTS idx_memory_jobs_completed ON memory_jobs(completed_at)`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func enqueueMemoryJob(ctx context.Context, q memorySQL, operation, id, version string, now time.Time) error {
 	_, err := q.ExecContext(ctx, `INSERT OR IGNORE INTO memory_jobs(operation,object_id,version,available_at,created_at) VALUES(?,?,?,?,?)`, operation, id, version, formatTimestamp(now), formatTimestamp(now))
 	return err
@@ -149,11 +171,11 @@ func (s *Store) FinishMemoryJob(ctx context.Context, job core.MemoryJob, reason 
 }
 
 func (s *Store) FailMemoryJob(ctx context.Context, job core.MemoryJob, reason string, now time.Time) error {
-	state := "pending"
+	state, failedAt := "pending", ""
 	if job.Attempts >= 3 {
-		state = "failed"
+		state, failedAt = "failed", formatTimestamp(now)
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE memory_jobs SET state=?,error=?,available_at=?,lease_until='' WHERE id=? AND token=? AND state='running'`, state, reason, formatTimestamp(now.Add(time.Minute*time.Duration(job.Attempts))), job.ID, job.Token)
+	result, err := s.db.ExecContext(ctx, `UPDATE memory_jobs SET state=?,error=?,available_at=?,failed_at=?,lease_until='' WHERE id=? AND token=? AND state='running'`, state, reason, formatTimestamp(now.Add(time.Minute*time.Duration(job.Attempts))), failedAt, job.ID, job.Token)
 	if err != nil {
 		return err
 	}
@@ -197,6 +219,37 @@ func (s *Store) MemoryProcessingStatus(ctx context.Context) (core.MemoryProcessi
 		err = nil
 	}
 	return status, err
+}
+
+// failingMemoryWorkSQL lists each operation's jobs given up on after its
+// last completed job, with the first such failure and the newest error.
+const failingMemoryWorkSQL = `WITH completed AS (SELECT operation, MAX(completed_at) AS at FROM memory_jobs WHERE state='done' GROUP BY operation)
+SELECT f.operation, COUNT(*), MIN(f.failed_at),
+ (SELECT e.error FROM memory_jobs e WHERE e.state='failed' AND e.operation=f.operation ORDER BY e.failed_at DESC, e.id DESC LIMIT 1)
+FROM memory_jobs f LEFT JOIN completed c ON c.operation=f.operation
+WHERE f.state='failed' AND f.failed_at > COALESCE(c.at,'')
+GROUP BY f.operation ORDER BY f.operation`
+
+func (s *Store) FailingMemoryWork(ctx context.Context) ([]core.FailingWork, error) {
+	rows, err := s.read.QueryContext(ctx, failingMemoryWorkSQL)
+	if err != nil {
+		return nil, fmt.Errorf("failing memory work: %w", err)
+	}
+	var failing []core.FailingWork
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var work core.FailingWork
+		var since string
+		if err := scan(&work.Kind, &work.Failed, &since, &work.LastError); err != nil {
+			return err
+		}
+		var err error
+		work.Since, err = parseTimestamp(fixedTimestampLayout, since, "memory_jobs.failed_at")
+		failing = append(failing, work)
+		return err
+	}); err != nil {
+		return nil, fmt.Errorf("failing memory work: %w", err)
+	}
+	return failing, nil
 }
 
 func (s *Store) RecordMemoryUsage(ctx context.Context, u core.MemoryUsage) error {

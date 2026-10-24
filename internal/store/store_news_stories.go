@@ -449,12 +449,37 @@ func (s *Store) attachStoryItems(ctx context.Context, stories []core.NewsStory, 
 	return nil
 }
 
-func (s *Store) FailedNewsItems(ctx context.Context, since time.Time) (int, error) {
-	var n int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM news_scores WHERE error <> '' AND sorted_at >= ?`, formatTimestamp(since)).Scan(&n); err != nil {
-		return 0, fmt.Errorf("failed news items: %w", err)
+func (s *Store) FailingNewsSources(ctx context.Context) ([]core.FailingWork, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`WITH sorted AS (
+		   SELECT i.watch_id, MAX(s.sorted_at) AS at FROM news_scores s JOIN watch_items i ON i.id = s.item_id
+		   WHERE s.error = '' GROUP BY i.watch_id)
+		 SELECT w.name, COUNT(*), MIN(s.sorted_at), (
+		   SELECT e.error FROM news_scores e JOIN watch_items ei ON ei.id = e.item_id
+		   WHERE ei.watch_id = w.id AND e.error <> '' ORDER BY e.sorted_at DESC, e.item_id DESC LIMIT 1)
+		 FROM news_scores s JOIN watch_items i ON i.id = s.item_id JOIN watches w ON w.id = i.watch_id
+		 LEFT JOIN sorted ON sorted.watch_id = w.id
+		 WHERE s.error <> '' AND w.mode = ? AND w.status <> ? AND s.sorted_at > COALESCE(sorted.at, '')
+		 GROUP BY w.id ORDER BY w.id`,
+		string(core.WatchModeNews), string(core.WatchPaused))
+	if err != nil {
+		return nil, fmt.Errorf("failing news sources: %w", err)
 	}
-	return n, nil
+	var failing []core.FailingWork
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var work core.FailingWork
+		var since string
+		if err := scan(&work.Kind, &work.Failed, &since, &work.LastError); err != nil {
+			return err
+		}
+		var err error
+		work.Since, err = parseTimestamp(fixedTimestampLayout, since, "news_scores.sorted_at")
+		failing = append(failing, work)
+		return err
+	}); err != nil {
+		return nil, fmt.Errorf("failing news sources: %w", err)
+	}
+	return failing, nil
 }
 
 func (s *Store) NewsSourceStats(ctx context.Context, since time.Time) ([]core.NewsSourceStats, error) {

@@ -3,6 +3,7 @@ package wake
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,20 +23,11 @@ const (
 	maxBriefingNotes = 50
 	// briefingHorizon is how far ahead the briefing looks for facts that take effect.
 	briefingHorizon = 7 * 24 * time.Hour
-	// maxNightOutput bounds the night reflection carried into the briefing.
-	maxNightOutput = 2000
 )
 
 // KnowledgeReader lists notes as the agent may read them.
 type KnowledgeReader interface {
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
-}
-
-// RunReader reads a routine's run for its output and a thread's latest run.
-type RunReader interface {
-	LoadRun(ctx context.Context, runID string) (*core.RunRecord, error)
-	// LoadLatestRunForSession is nil for a thread without runs.
-	LoadLatestRunForSession(ctx context.Context, sessionID string) (*core.RunRecord, error)
 }
 
 // briefingMaterial collects what a briefing has to say. A section with
@@ -74,11 +66,6 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	if err := s.briefingMemory(ctx, &m, since, now, loc); err != nil {
 		return routineInput{}, err
 	}
-	night, err := s.briefingNight(ctx, since)
-	if err != nil {
-		return routineInput{}, err
-	}
-	m.add(night, true)
 	if err := s.briefingNotes(ctx, &m, since); err != nil {
 		return routineInput{}, err
 	}
@@ -122,7 +109,8 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 		b.WriteString("\n" + section)
 	}
 	return routineInput{sources: m.sources, wake: "morning briefing " + day, input: b.String(), standalone: true, after: func(ctx context.Context, runID string) error {
-		if err := s.cfg.Watches.MarkWatchItems(ctx, append(itemIDs(pending.Items), news.ids...), core.WatchItemBriefed, runID); err != nil {
+		marked := slices.Concat(itemIDs(pending.Items), pending.Paused, news.ids)
+		if err := s.cfg.Watches.MarkWatchItems(ctx, marked, core.WatchItemBriefed, runID); err != nil {
 			return err
 		}
 		if err := s.cfg.Triggers.MarkTriggerEvents(ctx, eventIDs(events), core.TriggerEventBriefed, runID); err != nil {
@@ -166,9 +154,10 @@ func (s *Scheduler) briefingCommitments(ctx context.Context, now time.Time, loc 
 	return "Commitments today and occurrences waiting for an outcome:\n" + strings.Join(lines, "\n") + "\n", nil
 }
 
-// briefingMemory adds the records remembered since the last briefing and the
-// facts that take effect within the horizon. A fact taking effect today is
-// material; later ones are context.
+// briefingMemory adds the facts and insights remembered since the last
+// briefing and the facts that take effect within the horizon. A fact taking
+// effect today is material; later ones are context. Thoughts are Acorn's own
+// open questions and stay out.
 func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, since, now time.Time, loc *time.Location) error {
 	changed, err := s.cfg.Memory.ListMemoryRecords(ctx, core.MemoryQuery{Mode: "current", ChangedSince: since, Limit: maxBriefingRecords})
 	if err != nil {
@@ -177,7 +166,7 @@ func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, sin
 	var lines []string
 	listed := map[string]bool{}
 	for _, r := range changed {
-		if !r.UpdatedAt.After(since) {
+		if !r.UpdatedAt.After(since) || r.Kind == "thought" {
 			continue
 		}
 		listed[r.ID] = true
@@ -213,27 +202,6 @@ func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, sin
 		m.add("Taking effect within a week:\n"+strings.Join(lines, "\n")+"\n", today)
 	}
 	return nil
-}
-
-// briefingNight carries the conclusion of a night reflection run since the
-// last briefing.
-func (s *Scheduler) briefingNight(ctx context.Context, since time.Time) (string, error) {
-	night, err := s.cfg.Routines.LatestRoutineRun(ctx, "night")
-	if err != nil {
-		return "", err
-	}
-	if night.RunID == "" || !night.CreatedAt.After(since) {
-		return "", nil
-	}
-	run, err := s.cfg.RunRecords.LoadRun(ctx, night.RunID)
-	if err != nil {
-		return "", err
-	}
-	output := previewText(run.Output, maxNightOutput)
-	if run.Status != core.RunStatusSucceeded || output == "" {
-		return "", nil
-	}
-	return fmt.Sprintf("Last night's reflection (%s):\n%s\n", night.Slot, output), nil
 }
 
 // briefingNotes lists the notes written since the last briefing.

@@ -92,8 +92,8 @@ func TestWanderTakesTheConcernRevisedLongestAgoInItsConversation(t *testing.T) {
 	if len(h.runs.starts) != 3 || !strings.HasPrefix(h.runs.starts[2], "thread_a|idle thought 2026-10-06 10:00|[wander 2026-10-06 10:00] Advance concern "+a.ID+" rev 2 [active]: 跟进 A 项目\nLatest reason: 看过 v1.4 的发布说明") {
 		t.Fatalf("next day = %v", h.runs.starts)
 	}
-	if routine, err := h.data.LatestRoutineRun(context.Background(), "wander"); err != nil || routine.ThreadID != "thread_a" {
-		t.Fatalf("wander routine = %+v, %v", routine, err)
+	if thread, err := h.data.LatestRoutineThread(context.Background(), "wander"); err != nil || thread != "thread_a" {
+		t.Fatalf("wander routine thread = %q, %v", thread, err)
 	}
 }
 

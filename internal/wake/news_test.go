@@ -17,7 +17,7 @@ type fakeNews struct {
 	core.NewsStore
 	mu      sync.Mutex
 	offered core.BriefingNews
-	failed  int
+	failing []core.FailingWork
 	pruned  []time.Time
 	stats   []core.NewsSourceStats
 	since   []time.Time
@@ -36,10 +36,10 @@ func (f *fakeNews) BriefingNewsStories(context.Context, int) (core.BriefingNews,
 	return f.offered, nil
 }
 
-func (f *fakeNews) FailedNewsItems(context.Context, time.Time) (int, error) {
+func (f *fakeNews) FailingNewsSources(context.Context) ([]core.FailingWork, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.failed, nil
+	return f.failing, nil
 }
 
 func (f *fakeNews) PruneNews(_ context.Context, before time.Time) (int, error) {
@@ -201,7 +201,7 @@ func TestBriefingGoesOnWhenNewsFails(t *testing.T) {
 	h.checker.failing = map[int64]error{down.ID: errors.New("HTTP 503")}
 	h.sorter.err = errors.New("model unavailable")
 	h.news.offered = core.BriefingNews{Stories: []core.NewsStory{story(1, "国际", "早先整理好的事", 3, h.now.Add(-time.Hour), "", item)}, IDs: []int64{item.ID}}
-	h.news.failed = 2
+	h.news.failing = []core.FailingWork{{Kind: "BBC", Failed: 2, Since: h.now.Add(-2 * time.Hour), LastError: "model unavailable"}}
 	err := h.sched.Tick(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "refresh news watch #1: HTTP 503") || !strings.Contains(err.Error(), "sort news: model unavailable") {
 		t.Fatalf("tick err = %v", err)
@@ -209,7 +209,7 @@ func TestBriefingGoesOnWhenNewsFails(t *testing.T) {
 	if len(h.runs.starts) != 1 {
 		t.Fatalf("the briefing must start with what was sorted: %v", h.runs.starts)
 	}
-	for _, want := range []string{"- [3] 早先整理好的事 (new)", "News sorting: 2 news items could not be sorted into stories in the last day"} {
+	for _, want := range []string{"- [3] 早先整理好的事 (new)", "News sorting: 2 items of BBC were given up since 2026-10-05 07:00, and none of its items has been sorted since; last error: model unavailable"} {
 		if !strings.Contains(h.runs.starts[0], want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, h.runs.starts[0])
 		}

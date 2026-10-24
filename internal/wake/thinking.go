@@ -10,6 +10,12 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
+// RunReader reads a thread's latest run.
+type RunReader interface {
+	// LoadLatestRunForSession is nil for a thread without runs.
+	LoadLatestRunForSession(ctx context.Context, sessionID string) (*core.RunRecord, error)
+}
+
 func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time, loc *time.Location) (routineInput, error) {
 	last, err := s.cfg.Routines.LastRoutineAt(ctx, "night", day)
 	if err != nil {
