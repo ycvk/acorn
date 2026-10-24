@@ -2,7 +2,7 @@ package wake
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"regexp"
 	"slices"
 	"strconv"
@@ -52,6 +52,9 @@ func (s *Scheduler) recordBriefingPicks(ctx context.Context, now time.Time) erro
 		if err := s.cfg.News.RecordBriefingPicks(ctx, core.BriefingPicks{RunID: briefing.RunID, BriefedAt: briefing.FinishedAt, Stories: picked, Unmatched: unmatched}); err != nil {
 			return err
 		}
+		if unmatched > 0 {
+			slog.Warn("briefing lines matched no story it offered; the now page leaves them out", "run_id", briefing.RunID, "slot", briefing.Slot, "unmatched", unmatched, "picked", len(picked))
+		}
 	}
 	return nil
 }
@@ -62,15 +65,7 @@ func (s *Scheduler) recordBriefingPicks(ctx context.Context, now time.Time) erro
 // by number. Lines that match no offered story or no picked number are
 // counted as unmatched.
 func pickBriefingStories(body string, sections []string, stories []core.NewsStory) ([]core.BriefingStory, int) {
-	byURL := map[string]*core.NewsStory{}
-	for i := range stories {
-		for _, item := range stories[i].Items {
-			key := linkKey(item.URL)
-			if _, taken := byURL[key]; key != "" && !taken {
-				byURL[key] = &stories[i]
-			}
-		}
-	}
+	links := indexStoryLinks(stories)
 	var (
 		picks     []core.BriefingStory
 		unmatched int
@@ -103,7 +98,8 @@ func pickBriefingStories(body string, sections []string, stories []core.NewsStor
 			continue
 		}
 		n, err := strconv.Atoi(m[1])
-		story, url := linkedStory(m[2], byURL)
+		title, summary := newsLineText(m[2])
+		story, url := links.story(m[2], title, position)
 		if err != nil || story == nil {
 			unmatched++
 			continue
@@ -112,7 +108,6 @@ func pickBriefingStories(body string, sections []string, stories []core.NewsStor
 			numbered[n] = i
 			continue
 		}
-		title, summary := newsLineText(m[2])
 		position[story.ID], numbered[n] = len(picks), len(picks)
 		picks = append(picks, core.BriefingStory{StoryID: story.ID, Section: heading, Title: title, Summary: summary, URL: url, Sources: storySources(*story)})
 	}
@@ -127,15 +122,93 @@ func pickBriefingStories(body string, sections []string, stories []core.NewsStor
 	return picks, unmatched
 }
 
-// linkedStory is the story of the first link in text that is one of its
-// items, with that link.
-func linkedStory(text string, byURL map[string]*core.NewsStory) (*core.NewsStory, string) {
-	for _, m := range markdownLink.FindAllStringSubmatch(text, -1) {
-		if story, ok := byURL[linkKey(m[1])]; ok {
-			return story, m[1]
+// storyLinks finds offered stories by the address of one of their items.
+// A briefing drops a link's fragment or a feed's tracking query (BBC's
+// ?at_medium=RSS), and the entries of an issue share its page's address.
+type storyLinks struct {
+	// full keys addresses without their fragment, bare without their query
+	// too; each lists the stories with such an item in offered order.
+	full, bare map[string][]*core.NewsStory
+}
+
+func indexStoryLinks(stories []core.NewsStory) storyLinks {
+	links := storyLinks{full: map[string][]*core.NewsStory{}, bare: map[string][]*core.NewsStory{}}
+	add := func(index map[string][]*core.NewsStory, key string, story *core.NewsStory) {
+		if key != "" && !slices.Contains(index[key], story) {
+			index[key] = append(index[key], story)
 		}
 	}
+	for i := range stories {
+		for _, item := range stories[i].Items {
+			full := linkKey(item.URL)
+			add(links.full, full, &stories[i])
+			bare, _, _ := strings.Cut(full, "?")
+			add(links.bare, strings.TrimSuffix(bare, "/"), &stories[i])
+		}
+	}
+	return links
+}
+
+// story is the story the first matching link of a news line points to,
+// with that link. When the address is shared, the line's title decides,
+// and a story not yet picked comes before one that was.
+func (l storyLinks) story(text, title string, picked map[int64]int) (*core.NewsStory, string) {
+	for _, m := range markdownLink.FindAllStringSubmatch(text, -1) {
+		key := linkKey(m[1])
+		candidates := l.full[key]
+		if len(candidates) == 0 && !strings.Contains(key, "?") {
+			candidates = l.bare[key]
+		}
+		if len(candidates) == 0 {
+			continue
+		}
+		best, bestScore := candidates[0], -1
+		for _, story := range candidates {
+			score := titleOverlap(title, *story) * 2
+			if _, ok := picked[story.ID]; !ok {
+				score++
+			}
+			if score > bestScore {
+				best, bestScore = story, score
+			}
+		}
+		return best, m[1]
+	}
 	return nil, ""
+}
+
+// titleOverlap counts the character pairs of title found in the story's
+// title or in one of its items' titles, whichever shares the most.
+func titleOverlap(title string, story core.NewsStory) int {
+	pairs := func(text string) []string {
+		runes := []rune(strings.ToLower(text))
+		var out []string
+		for i := 0; i+1 < len(runes); i++ {
+			out = append(out, string(runes[i:i+2]))
+		}
+		return out
+	}
+	mine := pairs(title)
+	best := 0
+	for _, other := range append([]string{story.Title}, itemTitles(story)...) {
+		theirs := pairs(other)
+		n := 0
+		for _, p := range mine {
+			if slices.Contains(theirs, p) {
+				n++
+			}
+		}
+		best = max(best, n)
+	}
+	return best
+}
+
+func itemTitles(story core.NewsStory) []string {
+	titles := make([]string, 0, len(story.Items))
+	for _, item := range story.Items {
+		titles = append(titles, item.Title)
+	}
+	return titles
 }
 
 // newsLineText splits a news line into its bold title and the sentence
@@ -151,8 +224,10 @@ func newsLineText(text string) (string, string) {
 	return title, strings.TrimSpace(strings.TrimLeft(rest, "：:—-– "))
 }
 
+// linkKey is an address without its fragment and trailing slash.
 func linkKey(url string) string {
-	return strings.TrimSuffix(strings.TrimSpace(url), "/")
+	key, _, _ := strings.Cut(strings.TrimSpace(url), "#")
+	return strings.TrimSuffix(key, "/")
 }
 
 // storySources are the news sources of a story's items, in id order.
@@ -165,14 +240,4 @@ func storySources(story core.NewsStory) []int64 {
 	}
 	slices.Sort(ids)
 	return ids
-}
-
-// picksHealth reports lines of the last briefing that matched no story it
-// offered, which the owner cannot react to.
-func (s *Scheduler) picksHealth(ctx context.Context) (string, error) {
-	unmatched, err := s.cfg.News.LastBriefingUnmatched(ctx)
-	if err != nil || unmatched == 0 {
-		return "", err
-	}
-	return fmt.Sprintf("Briefing news: %d news or focus lines of the last briefing matched no story it offered, so the now page cannot list them for the owner's reactions; each news line must link an item of its story and each focus line start with 第 N 条.", unmatched), nil
 }

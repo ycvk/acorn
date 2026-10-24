@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS news_reactions (
 );
 CREATE INDEX IF NOT EXISTS idx_news_reactions_created ON news_reactions(created_at);`
 
-// addBriefingPicks (27 to 28) adds the stories briefings picked and the
+// addBriefingPicks (28 to 29) adds the stories briefings picked and the
 // owner's reactions to them.
 func addBriefingPicks(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, briefingPicksTables)
@@ -164,18 +164,6 @@ func (s *Store) BriefingStories(ctx context.Context, runID string) ([]core.Brief
 		return nil, fmt.Errorf("briefing stories: %w", err)
 	}
 	return stories, nil
-}
-
-func (s *Store) LastBriefingUnmatched(ctx context.Context) (int, error) {
-	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT unmatched FROM briefing_picks ORDER BY briefed_at DESC, run_id DESC LIMIT 1`).Scan(&n)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("last briefing unmatched: %w", err)
-	}
-	return n, nil
 }
 
 // ReactToNewsStory keeps the story's section, title and the sources of its

@@ -19,14 +19,13 @@ type fakeNews struct {
 	core.NewsStore
 	mu              sync.Mutex
 	offered         core.BriefingNews
-	failed          int
+	failing         []core.FailingWork
 	pruned          []time.Time
 	stats           []core.NewsSourceStats
 	since           []time.Time
 	unrecorded      []core.RoutineOutput
 	briefed         map[string][]core.NewsStory
 	recorded        []core.BriefingPicks
-	unmatched       int
 	reactions       []core.StoryReaction
 	reactionsSince  []time.Time
 	prunedReactions []time.Time
@@ -57,12 +56,6 @@ func (f *fakeNews) RecordBriefingPicks(_ context.Context, picks core.BriefingPic
 	return nil
 }
 
-func (f *fakeNews) LastBriefingUnmatched(context.Context) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.unmatched, nil
-}
-
 func (f *fakeNews) NewsReactions(_ context.Context, since time.Time) ([]core.StoryReaction, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -90,10 +83,10 @@ func (f *fakeNews) BriefingNewsStories(context.Context, int) (core.BriefingNews,
 	return f.offered, nil
 }
 
-func (f *fakeNews) FailedNewsItems(context.Context, time.Time) (int, error) {
+func (f *fakeNews) FailingNewsSources(context.Context) ([]core.FailingWork, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.failed, nil
+	return f.failing, nil
 }
 
 func (f *fakeNews) PruneNews(_ context.Context, before time.Time) (int, error) {
@@ -269,8 +262,7 @@ func TestBriefingGoesOnWhenNewsFails(t *testing.T) {
 	h.checker.failing = map[int64]error{down.ID: errors.New("HTTP 503")}
 	h.sorter.err = errors.New("model unavailable")
 	h.news.offered = core.BriefingNews{Stories: []core.NewsStory{story(1, "国际", "早先整理好的事", 3, h.now.Add(-time.Hour), "", item)}, IDs: []int64{item.ID}}
-	h.news.failed = 2
-	h.news.unmatched = 2
+	h.news.failing = []core.FailingWork{{Kind: "BBC", Failed: 2, Since: h.now.Add(-2 * time.Hour), LastError: "model unavailable"}}
 	err := h.sched.Tick(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "refresh news watch #1: HTTP 503") || !strings.Contains(err.Error(), "sort news: model unavailable") {
 		t.Fatalf("tick err = %v", err)
@@ -278,11 +270,7 @@ func TestBriefingGoesOnWhenNewsFails(t *testing.T) {
 	if len(h.runs.starts) != 1 {
 		t.Fatalf("the briefing must start with what was sorted: %v", h.runs.starts)
 	}
-	for _, want := range []string{
-		"- [3] 早先整理好的事 (new)",
-		"News sorting: 2 news items could not be sorted into stories in the last day",
-		"Briefing news: 2 news or focus lines of the last briefing matched no story it offered",
-	} {
+	for _, want := range []string{"- [3] 早先整理好的事 (new)", "News sorting: 2 items of BBC were given up since 2026-10-05 07:00, and none of its items has been sorted since; last error: model unavailable"} {
 		if !strings.Contains(h.runs.starts[0], want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, h.runs.starts[0])
 		}
@@ -405,5 +393,34 @@ func TestPickBriefingStoriesCountsLinesItCannotMatch(t *testing.T) {
 	}
 	if picks, unmatched := pickBriefingStories(body, nil, stories); len(picks) != 0 || unmatched != 2 {
 		t.Fatalf("without news sections: picks %+v, unmatched %d", picks, unmatched)
+	}
+}
+
+// A briefing drops BBC's tracking query from its links, and the entries of
+// an issue share the issue page's address; the line's title tells them apart.
+func TestPickBriefingStoriesMatchesLinksTheWayBriefingsWriteThem(t *testing.T) {
+	issue := "https://daily.test/2026-10-03"
+	stories := []core.NewsStory{
+		story(1, "国际", "台湾外交部漏洞", 4, time.Time{}, "", core.WatchItem{WatchID: 2, Title: "外交部网站漏洞", URL: "https://bbc.test/a/trad?at_medium=RSS&at_campaign=rss"}),
+		story(2, "AI", "DeepSeek 开源推理框架", 5, time.Time{}, "", core.WatchItem{WatchID: 4, Title: "DeepSeek 开源推理框架", URL: issue}),
+		story(3, "AI", "谷歌开源 TorchTPU", 4, time.Time{}, "", core.WatchItem{WatchID: 4, Title: "谷歌开源 TorchTPU", URL: issue}),
+		story(4, "AI", "Anthropic 发布新模型", 4, time.Time{}, "", core.WatchItem{WatchID: 4, Title: "Anthropic 发布新模型", URL: issue}),
+	}
+	body := strings.Join([]string{
+		"## 国际",
+		"1. **外交部网站漏洞**：泄露了签证资料。[BBC中文](https://bbc.test/a/trad)",
+		"## AI",
+		"2. **谷歌开源 TorchTPU**：PyTorch 直接上 TPU。[日报](" + issue + "#2)",
+		"3. **DeepSeek 开源推理框架**：吞吐翻倍。[日报](" + issue + ")",
+		"4. **Anthropic 发布新模型**：上下文更长。[日报](" + issue + "/)",
+		"5. **BBC 别的报道**：查询不同就不是同一条。[BBC中文](https://bbc.test/a/trad?id=2)",
+	}, "\n")
+	picks, unmatched := pickBriefingStories(body, []string{"国际", "AI"}, stories)
+	var got []int64
+	for _, p := range picks {
+		got = append(got, p.StoryID)
+	}
+	if !slices.Equal(got, []int64{1, 3, 2, 4}) || unmatched != 1 {
+		t.Fatalf("picked %v, unmatched %d", got, unmatched)
 	}
 }

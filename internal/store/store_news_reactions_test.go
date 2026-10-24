@@ -102,8 +102,9 @@ func TestBriefingPicksAreRecordedOnceAndReactionsOutliveThem(t *testing.T) {
 	if unrecorded, err := s.UnrecordedBriefings(ctx, since); err != nil || len(unrecorded) != 0 {
 		t.Fatalf("a recorded briefing is listed again: %+v, %v", unrecorded, err)
 	}
-	if n, err := s.LastBriefingUnmatched(ctx); err != nil || n != 2 {
-		t.Fatalf("last briefing unmatched = %d, %v", n, err)
+	var unmatched int
+	if err := s.db.QueryRowContext(ctx, `SELECT unmatched FROM briefing_picks WHERE run_id = 'run_b'`).Scan(&unmatched); err != nil || unmatched != 2 {
+		t.Fatalf("recorded unmatched = %d, %v", unmatched, err)
 	}
 
 	if err := s.ReactToNewsStory(ctx, storyID, core.NewsReactionMore, "device_1", watchTestNow); err != nil {
@@ -143,8 +144,9 @@ func TestBriefingPicksAreRecordedOnceAndReactionsOutliveThem(t *testing.T) {
 	if got, err := s.BriefingStories(ctx, "run_b"); err != nil || len(got) != 0 {
 		t.Fatalf("picks of a deleted thread = %+v, %v", got, err)
 	}
-	if n, err := s.LastBriefingUnmatched(ctx); err != nil || n != 0 {
-		t.Fatalf("unmatched of a deleted thread = %d, %v", n, err)
+	var recorded int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM briefing_picks`).Scan(&recorded); err != nil || recorded != 0 {
+		t.Fatalf("briefings recorded after the thread was deleted = %d, %v", recorded, err)
 	}
 	if got, err := s.NewsReactions(ctx, watchTestNow); err != nil || len(got) != 1 {
 		t.Fatalf("reactions after the thread was deleted = %+v, %v", got, err)

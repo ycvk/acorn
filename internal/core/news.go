@@ -210,8 +210,10 @@ type NewsStore interface {
 	// offered item's source.
 	BriefingNewsStories(ctx context.Context, perSection int) (BriefingNews, error)
 	SearchNewsStories(ctx context.Context, query NewsQuery) ([]NewsStory, error)
-	// FailedNewsItems counts the items given up on since since.
-	FailedNewsItems(ctx context.Context, since time.Time) (int, error)
+	// FailingNewsSources lists, by unpaused news source in id order, the
+	// items the sorting gave up on after it last sorted one of the source's
+	// items. Kind is the source's name.
+	FailingNewsSources(ctx context.Context) ([]FailingWork, error)
 	// NewsSourceStats lists what each news source that is not paused
 	// brought since since, in id order.
 	NewsSourceStats(ctx context.Context, since time.Time) ([]NewsSourceStats, error)
@@ -235,9 +237,6 @@ type NewsStore interface {
 	// each with the owner's current reaction; empty when the briefing is
 	// not recorded.
 	BriefingStories(ctx context.Context, runID string) ([]BriefingStory, error)
-	// LastBriefingUnmatched counts the unmatched lines of the latest
-	// recorded briefing.
-	LastBriefingUnmatched(ctx context.Context) (int, error)
 	// ReactToNewsStory records the owner's reaction to a story, replacing
 	// an earlier one, else ErrNewsStoryNotFound.
 	ReactToNewsStory(ctx context.Context, storyID int64, reaction NewsReaction, deviceID string, at time.Time) error

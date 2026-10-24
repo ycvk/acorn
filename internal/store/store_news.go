@@ -12,6 +12,10 @@ import (
 
 const watchItemColumns = `id, watch_id, item_key, title, url, summary, published_at, status, run_id, seen_at`
 
+// briefingWatch matches the watches whose pending items the briefing
+// reports: neither news watches nor paused.
+const briefingWatch = `w.mode <> 'news' AND w.status <> 'paused'`
+
 func (s *Store) PendingBriefingItems(ctx context.Context, limit int) (core.PendingBriefing, error) {
 	if limit <= 0 {
 		return core.PendingBriefing{}, errors.New("pending briefing items: limit must be positive")
@@ -20,9 +24,9 @@ func (s *Store) PendingBriefingItems(ctx context.Context, limit int) (core.Pendi
 		`SELECT `+watchItemColumns+` FROM (
 		   SELECT i.*, ROW_NUMBER() OVER (PARTITION BY i.watch_id ORDER BY i.id) AS turn
 		   FROM watch_items i JOIN watches w ON w.id = i.watch_id
-		   WHERE i.status = ? AND w.mode <> ?)
+		   WHERE i.status = ? AND `+briefingWatch+`)
 		 ORDER BY turn, watch_id LIMIT ?`,
-		string(core.WatchItemPending), string(core.WatchModeNews), limit)
+		string(core.WatchItemPending), limit)
 	if err != nil {
 		return core.PendingBriefing{}, fmt.Errorf("pending briefing items: %w", err)
 	}
@@ -30,20 +34,23 @@ func (s *Store) PendingBriefingItems(ctx context.Context, limit int) (core.Pendi
 	if err != nil {
 		return core.PendingBriefing{}, fmt.Errorf("pending briefing items: %w", err)
 	}
-	counts, err := s.pendingCounts(ctx, `w.mode <> ?`, string(core.WatchModeNews))
+	counts, err := s.pendingCounts(ctx)
 	if err != nil {
 		return core.PendingBriefing{}, fmt.Errorf("pending briefing items: %w", err)
 	}
-	return core.PendingBriefing{Items: items, Counts: counts}, nil
+	paused, err := s.pausedPendingItems(ctx)
+	if err != nil {
+		return core.PendingBriefing{}, fmt.Errorf("pending briefing items: %w", err)
+	}
+	return core.PendingBriefing{Items: items, Counts: counts, Paused: paused}, nil
 }
 
-// pendingCounts counts the pending items of each watch matching where, a
-// condition on the watch w with one argument.
-func (s *Store) pendingCounts(ctx context.Context, where string, arg any) (map[int64]int, error) {
+// pendingCounts counts the pending items of each watch the briefing reports.
+func (s *Store) pendingCounts(ctx context.Context) (map[int64]int, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT i.watch_id, COUNT(*) FROM watch_items i JOIN watches w ON w.id = i.watch_id
-		 WHERE i.status = ? AND `+where+` GROUP BY i.watch_id`,
-		string(core.WatchItemPending), arg)
+		 WHERE i.status = ? AND `+briefingWatch+` GROUP BY i.watch_id`,
+		string(core.WatchItemPending))
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +65,28 @@ func (s *Store) pendingCounts(ctx context.Context, where string, arg any) (map[i
 		return nil
 	})
 	return counts, err
+}
+
+// pausedPendingItems lists the pending items of paused watches other than
+// news watches.
+func (s *Store) pausedPendingItems(ctx context.Context) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT i.id FROM watch_items i JOIN watches w ON w.id = i.watch_id
+		 WHERE i.status = ? AND w.mode <> ? AND w.status = ? ORDER BY i.id`,
+		string(core.WatchItemPending), string(core.WatchModeNews), string(core.WatchPaused))
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	err = scanRows(rows, func(scan func(...any) error) error {
+		var id int64
+		if err := scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		return nil
+	})
+	return ids, err
 }
 
 func (s *Store) ListNewsSections(ctx context.Context) ([]core.NewsSection, error) {

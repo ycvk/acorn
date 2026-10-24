@@ -8,15 +8,6 @@ import (
 
 var ErrRoutineTaken = errors.New("routine slot already taken")
 
-// RoutineRun is the run a routine slot started.
-type RoutineRun struct {
-	Routine   string
-	Slot      string
-	ThreadID  string
-	RunID     string
-	CreatedAt time.Time
-}
-
 // RoutineOutput is the reply of a routine's newest succeeded run.
 type RoutineOutput struct {
 	Slot       string
@@ -34,8 +25,6 @@ type RoutineStore interface {
 	// LatestRoutineThread is the thread of routine's newest started run;
 	// empty when none.
 	LatestRoutineThread(ctx context.Context, routine string) (string, error)
-	// LatestRoutineRun is the newest started run of routine; zero when none.
-	LatestRoutineRun(ctx context.Context, routine string) (RoutineRun, error)
 	// LatestRoutineOutput is the reply of routine's newest succeeded run;
 	// zero when none succeeded or its thread was deleted with the run.
 	LatestRoutineOutput(ctx context.Context, routine string) (RoutineOutput, error)

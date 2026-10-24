@@ -164,9 +164,9 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 		t.Fatal("the briefing ran twice on one day")
 	}
 
-	// The next briefing carries the night reflection and sees only its own
-	// input: the earlier briefing's input and reply stay out of the model's
-	// messages.
+	// The next briefing sees only its own input: the night reflection stays
+	// in the Thoughts thread, and the earlier briefing's input and reply stay
+	// out of the model's messages.
 	harness.clock.Set(time.Date(2026, 10, 5, 19, 0, 0, 0, time.UTC)) // 03:00 on the 6th: night reflection
 	if err := c.wake.Tick(ctx); err != nil {
 		t.Fatalf("tick: %v", err)
@@ -188,8 +188,11 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 		texts = append(texts, chatContentText(msg["content"]))
 	}
 	joined := strings.Join(texts, "\n")
-	if !strings.Contains(joined, "[briefing 2026-10-06] morning briefing") || !strings.Contains(joined, "go1.28") || !strings.Contains(joined, "Last night's reflection (2026-10-06):\n夜思：昨天的技能用法没有问题。") {
+	if !strings.Contains(joined, "[briefing 2026-10-06] morning briefing") || !strings.Contains(joined, "go1.28") {
 		t.Fatalf("second briefing input = %q", joined)
+	}
+	if strings.Contains(joined, "夜思：昨天的技能用法没有问题。") {
+		t.Fatalf("second briefing carries the night reflection: %q", joined)
 	}
 	if strings.Contains(joined, "[briefing 2026-10-05]") || strings.Contains(joined, "Go 博客有新文章 go1.27。") {
 		t.Fatalf("second briefing carries the first one's thread history: %q", joined)

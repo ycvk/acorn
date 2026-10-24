@@ -16,24 +16,6 @@ CREATE TABLE artifacts (
     sha256 TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
-CREATE TABLE briefing_picks (
-    run_id TEXT PRIMARY KEY,
-    briefed_at TEXT NOT NULL,
-    unmatched INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE briefing_stories (
-    run_id TEXT NOT NULL REFERENCES briefing_picks(run_id) ON DELETE CASCADE,
-    position INTEGER NOT NULL,
-    story_id INTEGER NOT NULL,
-    section TEXT NOT NULL,
-    title TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    url TEXT NOT NULL,
-    focus INTEGER NOT NULL DEFAULT 0,
-    sources TEXT NOT NULL,
-    PRIMARY KEY (run_id, position),
-    UNIQUE (run_id, story_id)
-);
 CREATE TABLE commitment_occurrences (
  id INTEGER PRIMARY KEY AUTOINCREMENT, commitment_id INTEGER NOT NULL REFERENCES commitments(id),
  due_at TEXT NOT NULL, state TEXT NOT NULL, run_id TEXT NOT NULL DEFAULT '', evidence_source_id TEXT NOT NULL DEFAULT '',
@@ -141,7 +123,7 @@ CREATE TABLE memory_jobs (
  processor_version TEXT NOT NULL DEFAULT '1', state TEXT NOT NULL DEFAULT 'pending',
  token INTEGER NOT NULL DEFAULT 0, epoch INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, cursor INTEGER NOT NULL DEFAULT 0,
  lease_until TEXT NOT NULL DEFAULT '', available_at TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
- created_at TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT '', failed_at TEXT NOT NULL DEFAULT '',
  UNIQUE(operation,object_id,version,processor_version)
 );
 CREATE TABLE memory_links (
@@ -214,15 +196,6 @@ CREATE TABLE news_claims (
     lease_until TEXT NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0,
     error TEXT NOT NULL DEFAULT ''
-);
-CREATE TABLE news_reactions (
-    story_id INTEGER PRIMARY KEY,
-    reaction TEXT NOT NULL CHECK (reaction IN ('more', 'less')),
-    section TEXT NOT NULL,
-    title TEXT NOT NULL,
-    sources TEXT NOT NULL,
-    device_id TEXT NOT NULL,
-    created_at TEXT NOT NULL
 );
 CREATE TABLE news_scores (
     item_id INTEGER PRIMARY KEY REFERENCES watch_items(id) ON DELETE CASCADE,
@@ -513,7 +486,6 @@ CREATE TABLE watches (
 );
 CREATE INDEX idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
 CREATE INDEX idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
-CREATE INDEX idx_briefing_picks_briefed ON briefing_picks(briefed_at);
 CREATE INDEX idx_commitments_due ON commitments(state,wake_at);
 CREATE INDEX idx_devices_token_hash ON devices(token_hash);
 CREATE INDEX idx_events_kind_created ON events(kind, created_at);
@@ -533,7 +505,6 @@ CREATE INDEX idx_memory_sources_run ON memory_sources(run_id);
 CREATE INDEX idx_memory_sources_session ON memory_sources(session_id,recorded_at);
 CREATE INDEX idx_memory_usage_budget ON memory_usage(budget,created_at);
 CREATE INDEX idx_news_claims_token ON news_claims(token);
-CREATE INDEX idx_news_reactions_created ON news_reactions(created_at);
 CREATE INDEX idx_news_scores_story ON news_scores(story_id);
 CREATE INDEX idx_news_stories_updated ON news_stories(updated_at);
 CREATE INDEX idx_notifications_due ON notifications(status, send_after);

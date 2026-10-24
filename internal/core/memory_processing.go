@@ -27,6 +27,15 @@ type MemoryProcessingStatus struct {
 	Index           MemoryIndex `json:"index"`
 }
 
+// FailingWork is a kind of background work that has failed and has not
+// succeeded since: what it gave up on after its last success, from when.
+type FailingWork struct {
+	Kind      string
+	Failed    int
+	Since     time.Time
+	LastError string
+}
+
 type MemoryIndex struct {
 	Generation int64  `json:"generation"`
 	Model      string `json:"model"`

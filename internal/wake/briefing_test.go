@@ -28,6 +28,20 @@ func (h *harness) fact(t *testing.T, id, content string, recorded, validFrom tim
 	}
 }
 
+// thought records an open thought of Acorn's at recorded.
+func (h *harness) thought(t *testing.T, content string, recorded time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	source, err := h.data.RegisterMemorySource(ctx, core.MemorySource{ID: "thought:" + content, Kind: "thought", ObjectID: content, Version: "1", Speaker: "assistant", Body: content, RecordedAt: recorded})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft := core.MemoryDraft{Kind: "thought", Content: content, Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: content, Relation: "supports"}}}
+	if _, err := h.data.CommitMemory(ctx, core.MemoryMutation{Now: recorded, Changes: []core.MemoryChange{{Draft: draft, Reason: "agent thought"}}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // previousBriefing records a briefing run at the given time, so the next
 // briefing's window starts there.
 func (h *harness) previousBriefing(t *testing.T, at time.Time) {
@@ -59,12 +73,12 @@ func TestBriefingSkipsWithoutMaterialAndKeepsTheSlot(t *testing.T) {
 	if err := h.data.ClaimRoutine(ctx, "briefing", "2026-10-05", h.now); !errors.Is(err, core.ErrRoutineTaken) {
 		t.Fatalf("skipped briefing released its day: %v", err)
 	}
-	if run, err := h.data.LatestRoutineRun(ctx, "briefing"); err != nil || run.Slot != "2026-10-04" {
-		t.Fatalf("skipped briefing recorded a run: %+v %v", run, err)
+	if last, err := h.data.LastRoutineAt(ctx, "briefing", "2026-10-06"); err != nil || !last.Equal(h.now.Add(-20*time.Hour)) {
+		t.Fatalf("skipped briefing recorded a run: %s %v", last, err)
 	}
 }
 
-func TestBriefingCarriesCommitmentsMemoryNotesAndNight(t *testing.T) {
+func TestBriefingCarriesCommitmentsMemoryAndNotes(t *testing.T) {
 	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
 	h.previousBriefing(t, h.now.Add(-20*time.Hour))
@@ -73,19 +87,8 @@ func TestBriefingCarriesCommitmentsMemoryNotesAndNight(t *testing.T) {
 	h.fact(t, "coffee", "我喜欢不加糖的手冲咖啡", h.now.Add(-time.Hour), time.Time{})
 	h.fact(t, "old", "我住在新加坡", h.now.Add(-21*time.Hour), time.Time{})
 	h.fact(t, "switch", "Heron 切换日期定在周二凌晨", h.now.Add(-21*time.Hour), h.now.Add(72*time.Hour))
+	h.thought(t, "记忆处理有 2 个失败任务，下次夜思再看", h.now.Add(-time.Hour))
 	if _, err := h.data.WriteKnowledgeNote(ctx, core.KnowledgeWrite{Path: "reading/sectors.md", Title: "板块统计", Body: "……", At: h.now.Add(-time.Hour)}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.data.ClaimRoutine(ctx, "night", "2026-10-05", h.now.Add(-time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_night", Input: "[night 2026-10-05]"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.data.FinishRun(ctx, "run_night", core.RunStatusSucceeded, "复核了咖啡偏好，没有矛盾。", ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.data.SetRoutineRun(ctx, "night", "2026-10-05", "thread_thoughts", "run_night"); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.sched.Tick(ctx); err != nil {
@@ -100,14 +103,13 @@ func TestBriefingCarriesCommitmentsMemoryNotesAndNight(t *testing.T) {
 		"Remembered since the last briefing:\n- fact ",
 		"我喜欢不加糖的手冲咖啡",
 		"Taking effect within a week:\n- 2026-10-08 fact ",
-		"Last night's reflection (2026-10-05):\n复核了咖啡偏好，没有矛盾。\n",
 		"Notes written since the last briefing:\n- reading/sectors.md — 板块统计\n",
 	} {
 		if !strings.Contains(input, want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, input)
 		}
 	}
-	for _, unwanted := range []string{"下周的事", "我住在新加坡", "Watch changes", "No watch changes"} {
+	for _, unwanted := range []string{"下周的事", "我住在新加坡", "记忆处理", "Watch changes", "No watch changes"} {
 		if strings.Contains(input, unwanted) {
 			t.Fatalf("briefing input carries %q:\n%s", unwanted, input)
 		}
@@ -135,7 +137,9 @@ func TestBriefingFactTakingEffectTodayIsMaterial(t *testing.T) {
 	}
 }
 
-func TestBriefingIgnoresFailedOrSilentNight(t *testing.T) {
+// The night reflection's conclusion is Acorn's own bookkeeping; it stays in
+// the Thoughts thread.
+func TestBriefingLeavesTheNightReflectionOut(t *testing.T) {
 	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
 	if err := h.data.ClaimRoutine(ctx, "night", "2026-10-05", h.now.Add(-5*time.Hour)); err != nil {
@@ -144,17 +148,18 @@ func TestBriefingIgnoresFailedOrSilentNight(t *testing.T) {
 	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_night", Input: "[night 2026-10-05]"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.data.FinishRun(ctx, "run_night", core.RunStatusFailed, "", "model unavailable"); err != nil {
+	if err := h.data.FinishRun(ctx, "run_night", core.RunStatusSucceeded, "夜思核对完了：没有改技能，没有未完成的约定，关切列表是空的。", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.data.SetRoutineRun(ctx, "night", "2026-10-05", "thread_thoughts", "run_night"); err != nil {
 		t.Fatal(err)
 	}
+	h.thought(t, "记忆处理有 2 个失败任务，下次夜思再看", h.now.Add(-time.Hour))
 	if err := h.sched.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if len(h.runs.starts) != 0 {
-		t.Fatalf("a failed night briefed: %v", h.runs.starts)
+		t.Fatalf("the night reflection and a thought briefed: %v", h.runs.starts)
 	}
 }
 

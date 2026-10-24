@@ -262,6 +262,9 @@ type MemoryStore interface {
 	FailMemoryJob(context.Context, MemoryJob, string, time.Time) error
 	DeferMemoryJob(context.Context, MemoryJob, string, time.Time) error
 	MemoryProcessingStatus(context.Context) (MemoryProcessingStatus, error)
+	// FailingMemoryWork lists, by operation, the memory jobs given up on
+	// after the operation's last completed job.
+	FailingMemoryWork(context.Context) ([]FailingWork, error)
 	ConfigureMemoryIndex(context.Context, MemoryIndex, bool) (MemoryIndex, error)
 	MemoryIndex(context.Context) (MemoryIndex, error)
 	CompleteMemoryIndex(context.Context, int64) error

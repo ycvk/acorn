@@ -83,23 +83,6 @@ func (s *Store) LastRoutineAt(ctx context.Context, routine, beforeSlot string) (
 	return parseTimestamp(fixedTimestampLayout, at, "routine_runs.created_at")
 }
 
-func (s *Store) LatestRoutineRun(ctx context.Context, routine string) (core.RoutineRun, error) {
-	if routine == "" {
-		return core.RoutineRun{}, errors.New("latest routine run: routine is required")
-	}
-	var run core.RoutineRun
-	var at string
-	err := s.db.QueryRowContext(ctx, `SELECT routine, slot, thread_id, run_id, created_at FROM routine_runs WHERE routine = ? AND run_id <> '' ORDER BY created_at DESC, slot DESC LIMIT 1`, routine).Scan(&run.Routine, &run.Slot, &run.ThreadID, &run.RunID, &at)
-	if errors.Is(err, sql.ErrNoRows) {
-		return core.RoutineRun{}, nil
-	}
-	if err != nil {
-		return core.RoutineRun{}, fmt.Errorf("latest routine run: %w", err)
-	}
-	run.CreatedAt, err = parseTimestamp(fixedTimestampLayout, at, "routine_runs.created_at")
-	return run, err
-}
-
 // LatestRoutineOutput is the reply of routine's newest succeeded run; zero
 // when none succeeded or its thread was deleted with the run.
 func (s *Store) LatestRoutineOutput(ctx context.Context, routine string) (core.RoutineOutput, error) {
