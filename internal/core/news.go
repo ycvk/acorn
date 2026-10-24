@@ -101,7 +101,7 @@ type BriefingNews struct {
 // NewsSourceStats is what a news source brought since a time: items first
 // seen, how many were sorted with a score and the sum of those scores, how
 // many scored 4 or 5, how many share their story with another source, and
-// how many a briefing written since links.
+// how many links in the briefings written since point to its items.
 type NewsSourceStats struct {
 	Watch    Watch
 	Items    int
@@ -109,7 +109,7 @@ type NewsSourceStats struct {
 	ScoreSum int
 	High     int
 	Shared   int
-	Picked   int
+	Links    int
 }
 
 // NewsQuery finds stories updated since a time, optionally in a section and
