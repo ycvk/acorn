@@ -218,7 +218,11 @@ func renderSkillDetail(item skills.View) string {
 		lines = append(lines, "  MCP server: "+item.MCP.CommandLine())
 	}
 	for _, t := range item.Triggers {
-		lines = append(lines, fmt.Sprintf("  Trigger %s: %s at %q, delivered %s", t.Name, t.Run, t.Schedule, t.Deliver))
+		line := fmt.Sprintf("  Trigger %s: %s at %q, delivered %s", t.Name, t.Run, t.Schedule, t.Deliver)
+		if t.Timeout > 0 {
+			line += fmt.Sprintf(", may run %d seconds", t.Timeout)
+		}
+		lines = append(lines, line)
 	}
 	if len(item.Secrets) > 0 {
 		lines = append(lines, "  Secrets: "+strings.Join(item.Secrets, ", "))

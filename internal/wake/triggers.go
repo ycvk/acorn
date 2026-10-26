@@ -44,7 +44,7 @@ type firedTrigger struct {
 // fireTriggers keeps the trigger schedules in step with the skills in use,
 // fires each due trigger once for its slot, then delivers the new events of
 // immediate triggers. Triggers of one skill fire one after another; skills
-// fire side by side, so a tick waits for at most the slowest skill.
+// fire side by side, so a round waits for the slowest skill.
 func (s *Scheduler) fireTriggers(ctx context.Context, now time.Time, settings core.Settings) error {
 	if s.triggers == nil {
 		return nil

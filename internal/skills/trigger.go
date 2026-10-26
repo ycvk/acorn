@@ -81,7 +81,7 @@ type TriggerHost interface {
 var ErrMissingSecrets = errors.New("secrets missing")
 
 // TriggerRunner fires package triggers on a host, bounded like the agent's
-// shell commands.
+// shell commands unless a trigger sets its own timeout.
 type TriggerRunner struct {
 	library        *Library
 	host           TriggerHost
@@ -118,13 +118,17 @@ func (r *TriggerRunner) Fire(ctx context.Context, t PackageTrigger) (Output, err
 	if err := r.place(ctx, t); err != nil {
 		return Output{}, err
 	}
-	result, err := r.host.RunTrigger(ctx, TriggerRun{Skill: t.Skill, Hash: t.Hash, Trigger: t.Name, Env: env, TimeoutSeconds: r.timeoutSeconds, MaxOutputBytes: r.maxOutputBytes})
+	timeout := r.timeoutSeconds
+	if t.Timeout > 0 {
+		timeout = t.Timeout
+	}
+	result, err := r.host.RunTrigger(ctx, TriggerRun{Skill: t.Skill, Hash: t.Hash, Trigger: t.Name, Env: env, TimeoutSeconds: timeout, MaxOutputBytes: r.maxOutputBytes})
 	if err != nil {
 		return Output{}, err
 	}
 	switch {
 	case result.TimedOut:
-		return Output{}, fmt.Errorf("the command timed out after %d seconds", r.timeoutSeconds)
+		return Output{}, fmt.Errorf("the command timed out after %d seconds", timeout)
 	case result.ExitCode != 0:
 		return Output{}, fmt.Errorf("the command exited with status %d: %s", result.ExitCode, tail(result.Stderr, 300))
 	case result.StdoutTruncated:

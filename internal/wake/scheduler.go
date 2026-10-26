@@ -143,14 +143,24 @@ func (s *Scheduler) WithTriggers(triggers TriggerRunner, panels PanelFeeder) *Sc
 	return s
 }
 
-// Run ticks immediately, then every interval until ctx ends. Tick errors are
-// logged; the next tick tries again.
+// Run ticks immediately, then every interval until ctx ends. Triggers fire
+// in a loop of their own, so a trigger whose command runs long holds up only
+// the other triggers. Tick errors are logged; the next tick tries again.
 func (s *Scheduler) Run(ctx context.Context) {
+	var wg sync.WaitGroup
+	if s.triggers != nil {
+		wg.Go(func() { s.every(ctx, "wake trigger tick", s.tickTriggers) })
+	}
+	s.every(ctx, "wake scheduler tick", s.tickMain)
+	wg.Wait()
+}
+
+func (s *Scheduler) every(ctx context.Context, name string, tick func(context.Context) error) {
 	ticker := time.NewTicker(s.cfg.Interval)
 	defer ticker.Stop()
 	for {
-		if err := s.Tick(ctx); err != nil {
-			slog.Error("wake scheduler tick", "error", err)
+		if err := tick(ctx); err != nil {
+			slog.Error(name, "error", err)
 		}
 		select {
 		case <-ctx.Done():
@@ -160,12 +170,30 @@ func (s *Scheduler) Run(ctx context.Context) {
 	}
 }
 
-// Tick wakes every due commitment within the daily limit, checks due
-// watches, fires due skill package triggers, records what finished briefings
-// picked and pushes their focus, starts the morning briefing when its time
-// has come, then sends notifications whose quiet hours ended.
-// Errors are joined; one failing commitment does not stop the others.
+// Tick runs one round of both of Run's loops: it fires due skill package
+// triggers, then does the rest of a tick.
 func (s *Scheduler) Tick(ctx context.Context) error {
+	return errors.Join(s.tickTriggers(ctx), s.tickMain(ctx))
+}
+
+// tickTriggers fires the due triggers of skill packages.
+func (s *Scheduler) tickTriggers(ctx context.Context) error {
+	if s.triggers == nil {
+		return nil
+	}
+	settings, err := s.cfg.Settings.Settings(ctx)
+	if err != nil {
+		return err
+	}
+	return s.fireTriggers(ctx, s.cfg.Clock(), settings)
+}
+
+// tickMain wakes every due commitment within the daily limit, checks due
+// watches, records what finished briefings picked and pushes their focus,
+// starts the morning briefing when its time has come, then sends
+// notifications whose quiet hours ended.
+// Errors are joined; one failing commitment does not stop the others.
+func (s *Scheduler) tickMain(ctx context.Context) error {
 	settings, err := s.cfg.Settings.Settings(ctx)
 	if err != nil {
 		return err
@@ -185,9 +213,6 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		}
 	}
 	if err := s.checkWatches(ctx, now, settings); err != nil {
-		errs = append(errs, err)
-	}
-	if err := s.fireTriggers(ctx, now, settings); err != nil {
 		errs = append(errs, err)
 	}
 	if err := s.recordBriefingPicks(ctx, now); err != nil {

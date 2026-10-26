@@ -46,13 +46,20 @@ const (
 )
 
 // Trigger runs a command from the package's directory on a cron schedule in
-// the owner's time zone. Each line the command prints is an event.
+// the owner's time zone. Each line the command prints is an event. Timeout
+// is how many seconds the command may run, up to MaxTriggerTimeoutSeconds;
+// zero leaves the workstation's command timeout.
 type Trigger struct {
 	Name     string  `yaml:"name" json:"name"`
 	Schedule string  `yaml:"schedule" json:"schedule"`
 	Run      string  `yaml:"run" json:"run"`
 	Deliver  Deliver `yaml:"deliver" json:"deliver"`
+	Timeout  int     `yaml:"timeout" json:"timeout,omitempty"`
 }
+
+// MaxTriggerTimeoutSeconds is the longest a trigger's command may run, the
+// workstation's limit for any command.
+const MaxTriggerTimeoutSeconds = 3600
 
 const maxManifestBytes = 64 << 10
 
@@ -136,6 +143,8 @@ func checkTrigger(t Trigger) (Trigger, error) {
 		return Trigger{}, fmt.Errorf("trigger %s: run cannot hold NUL", t.Name)
 	case t.Deliver != DeliverImmediate && t.Deliver != DeliverDigest:
 		return Trigger{}, fmt.Errorf("trigger %s: deliver must be immediate or digest, not %q", t.Name, t.Deliver)
+	case t.Timeout < 0 || t.Timeout > MaxTriggerTimeoutSeconds:
+		return Trigger{}, fmt.Errorf("trigger %s: timeout must be between 1 and %d seconds, not %d", t.Name, MaxTriggerTimeoutSeconds, t.Timeout)
 	}
 	if _, err := presence.ParseCron(t.Schedule); err != nil {
 		return Trigger{}, fmt.Errorf("trigger %s schedule: %w", t.Name, err)

@@ -287,9 +287,10 @@
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-- **触发器只在 wake 调度器运行，同一时刻只认领一次**：每个 tick 让 `skill_triggers` 恰好对应在用技能的触发器：新触发器或改了时间表的排到 owner 时区的下一个时刻，停用技能的触发器删除；缺密钥的包的触发器不运行。到期触发器以 `next_at` 的条件更新认领（多个调度器只有一个运行），同一技能的触发器依次、不同技能并行运行，一个 tick 至多 5 个。工作机先拿到触发器所在的包（哈希不同就先放上去），再以包目录为工作目录用 `bash -lc` 执行 `run`，带包的密钥环境变量，受工作机命令 300 秒的时限与 32 KiB 的输出上限约束。非零退出、超时、输出超限或任一非空行不是 `{"key","text"}` 都算失败：失败次数加一，按追踪项的退避（时刻间隔每次失败翻倍，上限 24 小时）推迟，连续 5 次标为 failing，成功后清零。
+- **触发器只在 wake 调度器运行，同一时刻只认领一次**：每个 tick 让 `skill_triggers` 恰好对应在用技能的触发器：新触发器或改了时间表的排到 owner 时区的下一个时刻，停用技能的触发器删除；缺密钥的包的触发器不运行。到期触发器以 `next_at` 的条件更新认领（多个调度器只有一个运行），触发器在调度器单独的循环里运行，跑得久的只推迟别的触发器；每一轮里同一技能的触发器依次、不同技能并行运行，一轮至多 5 个。工作机先拿到触发器所在的包（哈希不同就先放上去），再以包目录为工作目录用 `bash -lc` 执行 `run`，带包的密钥环境变量，受 32 KiB 的输出上限与时限约束：默认是工作机命令的 300 秒，清单里触发器的 `timeout` 可设 1 到 3600 秒。非零退出、超时、输出超限或任一非空行不是 `{"key","text"}` 都算失败：失败次数加一，按追踪项的退避（时刻间隔每次失败翻倍，上限 24 小时）推迟，连续 5 次标为 failing，成功后清零。
   - `internal/wake/triggers_test.go`
   - `internal/skills/manifest_test.go`
+  - `internal/workstation/trigger_test.go`
   - `internal/workstation/trigger_test.go`
   - `internal/store/store_skills_test.go`
   - `internal/wire/package_triggers_e2e_test.go`

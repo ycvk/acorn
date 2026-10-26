@@ -368,3 +368,49 @@ func TestTriggerItemsFeedTheNewsSourcesThatFollowIt(t *testing.T) {
 		t.Fatalf("items woke the agent: %v", h.runs.starts)
 	}
 }
+
+// blockingTriggers fires like fakeTriggers, holding each command until
+// released.
+type blockingTriggers struct {
+	*fakeTriggers
+	started, release chan struct{}
+}
+
+func (b *blockingTriggers) Fire(ctx context.Context, t skills.PackageTrigger) (skills.Output, error) {
+	b.started <- struct{}{}
+	<-b.release
+	return b.fakeTriggers.Fire(ctx, t)
+}
+
+// Triggers fire in a loop of their own: while one runs for long, the rest of
+// the scheduler keeps ticking.
+func TestALongTriggerDoesNotHoldUpTheScheduler(t *testing.T) {
+	h, f := newTriggerHarness(t, 20, core.DailyTime{}, packageTrigger("jikeyun", "daily", skills.DeliverDigest))
+	h.at(9, 7)
+	h.tick(t) // schedules the first slot, 09:30
+	h.at(9, 30)
+	blocking := &blockingTriggers{fakeTriggers: f, started: make(chan struct{}), release: make(chan struct{})}
+	notifier := &fakeNotifier{}
+	h.sched.WithTriggers(blocking, h.panels).WithNotifications(notifier)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		h.sched.Run(ctx)
+		close(done)
+	}()
+	<-blocking.started
+	deadline := time.After(5 * time.Second)
+	for notifier.flushCount() < 2 {
+		select {
+		case <-deadline:
+			t.Fatalf("the scheduler ticked %d times while a trigger ran", notifier.flushCount())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	close(blocking.release)
+	cancel()
+	<-done
+	if f.firedCount() != 1 {
+		t.Fatalf("fired = %v", f.fired)
+	}
+}
