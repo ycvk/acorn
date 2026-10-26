@@ -48,3 +48,10 @@ func TestTriggerCommandsRunFromTheirPackageWithTheirSecrets(t *testing.T) {
 		}
 	}
 }
+
+// A trigger may run as long as the workstation lets any command run.
+func TestTriggerTimeoutsStayWithinTheWorkstationLimit(t *testing.T) {
+	if skills.MaxTriggerTimeoutSeconds != MaxTimeoutSeconds {
+		t.Fatalf("manifest timeouts go up to %d seconds, the workstation runs commands up to %d", skills.MaxTriggerTimeoutSeconds, MaxTimeoutSeconds)
+	}
+}

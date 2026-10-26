@@ -11,6 +11,7 @@ triggers:
     schedule: "*/30 * * * *"     # cron, in the owner's time zone
     run: scripts/check_price.py  # a command, run from the package's directory
     deliver: immediate           # or digest
+    timeout: 600                 # optional, seconds; 300 when left out, up to 3600
 secrets: [PRICE_API_KEY]
 ```
 
@@ -20,7 +21,7 @@ It runs on the workstation from the package's directory while the skill is in us
 
 ## Triggers
 
-The command runs at each time of the schedule, as your shell runs commands, within the workstation's command timeout. Each line it prints to stdout is an event, a news item or view data (below):
+The command runs at each time of the schedule, as your shell runs commands, within its timeout: 300 seconds unless the trigger sets `timeout`, up to 3600 for a command that needs long. Each line it prints to stdout is an event, a news item or view data (below):
 
 ```json
 {"key": "price-121000", "text": "BTC is at 121,000 USD, above the 120,000 threshold."}

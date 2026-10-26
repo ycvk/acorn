@@ -178,7 +178,11 @@ func manifestDetail(content []byte, note string) string {
 		lines = append(lines, "MCP server: "+m.MCP.CommandLine())
 	}
 	for _, t := range m.Triggers {
-		lines = append(lines, fmt.Sprintf("Trigger %s at %q (owner's time), events %s: %s", t.Name, t.Schedule, deliverText(t.Deliver), t.Run))
+		line := fmt.Sprintf("Trigger %s at %q (owner's time), events %s: %s", t.Name, t.Schedule, deliverText(t.Deliver), t.Run)
+		if t.Timeout > 0 {
+			line += fmt.Sprintf(" (may run %d seconds)", t.Timeout)
+		}
+		lines = append(lines, line)
 	}
 	secrets := "none"
 	if len(m.Secrets) > 0 {

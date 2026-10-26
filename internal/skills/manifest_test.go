@@ -35,7 +35,7 @@ func TestParseManifestIsStrict(t *testing.T) {
 	triggers, err := ParseManifest([]byte(priceManifest))
 	want := []Trigger{
 		{Name: "price", Schedule: "*/30 * * * *", Run: "scripts/check_price.py --above 100", Deliver: DeliverImmediate},
-		{Name: "weekly", Schedule: "0 9 * * 1", Run: "scripts/weekly.sh", Deliver: DeliverDigest},
+		{Name: "weekly", Schedule: "0 9 * * 1", Run: "scripts/weekly.sh", Deliver: DeliverDigest, Timeout: 1800},
 	}
 	if err != nil || triggers.MCP != nil || !slices.Equal(triggers.Triggers, want) || !slices.Equal(triggers.Secrets, []string{"PRICE_TOKEN"}) {
 		t.Fatalf("triggers = %+v, %v", triggers, err)
@@ -65,6 +65,9 @@ func TestParseManifestIsStrict(t *testing.T) {
 		"no deliver":            "triggers:\n  - name: price\n    schedule: \"* * * * *\"\n    run: x\n",
 		"unknown deliver":       "triggers:\n  - name: price\n    schedule: \"* * * * *\"\n    run: x\n    deliver: later\n",
 		"repeated trigger name": trigger("  - name: price\n    schedule: \"0 * * * *\"\n    run: y\n    deliver: digest\n"),
+		"timeout over an hour":  trigger("    timeout: 3601\n"),
+		"negative timeout":      trigger("    timeout: -1\n"),
+		"timeout in minutes":    trigger("    timeout: 30m\n"),
 	} {
 		if _, err := ParseManifest([]byte(content)); err == nil {
 			t.Errorf("%s: parsed %q", name, content)
@@ -84,6 +87,7 @@ const priceManifest = `triggers:
     schedule: "0 9 * * 1"
     run: scripts/weekly.sh
     deliver: digest
+    timeout: 1800
 secrets: [PRICE_TOKEN]
 `
 
@@ -349,6 +353,15 @@ func TestTriggersFireFromTheirPackageWithItsSecrets(t *testing.T) {
 		if _, err := runner.Fire(ctx, triggers[0]); err == nil || !strings.Contains(err.Error(), name) {
 			t.Fatalf("%s: err = %v", name, err)
 		}
+	}
+	// A trigger with its own timeout runs that long.
+	host.result = TriggerResult{}
+	if _, err := runner.Fire(ctx, triggers[1]); err != nil || host.runs[len(host.runs)-1].TimeoutSeconds != 1800 {
+		t.Fatalf("weekly run = %+v, %v", host.runs[len(host.runs)-1], err)
+	}
+	host.result = TriggerResult{TimedOut: true, ExitCode: -1}
+	if _, err := runner.Fire(ctx, triggers[1]); err == nil || !strings.Contains(err.Error(), "timed out after 1800 seconds") {
+		t.Fatalf("weekly timeout: %v", err)
 	}
 }
 
