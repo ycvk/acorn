@@ -1,8 +1,6 @@
 ---
 name: morning-briefing
-description: Write the morning briefing for an input starting with [briefing as the reply and push a short summary (早安, 简报).
-metadata:
-  acorn-requires-tools: notify_owner
+description: Write the morning briefing for an input starting with [briefing as the reply; Acorn pushes its focus (早安, 简报).
 ---
 # Morning Briefing
 
@@ -26,7 +24,7 @@ metadata:
 
 ## 写法
 
-最后的回复就是简报全文，App 的"此刻"页直接展示它。简报只写新闻和 owner 需要知道或处理的事；Acorn 自己的运转（夜思、记忆处理、技能、约定与关切的清单）不写，也不写"没有某事"。不写开场白和总标题，每段以 `## ` 开头的小标题起头，只放有内容的段落，依次是：
+读完这份技能就直接写简报，回复就是简报全文，App 的"此刻"页直接展示它；不再调用工具，写完即结束。简报只写新闻和 owner 需要知道或处理的事；Acorn 自己的运转（夜思、记忆处理、技能、约定与关切的清单）不写，也不写"没有某事"。不写开场白和总标题，每段以 `## ` 开头的小标题起头，只放有内容的段落，依次是：
 
 1. 各新闻板块，小标题用板块名。事件跨板块连续编号，每条一行：`1. **标题**：一句话说清是什么、为什么值得知道。[来源](链接)`。
 2. `## 今日关注`：从上面挑最值得关注的 3 件，每件一行，以 `- 第 N 条：` 开头，N 是上面条目的编号，再写清它为什么重要。
@@ -39,4 +37,4 @@ metadata:
 
 ## 推送
 
-写完后用 `notify_owner` 推送，标题 `早安`。有新闻时正文是今日关注的 3 件，每件一行；没有新闻时放最重要的两三件事，每件一行。「需要你处理」有内容时再加一行，说清要处理什么。
+不用推送。简报写完后，Acorn 按今日关注的顺序推送那几条新闻的粗体标题；没有新闻时推送前三段各自的第一行；「需要你处理」有内容时再加上它的第一行。所以标题要短而完整，每段第一行放最重要的事，「需要你处理」的第一行说清要处理什么。

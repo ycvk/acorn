@@ -75,10 +75,10 @@ const maxChecksPerTick = 5
 // Scheduler keeps commitments. Tick is safe to call from several processes
 // sharing one database: claiming a commitment is a conditional update.
 type Scheduler struct {
-	cfg           Config
-	notifications NotificationFlusher
-	triggers      TriggerRunner
-	panels        PanelFeeder
+	cfg      Config
+	notifier Notifier
+	triggers TriggerRunner
+	panels   PanelFeeder
 
 	mu     sync.Mutex
 	warned map[string]string // commitment or watch -> local day already warned about the limit
@@ -120,15 +120,18 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 	return &Scheduler{cfg: cfg, warned: map[string]string{}}, nil
 }
 
-// NotificationFlusher sends queued notifications whose time has come.
-type NotificationFlusher interface {
+// Notifier pushes to the owner, now or when quiet hours end, and sends
+// queued notifications whose time has come.
+type Notifier interface {
+	Notify(ctx context.Context, n core.Notification) (core.Notification, error)
 	FlushDue(ctx context.Context) error
 }
 
-// WithNotifications makes each tick also send notifications held back by
-// quiet hours. Without push notifications nothing is ever queued.
-func (s *Scheduler) WithNotifications(flusher NotificationFlusher) *Scheduler {
-	s.notifications = flusher
+// WithNotifications makes each finished briefing push its focus and each
+// tick send notifications held back by quiet hours. Without push
+// notifications nothing is ever pushed or queued.
+func (s *Scheduler) WithNotifications(notifier Notifier) *Scheduler {
+	s.notifier = notifier
 	return s
 }
 
@@ -157,10 +160,10 @@ func (s *Scheduler) Run(ctx context.Context) {
 	}
 }
 
-// Tick wakes every due commitment within the daily limit,
-// checks due watches, fires due skill package triggers, records what finished
-// briefings picked, starts the morning briefing when its time has come, then
-// sends notifications whose quiet hours ended.
+// Tick wakes every due commitment within the daily limit, checks due
+// watches, fires due skill package triggers, records what finished briefings
+// picked and pushes their focus, starts the morning briefing when its time
+// has come, then sends notifications whose quiet hours ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) Tick(ctx context.Context) error {
 	settings, err := s.cfg.Settings.Settings(ctx)
@@ -202,8 +205,8 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	if err := s.cfg.News.PruneNewsReactions(ctx, now.Add(-core.NewsReactionRetention)); err != nil {
 		errs = append(errs, err)
 	}
-	if s.notifications != nil {
-		if err := s.notifications.FlushDue(ctx); err != nil {
+	if s.notifier != nil {
+		if err := s.notifier.FlushDue(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("flush notifications: %w", err))
 		}
 	}
