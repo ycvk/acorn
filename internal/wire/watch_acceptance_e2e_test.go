@@ -80,7 +80,6 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 		textReply("盯上了"),
 		textReply("手机降价了"),
 		toolCallChunk("call_skill", "skill", map[string]string{"skill": "morning-briefing"}),
-		toolCallChunk("call_push", "notify_owner", map[string]string{"title": "早安", "body": "Go 博客有新文章"}),
 		textReply("## 追踪\nGo 博客有新文章 go1.27。"),
 		textReply("夜思：昨天的技能用法没有问题。"),
 		textReply("第二天的简报"),
@@ -144,17 +143,12 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	if out, err := c.store.LatestRoutineOutput(ctx, "briefing"); err != nil || out.ThreadID != briefingThread || out.Text != "## 追踪\nGo 博客有新文章 go1.27。" {
 		t.Fatalf("briefing reply = %+v, %v", out, err)
 	}
-	sent := harness.fcm.sent()
-	if len(sent) != 1 {
-		t.Fatalf("pushes = %v", sent)
-	}
-	if data, _ := sent[0]["data"].(map[string]any); data["thread_id"] != briefingThread {
-		t.Fatalf("push data = %v, want the briefings thread %s", data, briefingThread)
-	}
 	if left, _ := c.store.ListWatchItems(ctx, core.WatchItemPending, 10); len(left) != 0 {
 		t.Fatalf("items still pending after the briefing: %+v", left)
 	}
 
+	// The next tick pushes the briefing without asking the model: without
+	// news, the first line of its sections.
 	requests := provider.requestCount()
 	harness.clock.Set(time.Date(2026, 10, 5, 3, 0, 0, 0, time.UTC))
 	if err := c.wake.Tick(ctx); err != nil {
@@ -162,6 +156,16 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	}
 	if provider.requestCount() != requests {
 		t.Fatal("the briefing ran twice on one day")
+	}
+	sent := harness.fcm.sent()
+	if len(sent) != 1 {
+		t.Fatalf("pushes = %v", sent)
+	}
+	if n, _ := sent[0]["notification"].(map[string]any); n["title"] != "早安" || n["body"] != "Go 博客有新文章 go1.27。" {
+		t.Fatalf("push = %v", sent[0])
+	}
+	if data, _ := sent[0]["data"].(map[string]any); data["thread_id"] != briefingThread {
+		t.Fatalf("push data = %v, want the briefings thread %s", data, briefingThread)
 	}
 
 	// The next briefing sees only its own input: the night reflection stays

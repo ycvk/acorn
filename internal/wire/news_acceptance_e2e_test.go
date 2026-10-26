@@ -148,7 +148,6 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 		completionReply(`{"items":[{"id":__item:国务院常务会议__,"score":5,"story":"n1"},{"id":__item:高铁新线开通__,"score":3,"story":"n2"}],` +
 			`"stories":[{"ref":"n1","section":"国内要闻","title":"国务院常务会议","summary":"国务院常务会议部署民生工作。"},{"ref":"n2","section":"国内要闻","title":"高铁新线开通","summary":"一条高铁新线开通运营。"}]}`),
 		toolCallChunk("call_skill", "skill", map[string]string{"skill": "morning-briefing"}),
-		toolCallChunk("call_push", "notify_owner", map[string]string{"title": "早安", "body": "1. 国务院常务会议"}),
 		textReply("## 国内要闻\n1. **国务院常务会议**：部署民生工作。[中新网](http://news.test/n/国务院常务会议)\n\n## 今日关注\n- 第 1 条：民生工作的部署。"),
 	}}
 	server := httptest.NewServer(provider)
@@ -233,20 +232,27 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	if used, err := c.store.MemoryUsageSince(ctx, start, "news"); err != nil || used != 2000 {
 		t.Fatalf("news usage = %d, %v", used, err)
 	}
-	briefings := 0
-	for _, push := range harness.fcm.sent() {
-		if n, _ := push["notification"].(map[string]any); n != nil && n["title"] == "早安" {
-			briefings++
+	briefingPushes := func() []string {
+		var bodies []string
+		for _, push := range harness.fcm.sent() {
+			if n, _ := push["notification"].(map[string]any); n != nil && n["title"] == "早安" {
+				bodies = append(bodies, fmt.Sprint(n["body"]))
+			}
 		}
+		return bodies
 	}
-	if briefings != 1 {
-		t.Fatalf("briefing pushes = %d: %v", briefings, harness.fcm.sent())
+	if pushed := briefingPushes(); len(pushed) != 0 {
+		t.Fatalf("the briefing run pushed itself: %q", pushed)
 	}
 
-	// The next tick reads the stories the briefing picked from its reply;
-	// the now page lists them and the owner reacts to one.
+	// The next tick reads the stories the briefing picked from its reply and
+	// pushes today's focus; the now page lists them and the owner reacts to
+	// one.
 	if err := c.wake.Tick(ctx); err != nil {
 		t.Fatalf("tick: %v", err)
+	}
+	if pushed := briefingPushes(); len(pushed) != 1 || pushed[0] != "国务院常务会议" {
+		t.Fatalf("briefing pushes = %q: %v", pushed, harness.fcm.sent())
 	}
 	client := newPairedClient(t, c)
 	now := loadNow(t, client)

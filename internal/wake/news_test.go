@@ -341,15 +341,20 @@ func TestFinishedBriefingsRecordTheStoriesTheyPicked(t *testing.T) {
 		"## 追踪",
 		"1. **eino v0.9**：发布了。[GitHub](https://github.test/eino)",
 	}, "\n")
-	h.news.unrecorded = []core.RoutineOutput{{Slot: "2026-10-05", RunID: "run_b", Text: body, FinishedAt: finished}}
+	h.news.unrecorded = []core.RoutineOutput{{Slot: "2026-10-05", ThreadID: "thread_briefings", RunID: "run_b", Text: body, FinishedAt: finished}}
 	item := func(watch int64, url string) core.WatchItem { return core.WatchItem{WatchID: watch, URL: url} }
 	h.news.briefed = map[string][]core.NewsStory{"run_b": {
 		story(11, "国际与财经", "菲律宾央行加息", 4, finished, "", item(3, "https://bbc.test/ph")),
 		story(12, "国际与财经", "普京提议中美俄三方会谈", 5, finished, "", item(3, "https://bbc.test/talks"), item(4, "https://ft.test/talks/")),
 		story(13, "AI", "DeepSeek 开源推理框架", 5, finished, "", item(5, "https://ai225.test/1")),
 	}}
+	notifier := &fakeNotifier{}
+	h.sched.WithNotifications(notifier)
 	if err := h.sched.Tick(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+	if want := []core.Notification{{Title: "早安", Body: "普京提议中美俄三方会谈", ThreadID: "thread_briefings", RunID: "run_b"}}; !reflect.DeepEqual(notifier.pushed, want) {
+		t.Fatalf("pushed = %+v, want the focus", notifier.pushed)
 	}
 	want := []core.BriefingPicks{{RunID: "run_b", BriefedAt: finished, Stories: []core.BriefingStory{
 		{StoryID: 11, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://bbc.test/ph", Sources: []int64{3}},
@@ -359,8 +364,52 @@ func TestFinishedBriefingsRecordTheStoriesTheyPicked(t *testing.T) {
 	if !reflect.DeepEqual(h.news.recorded, want) {
 		t.Fatalf("recorded = %+v", h.news.recorded)
 	}
-	if err := h.sched.Tick(context.Background()); err != nil || len(h.news.recorded) != 1 {
-		t.Fatalf("a recorded briefing is recorded again: %v, %+v", err, h.news.recorded)
+	if err := h.sched.Tick(context.Background()); err != nil || len(h.news.recorded) != 1 || len(notifier.pushed) != 1 {
+		t.Fatalf("a recorded briefing is recorded or pushed again: %v, %+v, %+v", err, h.news.recorded, notifier.pushed)
+	}
+}
+
+// On 2026-10-25 the briefing run wrote the briefing, pushed, then closed with
+// a line of its own, and that line was all Acorn kept. Such a reply lists no
+// news and has nothing to push; the failure is reported, not pushed.
+func TestABriefingReplyWithoutSectionsIsAFailure(t *testing.T) {
+	h := newHarness(t, 20)
+	h.section(t, "国际与财经", 1, "")
+	finished := h.now.Add(-time.Hour)
+	h.news.unrecorded = []core.RoutineOutput{{Slot: "2026-10-25", RunID: "run_b", Text: "早安简报已写好并推送。今日关注三条：地震救援、海啸预警、教堂枪击。", FinishedAt: finished}}
+	h.news.briefed = map[string][]core.NewsStory{"run_b": {
+		story(11, "国际与财经", "瓦努阿图海啸预警", 5, finished, "", core.WatchItem{WatchID: 3, URL: "https://bbc.test/tsunami"}),
+	}}
+	notifier := &fakeNotifier{}
+	h.sched.WithNotifications(notifier)
+	err := h.sched.Tick(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "push briefing run_b: its reply has no section to push") {
+		t.Fatalf("tick error = %v", err)
+	}
+	if len(notifier.pushed) != 0 || len(h.news.recorded) != 1 || len(h.news.recorded[0].Stories) != 0 {
+		t.Fatalf("pushed = %+v, recorded = %+v", notifier.pushed, h.news.recorded)
+	}
+	if err := h.sched.Tick(context.Background()); err != nil {
+		t.Fatalf("the failure is reported once: %v", err)
+	}
+}
+
+func TestBriefingPushTakesTheFocusOrTheFirstLines(t *testing.T) {
+	for name, tc := range map[string]struct{ body, want string }{
+		"focus in its order, then the action": {
+			body: "## 国内要闻\n1. **对外投资新办法**：12 月 1 日施行。[中新网](https://n.test/1)\n## 国际与财经\n2. **卢拉连任**：巴西大选落定。[BBC](https://b.test/2)\n" +
+				"## 今日关注\n- 第 2 条：拉美最大经济体。\n- 第 1 条：出海要按新办法。\n## 追踪\n1. **eino v0.9**：发布了。\n## 需要你处理\n- **BBC 中文**连续抓取失败：换源或暂停。",
+			want: "卢拉连任\n对外投资新办法\nBBC 中文连续抓取失败：换源或暂停。",
+		},
+		"no news: the first line of the first sections": {
+			body: "## 今天\n- 10:00 和房东签合同\n- 交电费\n## 记下的事\n你说下周去杭州。\n## 追踪\n1. **[Go 1.27 发布](https://go.test/1)**\n## 手机通知\n- 快递到了",
+			want: "10:00 和房东签合同\n你说下周去杭州。\nGo 1.27 发布",
+		},
+		"a closing line without sections": {body: "早安简报已写好并推送。", want: ""},
+	} {
+		if got := briefingPush(tc.body); got != tc.want {
+			t.Errorf("%s: push = %q, want %q", name, got, tc.want)
+		}
 	}
 }
 

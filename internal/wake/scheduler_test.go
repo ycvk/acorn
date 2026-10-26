@@ -279,16 +279,25 @@ func TestNewSchedulerRequiresDependencies(t *testing.T) {
 	}
 }
 
-type countingFlusher struct{ calls int }
+// fakeNotifier records pushes and counts flushes.
+type fakeNotifier struct {
+	pushed  []core.Notification
+	flushes int
+}
 
-func (f *countingFlusher) FlushDue(context.Context) error { f.calls++; return nil }
+func (f *fakeNotifier) Notify(_ context.Context, n core.Notification) (core.Notification, error) {
+	f.pushed = append(f.pushed, n)
+	return n, nil
+}
+
+func (f *fakeNotifier) FlushDue(context.Context) error { f.flushes++; return nil }
 
 func TestTickFlushesQueuedNotifications(t *testing.T) {
 	h := newHarness(t, 20)
-	flusher := &countingFlusher{}
-	h.sched.WithNotifications(flusher)
-	if err := h.sched.Tick(context.Background()); err != nil || flusher.calls != 1 {
-		t.Fatalf("flush calls = %d err=%v", flusher.calls, err)
+	notifier := &fakeNotifier{}
+	h.sched.WithNotifications(notifier)
+	if err := h.sched.Tick(context.Background()); err != nil || notifier.flushes != 1 {
+		t.Fatalf("flush calls = %d err=%v", notifier.flushes, err)
 	}
 }
 

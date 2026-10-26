@@ -159,7 +159,7 @@ func TestThinkingTokenBudgetAcrossOwnerDays(t *testing.T) {
 	now := time.Now().UTC()
 	start := time.Date(now.Year(), now.Month(), now.Day(), 1, 0, 0, 0, time.UTC)
 	h, extra := newPushHarness(t, start)
-	provider := &fakeOpenAI{replies: []string{withUsage(textReply("first wake"), 150), withUsage(textReply("briefing"), 150), withUsage(textReply("next day"), 150)}}
+	provider := &fakeOpenAI{replies: []string{withUsage(textReply("first wake"), 150), withUsage(textReply("## 今天\n- 交电费"), 150), withUsage(textReply("next day"), 150)}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	cfg := writeTestConfig(t, server.URL, extra, ownerSettings{settings.KeyWakeDailyTokens: `100`, settings.KeyBriefingAt: `"08:00"`, settings.KeyNightAt: `""`})
