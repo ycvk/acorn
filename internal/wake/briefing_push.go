@@ -101,8 +101,12 @@ func briefingPush(body string) string {
 	return strings.Join(lines, "\n")
 }
 
-// pushLine is a briefing line as plain text: no number or list marker, bold
-// or links, at most briefingPushRunes.
+// pushMarks are the Markdown marks a push shows as they are: bold and inline
+// code.
+var pushMarks = strings.NewReplacer("**", "", "`", "")
+
+// pushLine is a briefing line as plain text: no number or list marker, bold,
+// inline code marks or links, at most briefingPushRunes.
 func pushLine(line string) string {
 	if m := newsLine.FindStringSubmatch(line); m != nil {
 		line = m[2]
@@ -112,5 +116,5 @@ func pushLine(line string) string {
 		text, _, _ := strings.Cut(strings.TrimPrefix(link, "["), "](")
 		return text
 	})
-	return truncateRunes(strings.TrimSpace(strings.ReplaceAll(line, "**", "")), briefingPushRunes)
+	return truncateRunes(strings.TrimSpace(pushMarks.Replace(line)), briefingPushRunes)
 }

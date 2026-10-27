@@ -398,8 +398,8 @@ func TestBriefingPushTakesTheFocusOrTheFirstLines(t *testing.T) {
 	for name, tc := range map[string]struct{ body, want string }{
 		"focus in its order, then the action": {
 			body: "## 国内要闻\n1. **对外投资新办法**：12 月 1 日施行。[中新网](https://n.test/1)\n## 国际与财经\n2. **卢拉连任**：巴西大选落定。[BBC](https://b.test/2)\n" +
-				"## 今日关注\n- 第 2 条：拉美最大经济体。\n- 第 1 条：出海要按新办法。\n## 追踪\n1. **eino v0.9**：发布了。\n## 需要你处理\n- **BBC 中文**连续抓取失败：换源或暂停。",
-			want: "卢拉连任\n对外投资新办法\nBBC 中文连续抓取失败：换源或暂停。",
+				"## 今日关注\n- 第 2 条：拉美最大经济体。\n- 第 1 条：出海要按新办法。\n## 追踪\n1. **eino v0.9**：发布了。\n## 需要你处理\n- **BBC 中文**连续抓取失败：日志在 `~/feeds/bbc.log`，换源或暂停。",
+			want: "卢拉连任\n对外投资新办法\nBBC 中文连续抓取失败：日志在 ~/feeds/bbc.log，换源或暂停。",
 		},
 		"no news: the first line of the first sections": {
 			body: "## 今天\n- 10:00 和房东签合同\n- 交电费\n## 记下的事\n你说下周去杭州。\n## 追踪\n1. **[Go 1.27 发布](https://go.test/1)**\n## 手机通知\n- 快递到了",
