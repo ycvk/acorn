@@ -82,7 +82,7 @@ func (s *Scheduler) prepareNews(ctx context.Context, m *briefingMaterial, since,
 		return briefingNews{}, err
 	}
 	m.add(s.newsStories(sections, offered.Stories, reactions, since, loc), true)
-	previous, err := s.previousBriefing(ctx)
+	previous, err := s.previousBriefing(ctx, sections)
 	if err != nil {
 		return briefingNews{}, err
 	}
@@ -209,14 +209,42 @@ func (s *Scheduler) itemTime(item core.WatchItem, loc *time.Location) string {
 	return at.In(loc).Format("01-02 15:04")
 }
 
-// previousBriefing carries the last briefing written, so stories it told
-// are not repeated without new developments.
-func (s *Scheduler) previousBriefing(ctx context.Context) (string, error) {
+// previousBriefing carries the news sections and today's focus of the last
+// briefing written, so stories it told are not repeated without new
+// developments. Its other sections stay out: what they listed was handled
+// then, and the materials bring what still is.
+func (s *Scheduler) previousBriefing(ctx context.Context, sections []core.NewsSection) (string, error) {
 	latest, err := s.cfg.Routines.LatestRoutineOutput(ctx, "briefing")
-	if err != nil || strings.TrimSpace(latest.Text) == "" {
+	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Previous briefing (%s), for not repeating a story without new developments:\n%s\n", latest.Slot, truncateRunes(strings.TrimSpace(latest.Text), maxPreviousBriefing)), nil
+	news := briefingNewsPart(latest.Text, sections)
+	if news == "" {
+		return "", nil
+	}
+	return fmt.Sprintf("Previous briefing (%s), its news and focus, for not repeating a story without new developments:\n%s\n", latest.Slot, truncateRunes(news, maxPreviousBriefing)), nil
+}
+
+// briefingNewsPart is the sections of a briefing headed by a news section's
+// name or today's focus, with their headings.
+func briefingNewsPart(body string, sections []core.NewsSection) string {
+	news := map[string]bool{focusHeading: true}
+	for _, section := range sections {
+		news[section.Name] = true
+	}
+	var (
+		b    strings.Builder
+		keep bool
+	)
+	for line := range strings.SplitSeq(body, "\n") {
+		if h, ok := strings.CutPrefix(strings.TrimSpace(line), "## "); ok {
+			keep = news[strings.TrimSpace(h)]
+		}
+		if keep {
+			b.WriteString(line + "\n")
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // newsHealth reports the news sources whose items the sorting gave up on

@@ -174,7 +174,9 @@ func story(id int64, section, title string, score int, first time.Time, developm
 func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
 	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
 	ctx := context.Background()
-	h.writtenBriefing(t, "2026-10-04", "## 国内要闻\n1. **旧闻**：昨天报过。")
+	// On 2026-10-28 the briefing copied the action line of the day before
+	// from its previous briefing; only the news and the focus are carried.
+	h.writtenBriefing(t, "2026-10-04", "## 国内要闻\n1. **旧闻**：昨天报过。\n## 今日关注\n- 第 1 条：要紧。\n## 今天\n- 交电费\n## 需要你处理\n技客云领奖：27 个账号全部失败。")
 	h.section(t, "AI", 2, "")
 	h.section(t, "国内要闻", 1, "1. 政策与民生")
 	domestic := h.newsWatch(t, "中新网要闻", "国内要闻", core.WatchActive)
@@ -215,12 +217,15 @@ func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
 		"- [4] 地震救援 (since 10-02; new: 伤亡数字更新)\n",
 		"\n## AI\n- [5] DeepSeek 开源推理框架 (new)\n",
 		"\n## 体育\n- [2] 已删除板块的事 (new)\n",
-		"Previous briefing (2026-10-04), for not repeating a story without new developments:\n## 国内要闻\n1. **旧闻**：昨天报过。\n",
+		"Previous briefing (2026-10-04), its news and focus, for not repeating a story without new developments:\n## 国内要闻\n1. **旧闻**：昨天报过。\n## 今日关注\n- 第 1 条：要紧。\n",
 		"Watch changes since the last briefing:\n\n## #4 blog (rss, 1 new)\n- post-1",
 	} {
 		if !strings.Contains(input, want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, input)
 		}
+	}
+	if strings.Contains(input, "交电费") || strings.Contains(input, "技客云") {
+		t.Fatalf("the previous briefing's other sections were carried:\n%s", input)
 	}
 	if strings.Index(input, "## 国内要闻") > strings.Index(input, "## AI") || strings.Index(input, "## AI") > strings.Index(input, "## 体育") {
 		t.Fatalf("sections out of order:\n%s", input)
