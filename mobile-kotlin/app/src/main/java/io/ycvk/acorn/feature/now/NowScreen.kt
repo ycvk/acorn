@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -38,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,6 +119,7 @@ fun NowScreen(
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
     val approvalError by approvals.error.collectAsStateWithLifecycle()
+    val askingStory by viewModel.askingStory.collectAsStateWithLifecycle()
     var cancelling by remember { mutableStateOf<NowCommitment?>(null) }
 
     val refresh = {
@@ -125,6 +128,8 @@ fun NowScreen(
     }
     LaunchedEffect(Unit) { refresh() }
     OnReturnToForeground(refresh)
+    val openThread by rememberUpdatedState(onThreadClick)
+    LaunchedEffect(viewModel) { viewModel.openThread.collect { openThread(it) } }
 
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
@@ -185,7 +190,12 @@ fun NowScreen(
                         zone = zone,
                         profile = viewModel.connection(),
                         onThreadClick = onThreadClick,
-                        onReact = viewModel::react,
+                        stories = StoryActions(
+                            asking = askingStory,
+                            onOpen = viewModel::openStory,
+                            onFollow = viewModel::followStory,
+                            onReact = viewModel::react,
+                        ),
                         onUnpin = viewModel::unpinView,
                         onCancel = { cancelling = it },
                         onPause = viewModel::pauseWatch,
@@ -263,7 +273,7 @@ private fun LazyListScope.nowSections(
     zone: ZoneId,
     profile: ConnectionProfile?,
     onThreadClick: (String) -> Unit,
-    onReact: (NowBriefingStory, NowBriefingStory.Reaction) -> Unit,
+    stories: StoryActions,
     onUnpin: (NowPanel) -> Unit,
     onCancel: (NowCommitment) -> Unit,
     onPause: (Long) -> Unit,
@@ -285,7 +295,7 @@ private fun LazyListScope.nowSections(
 
     if (briefing != null) {
         item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
-        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onThreadClick(briefing.threadId) }, onReact = onReact) }
+        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onThreadClick(briefing.threadId) }, stories = stories) }
     }
 
     if (now.panels.isNotEmpty()) {
@@ -326,17 +336,27 @@ private fun LazyListScope.nowSections(
     }
 }
 
+/** What the owner can do with a story on the briefing card, and the story whose ask is being sent. */
+private class StoryActions(
+    val asking: Long?,
+    val onOpen: (NowBriefingStory) -> Unit,
+    val onFollow: (NowBriefingStory) -> Unit,
+    val onReact: (NowBriefingStory, NowBriefingStory.Reaction) -> Unit,
+)
+
 /**
- * The latest briefing: the stories it picked by section, today's focus and
- * the owner's reactions marked, then a preview of the rest. A tap opens the
- * briefing; a long press on a story asks for more or less of its kind.
+ * The latest briefing: the stories it picked by section, today's focus, the
+ * stories followed and the owner's reactions marked, then a preview of the
+ * rest. A tap on a story opens its conversation, where Acorn explains it the
+ * first time; a long press asks to follow it or for more or less of its
+ * kind. A tap elsewhere opens the briefing.
  */
 @Composable
 private fun BriefingCard(
     briefing: NowBriefing,
     sections: List<BriefingSection>,
     onClick: () -> Unit,
-    onReact: (NowBriefingStory, NowBriefingStory.Reaction) -> Unit,
+    stories: StoryActions,
 ) {
     val colors = AcornTheme.colors
     val preview = AcornTheme.type.callout
@@ -357,11 +377,11 @@ private fun BriefingCard(
                 Text(ago(briefing.finishedAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
             }
         }
-        storySections(briefing.stories).forEach { (section, stories) ->
+        storySections(briefing.stories).forEach { (section, picked) ->
             Spacer(Modifier.height(12.dp))
             Text(section, style = AcornTheme.type.eyebrow, color = colors.accentInk)
             Spacer(Modifier.height(2.dp))
-            stories.forEach { story -> StoryRow(story, onClick = onClick, onReact = { onReact(story, it) }) }
+            picked.forEach { story -> StoryRow(story, stories) }
         }
         val previews = previewSections(sections, briefing.stories)
         previews.take(if (briefing.stories.isEmpty()) 4 else 3).forEach { section ->
@@ -381,21 +401,28 @@ private fun BriefingCard(
     }
 }
 
-/** One picked story: its title, whether it is today's focus, and the owner's reaction. */
+/**
+ * One picked story: its title, whether it is today's focus, whether Acorn
+ * follows it, and the owner's reaction. While an ask about a story is being
+ * sent no row takes a tap, and that story's row shows it is sending.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun StoryRow(story: NowBriefingStory, onClick: () -> Unit, onReact: (NowBriefingStory.Reaction) -> Unit) {
+private fun StoryRow(story: NowBriefingStory, actions: StoryActions) {
     val colors = AcornTheme.colors
     val haptics = rememberHaptics()
     var menu by remember { mutableStateOf(false) }
+    val onReact = { reaction: NowBriefingStory.Reaction -> actions.onReact(story, reaction) }
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(AcornShapes.small)
                 .combinedClickable(
-                    onClick = onClick,
-                    onLongClickLabel = "多报或少报这类",
+                    enabled = actions.asking == null,
+                    onClickLabel = if (story.threadId == null) "让 Acorn 展开讲讲" else "打开这件事的对话",
+                    onClick = { actions.onOpen(story) },
+                    onLongClickLabel = "持续跟进，或多报少报这类",
                     onLongClick = {
                         haptics.longPress()
                         menu = true
@@ -417,13 +444,25 @@ private fun StoryRow(story: NowBriefingStory, onClick: () -> Unit, onReact: (Now
                 Spacer(Modifier.width(8.dp))
                 Tag("关注", color = colors.warningInk, container = colors.warningSoft)
             }
+            if (story.following) {
+                Spacer(Modifier.width(6.dp))
+                Tag("跟进中", color = colors.success)
+            }
             when (story.reaction) {
                 NowBriefingStory.Reaction.more -> { Spacer(Modifier.width(6.dp)); Tag("多报", color = colors.accentInk, container = colors.accentSoft) }
                 NowBriefingStory.Reaction.less -> { Spacer(Modifier.width(6.dp)); Tag("少报") }
                 null -> Unit
             }
+            if (actions.asking == story.storyId) {
+                Spacer(Modifier.width(8.dp))
+                CircularProgressIndicator(color = colors.inkSoft, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+            }
         }
         AcornMenu(expanded = menu, onDismiss = { menu = false }) {
+            AcornMenuItem("持续跟进", onClick = {
+                menu = false
+                if (!story.following) actions.onFollow(story)
+            }, checked = story.following)
             AcornMenuItem("多报这类", onClick = {
                 menu = false
                 onReact(NowBriefingStory.Reaction.more)

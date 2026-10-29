@@ -13,7 +13,7 @@ class ErrorsTest {
 
     @Test
     fun aBusyThreadSaysToWaitForTheRun() {
-        assertEquals("Acorn 还在这个对话里工作，等这一轮结束再删", userMessage(conflict("thread_busy")))
+        assertEquals("Acorn 还在这个对话里工作，等这一轮结束再试", userMessage(conflict("thread_busy")))
     }
 
     @Test

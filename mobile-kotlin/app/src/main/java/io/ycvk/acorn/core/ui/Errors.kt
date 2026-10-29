@@ -15,7 +15,7 @@ fun userMessage(e: Throwable): String = when (e) {
         401, 403 -> "这台设备的授权已失效，需要重新配对"
         404 -> "内容不存在或已被删除"
         409 -> when (serverError(e)?.get("code")) {
-            "thread_busy" -> "Acorn 还在这个对话里工作，等这一轮结束再删"
+            "thread_busy" -> "Acorn 还在这个对话里工作，等这一轮结束再试"
             "pending_action_already_decided" -> "这件事已经处理过了"
             "view_action_taken" -> "这一项已经发过了"
             else -> "内容刚被改过，刷新后再试"
