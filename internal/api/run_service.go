@@ -253,9 +253,10 @@ type ViewActionResult struct {
 }
 
 // SendStoryMessage sends the owner's ask about a story on the briefing card
-// as their message in the story's conversation, created under the story's
-// title the first time, and starts a run on it. The model sees the story as
-// it stands now beside the message.
+// as their message in the story's conversation, created the first time, and
+// starts a run on it. The message and the conversation use the title the
+// newest briefing gave the story, as the owner saw it on the card, else the
+// story's own. The model sees the story as it stands now beside the message.
 func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent core.StoryIntent) (*StoryMessageResult, error) {
 	if s == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
@@ -264,8 +265,15 @@ func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent
 	if err != nil {
 		return nil, err
 	}
+	title, err := s.threads.stories.BriefingStoryTitle(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	if title == "" {
+		title = story.Title
+	}
 	message, err := s.threads.stories.SendStoryMessage(ctx, core.StoryMessageWrite{
-		Intent: intent, Text: storyMessageText(intent, story.Title), Story: core.SnapshotOf(story), NewThreadID: s.threads.newThreadID(),
+		Intent: intent, Text: storyMessageText(intent, title), Title: title, Story: core.SnapshotOf(story), NewThreadID: s.threads.newThreadID(),
 	})
 	if err != nil {
 		return nil, err

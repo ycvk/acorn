@@ -44,6 +44,7 @@ type threadViewStore interface {
 // briefing card, each in its story's conversation.
 type threadStoryStore interface {
 	NewsStory(ctx context.Context, id int64) (core.NewsStory, error)
+	BriefingStoryTitle(ctx context.Context, storyID int64) (string, error)
 	SendStoryMessage(ctx context.Context, in core.StoryMessageWrite) (core.SessionMessageRecord, error)
 }
 

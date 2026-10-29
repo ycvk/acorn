@@ -160,7 +160,7 @@ func TestWanderChecksAFollowedStoryForDevelopments(t *testing.T) {
 	ctx := context.Background()
 	for thread, intent := range map[string]core.StoryIntent{"thread_followed": core.StoryFollow, "thread_opened": core.StoryDiscuss} {
 		story := core.StorySnapshot{ID: int64(len(thread)), Section: "国际", Title: "菲律宾央行加息 " + thread, Items: []core.StorySnapshotItem{}}
-		if _, err := h.data.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: intent, Text: "看看", Story: story, NewThreadID: thread}); err != nil {
+		if _, err := h.data.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: intent, Text: "看看", Title: story.Title, Story: story, NewThreadID: thread}); err != nil {
 			t.Fatal(err)
 		}
 	}

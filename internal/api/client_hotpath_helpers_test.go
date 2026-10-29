@@ -75,6 +75,8 @@ func (noStories) NewsStory(_ context.Context, id int64) (core.NewsStory, error) 
 	return core.NewsStory{}, fmt.Errorf("%w: %d", core.ErrNewsStoryNotFound, id)
 }
 
+func (noStories) BriefingStoryTitle(context.Context, int64) (string, error) { return "", nil }
+
 func (noStories) SendStoryMessage(context.Context, core.StoryMessageWrite) (core.SessionMessageRecord, error) {
 	return core.SessionMessageRecord{}, errors.New("no stories in this test")
 }

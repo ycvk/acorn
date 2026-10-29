@@ -85,10 +85,11 @@ type StoryMessage struct {
 
 // StoryMessageWrite records an owner message sent from a story in the
 // story's conversation. When the story has none, a conversation named
-// NewThreadID is created under the story's title.
+// NewThreadID is created under Title, the story as the owner saw it.
 type StoryMessageWrite struct {
 	Intent      StoryIntent
 	Text        string
+	Title       string
 	Story       StorySnapshot
 	NewThreadID string
 }

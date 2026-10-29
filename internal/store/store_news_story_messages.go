@@ -57,6 +57,22 @@ func (s *Store) NewsStory(ctx context.Context, id int64) (core.NewsStory, error)
 	return stories[0], nil
 }
 
+// BriefingStoryTitle is the title the newest recorded briefing that picked
+// the story gave it, empty when no briefing picked it.
+func (s *Store) BriefingStoryTitle(ctx context.Context, storyID int64) (string, error) {
+	var title string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT b.title FROM briefing_stories b JOIN briefing_picks p ON p.run_id = b.run_id
+		 WHERE b.story_id = ? ORDER BY p.briefed_at DESC, b.run_id DESC LIMIT 1`, storyID).Scan(&title)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("briefing title of story %d: %w", storyID, err)
+	}
+	return title, nil
+}
+
 // storyThread selects the newest conversation an owner message from the
 // story went to; story is the SQL expression of the story's id.
 func storyThread(story string) string {
@@ -64,15 +80,15 @@ func storyThread(story string) string {
 }
 
 // SendStoryMessage records an owner message sent from a story in the
-// story's conversation, creating it under the story's title when the story
-// has none. A conversation whose latest run is running or waits for the
-// owner is refused with ErrThreadBusy.
+// story's conversation, creating it under in.Title when the story has none.
+// A conversation whose latest run is running or waits for the owner is
+// refused with ErrThreadBusy.
 func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite) (core.SessionMessageRecord, error) {
 	switch {
 	case !in.Intent.Valid():
 		return core.SessionMessageRecord{}, fmt.Errorf("send story message: intent %q must be discuss or follow", in.Intent)
-	case strings.TrimSpace(in.Text) == "":
-		return core.SessionMessageRecord{}, errors.New("send story message: text is required")
+	case strings.TrimSpace(in.Text) == "" || strings.TrimSpace(in.Title) == "":
+		return core.SessionMessageRecord{}, errors.New("send story message: text and title are required")
 	case in.Story.ID <= 0 || strings.TrimSpace(in.Story.Title) == "":
 		return core.SessionMessageRecord{}, errors.New("send story message: the story's id and title are required")
 	case strings.TrimSpace(in.NewThreadID) == "":
@@ -90,7 +106,7 @@ func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite)
 		case errors.Is(err, sql.ErrNoRows):
 			message.SessionID = in.NewThreadID
 			if _, err := tx.ExecContext(ctx, `INSERT INTO sessions(session_id, title, created_at, updated_at) VALUES(?, ?, ?, ?)`,
-				message.SessionID, strings.TrimSpace(in.Story.Title), formatTimestamp(now), formatTimestamp(now)); err != nil {
+				message.SessionID, strings.TrimSpace(in.Title), formatTimestamp(now), formatTimestamp(now)); err != nil {
 				return err
 			}
 		case err != nil:

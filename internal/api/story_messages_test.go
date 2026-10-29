@@ -15,11 +15,12 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// storyMessagesFake has story 41 and records the messages sent from it in
-// thread_story.
+// storyMessagesFake has story 41, which the newest briefing listed under
+// briefed, and records the messages sent from it in thread_story.
 type storyMessagesFake struct {
-	writes []core.StoryMessageWrite
-	busy   bool
+	briefed string
+	writes  []core.StoryMessageWrite
+	busy    bool
 }
 
 var storyFixture = core.NewsStory{ID: 41, Section: "国际", Title: "菲律宾央行加息", Summary: "加息 25 个基点", Items: []core.NewsStoryItem{
@@ -31,6 +32,10 @@ func (f *storyMessagesFake) NewsStory(_ context.Context, id int64) (core.NewsSto
 		return core.NewsStory{}, fmt.Errorf("%w: %d", core.ErrNewsStoryNotFound, id)
 	}
 	return storyFixture, nil
+}
+
+func (f *storyMessagesFake) BriefingStoryTitle(context.Context, int64) (string, error) {
+	return f.briefed, nil
 }
 
 func (f *storyMessagesFake) SendStoryMessage(_ context.Context, in core.StoryMessageWrite) (core.SessionMessageRecord, error) {
@@ -50,15 +55,21 @@ func TestStoryMessagesStartARunInTheStorysConversation(t *testing.T) {
 	router := chi.NewRouter()
 	server.registerRoutes(router)
 
+	// The message and the conversation take the title the owner saw on the
+	// card, else the story's own.
 	for _, tc := range []struct {
-		path   string
-		intent core.StoryIntent
-		text   string
+		path    string
+		briefed string
+		intent  core.StoryIntent
+		title   string
+		text    string
 	}{
-		{"/v1/news/stories/41:discuss", core.StoryDiscuss, "展开讲讲：菲律宾央行加息"},
-		{"/v1/news/stories/41:follow", core.StoryFollow, "持续跟进：菲律宾央行加息"},
+		{"/v1/news/stories/41:discuss", "菲律宾央行意外加息", core.StoryDiscuss, "菲律宾央行意外加息", "展开讲讲：菲律宾央行意外加息"},
+		{"/v1/news/stories/41:follow", "菲律宾央行意外加息", core.StoryFollow, "菲律宾央行意外加息", "持续跟进：菲律宾央行意外加息"},
+		{"/v1/news/stories/41:discuss", "", core.StoryDiscuss, "菲律宾央行加息", "展开讲讲：菲律宾央行加息"},
 	} {
 		stub.run = Run{}
+		stories.briefed = tc.briefed
 		rec := performClientRequest(router, http.MethodPost, tc.path, "")
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("%s status = %d body=%s", tc.path, rec.Code, rec.Body.String())
@@ -72,7 +83,7 @@ func TestStoryMessagesStartARunInTheStorysConversation(t *testing.T) {
 			t.Fatalf("%s started a run in %q", tc.path, stub.createRunThreadID)
 		}
 		write := stories.writes[len(stories.writes)-1]
-		if write.Intent != tc.intent || write.Text != tc.text || write.NewThreadID == "" || !reflect.DeepEqual(write.Story, core.SnapshotOf(storyFixture)) {
+		if write.Intent != tc.intent || write.Text != tc.text || write.Title != tc.title || write.NewThreadID == "" || !reflect.DeepEqual(write.Story, core.SnapshotOf(storyFixture)) {
 			t.Fatalf("%s wrote %+v", tc.path, write)
 		}
 	}

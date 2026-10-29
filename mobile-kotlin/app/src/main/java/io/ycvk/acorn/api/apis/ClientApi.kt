@@ -600,7 +600,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:discuss
      * Ask Acorn to explain a story the morning briefing picked
-     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under the story&#39;s title the first time, and starts a run on it, like a message the owner typed. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
      * @param storyId 
      * @return StoryMessageResponse
      * @throws IllegalStateException If the request is not correctly configured
@@ -632,7 +632,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:discuss
      * Ask Acorn to explain a story the morning briefing picked
-     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under the story&#39;s title the first time, and starts a run on it, like a message the owner typed. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
      * @param storyId 
      * @return ApiResponse<StoryMessageResponse?>
      * @throws IllegalStateException If the request is not correctly configured
@@ -673,7 +673,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:follow
      * Ask Acorn to keep following a story the morning briefing picked
-     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under the story&#39;s title the first time, and starts a run on it. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
      * @param storyId 
      * @return StoryMessageResponse
      * @throws IllegalStateException If the request is not correctly configured
@@ -705,7 +705,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:follow
      * Ask Acorn to keep following a story the morning briefing picked
-     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under the story&#39;s title the first time, and starts a run on it. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
      * @param storyId 
      * @return ApiResponse<StoryMessageResponse?>
      * @throws IllegalStateException If the request is not correctly configured

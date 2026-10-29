@@ -10,14 +10,14 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// pickedStory records a briefing in thread_b that picked one story and
-// returns the story with its items.
+// pickedStory records a briefing in thread_b that picked one story under a
+// title of its own, 菲律宾央行意外加息, and returns the story with its items.
 func pickedStory(t *testing.T, s *Store, bbc, ft core.Watch) core.NewsStory {
 	t.Helper()
 	ctx := context.Background()
 	id := briefedStory(t, s, bbc, ft, "run_b")
-	briefingRun(t, s, "2026-10-03", "thread_b", "run_b", core.RunStatusSucceeded, "## 国际\n1. **菲律宾央行加息**")
-	if err := s.RecordBriefingPicks(ctx, core.BriefingPicks{RunID: "run_b", BriefedAt: watchTestNow, Stories: []core.BriefingStory{{StoryID: id, Section: "国际", Title: "菲律宾央行加息", URL: "https://bbc.test/b1", Sources: []int64{bbc.ID, ft.ID}}}}); err != nil {
+	briefingRun(t, s, "2026-10-03", "thread_b", "run_b", core.RunStatusSucceeded, "## 国际\n1. **菲律宾央行意外加息**")
+	if err := s.RecordBriefingPicks(ctx, core.BriefingPicks{RunID: "run_b", BriefedAt: watchTestNow, Stories: []core.BriefingStory{{StoryID: id, Section: "国际", Title: "菲律宾央行意外加息", URL: "https://bbc.test/b1", Sources: []int64{bbc.ID, ft.ID}}}}); err != nil {
 		t.Fatal(err)
 	}
 	story, err := s.NewsStory(ctx, id)
@@ -49,19 +49,25 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 	if _, err := s.NewsStory(ctx, story.ID+100); !errors.Is(err, core.ErrNewsStoryNotFound) {
 		t.Fatalf("loading a missing story err = %v", err)
 	}
+	if title, err := s.BriefingStoryTitle(ctx, story.ID); err != nil || title != "菲律宾央行意外加息" {
+		t.Fatalf("briefing title = %q, %v", title, err)
+	}
+	if title, err := s.BriefingStoryTitle(ctx, story.ID+100); err != nil || title != "" {
+		t.Fatalf("briefing title of a story no briefing picked = %q, %v", title, err)
+	}
 	if card := storyOnCard(t, s); card.ThreadID != "" || card.Following {
 		t.Fatalf("a story nobody asked about = %+v", card)
 	}
 
 	snapshot := core.SnapshotOf(story)
-	discuss, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行加息", Story: snapshot, NewThreadID: "thread_s"})
+	discuss, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_s"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if discuss.SessionID != "thread_s" || discuss.Role != "user" || discuss.Content != "展开讲讲：菲律宾央行加息" || discuss.TurnIndex != 1 {
+	if discuss.SessionID != "thread_s" || discuss.Role != "user" || discuss.Content != "展开讲讲：菲律宾央行意外加息" || discuss.TurnIndex != 1 {
 		t.Fatalf("discuss message = %+v", discuss)
 	}
-	if thread, err := s.LoadSession(ctx, "thread_s"); err != nil || thread.Title != "菲律宾央行加息" {
+	if thread, err := s.LoadSession(ctx, "thread_s"); err != nil || thread.Title != "菲律宾央行意外加息" {
 		t.Fatalf("the story's conversation = %+v, %v", thread, err)
 	}
 	if card := storyOnCard(t, s); card.ThreadID != "thread_s" || card.Following {
@@ -80,14 +86,14 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行加息", Story: snapshot, NewThreadID: "thread_x"}); !errors.Is(err, core.ErrThreadBusy) {
+		if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x"}); !errors.Is(err, core.ErrThreadBusy) {
 			t.Fatalf("a message while the latest run is %s: %v", status, err)
 		}
 		if err := s.FinishRun(ctx, runID, core.RunStatusSucceeded, "说明", ""); err != nil {
 			t.Fatal(err)
 		}
 	}
-	follow, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行加息", Story: snapshot, NewThreadID: "thread_x"})
+	follow, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +136,7 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 	if card := storyOnCard(t, s); card.ThreadID != "" {
 		t.Fatalf("a story whose conversation was deleted = %+v", card)
 	}
-	again, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行加息", Story: snapshot, NewThreadID: "thread_new"})
+	again, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_new"})
 	if err != nil || again.SessionID != "thread_new" {
 		t.Fatalf("a story opened after its conversation was deleted = %+v, %v", again, err)
 	}
@@ -162,14 +168,15 @@ func storyMessages(t *testing.T, s *Store, sessionID string) []core.StoryMessage
 	return messages
 }
 
-func TestStoryMessagesNeedAnIntentTextAndStory(t *testing.T) {
+func TestStoryMessagesNeedAnIntentTextTitleAndStory(t *testing.T) {
 	s := openTestStore(t)
 	story := core.StorySnapshot{ID: 1, Title: "菲律宾央行加息"}
 	for name, in := range map[string]core.StoryMessageWrite{
-		"intent":    {Intent: "share", Text: "看看", Story: story, NewThreadID: "thread_s"},
-		"text":      {Intent: core.StoryDiscuss, Text: " ", Story: story, NewThreadID: "thread_s"},
-		"story":     {Intent: core.StoryDiscuss, Text: "看看", Story: core.StorySnapshot{Title: "菲律宾央行加息"}, NewThreadID: "thread_s"},
-		"thread id": {Intent: core.StoryDiscuss, Text: "看看", Story: story},
+		"intent":    {Intent: "share", Text: "看看", Title: "加息", Story: story, NewThreadID: "thread_s"},
+		"text":      {Intent: core.StoryDiscuss, Text: " ", Title: "加息", Story: story, NewThreadID: "thread_s"},
+		"title":     {Intent: core.StoryDiscuss, Text: "看看", Story: story, NewThreadID: "thread_s"},
+		"story":     {Intent: core.StoryDiscuss, Text: "看看", Title: "加息", Story: core.StorySnapshot{Title: "菲律宾央行加息"}, NewThreadID: "thread_s"},
+		"thread id": {Intent: core.StoryDiscuss, Text: "看看", Title: "加息", Story: story},
 	} {
 		if _, err := s.SendStoryMessage(context.Background(), in); err == nil {
 			t.Errorf("a story message without its %s was recorded", name)

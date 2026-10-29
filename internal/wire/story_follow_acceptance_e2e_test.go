@@ -62,14 +62,14 @@ func briefedNewsStory(t *testing.T, c *Container, at time.Time) core.NewsStory {
 	if err := c.store.CreateRun(ctx, core.RunCreateParams{RunID: "run_briefing", SessionID: briefings.ID, Input: "[briefing " + slot + "]"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.store.FinishRun(ctx, "run_briefing", core.RunStatusSucceeded, "## 国际\n1. **菲律宾央行加息**：加息 25 个基点。[BBC](https://bbc.test/b1)", ""); err != nil {
+	if err := c.store.FinishRun(ctx, "run_briefing", core.RunStatusSucceeded, "## 国际\n1. **菲律宾央行意外加息**：加息 25 个基点。[BBC](https://bbc.test/b1)", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.store.SetRoutineRun(ctx, "briefing", slot, briefings.ID, "run_briefing"); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.store.RecordBriefingPicks(ctx, core.BriefingPicks{RunID: "run_briefing", BriefedAt: at, Stories: []core.BriefingStory{
-		{StoryID: story.ID, Section: "国际", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://bbc.test/b1", Sources: []int64{bbc.ID}},
+		{StoryID: story.ID, Section: "国际", Title: "菲律宾央行意外加息", Summary: "加息 25 个基点。", URL: "https://bbc.test/b1", Sources: []int64{bbc.ID}},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func cardStory(t *testing.T, client pairedClient) api.NowBriefingStoryDTO {
 }
 
 // The owner taps a story on the briefing card, then asks to follow it: both
-// messages go to one conversation named after the story, with the story
+// messages go to one conversation named as the card shows it, with the story
 // beside them; the concern the agent records there tags the story as
 // followed, and an idle-thought slot checks it for developments with the
 // story as it stood.
@@ -113,12 +113,12 @@ func TestABriefingStoryOpensItsConversationAndIdleThoughtChecksItWhenFollowed(t 
 	client.do(t, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/v1/news/stories/%d:discuss", story.ID), nil), http.StatusCreated, &discussed)
 	run := waitNewRun(t, c, discussed.ThreadID, "")
 	text := requestText(provider.request(before))
-	for _, part := range []string{"展开讲讲：菲律宾央行加息", "[Sent from a story on the briefing card: the owner asks you to explain it", snapshot, "https://bbc.test/b1"} {
+	for _, part := range []string{"展开讲讲：菲律宾央行意外加息", "[Sent from a story on the briefing card: the owner asks you to explain it", snapshot, "https://bbc.test/b1"} {
 		if !strings.Contains(text, part) {
 			t.Fatalf("the explain run's request lacks %q:\n%s", part, text)
 		}
 	}
-	if thread, err := c.threads.GetThread(ctx, discussed.ThreadID); err != nil || thread.Title != "菲律宾央行加息" {
+	if thread, err := c.threads.GetThread(ctx, discussed.ThreadID); err != nil || thread.Title != "菲律宾央行意外加息" {
 		t.Fatalf("the story's conversation = %+v, %v", thread, err)
 	}
 	if card := cardStory(t, client); card.ThreadID != discussed.ThreadID || card.Following {
@@ -132,7 +132,7 @@ func TestABriefingStoryOpensItsConversationAndIdleThoughtChecksItWhenFollowed(t 
 	before = provider.requestCount()
 	var followed api.StoryMessageResponse
 	client.do(t, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/v1/news/stories/%d:follow", story.ID), nil), http.StatusCreated, &followed)
-	if followed.ThreadID != discussed.ThreadID || followed.Text != "持续跟进：菲律宾央行加息" {
+	if followed.ThreadID != discussed.ThreadID || followed.Text != "持续跟进：菲律宾央行意外加息" {
 		t.Fatalf("follow response = %+v", followed)
 	}
 	run = waitNewRun(t, c, followed.ThreadID, run.RunID)

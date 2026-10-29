@@ -804,8 +804,9 @@ paths:
       summary: Ask Acorn to explain a story the morning briefing picked
       description: |
         Records the owner's message 「展开讲讲：<title>」 in the story's
-        conversation, created under the story's title the first time, and
-        starts a run on it, like a message the owner typed. The model reads
+        conversation, created under that title the first time, and starts a
+        run on it, like a message the owner typed. The title is the one the
+        newest briefing that picked the story gave it, else the story's own. The model reads
         the story as it stands now beside the message; the conversation keeps
         it after the story is pruned. A conversation whose latest run is
         running or waits for the owner takes no message.
@@ -840,8 +841,8 @@ paths:
       summary: Ask Acorn to keep following a story the morning briefing picked
       description: |
         Records the owner's message 「持续跟进：<title>」 in the story's
-        conversation, created under the story's title the first time, and
-        starts a run on it. The agent creates a concern for the story there,
+        conversation, created under that title the first time, and starts a
+        run on it; the title is chosen as for discuss. The agent creates a concern for the story there,
         which idle thought checks for developments; `following` on the
         briefing's story holds while it is active or waiting. A conversation
         whose latest run is running or waits for the owner takes no message.
