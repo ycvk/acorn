@@ -84,6 +84,7 @@ type RuntimeDeps struct {
 	Attachments        core.AttachmentReader
 	Files              core.ThreadFiles
 	Views              ThreadViewLister
+	Stories            core.StoryMessageLister
 	// Uploads and Work are nil when no workstation is configured.
 	Uploads     UploadHost
 	Work        WorkHost

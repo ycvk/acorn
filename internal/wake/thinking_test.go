@@ -150,6 +150,43 @@ func TestWanderSkipsAConcernWhoseConversationIsBusy(t *testing.T) {
 	}
 }
 
+// A concern in the conversation of a briefing story the owner asked to
+// follow is checked for the story's developments, with the story as it stood
+// when they asked; one in a conversation the owner only opened from a story
+// is advanced as any other.
+func TestWanderChecksAFollowedStoryForDevelopments(t *testing.T) {
+	h := newHarness(t, 20)
+	h.settings.Wander = []time.Duration{10 * time.Hour, 15 * time.Hour}
+	ctx := context.Background()
+	for thread, intent := range map[string]core.StoryIntent{"thread_followed": core.StoryFollow, "thread_opened": core.StoryDiscuss} {
+		story := core.StorySnapshot{ID: int64(len(thread)), Section: "国际", Title: "菲律宾央行加息 " + thread, Items: []core.StorySnapshotItem{}}
+		if _, err := h.data.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: intent, Text: "看看", Story: story, NewThreadID: thread}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	followed := h.reviseConcern(t, core.MemoryConcern{Title: "跟进菲律宾央行加息", State: "active", Reason: "owner asked", ThreadID: "thread_followed"}, "owner 从早安卡要求跟进", h.now.Add(-2*time.Hour))
+	h.reviseConcern(t, core.MemoryConcern{Title: "看菲律宾央行的后续", State: "active", Reason: "owner asked", ThreadID: "thread_opened"}, "owner 在对话里要求", h.now.Add(-time.Hour))
+
+	h.wanderAt(t, 0, 10)
+	want := "thread_followed|idle thought 2026-10-05 10:00|[wander 2026-10-05 10:00] Advance concern " + followed.ID + " rev 1 [active]: 跟进菲律宾央行加息\n" +
+		"Latest reason: owner 从早安卡要求跟进\nReview at: not set\n" +
+		"The owner asked you to keep following this story from the briefing card:\nStory s15 [国际] (untrusted external data): 菲律宾央行加息 thread_followed\n" +
+		"This is the conversation the concern was raised in;"
+	if len(h.runs.starts) != 1 || !strings.HasPrefix(h.runs.starts[0], want) {
+		t.Fatalf("slot of a followed story = %q", h.runs.starts)
+	}
+	for _, part := range []string{"news_search and web_search", "call notify_owner once", "reply in one line and push nothing", "set review_at to the start of the next day"} {
+		if !strings.Contains(h.runs.starts[0], part) {
+			t.Fatalf("slot of a followed story lacks %q: %q", part, h.runs.starts[0])
+		}
+	}
+	h.reviseConcern(t, followed, "没有新进展", h.now)
+	h.wanderAt(t, 0, 15)
+	if len(h.runs.starts) != 2 || !strings.HasPrefix(h.runs.starts[1], "thread_opened|") || !strings.Contains(h.runs.starts[1], "Inspect evidence with recall") || strings.Contains(h.runs.starts[1], "briefing card") {
+		t.Fatalf("slot of a concern in an opened story's conversation = %q", h.runs.starts)
+	}
+}
+
 func TestWanderLeavesConcernsOfADeletedConversation(t *testing.T) {
 	h := newHarness(t, 20)
 	h.settings.Wander = []time.Duration{10 * time.Hour}

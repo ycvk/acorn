@@ -152,15 +152,18 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 	return concern, nil
 }
 
+// visibleConcern holds for a concern c whose conversation still exists, whose
+// source is not excluded and whose current records are not excluded.
+const visibleConcern = `EXISTS(SELECT 1 FROM sessions t WHERE t.session_id=c.thread_id)
+ AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=c.source_id)
+ AND NOT EXISTS(SELECT 1 FROM memory_concern_records l JOIN memory_records r ON r.id=l.record_id WHERE l.concern_id=c.id AND l.revision=c.revision AND r.excluded=1)`
+
 // ListConcerns leaves out concerns whose source or linked records were
 // forgotten and those created in a conversation the owner deleted.
 func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.MemoryConcern, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.state,c.reason,c.source_id,c.revision,c.review_at,c.created_at,c.updated_at,c.thread_id,c.outcome,
  (SELECT json_group_array(l.record_id) FROM (SELECT record_id FROM memory_concern_records WHERE concern_id=c.id AND revision=c.revision ORDER BY rowid) l)
- FROM memory_concerns c WHERE (?=0 OR c.state IN ('active','waiting'))
- AND EXISTS(SELECT 1 FROM sessions t WHERE t.session_id=c.thread_id)
- AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=c.source_id)
- AND NOT EXISTS(SELECT 1 FROM memory_concern_records l JOIN memory_records r ON r.id=l.record_id WHERE l.concern_id=c.id AND l.revision=c.revision AND r.excluded=1)
+ FROM memory_concerns c WHERE (?=0 OR c.state IN ('active','waiting')) AND `+visibleConcern+`
  ORDER BY c.id`, activeOnly)
 	if err != nil {
 		return nil, err

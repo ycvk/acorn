@@ -798,6 +798,78 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/news/stories/{story_id}:discuss:
+    post:
+      tags: [client]
+      summary: Ask Acorn to explain a story the morning briefing picked
+      description: |
+        Records the owner's message 「展开讲讲：<title>」 in the story's
+        conversation, created under the story's title the first time, and
+        starts a run on it, like a message the owner typed. The model reads
+        the story as it stands now beside the message; the conversation keeps
+        it after the story is pruned. A conversation whose latest run is
+        running or waits for the owner takes no message.
+      operationId: clientDiscussStory
+      parameters:
+        - $ref: '#/components/parameters/StoryID'
+      responses:
+        '201':
+          description: Message recorded and run started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryMessageResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/StoryNotFound'
+        '409':
+          $ref: '#/components/responses/ThreadBusy'
+        '503':
+          $ref: '#/components/responses/ExecutionNotReady'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/news/stories/{story_id}:follow:
+    post:
+      tags: [client]
+      summary: Ask Acorn to keep following a story the morning briefing picked
+      description: |
+        Records the owner's message 「持续跟进：<title>」 in the story's
+        conversation, created under the story's title the first time, and
+        starts a run on it. The agent creates a concern for the story there,
+        which idle thought checks for developments; `following` on the
+        briefing's story holds while it is active or waiting. A conversation
+        whose latest run is running or waits for the owner takes no message.
+      operationId: clientFollowStory
+      parameters:
+        - $ref: '#/components/parameters/StoryID'
+      responses:
+        '201':
+          description: Message recorded and run started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryMessageResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/StoryNotFound'
+        '409':
+          $ref: '#/components/responses/ThreadBusy'
+        '503':
+          $ref: '#/components/responses/ExecutionNotReady'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/runs/{run_id}/detail:
     get:
       tags: [client]
@@ -3929,7 +4001,7 @@ components:
     NowBriefingStory:
       type: object
       additionalProperties: false
-      required: [story_id, section, title, url, focus]
+      required: [story_id, section, title, url, focus, following]
       properties:
         story_id:
           type: integer
@@ -3952,6 +4024,26 @@ components:
           type: string
           enum: [more, less]
           description: The owner's reaction to the story; absent without one.
+        thread_id:
+          type: string
+          description: The story's conversation; absent until the owner asks Acorn to explain or follow the story.
+        following:
+          type: boolean
+          description: Whether the story's conversation has an active or waiting concern.
+
+    StoryMessageResponse:
+      type: object
+      additionalProperties: false
+      required: [thread_id, run, text]
+      properties:
+        thread_id:
+          type: string
+          description: The story's conversation.
+        run:
+          $ref: '#/components/schemas/Run'
+        text:
+          type: string
+          description: The owner's message, as the conversation shows it.
 
     StoryReactionRequest:
       type: object

@@ -60,15 +60,17 @@ type NowBriefingDTO struct {
 }
 
 // NowBriefingStoryDTO is a story the briefing picked, with the owner's
-// reaction to it.
+// reaction to it, its conversation and whether Acorn is following it.
 type NowBriefingStoryDTO struct {
-	StoryID  int64  `json:"story_id"`
-	Section  string `json:"section"`
-	Title    string `json:"title"`
-	Summary  string `json:"summary,omitempty"`
-	URL      string `json:"url"`
-	Focus    bool   `json:"focus"`
-	Reaction string `json:"reaction,omitempty"`
+	StoryID   int64  `json:"story_id"`
+	Section   string `json:"section"`
+	Title     string `json:"title"`
+	Summary   string `json:"summary,omitempty"`
+	URL       string `json:"url"`
+	Focus     bool   `json:"focus"`
+	Reaction  string `json:"reaction,omitempty"`
+	ThreadID  string `json:"thread_id,omitempty"`
+	Following bool   `json:"following"`
 }
 
 // NowPanelDTO is a view pinned to the now page, with its conversation and
@@ -208,7 +210,7 @@ func nowBriefingStories(stories []core.BriefingStory) []NowBriefingStoryDTO {
 	for _, story := range stories {
 		out = append(out, NowBriefingStoryDTO{
 			StoryID: story.StoryID, Section: story.Section, Title: story.Title, Summary: story.Summary,
-			URL: story.URL, Focus: story.Focus, Reaction: string(story.Reaction),
+			URL: story.URL, Focus: story.Focus, Reaction: string(story.Reaction), ThreadID: story.ThreadID, Following: story.Following,
 		})
 	}
 	return out

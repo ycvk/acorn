@@ -139,9 +139,13 @@ func (s *Store) RecordBriefingPicks(ctx context.Context, picks core.BriefingPick
 
 func (s *Store) BriefingStories(ctx context.Context, runID string) ([]core.BriefingStory, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT b.story_id, b.section, b.title, b.summary, b.url, b.focus, b.sources, COALESCE(r.reaction, '')
-		 FROM briefing_stories b LEFT JOIN news_reactions r ON r.story_id = b.story_id
-		 WHERE b.run_id = ? ORDER BY b.position`, runID)
+		`WITH picked AS (
+		   SELECT b.position, b.story_id, b.section, b.title, b.summary, b.url, b.focus, b.sources, COALESCE(r.reaction, '') AS reaction,
+		     COALESCE((`+storyThread("b.story_id")+`), '') AS thread
+		   FROM briefing_stories b LEFT JOIN news_reactions r ON r.story_id = b.story_id WHERE b.run_id = ?)
+		 SELECT story_id, section, title, summary, url, focus, sources, reaction, thread,
+		   EXISTS (SELECT 1 FROM memory_concerns c WHERE c.thread_id = picked.thread AND c.state IN ('active', 'waiting') AND `+visibleConcern+`)
+		 FROM picked ORDER BY position`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("briefing stories: %w", err)
 	}
@@ -151,7 +155,7 @@ func (s *Store) BriefingStories(ctx context.Context, runID string) ([]core.Brief
 			story             core.BriefingStory
 			sources, reaction string
 		)
-		if err := scan(&story.StoryID, &story.Section, &story.Title, &story.Summary, &story.URL, &story.Focus, &sources, &reaction); err != nil {
+		if err := scan(&story.StoryID, &story.Section, &story.Title, &story.Summary, &story.URL, &story.Focus, &sources, &reaction, &story.ThreadID, &story.Following); err != nil {
 			return err
 		}
 		story.Reaction = core.NewsReaction(reaction)

@@ -53,8 +53,10 @@ type Config struct {
 	Checker            WatchChecker
 	// News offers the sorted news stories to the briefing; Sorter sorts
 	// what is waiting before it.
-	News     core.NewsStore
-	Sorter   NewsSorter
+	News   core.NewsStore
+	Sorter NewsSorter
+	// Stories tells idle thought which concerns follow a briefing story.
+	Stories  core.StoryMessageLister
 	Triggers core.TriggerStore
 	Clock    func() time.Time
 	// Settings gives each tick the owner's time zone, the times of the
@@ -108,6 +110,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Checker is required")
 	case cfg.News == nil || cfg.Sorter == nil:
 		return nil, errors.New("wake scheduler: News and Sorter are required")
+	case cfg.Stories == nil:
+		return nil, errors.New("wake scheduler: Stories is required")
 	case cfg.Triggers == nil:
 		return nil, errors.New("wake scheduler: Triggers is required")
 	case cfg.Clock == nil:

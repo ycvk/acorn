@@ -24,6 +24,7 @@ type ThreadService struct {
 	store       core.SessionStore
 	files       core.ThreadFiles
 	views       threadViewStore
+	stories     threadStoryStore
 	forgetter   threadForgetter
 	barrier     func(context.Context, core.MemoryExclusion, string) error
 	newThreadID func() string
@@ -39,17 +40,26 @@ type threadViewStore interface {
 	UnpinThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error)
 }
 
+// threadStoryStore keeps the owner messages sent from stories on the
+// briefing card, each in its story's conversation.
+type threadStoryStore interface {
+	NewsStory(ctx context.Context, id int64) (core.NewsStory, error)
+	SendStoryMessage(ctx context.Context, in core.StoryMessageWrite) (core.SessionMessageRecord, error)
+}
+
 // NewThreadService constructs a ThreadService backed by the given store and
-// the files and views of its threads. Deleting a thread forgets it through
-// forgetter, then waits at barrier for the executions that saw it to stop.
-func NewThreadService(store core.SessionStore, files core.ThreadFiles, views threadViewStore, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
-	if store == nil || files == nil || views == nil || forgetter == nil || barrier == nil {
-		return nil, errors.New("thread service: store, files, views, forgetter and barrier are required")
+// the files, views and story messages of its threads. Deleting a thread
+// forgets it through forgetter, then waits at barrier for the executions
+// that saw it to stop.
+func NewThreadService(store core.SessionStore, files core.ThreadFiles, views threadViewStore, stories threadStoryStore, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
+	if store == nil || files == nil || views == nil || stories == nil || forgetter == nil || barrier == nil {
+		return nil, errors.New("thread service: store, files, views, stories, forgetter and barrier are required")
 	}
 	return &ThreadService{
 		store:       store,
 		files:       files,
 		views:       views,
+		stories:     stories,
 		forgetter:   forgetter,
 		barrier:     barrier,
 		newThreadID: newThreadID,

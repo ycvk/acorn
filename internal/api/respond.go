@@ -164,6 +164,8 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 		s.respondError(w, r, http.StatusRequestEntityTooLarge, "payload_too_large", err.Error())
 	case errors.Is(err, core.ErrThreadViewNotFound):
 		s.respondNotFound(w, r, "view_not_found", err.Error())
+	case errors.Is(err, core.ErrNewsStoryNotFound):
+		s.respondNotFound(w, r, "story_not_found", err.Error())
 	case errors.Is(err, views.ErrInvalidAction):
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, core.ErrViewActionTaken):

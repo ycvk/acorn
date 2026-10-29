@@ -332,6 +332,12 @@
   - `internal/store/store_news_reactions_test.go`
   - `internal/api/now_test.go`
   - `internal/wire/news_acceptance_e2e_test.go`
+- **从早安卡的事件发出的消息进这件事的对话**：`POST /v1/news/stories/{story_id}:discuss` 与 `:follow` 在同一事务里找这件事最新的对话（没有就以事件标题新建）、写 owner 消息「展开讲讲：<标题>」或「持续跟进：<标题>」，并登记消息、对话、事件、意图与发消息时的事件快照（板块、标题、摘要、最新进展与至多 10 条最新条目的来源、标题、链接和时间）；之后按 owner 发消息的规则起 run。事件不存在时 404，对话最新 run 仍在运行或等待审批时 409 且不写消息。模型在这条消息旁看到意图与快照，快照标为外部数据；跟进时要求建一个没有 outcome、以这条消息为来源的关切，复查时间设在第二天开始。事件清理后快照保留；删除对话一并删除这些登记，之后再从事件发消息会新建对话。`/v1/now` 的早安卡事件带上这件事的对话与 `following`：那个对话里有可见的 active 或 waiting 关切。
+  - `internal/store/store_news_story_messages_test.go`
+  - `internal/api/story_messages_test.go`
+  - `internal/runtime/story_messages_test.go`
+  - `internal/core/story_message_test.go`
+  - `internal/wire/story_follow_acceptance_e2e_test.go`
 - **新闻条目整理一次，过期只留键**：后台 worker 认领首见于 14 天内、未整理的待报条目（期刊一次一期，其余一批至多 30 条），租约 5 分钟；模型在 `news.daily_tokens` 设置内给每条打 1–5 分并归入新事件或近 72 小时的事件，期刊页拆成带链接的条目（链接按期刊页解析，只接受 http/https），期刊页读不到时这一批失败。回复逐项校验：批里每条恰好打分一次，事件引用有定义，板块存在；提交在同一事务里按认领 token 校验并写分数、事件与条目，条目已被另一批重新认领时提交失败。预算用尽的批延到下一本地日且不计失败次数，调用方停止等待（Acorn 停止或早安卡的追赶超时）中断的批立即放回且不计失败次数，预算调高或取消时当天放回，其他失败第 3 次放弃；放弃之后这个源再没有条目整理成功时计入 System health。首见超过 14 天的条目只留键与状态（记忆来源除外），移出事件，没有条目的事件删除；源里仍在的条目不会作为新条目回来。`news_search` 按板块、关键词（每个词都要出现）与天数（1 到 14）检索事件。
   - `internal/news/news_test.go`
   - `internal/store/store_news_stories_test.go`
@@ -341,9 +347,10 @@
 
 - **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思在 Thoughts 线程运行。
   - `internal/wake/thinking_test.go`
-- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件，所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录。
+- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件，所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录；没有 outcome、所在对话里 owner 要求过跟进早安卡事件的关切，另给出最近一次跟进时存下的事件快照，要求用 `news_search` 与 `web_search` 找最新理由之后的进展，有进展时回复并推送一次，没有时只回一句不推送，复查时间设到下一天开始。
   - `internal/wake/thinking_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
+  - `internal/wire/story_follow_acceptance_e2e_test.go`
 - **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome 时沿用当前的。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
   - `internal/store/memory_state_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`

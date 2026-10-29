@@ -79,6 +79,8 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"/v1/watches/{watch_id}:pause",
 		"/v1/watches/{watch_id}:resume",
 		"/v1/news/stories/{story_id}/reaction",
+		"/v1/news/stories/{story_id}:discuss",
+		"/v1/news/stories/{story_id}:follow",
 		"/v1/pending-actions",
 		"/v1/pending-actions/{action_id}",
 		"/v1/pending-actions/{action_id}:decide",

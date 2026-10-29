@@ -173,7 +173,9 @@ func (s *Scheduler) newsReview(ctx context.Context, last, now time.Time, loc *ti
 // conversation it was created in. A concern whose conversation is busy with a
 // running run or one waiting for the owner is left for a later slot. A
 // concern with an outcome is worked on in its directory on the workstation
-// and delivered in its conversation.
+// and delivered in its conversation. One without an outcome in the
+// conversation of a briefing story the owner follows is checked for the
+// story's developments.
 func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time, loc *time.Location) (routineInput, error) {
 	concerns, err := s.cfg.Memory.ListConcerns(ctx, true)
 	if err != nil {
@@ -197,15 +199,38 @@ func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time,
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "[wander %s] Advance concern %s\nReview at: %s\n", slot, concernText(c), review)
-		if c.Outcome != "" {
+		followed, following, err := s.followedStory(ctx, c.ThreadID)
+		if err != nil {
+			return routineInput{}, err
+		}
+		switch {
+		case c.Outcome != "":
 			fmt.Fprintf(&b, "Work directory: ~/work/%s/ on your workstation\nThis is the conversation the concern was raised in; continue from the progress made here before. Do the next concrete step toward the outcome, then record with concern what this advance did, what is left and when to review. Once the outcome is reached, deliver it in this conversation, notify the owner once and set the concern to waiting; only the owner's confirmation resolves it.", c.ID)
-		} else {
+		case following:
+			fmt.Fprintf(&b, "The owner asked you to keep following this story from the briefing card:\n%s\nThis is the conversation the concern was raised in; continue from the progress made here before. Look for developments since the latest reason with news_search and web_search; a story quiet for three days comes back as a new story, so search beyond this one. If there are developments, reply with them and their links and call notify_owner once, titled with the story, with one line of the development; if not, reply in one line and push nothing. Record what you found with concern and set review_at to the start of the next day.", followed.Text())
+		default:
 			b.WriteString("This is the conversation the concern was raised in; continue from the progress made here before. Inspect evidence with recall; capture a sourced thought, useful progress, or a concrete next appointment, and record what this advance did with concern.")
 		}
 		b.WriteString(" A lack of owner response remains unknown feedback.")
 		return routineInput{thread: c.ThreadID, sources: []string{c.SourceID}, wake: "idle thought " + slot, input: b.String()}, nil
 	}
 	return routineInput{skip: true}, nil
+}
+
+// followedStory is the story as it stood when the owner last asked, in the
+// conversation, to keep following it; following is false when they never
+// asked there.
+func (s *Scheduler) followedStory(ctx context.Context, threadID string) (story core.StorySnapshot, following bool, err error) {
+	messages, err := s.cfg.Stories.StoryMessages(ctx, threadID)
+	if err != nil {
+		return core.StorySnapshot{}, false, err
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Intent == core.StoryFollow {
+			return messages[i].Story, true, nil
+		}
+	}
+	return core.StorySnapshot{}, false, nil
 }
 
 // concernText names a concern by id, revision, state and title, followed by

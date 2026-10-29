@@ -252,6 +252,48 @@ type ViewActionResult struct {
 	View core.ViewData
 }
 
+// SendStoryMessage sends the owner's ask about a story on the briefing card
+// as their message in the story's conversation, created under the story's
+// title the first time, and starts a run on it. The model sees the story as
+// it stands now beside the message.
+func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent core.StoryIntent) (*StoryMessageResult, error) {
+	if s == nil || s.threads == nil {
+		return nil, errors.New("client service is not initialized")
+	}
+	story, err := s.threads.stories.NewsStory(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	message, err := s.threads.stories.SendStoryMessage(ctx, core.StoryMessageWrite{
+		Intent: intent, Text: storyMessageText(intent, story.Title), Story: core.SnapshotOf(story), NewThreadID: s.threads.newThreadID(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	run, err := s.startRun(ctx, message.SessionID, "", &message, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	return &StoryMessageResult{ThreadID: message.SessionID, Run: *run, Text: message.Content}, nil
+}
+
+// StoryMessageResult is the story's conversation, the run the owner's
+// message started and the message's text.
+type StoryMessageResult struct {
+	ThreadID string
+	Run      Run
+	Text     string
+}
+
+// storyMessageText is the owner's message for an ask about a story, as the
+// owner sees it in the conversation.
+func storyMessageText(intent core.StoryIntent, title string) string {
+	if intent == core.StoryFollow {
+		return "持续跟进：" + title
+	}
+	return "展开讲讲：" + title
+}
+
 // startRun starts a run bound to message.
 func (s *RunService) startRun(ctx context.Context, threadID, skillID string, message *core.SessionMessageRecord, wake string, scheduled *core.ScheduledWake) (*Run, error) {
 	runID := strings.TrimSpace(s.newRunID())

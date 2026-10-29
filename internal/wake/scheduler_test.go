@@ -153,7 +153,7 @@ func newHarnessWith(t *testing.T, limit int, briefing core.DailyTime) *harness {
 	h.checker = &fakeChecker{watches: h.watches, found: map[int64][]core.WatchItem{}, clock: func() time.Time { return h.now }}
 	h.sorter = &fakeSorter{checker: h.checker}
 	h.sched, err = NewScheduler(Config{
-		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Knowledge: memKnowledge{h.data}, RunRecords: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker, News: h.news, Sorter: h.sorter, Triggers: h.data,
+		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Knowledge: memKnowledge{h.data}, RunRecords: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker, News: h.news, Sorter: h.sorter, Stories: h.data, Triggers: h.data,
 		Clock: func() time.Time { return h.now }, Settings: h, Interval: time.Second,
 		Routines: h.data, PhoneNotifications: h.data,
 	})
