@@ -209,7 +209,7 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 	}
 	for _, parentID := range record.Parents {
 		if parentID == record.ID {
-			return empty, errors.New("memory cannot derive from itself")
+			return empty, fmt.Errorf("memory %s cannot list itself among its parents", record.ID)
 		}
 		parent, err := loadMemoryRecord(ctx, q, parentID)
 		if err != nil {
