@@ -6,6 +6,8 @@ import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.sse.StepStatus
 import io.ycvk.acorn.core.sse.ToolStep
 import io.ycvk.acorn.api.models.ToolStep as StoredStep
+import io.ycvk.acorn.data.repository.FileView
+import io.ycvk.acorn.data.repository.fileView
 import java.util.UUID
 
 sealed class ChatMessage {

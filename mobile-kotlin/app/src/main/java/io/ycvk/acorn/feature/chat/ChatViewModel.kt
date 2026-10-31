@@ -18,6 +18,8 @@ import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunStatus
 import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.data.repository.FileView
+import io.ycvk.acorn.data.repository.PendingAttachment
 import io.ycvk.acorn.data.repository.ThreadFileRepository
 import io.ycvk.acorn.feature.live.FollowedRun
 import io.ycvk.acorn.feature.live.RunFollower

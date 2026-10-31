@@ -122,6 +122,8 @@ import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.core.ui.shimmer
+import io.ycvk.acorn.data.repository.FileView
+import io.ycvk.acorn.data.repository.pendingAttachment
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet

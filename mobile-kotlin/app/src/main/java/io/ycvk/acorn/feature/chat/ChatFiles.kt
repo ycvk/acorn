@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,53 +48,10 @@ import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.data.repository.FileView
+import io.ycvk.acorn.data.repository.PendingAttachment
 import java.io.File
 import java.util.Locale
-import java.util.UUID
-
-/** A file in a conversation as the chat shows it; [id] is null until it is uploaded. */
-data class FileView(
-    val id: String?,
-    val name: String,
-    val mimeType: String,
-    val sizeBytes: Long,
-) {
-    val isImage: Boolean get() = mimeType in inlineImageTypes
-}
-
-private val inlineImageTypes = setOf("image/jpeg", "image/png", "image/webp", "image/gif")
-
-fun fileView(file: ThreadFile) = FileView(file.id, file.name, file.mimeType, file.sizeBytes)
-
-/**
- * A file picked in the composer, not sent yet. A [photo] is resized for
- * viewing before upload; other files go unchanged.
- */
-data class PendingAttachment(
-    val uri: Uri,
-    val name: String,
-    val mimeType: String,
-    val sizeBytes: Long,
-    val photo: Boolean,
-    val key: String = UUID.randomUUID().toString(),
-) {
-    fun view() = FileView(null, name, mimeType, sizeBytes)
-}
-
-/** Reads a picked file's name, size and type from its provider. */
-fun pendingAttachment(context: Context, uri: Uri, photo: Boolean): PendingAttachment {
-    val resolver = context.contentResolver
-    var name: String? = null
-    var size = -1L
-    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-        if (cursor.moveToFirst()) {
-            name = cursor.getString(0)
-            if (!cursor.isNull(1)) size = cursor.getLong(1)
-        }
-    }
-    val mime = resolver.getType(uri) ?: "application/octet-stream"
-    return PendingAttachment(uri, name ?: uri.lastPathSegment ?: "file", mime, size, photo)
-}
 
 /** A size such as 2.3 MB, or blank when unknown. */
 fun formatBytes(bytes: Long): String = when {
