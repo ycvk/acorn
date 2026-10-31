@@ -47,11 +47,6 @@ func (m *mockTokenStore) SaveOAuthToken(_ context.Context, token core.OAuthToken
 	return nil
 }
 
-func (m *mockTokenStore) DeleteOAuthToken(_ context.Context, providerName string) error {
-	delete(m.tokens, providerName)
-	return nil
-}
-
 // --- ArtifactStore stubs (OAuth tests only use token methods) ---
 
 func (m *mockTokenStore) WriteArtifact(_ context.Context, _ core.ArtifactWriteRequest) (core.ArtifactRecord, error) {

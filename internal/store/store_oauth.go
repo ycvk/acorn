@@ -65,21 +65,3 @@ func (s *Store) SaveOAuthToken(ctx context.Context, token core.OAuthToken) error
 	}
 	return nil
 }
-
-func (s *Store) DeleteOAuthToken(ctx context.Context, providerName string) error {
-	result, err := s.db.ExecContext(ctx,
-		`DELETE FROM mcp_oauth_tokens WHERE provider_name = ?`,
-		providerName,
-	)
-	if err != nil {
-		return fmt.Errorf("delete oauth token: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("delete oauth token rows affected: %w", err)
-	}
-	if affected == 0 {
-		return core.ErrOAuthTokenNotFound
-	}
-	return nil
-}

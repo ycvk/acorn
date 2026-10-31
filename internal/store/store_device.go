@@ -114,23 +114,6 @@ func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*c
 	return device, nil
 }
 
-func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*core.Device, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
-		 FROM devices
-		 WHERE device_id = ?`,
-		deviceID,
-	)
-	device, err := scanDevice(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, core.ErrDeviceNotFound
-		}
-		return nil, fmt.Errorf("load device: %w", err)
-	}
-	return device, nil
-}
-
 func (s *Store) ListDevices(ctx context.Context) ([]core.Device, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at

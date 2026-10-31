@@ -173,73 +173,6 @@ func TestLoadPendingActionNotFound(t *testing.T) {
 	}
 }
 
-func TestLoadPendingActionByInterrupt(t *testing.T) {
-	store, runID := setupPendingActionStore(t)
-	ctx := context.Background()
-
-	if _, err := store.CreatePendingAction(ctx, core.PendingActionInput{
-		ActionID:    "action_by_int",
-		RunID:       runID,
-		InterruptID: "int_unique",
-		Kind:        core.PendingActionKindElicitation,
-	}); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-
-	record, err := store.LoadPendingActionByInterrupt(ctx, "int_unique")
-	if err != nil {
-		t.Fatalf("load by interrupt: %v", err)
-	}
-	if record.ActionID != "action_by_int" {
-		t.Errorf("ActionID = %q, want action_by_int", record.ActionID)
-	}
-}
-
-func TestLoadPendingActionByInterruptNotFound(t *testing.T) {
-	store, _ := setupPendingActionStore(t)
-	ctx := context.Background()
-
-	_, err := store.LoadPendingActionByInterrupt(ctx, "nonexistent_int")
-	if !errors.Is(err, core.ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
-	}
-}
-
-func TestAttachPendingActionInterrupt(t *testing.T) {
-	store, runID := setupPendingActionStore(t)
-	ctx := context.Background()
-
-	if _, err := store.CreatePendingAction(ctx, core.PendingActionInput{
-		ActionID: "action_attach",
-		RunID:    runID,
-		Kind:     core.PendingActionKindElicitation,
-	}); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-
-	if err := store.AttachPendingActionInterrupt(ctx, "action_attach", "int_attached"); err != nil {
-		t.Fatalf("attach: %v", err)
-	}
-
-	record, err := store.LoadPendingAction(ctx, "action_attach")
-	if err != nil {
-		t.Fatalf("load after attach: %v", err)
-	}
-	if record.InterruptID != "int_attached" {
-		t.Errorf("InterruptID = %q, want int_attached", record.InterruptID)
-	}
-}
-
-func TestAttachPendingActionInterruptNotFound(t *testing.T) {
-	store, _ := setupPendingActionStore(t)
-	ctx := context.Background()
-
-	err := store.AttachPendingActionInterrupt(ctx, "nonexistent", "int_x")
-	if !errors.Is(err, core.ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
-	}
-}
-
 func TestListPendingActions(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
@@ -491,47 +424,6 @@ func TestDecidePendingActionAppendsEvent(t *testing.T) {
 	}
 	if !found {
 		t.Error("action.decided event not found in run events")
-	}
-}
-
-func TestResolvePendingAction(t *testing.T) {
-	store, runID := setupPendingActionStore(t)
-	ctx := context.Background()
-
-	if _, err := store.CreatePendingAction(ctx, core.PendingActionInput{
-		ActionID: "action_resolve",
-		RunID:    runID,
-		Kind:     core.PendingActionKindElicitation,
-	}); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if _, err := store.DecidePendingAction(ctx, "action_resolve", core.PendingActionStatusApproved, `{}`); err != nil {
-		t.Fatalf("decide: %v", err)
-	}
-
-	if err := store.ResolvePendingAction(ctx, "action_resolve"); err != nil {
-		t.Fatalf("resolve: %v", err)
-	}
-
-	record, err := store.LoadPendingAction(ctx, "action_resolve")
-	if err != nil {
-		t.Fatalf("load after resolve: %v", err)
-	}
-	if record.Status != core.PendingActionStatusResolved {
-		t.Errorf("Status = %q, want %q", record.Status, core.PendingActionStatusResolved)
-	}
-	if record.ResolvedAt == nil {
-		t.Error("ResolvedAt should not be nil after resolve")
-	}
-}
-
-func TestResolvePendingActionNotFound(t *testing.T) {
-	store, _ := setupPendingActionStore(t)
-	ctx := context.Background()
-
-	err := store.ResolvePendingAction(ctx, "nonexistent")
-	if !errors.Is(err, core.ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
 	}
 }
 

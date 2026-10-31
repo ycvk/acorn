@@ -76,29 +76,6 @@ func normalizeCreatePendingActionInput(input core.PendingActionInput) (core.Pend
 	return kind, status, nil
 }
 
-func (s *Store) AttachPendingActionInterrupt(ctx context.Context, actionID, interruptID string) error {
-	result, err := s.db.ExecContext(
-		ctx,
-		`UPDATE pending_actions SET interrupt_id = ? WHERE action_id = ?`,
-		strings.TrimSpace(interruptID),
-		strings.TrimSpace(actionID),
-	)
-	if err != nil {
-		if isPendingActionUniqueConstraint(err) {
-			return core.ErrPendingActionExists
-		}
-		return fmt.Errorf("attach pending action interrupt: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("attach pending action interrupt rows affected: %w", err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("attach pending action interrupt: %w: %s", core.ErrPendingActionNotFound, actionID)
-	}
-	return nil
-}
-
 func (s *Store) LoadPendingAction(ctx context.Context, actionID string) (*core.PendingActionRecord, error) {
 	row := s.db.QueryRowContext(
 		ctx,
@@ -111,22 +88,6 @@ func (s *Store) LoadPendingAction(ctx context.Context, actionID string) (*core.P
 			return nil, fmt.Errorf("%w: %s", core.ErrPendingActionNotFound, actionID)
 		}
 		return nil, fmt.Errorf("load pending action: %w", err)
-	}
-	return record, nil
-}
-
-func (s *Store) LoadPendingActionByInterrupt(ctx context.Context, interruptID string) (*core.PendingActionRecord, error) {
-	row := s.db.QueryRowContext(
-		ctx,
-		`SELECT `+pendingActionColumns+` FROM pending_actions WHERE interrupt_id = ?`,
-		interruptID,
-	)
-	record, err := scanPendingActionRecord(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", core.ErrPendingActionNotFound, interruptID)
-		}
-		return nil, fmt.Errorf("load pending action by interrupt: %w", err)
 	}
 	return record, nil
 }
@@ -296,28 +257,6 @@ func decideAppendEvent(ctx context.Context, tx *sql.Tx, record *core.PendingActi
 		formatTimestamp(resolvedAt),
 	); err != nil {
 		return fmt.Errorf("insert action.decided event: %w", err)
-	}
-	return nil
-}
-
-func (s *Store) ResolvePendingAction(ctx context.Context, actionID string) error {
-	resolvedAt := time.Now().UTC()
-	result, err := s.db.ExecContext(
-		ctx,
-		`UPDATE pending_actions SET status = ?, resolved_at = ? WHERE action_id = ?`,
-		string(core.PendingActionStatusResolved),
-		formatTimestamp(resolvedAt),
-		actionID,
-	)
-	if err != nil {
-		return fmt.Errorf("resolve pending action: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("resolve pending action rows affected: %w", err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("resolve pending action: %w: %s", core.ErrPendingActionNotFound, actionID)
 	}
 	return nil
 }
