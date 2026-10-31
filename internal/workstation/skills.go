@@ -25,8 +25,7 @@ const (
 	// packageMarker records the hash of the package a directory holds; a
 	// directory without it is not one Acorn put there.
 	packageMarker = ".acorn-package"
-	// maxPackageBytes and maxPackageEntries bound what a package put may hold.
-	maxPackageBytes   = 8 << 20
+	// maxPackageEntries bounds the files a package put may hold.
 	maxPackageEntries = 512
 )
 
@@ -109,7 +108,7 @@ func (s *Server) skillPackages(w http.ResponseWriter, _ *http.Request) {
 // written beside the old one and swapped in, so the agent never reads half
 // a package.
 func (s *Server) putSkillPackage(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 2*maxPackageBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, 2*skills.MaxPackageBytes)
 	name := r.PathValue("name")
 	if !skillNamePattern.MatchString(name) || len(name) > 64 {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid skill name %q", name))

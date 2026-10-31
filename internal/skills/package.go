@@ -19,8 +19,10 @@ import (
 // SkillFileName is the file that makes a directory a skill.
 const SkillFileName = "SKILL.md"
 
+// MaxPackageBytes bounds the total size of a skill package's files.
+const MaxPackageBytes = 8 << 20
+
 const (
-	maxPackageBytes = 8 << 20
 	maxPackageFiles = 256
 	maxPathLength   = 255
 )
@@ -66,8 +68,8 @@ func normalizeFiles(markdown string, files []core.SkillFile) ([]core.SkillFile, 
 		total += len(f.Content)
 		out = append(out, core.SkillFile{Path: p, Content: slices.Clone(f.Content)})
 	}
-	if total > maxPackageBytes {
-		return nil, fmt.Errorf("skill package is %d bytes; the limit is %d", total, maxPackageBytes)
+	if total > MaxPackageBytes {
+		return nil, fmt.Errorf("skill package is %d bytes; the limit is %d", total, MaxPackageBytes)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out, nil
@@ -192,14 +194,14 @@ func ReadFS(fsys fs.FS) ([]core.SkillFile, error) {
 		if err != nil {
 			return err
 		}
-		content, err := io.ReadAll(io.LimitReader(f, int64(maxPackageBytes-total+1)))
+		content, err := io.ReadAll(io.LimitReader(f, int64(MaxPackageBytes-total+1)))
 		_ = f.Close()
 		if err != nil {
 			return fmt.Errorf("read %s: %w", p, err)
 		}
 		total += len(content)
-		if total > maxPackageBytes {
-			return fmt.Errorf("the package is larger than %d bytes", maxPackageBytes)
+		if total > MaxPackageBytes {
+			return fmt.Errorf("the package is larger than %d bytes", MaxPackageBytes)
 		}
 		files = append(files, core.SkillFile{Path: p, Content: content})
 		return nil
