@@ -1,10 +1,10 @@
 package io.ycvk.acorn.feature.approvals
 
 import androidx.lifecycle.ViewModel
+import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionSummary
@@ -25,8 +25,7 @@ import javax.inject.Inject
  * one, inline on Today or from the detail sheet.
  *
  * The generated [ClientApi] is synchronous (OkHttp execute), so calls are
- * offloaded to [Dispatchers.IO]. Auth is via the companion-level
- * [ApiClient.accessToken] set immediately before each call.
+ * offloaded to [Dispatchers.IO].
  */
 @HiltViewModel
 class ApprovalsViewModel @Inject constructor(
@@ -53,8 +52,7 @@ class ApprovalsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientListPendingActions(limit = 50)
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientListPendingActions(limit = 50)
                 }
                 _pendingActions.value = response.items
                 _error.value = null
@@ -69,8 +67,7 @@ class ApprovalsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val detail = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientGetPendingAction(actionId)
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientGetPendingAction(actionId)
                 }
                 _selectedAction.value = detail
                 _error.value = null
@@ -94,8 +91,7 @@ class ApprovalsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientDecidePendingAction(actionId, request)
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientDecidePendingAction(actionId, request)
                 }
                 run?.let { (runId, threadId) -> follower.follow(profile, runId, threadId, title = null, live = true, decided = actionId) }
                 _selectedAction.value = null

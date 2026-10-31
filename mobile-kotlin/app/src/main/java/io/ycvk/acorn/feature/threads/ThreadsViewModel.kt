@@ -1,10 +1,10 @@
 package io.ycvk.acorn.feature.threads
 
 import androidx.lifecycle.ViewModel
+import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -21,8 +21,7 @@ import javax.inject.Inject
  * Backs the conversations tab: lists threads and deletes them.
  *
  * The generated [io.ycvk.acorn.api.apis.ClientApi] is synchronous (OkHttp execute),
- * so calls are offloaded to [Dispatchers.IO]. Auth is via the companion-level
- * [ApiClient.accessToken] set immediately before each call.
+ * so calls are offloaded to [Dispatchers.IO].
  */
 @HiltViewModel
 class ThreadsViewModel @Inject constructor(
@@ -53,8 +52,7 @@ class ThreadsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    val clientApi = ClientApi(basePath = profile.serverUrl)
+                    val clientApi = ClientApi(basePath = profile.serverUrl).authorized(profile)
                     clientApi.clientListThreads(limit = 50)
                 }
                 _threads.value = response.items
@@ -76,8 +74,7 @@ class ThreadsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientDeleteThread(threadId)
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientDeleteThread(threadId)
                 }
                 _threads.value = _threads.value.filterNot { it.id == threadId }
             } catch (e: Exception) {

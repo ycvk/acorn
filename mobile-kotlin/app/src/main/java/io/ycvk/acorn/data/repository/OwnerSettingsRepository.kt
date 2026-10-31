@@ -1,8 +1,8 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.ClientApi
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.apis.SettingsApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.OwnerSettingName
 import io.ycvk.acorn.api.models.OwnerSettings
 import io.ycvk.acorn.api.models.OwnerSettingsChanges
@@ -28,12 +28,10 @@ class OwnerSettingsRepository @Inject constructor() {
 
     /** The names of the tools the agent has, for picking approval rules. */
     fun toolNames(profile: ConnectionProfile): List<String> {
-        ApiClient.accessToken = profile.accessToken
-        return ClientApi(basePath = profile.serverUrl).clientListTools().items.map { it.name }.distinct().sorted()
+        return ClientApi(basePath = profile.serverUrl).authorized(profile).clientListTools().items.map { it.name }.distinct().sorted()
     }
 
     private fun api(profile: ConnectionProfile): SettingsApi {
-        ApiClient.accessToken = profile.accessToken
-        return SettingsApi(basePath = profile.serverUrl)
+        return SettingsApi(basePath = profile.serverUrl).authorized(profile)
     }
 }

@@ -1,6 +1,7 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.PhoneNotificationsApi
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.models.PhoneNotificationBatch
 import io.ycvk.acorn.api.models.PhoneNotificationInput
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -24,7 +25,7 @@ class PhoneNotificationRepository @Inject constructor() {
     suspend fun send(profile: ConnectionProfile, notifications: List<CapturedNotification>) = withContext(Dispatchers.IO) {
         val api = PhoneNotificationsApi(profile.serverUrl, Call.Factory { request ->
             client.newCall(request).also { active.set(it) }
-        }).apply { accessTokenProvider = { profile.accessToken } }
+        }).authorized(profile)
         try {
             api.clientPostPhoneNotifications(PhoneNotificationBatch(notifications.map {
                 PhoneNotificationInput(

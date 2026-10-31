@@ -1,7 +1,7 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.BrowserApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.infrastructure.Serializer
 import io.ycvk.acorn.api.models.BrowserFrame
 import io.ycvk.acorn.api.models.BrowserInputRequest
@@ -79,8 +79,7 @@ class BrowserRepository @Inject constructor() {
     }
 
     private fun api(profile: ConnectionProfile): BrowserApi {
-        ApiClient.accessToken = profile.accessToken
-        return BrowserApi(basePath = profile.serverUrl)
+        return BrowserApi(basePath = profile.serverUrl).authorized(profile)
     }
 }
 

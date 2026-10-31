@@ -1,10 +1,10 @@
 package io.ycvk.acorn.feature.shell
 
 import androidx.lifecycle.ViewModel
+import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -153,8 +153,7 @@ class ShellViewModel @Inject constructor(
                 val profile = getConnectionProfile() ?: break
                 try {
                     val resp = withContext(Dispatchers.IO) {
-                        ApiClient.accessToken = profile.accessToken
-                        ClientApi(profile.serverUrl).clientGetInbox()
+                        ClientApi(profile.serverUrl).authorized(profile).clientGetInbox()
                     }
                     _pendingCount.value = resp.pendingActions.size
                 } catch (_: Exception) {
