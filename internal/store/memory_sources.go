@@ -99,14 +99,14 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, view sourceVi
 		return source, err
 	}
 	source.Content = source.Body
-	// A wholly excluded source is read without its content, which a deleted
-	// thread no longer has.
+	var quotes []string
 	if view != sourceStored {
-		var whole int
-		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_exclusions WHERE source_id=? AND quote=''`, id).Scan(&whole); err != nil {
+		if quotes, err = sourceExclusionQuotes(ctx, q, id); err != nil {
 			return source, err
 		}
-		if whole > 0 {
+		// A wholly excluded source is read without its content, which a
+		// deleted thread no longer has.
+		if slices.Contains(quotes, "") {
 			source.Excluded, source.Content = true, ""
 			return source, fmt.Errorf("%w: source %s", core.ErrMemoryExcluded, id)
 		}
@@ -145,33 +145,30 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, view sourceVi
 	if view == sourceStored {
 		return source, nil
 	}
+	source.Excluded = len(quotes) > 0
+	source.Content = renderSource(source.Content, quotes, view == sourceMemory)
+	if source.Content == "" && source.Excluded {
+		return source, fmt.Errorf("%w: source %s", core.ErrMemoryExcluded, id)
+	}
+	return source, nil
+}
+
+// sourceExclusionQuotes lists the exclusions of a source; "" excludes it whole.
+func sourceExclusionQuotes(ctx context.Context, q memorySQL, id string) ([]string, error) {
 	rows, err := q.QueryContext(ctx, `SELECT quote FROM memory_exclusions WHERE source_id=?`, id)
 	if err != nil {
-		return source, err
+		return nil, err
 	}
 	var quotes []string
-	if err = scanRows(rows, func(scan func(...any) error) error {
+	err = scanRows(rows, func(scan func(...any) error) error {
 		var quote string
 		if err := scan(&quote); err != nil {
 			return err
 		}
 		quotes = append(quotes, quote)
 		return nil
-	}); err != nil {
-		return source, err
-	}
-	if len(quotes) > 0 {
-		source.Excluded = true
-	}
-	if !slices.Contains(quotes, "") {
-		source.Content = renderSource(source.Content, quotes, view == sourceMemory)
-	} else {
-		source.Content = ""
-	}
-	if source.Content == "" && source.Excluded {
-		return source, fmt.Errorf("%w: source %s", core.ErrMemoryExcluded, id)
-	}
-	return source, nil
+	})
+	return quotes, err
 }
 
 const excludedPlaceholder = "[owner excluded this memory]"
