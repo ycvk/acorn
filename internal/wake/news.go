@@ -202,11 +202,7 @@ func reactionLabel(r core.NewsReaction) string {
 // itemTime is when an item was published, or first seen when its source
 // gives no date.
 func (s *Scheduler) itemTime(item core.WatchItem, loc *time.Location) string {
-	at := item.PublishedAt
-	if at.IsZero() {
-		at = item.SeenAt
-	}
-	return at.In(loc).Format("01-02 15:04")
+	return item.When().In(loc).Format("01-02 15:04")
 }
 
 // previousBriefing carries the news sections and today's focus of the last

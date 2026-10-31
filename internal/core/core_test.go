@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // --- ToolSpec.Validate() tests ---
@@ -184,5 +185,16 @@ func TestNewActionIDIsRouteSafeAndUnique(t *testing.T) {
 			t.Fatalf("duplicate action id %q", id)
 		}
 		seen[id] = true
+	}
+}
+
+func TestWatchItemWhenFallsBackToSeen(t *testing.T) {
+	seen := time.Date(2026, 10, 31, 8, 0, 0, 0, time.UTC)
+	published := seen.Add(-time.Hour)
+	if got := (WatchItem{PublishedAt: published, SeenAt: seen}).When(); !got.Equal(published) {
+		t.Fatalf("When() = %v, want the published time %v", got, published)
+	}
+	if got := (WatchItem{SeenAt: seen}).When(); !got.Equal(seen) {
+		t.Fatalf("When() without a published time = %v, want the seen time %v", got, seen)
 	}
 }
