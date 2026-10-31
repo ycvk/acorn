@@ -55,12 +55,12 @@ func newPresenceToolsForTest(t *testing.T) (*store.Store, map[string]einotool.Ba
 	t.Helper()
 	deps, db := testPresenceDeps(t, fixedArtifactContext{runID: "run_1", sessionID: "thread_1", callID: "call_1"})
 	tools := map[string]einotool.BaseTool{}
-	keep, err := buildMemoryWriteTool("keep", "keep", deps)
+	keep, err := buildKeepTool(deps)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tools["keep"] = keep
-	think, err := buildMemoryWriteTool("think", "think", deps)
+	think, err := buildThinkTool(deps)
 	if err != nil {
 		t.Fatal(err)
 	}

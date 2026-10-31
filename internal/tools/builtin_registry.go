@@ -90,14 +90,10 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		}
 	case "keep":
 		needs = presenceDeps
-		build = func() (einotool.BaseTool, error) {
-			return buildMemoryWriteTool("keep", "Persist a fact immediately when the owner explicitly asks to remember it, citing the current owner source and exact words.", deps.Presence)
-		}
+		build = func() (einotool.BaseTool, error) { return buildKeepTool(deps.Presence) }
 	case "think":
 		needs = presenceDeps
-		build = func() (einotool.BaseTool, error) {
-			return buildMemoryWriteTool("think", "Record a sourced thought or open question of your own.", deps.Presence)
-		}
+		build = func() (einotool.BaseTool, error) { return buildThinkTool(deps.Presence) }
 	case "schedule_wake":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) { return buildScheduleWakeTool(deps.Presence) }

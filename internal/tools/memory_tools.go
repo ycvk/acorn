@@ -28,13 +28,15 @@ type PresenceToolDeps struct {
 	ForgetBarrier func(context.Context, core.MemoryExclusion, string) error
 }
 
-func buildMemoryWriteTool(name, description string, deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool(name, description, func(ctx context.Context, in memory.WriteInput, _ ToolProgressEmitter) (core.MemoryRecord, error) {
-		runID := deps.Context.CurrentRunID(ctx)
-		if name == "keep" {
-			return deps.Memory.Keep(ctx, runID, in)
-		}
-		return deps.Memory.Think(ctx, runID, deps.Context.CurrentSessionID(ctx), in)
+func buildKeepTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
+	return inferProgressTool("keep", "Persist a fact immediately when the owner explicitly asks to remember it, citing the current owner source and exact words.", func(ctx context.Context, in memory.WriteInput, _ ToolProgressEmitter) (core.MemoryRecord, error) {
+		return deps.Memory.Keep(ctx, deps.Context.CurrentRunID(ctx), in)
+	})
+}
+
+func buildThinkTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
+	return inferProgressTool("think", "Record a sourced thought or open question of your own.", func(ctx context.Context, in memory.WriteInput, _ ToolProgressEmitter) (core.MemoryRecord, error) {
+		return deps.Memory.Think(ctx, deps.Context.CurrentRunID(ctx), deps.Context.CurrentSessionID(ctx), in)
 	})
 }
 
