@@ -5,7 +5,6 @@ import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunEventProjection
 import io.ycvk.acorn.core.sse.RunStatus
-import io.ycvk.acorn.feature.chat.reconnectDelayMs
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -284,3 +283,6 @@ private fun decidedAction(packet: RunEventPacket): String? = when (packet) {
     is RunEventPacket.ElicitationDecided -> packet.event.`data`.actionId
     else -> null
 }
+
+/** How long to wait before reconnect [attempt] (from 0), or null once the retries are spent. */
+fun reconnectDelayMs(attempt: Int): Long? = if (attempt < 3) 1_000L shl attempt else null

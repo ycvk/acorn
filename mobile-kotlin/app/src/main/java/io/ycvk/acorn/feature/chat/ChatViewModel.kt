@@ -22,6 +22,7 @@ import io.ycvk.acorn.data.repository.ThreadFileRepository
 import io.ycvk.acorn.feature.live.FollowedRun
 import io.ycvk.acorn.feature.live.RunFollower
 import io.ycvk.acorn.feature.live.RunUpdate
+import io.ycvk.acorn.feature.live.reconnectDelayMs
 import io.ycvk.acorn.feature.views.ViewActionPress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -519,9 +520,6 @@ fun awaitsReply(messages: List<ChatMessage>): Boolean = when (val last = message
     is ChatMessage.Assistant -> last.text.isBlank()
     else -> true
 }
-
-/** How long to wait before reconnect [attempt] (from 0), or null once the retries are spent. */
-fun reconnectDelayMs(attempt: Int): Long? = if (attempt < 3) 1_000L shl attempt else null
 
 /** A new thread is titled by the first line of its first message. */
 fun threadTitleFor(text: String): String {

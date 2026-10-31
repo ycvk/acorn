@@ -5,8 +5,8 @@ import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.feature.chat.ChatMessage
 import io.ycvk.acorn.feature.chat.FileView
 import io.ycvk.acorn.feature.chat.awaitsReply
-import io.ycvk.acorn.feature.chat.reconnectDelayMs
 import io.ycvk.acorn.feature.chat.runToFollow
+import io.ycvk.acorn.feature.live.reconnectDelayMs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
