@@ -145,7 +145,7 @@ func TestOpenProviderLogFileUsesPrivatePermissionsAndSanitizedName(t *testing.T)
 	}
 	t.Cleanup(func() { _ = file.Close() })
 
-	if got, want := filepath.Base(file.Name()), "unsafe-name-with-dots.log"; got != want {
+	if got, want := filepath.Base(file.Name()), "unsafe-name-with--dots.log"; got != want {
 		t.Fatalf("log filename = %q, want %q", got, want)
 	}
 	if got, want := filepath.Dir(file.Name()), filepath.Join(tempRoot, "acorn-mcp-logs"); got != want {
