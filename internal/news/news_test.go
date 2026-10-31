@@ -330,3 +330,27 @@ func TestParseSortingChecksTheBatch(t *testing.T) {
 		t.Fatalf("entry links = %q, %q; links resolve against the issue page", commit.Entries[0].URL, commit.Entries[1].URL)
 	}
 }
+
+func TestParseSortingNamesWhatIsWrong(t *testing.T) {
+	batch := core.NewsBatch{Items: []core.NewsBatchItem{
+		{Item: core.WatchItem{ID: 1}, Section: "国际"},
+		{Item: core.WatchItem{ID: 2}, Section: "国际"},
+		{Item: core.WatchItem{ID: 3, URL: "https://daily.test/2026-10-22"}, Section: "AI", Issue: true},
+	}}
+	recent := []core.NewsStory{{ID: 7, Section: "国际", Title: "旧事"}}
+	sections := []string{"国际", "AI"}
+	items := `"items":[{"id":1,"score":3,"story":"s7"},{"id":2,"score":1}]`
+	for reply, want := range map[string]string{
+		`{"items":[{"id":1,"score":9}],"stories":[{"ref":"n1","section":"AI","title":"x"},{"ref":"n1","section":"AI","title":"y"}]}`: `news sorting defines story "n1" twice`,
+		`{"stories":[{"ref":"x9","title":"x"}]}`:                                                                 `news sorting: story "x9" is neither new nor a recent story`,
+		`{"items":[{"id":1,"score":3,"story":"s7"},{"id":1,"score":3,"story":"s7"},{"id":2,"score":1}]}`:         `news sorting scores item 1 twice`,
+		`{` + items + `,"entries":[{"issue":3,"title":" ","score":2,"story":"s7"}]}`:                             `news sorting: an entry of issue 3 needs a title and a score from 1 to 5`,
+		`{` + items + `,"entries":[{"issue":3,"title":"x","score":3}]}`:                                          `news sorting leaves an entry of issue 3 without a story`,
+		`{` + items + `,"entries":[{"issue":3,"title":"x","score":2,"story":"n5"}]}`:                             `news sorting: story "n5" is not defined`,
+		`{"items":[{"id":1,"score":3,"story":"s7"}],"entries":[{"issue":1,"title":"x","score":2,"story":"s7"}]}`: `news sorting scores 1 of 2 new items`,
+	} {
+		if _, err := parseSorting(reply, batch, recent, sections); err == nil || err.Error() != want {
+			t.Errorf("parseSorting(%s) = %v, want %q", reply, err, want)
+		}
+	}
+}
