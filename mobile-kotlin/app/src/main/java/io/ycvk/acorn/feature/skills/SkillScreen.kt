@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -33,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,6 +46,7 @@ import io.ycvk.acorn.api.models.SkillRevisionSummary
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.FilledField
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
@@ -178,24 +176,14 @@ fun SkillScreen(
                 }
             },
         ) {
-            BasicTextField(
-                value = secretValue,
-                onValueChange = { secretValue = it },
-                singleLine = true,
+            FilledField(
+                secretValue,
+                { secretValue = it },
+                Modifier.fillMaxWidth(),
+                placeholder = "粘贴或输入值",
+                keyboard = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                textStyle = AcornTheme.type.mono,
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                textStyle = AcornTheme.type.mono.copy(color = colors.ink),
-                cursorBrush = SolidColor(colors.accent),
-                decorationBox = { field ->
-                    if (secretValue.isEmpty()) Text("粘贴或输入值", style = AcornTheme.type.callout, color = colors.inkFaint)
-                    field()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 44.dp)
-                    .clip(AcornShapes.medium)
-                    .background(colors.surfaceMuted)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
             )
         }
     }

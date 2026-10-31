@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -29,10 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,9 +38,9 @@ import io.ycvk.acorn.api.models.RuntimeReadiness
 import io.ycvk.acorn.core.push.PushStatus
 import io.ycvk.acorn.core.push.pushStatusDetail
 import io.ycvk.acorn.core.push.pushStatusLabel
-import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.FilledField
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
@@ -228,24 +223,7 @@ fun SettingsScreen(
                 }
             },
         ) {
-            BasicTextField(
-                value = draft,
-                onValueChange = { editingName = ownerNameDraft(it) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                textStyle = AcornTheme.type.callout.copy(color = colors.ink),
-                cursorBrush = SolidColor(colors.accent),
-                decorationBox = { field ->
-                    if (draft.isEmpty()) Text("你的名字或昵称", style = AcornTheme.type.callout, color = colors.inkFaint)
-                    field()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 44.dp)
-                    .clip(AcornShapes.medium)
-                    .background(colors.surfaceMuted)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-            )
+            FilledField(draft, { editingName = ownerNameDraft(it) }, Modifier.fillMaxWidth(), placeholder = "你的名字或昵称")
             nameError?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(it, style = AcornTheme.type.caption, color = colors.danger)

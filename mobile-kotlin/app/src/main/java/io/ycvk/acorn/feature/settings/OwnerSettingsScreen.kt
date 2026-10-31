@@ -56,6 +56,7 @@ import io.ycvk.acorn.api.models.QuietHours
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.FilledField
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
@@ -445,19 +446,11 @@ private fun NumberEditor(frame: EditorFrame, value: Int, default: Int, least: In
     }
     EditorDialog(frame, defaultLabel, canSave = number != null && number >= least, onSave = { number?.let(onSave) }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicTextField(
-                value = text,
-                onValueChange = { input -> text = input.filter(Char::isDigit).take(9) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                textStyle = AcornTheme.type.callout.copy(color = colors.ink),
-                cursorBrush = SolidColor(colors.accent),
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 44.dp)
-                    .clip(AcornShapes.medium)
-                    .background(colors.surfaceMuted)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            FilledField(
+                text,
+                { input -> text = input.filter(Char::isDigit).take(9) },
+                Modifier.weight(1f),
+                keyboard = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
             )
             Spacer(Modifier.width(10.dp))
             Text(unit, style = AcornTheme.type.callout, color = colors.inkSoft)
@@ -484,7 +477,7 @@ private fun ZoneEditor(frame: EditorFrame, value: String, default: String, onSav
     val zones = remember { ZoneId.getAvailableZoneIds() }
     val choices = remember(query) { zoneChoices(zones, phone, query) }
     EditorDialog(frame, default, canSave = picked.isNotEmpty(), onSave = { onSave(picked) }) {
-        SearchField(query, "搜索，例如 Shanghai") { query = it }
+        FilledField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "搜索，例如 Shanghai")
         Spacer(Modifier.height(8.dp))
         LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) {
             items(choices, key = { it }) { zone ->
@@ -539,7 +532,7 @@ private fun PatternsEditor(frame: EditorFrame, value: List<String>, default: Lis
         }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SearchField(typed, "工具名，可用 *", Modifier.weight(1f)) { typed = it }
+            FilledField(typed, { typed = it }, Modifier.weight(1f).fillMaxWidth(), placeholder = "工具名，可用 *")
             Spacer(Modifier.width(8.dp))
             AcornButton("添加", onClick = { add(typed) }, kind = ButtonKind.Secondary, compact = true, enabled = typed.isNotBlank())
         }
@@ -556,25 +549,3 @@ private fun PatternsEditor(frame: EditorFrame, value: List<String>, default: Lis
     }
 }
 
-@Composable
-private fun SearchField(value: String, placeholder: String, modifier: Modifier = Modifier, onChange: (String) -> Unit) {
-    val colors = AcornTheme.colors
-    BasicTextField(
-        value = value,
-        onValueChange = onChange,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        textStyle = AcornTheme.type.callout.copy(color = colors.ink),
-        cursorBrush = SolidColor(colors.accent),
-        decorationBox = { field ->
-            if (value.isEmpty()) Text(placeholder, style = AcornTheme.type.callout, color = colors.inkFaint)
-            field()
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .clip(AcornShapes.medium)
-            .background(colors.surfaceMuted)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-    )
-}
