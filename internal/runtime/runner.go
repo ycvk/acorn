@@ -54,7 +54,7 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSp
 			specs = append(specs, spec)
 		}
 	}
-	specs = append(specs, toolset.Catalog().Specs()...)
+	specs = append(specs, toolset.Specs()...)
 	for i := range specs {
 		specs[i].Tool = nil
 		specs[i].Factory = nil
