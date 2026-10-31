@@ -92,9 +92,6 @@ func NewFetchService(cfg FetchConfig) (*FetchService, error) {
 }
 
 func (s *FetchService) Fetch(ctx context.Context, req FetchRequest) (FetchResult, error) {
-	if s == nil {
-		return FetchResult{}, errors.New("web fetch service is nil")
-	}
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 	got, err := s.get(ctx, req.URL, map[string]string{"Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1"})
