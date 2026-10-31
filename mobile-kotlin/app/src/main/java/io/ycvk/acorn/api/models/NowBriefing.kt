@@ -23,6 +23,7 @@
 
 package io.ycvk.acorn.api.models
 
+import io.ycvk.acorn.api.models.NowBriefingPart
 import io.ycvk.acorn.api.models.NowBriefingStory
 
 import com.squareup.moshi.Json
@@ -37,6 +38,7 @@ import com.squareup.moshi.JsonClass
  * @param body The briefing in Markdown, one section per `##` heading.
  * @param finishedAt 
  * @param stories The stories the briefing picked, in its order; empty until the backend has read them from the reply, shortly after the run, and for a briefing without news.
+ * @param parts The parts of the briefing the card previews, in its order. Once the picked stories are known, their sections and today's focus are left out.
  */
 
 
@@ -62,7 +64,11 @@ data class NowBriefing (
 
     /* The stories the briefing picked, in its order; empty until the backend has read them from the reply, shortly after the run, and for a briefing without news. */
     @Json(name = "stories")
-    val stories: kotlin.collections.List<NowBriefingStory>
+    val stories: kotlin.collections.List<NowBriefingStory>,
+
+    /* The parts of the briefing the card previews, in its order. Once the picked stories are known, their sections and today's focus are left out. */
+    @Json(name = "parts")
+    val parts: kotlin.collections.List<NowBriefingPart>
 
 ) {
 

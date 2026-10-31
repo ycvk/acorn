@@ -63,18 +63,6 @@ class NowLabelsTest {
         assertEquals("每 90 分钟", intervalLabel(5_400))
     }
 
-    @Test
-    fun `briefing sections follow the headings and drop empty ones`() {
-        val body = "周日，08:00。\n\n## 今天的安排\n\n- 没有到期的约定\n- **10:00** 开会\n\n## 追踪\n\n"
-        assertEquals(
-            listOf(
-                BriefingSection(null, "周日，08:00。"),
-                BriefingSection("今天的安排", "没有到期的约定 10:00 开会"),
-            ),
-            briefingSections(body),
-        )
-    }
-
     private fun story(id: Long, section: String, focus: Boolean = false, reaction: NowBriefingStory.Reaction? = null) =
         NowBriefingStory(storyId = id, section = section, title = "事件 $id", url = "https://x.test/$id", focus = focus, following = false, reaction = reaction)
 
@@ -94,16 +82,5 @@ class NowLabelsTest {
             listOf("国际" to listOf(stories[0], stories[2]), "AI" to listOf(stories[1])),
             storySections(stories),
         )
-    }
-
-    @Test
-    fun `with stories listed the preview leaves out the news and the focus`() {
-        val sections = listOf(
-            BriefingSection("国际", "1. 停火谈判"),
-            BriefingSection("今日关注", "第 1 条：停火"),
-            BriefingSection("今天", "10:00 开会"),
-        )
-        assertEquals(listOf(sections[2]), previewSections(sections, listOf(story(1, "国际"))))
-        assertEquals(sections, previewSections(sections, emptyList()))
     }
 }

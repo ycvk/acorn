@@ -3976,7 +3976,7 @@ components:
       type: object
       additionalProperties: false
       description: The reply of the newest succeeded morning briefing run; absent before the first one.
-      required: [thread_id, run_id, date, body, finished_at, stories]
+      required: [thread_id, run_id, date, body, finished_at, stories, parts]
       properties:
         thread_id:
           type: string
@@ -3998,6 +3998,23 @@ components:
           description: The stories the briefing picked, in its order; empty until the backend has read them from the reply, shortly after the run, and for a briefing without news.
           items:
             $ref: '#/components/schemas/NowBriefingStory'
+        parts:
+          type: array
+          description: The parts of the briefing the card previews, in its order. Once the picked stories are known, their sections and today's focus are left out.
+          items:
+            $ref: '#/components/schemas/NowBriefingPart'
+
+    NowBriefingPart:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        heading:
+          type: string
+          description: The part's heading; absent for the lines before the first heading.
+        body:
+          type: string
+          description: The part's non-empty lines in Markdown.
 
     NowBriefingStory:
       type: object

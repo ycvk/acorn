@@ -150,7 +150,7 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 	want := NowBriefingDTO{ThreadID: "thread_briefings", RunID: "run_briefing", Date: "2026-10-11", Body: "## 今天\n交房租", FinishedAt: nowTestTime, Stories: []NowBriefingStoryDTO{
 		{StoryID: 41, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://news.test/ph", Reaction: "less"},
 		{StoryID: 42, Section: "国际与财经", Title: "普京提议中美俄三方会谈", URL: "https://news.test/talks", Focus: true},
-	}}
+	}, Parts: []NowBriefingPartDTO{{Heading: "今天", Body: "交房租"}}}
 	if store.routine != "briefing" || got.Briefing == nil || !reflect.DeepEqual(*got.Briefing, want) {
 		t.Fatalf("briefing = %+v from routine %q", got.Briefing, store.routine)
 	}

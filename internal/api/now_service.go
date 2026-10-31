@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/wake"
 )
 
 // nowStore is the part of the store the now page reads and changes.
@@ -57,6 +58,13 @@ type NowBriefingDTO struct {
 	Body       string                `json:"body"`
 	FinishedAt time.Time             `json:"finished_at"`
 	Stories    []NowBriefingStoryDTO `json:"stories"`
+	Parts      []NowBriefingPartDTO  `json:"parts"`
+}
+
+// NowBriefingPartDTO is a part of the briefing the card previews.
+type NowBriefingPartDTO struct {
+	Heading string `json:"heading,omitempty"`
+	Body    string `json:"body"`
 }
 
 // NowBriefingStoryDTO is a story the briefing picked, with the owner's
@@ -163,7 +171,7 @@ func (s *NowService) Load(ctx context.Context) (NowResponse, error) {
 		if err != nil {
 			return NowResponse{}, fmt.Errorf("briefing stories: %w", err)
 		}
-		out.Briefing = &NowBriefingDTO{ThreadID: briefing.ThreadID, RunID: briefing.RunID, Date: briefing.Slot, Body: briefing.Text, FinishedAt: briefing.FinishedAt.UTC(), Stories: nowBriefingStories(stories)}
+		out.Briefing = &NowBriefingDTO{ThreadID: briefing.ThreadID, RunID: briefing.RunID, Date: briefing.Slot, Body: briefing.Text, FinishedAt: briefing.FinishedAt.UTC(), Stories: nowBriefingStories(stories), Parts: nowBriefingParts(briefing.Text, stories)}
 	}
 	if out.Commitments, err = nowCommitments(commitments, occurrences); err != nil {
 		return NowResponse{}, err
@@ -212,6 +220,15 @@ func nowBriefingStories(stories []core.BriefingStory) []NowBriefingStoryDTO {
 			StoryID: story.StoryID, Section: story.Section, Title: story.Title, Summary: story.Summary,
 			URL: story.URL, Focus: story.Focus, Reaction: string(story.Reaction), ThreadID: story.ThreadID, Following: story.Following,
 		})
+	}
+	return out
+}
+
+func nowBriefingParts(body string, stories []core.BriefingStory) []NowBriefingPartDTO {
+	parts := wake.BriefingParts(body, stories)
+	out := make([]NowBriefingPartDTO, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, NowBriefingPartDTO{Heading: p.Heading, Body: p.Body})
 	}
 	return out
 }
