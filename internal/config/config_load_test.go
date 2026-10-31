@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,8 +28,8 @@ func TestExpandHome(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := expandHome(tt.input)
-		if got != tt.want {
+		got, err := expandHome(tt.input)
+		if err != nil || got != tt.want {
 			t.Errorf("expandHome(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
@@ -40,9 +41,9 @@ func TestResolveDirExpandsHome(t *testing.T) {
 		t.Skip("cannot determine home directory")
 	}
 
-	got := resolveDir("/any/config/dir", "~/.acorn")
+	got, err := resolveDir("/any/config/dir", "~/.acorn")
 	want := filepath.Join(home, ".acorn")
-	if got != want {
+	if err != nil || got != want {
 		t.Errorf("resolveDir(_, ~/.acorn) = %q, want %q", got, want)
 	}
 }
@@ -193,6 +194,40 @@ mcp:
 	want := filepath.Join(home, ".acorn")
 	if cfg.Runtime.StorageDir != want {
 		t.Errorf("storage_dir = %q, want %q", cfg.Runtime.StorageDir, want)
+	}
+}
+
+func TestLoadFailsWhenStorageDirCannotResolve(t *testing.T) {
+	const body = `providers:
+  - name: default
+    model: test
+    base_url: https://example.invalid/v1
+    api_key: test
+    temperature: 0.3
+    max_output_tokens: 100
+    timeout_seconds: 30
+    enabled: true
+runtime:
+  storage_dir: %s
+web:
+  listen_addr: 127.0.0.1:8080
+`
+	for _, tc := range []struct {
+		name, storageDir, home, wantErr string
+	}{
+		{"empty", `""`, t.TempDir(), "runtime.storage_dir is required"},
+		{"no home", "~/.acorn", "", `expand ~ in "~/.acorn"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("HOME", tc.home)
+			configPath := filepath.Join(t.TempDir(), "acorn.yaml")
+			if err := os.WriteFile(configPath, []byte(fmt.Sprintf(body, tc.storageDir)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Load(configPath); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("err = %v, want it to mention %q", err, tc.wantErr)
+			}
+		})
 	}
 }
 
