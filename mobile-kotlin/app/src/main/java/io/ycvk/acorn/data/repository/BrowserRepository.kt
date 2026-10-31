@@ -1,12 +1,13 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.BrowserApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.infrastructure.Serializer
 import io.ycvk.acorn.api.models.BrowserFrame
 import io.ycvk.acorn.api.models.BrowserInputRequest
 import io.ycvk.acorn.api.models.BrowserTab
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.sse.SseHttp
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -14,7 +15,6 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,11 +24,7 @@ import javax.inject.Singleton
  * [tabs] and [input] block; call them from an IO dispatcher.
  */
 @Singleton
-class BrowserRepository @Inject constructor() {
-    private val streams = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS)
-        .build()
+class BrowserRepository @Inject constructor(@SseHttp private val streams: OkHttpClient) {
     private val frameAdapter = Serializer.moshi.adapter(BrowserFrame::class.java)
     private val errorAdapter = Serializer.moshi.adapter(BrowserStreamError::class.java)
 
@@ -79,8 +75,7 @@ class BrowserRepository @Inject constructor() {
     }
 
     private fun api(profile: ConnectionProfile): BrowserApi {
-        ApiClient.accessToken = profile.accessToken
-        return BrowserApi(basePath = profile.serverUrl)
+        return BrowserApi(basePath = profile.serverUrl).authorized(profile)
     }
 }
 

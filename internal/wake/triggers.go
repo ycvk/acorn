@@ -46,9 +46,6 @@ type firedTrigger struct {
 // immediate triggers. Triggers of one skill fire one after another; skills
 // fire side by side, so a round waits for the slowest skill.
 func (s *Scheduler) fireTriggers(ctx context.Context, now time.Time, settings core.Settings) error {
-	if s.triggers == nil {
-		return nil
-	}
 	due, syncErr := s.syncTriggers(ctx, now, settings.Location)
 	if len(due) == 0 {
 		return syncErr

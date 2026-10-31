@@ -138,21 +138,13 @@ func (s *Store) UpdateSessionTitle(ctx context.Context, sessionID, title string)
 	return nil
 }
 
-func (s *Store) CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error) {
+func (s *Store) CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (_ int, err error) {
 	now := time.Now().UTC()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin create fresh session turn: %w", err)
 	}
-	defer func() {
-		if tx == nil {
-			return
-		}
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			err = errors.Join(err, fmt.Errorf("create fresh session turn rollback: %w", rollbackErr))
-		}
-	}()
+	defer rollbackOnErr(tx, &err, "create fresh session turn")
 
 	if _, err := tx.ExecContext(
 		ctx,
@@ -182,7 +174,6 @@ func (s *Store) CreateFreshSessionTurn(ctx context.Context, sessionID, title, in
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit create fresh session turn: %w", err)
 	}
-	tx = nil
 	return turnIndex, nil
 }
 

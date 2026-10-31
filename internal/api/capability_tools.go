@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/tools"
 )
 
 func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []SystemMCPProviderCapability) ([]SystemToolCapability, error) {
@@ -30,14 +29,11 @@ func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []Sys
 }
 
 func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]core.ToolSpec, error) {
-	if s.catalogBuilder != nil {
-		specs, err := s.catalogBuilder.BuildCapabilitySpecs(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("build tool catalog: %w", err)
-		}
-		return specs, nil
+	specs, err := s.toolSpecs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("build tool catalog: %w", err)
 	}
-	return tools.ConfiguredLocalSpecs(), nil
+	return specs, nil
 }
 
 func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProviderCapability) ([]SystemToolCapability, error) {

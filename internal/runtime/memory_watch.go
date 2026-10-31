@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 // Each active execution follows the durable exclusion epoch. This also stops
 // model calls owned by a different Acorn process sharing the database.
-func watchRunMemory(ctx context.Context, store core.MemoryStore, runID string, epoch int64, cancel context.CancelFunc) {
+func watchRunMemory(ctx context.Context, store core.MemoryStore, runID string, epoch int64, cancel context.CancelCauseFunc) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -23,7 +24,7 @@ func watchRunMemory(ctx context.Context, store core.MemoryStore, runID string, e
 			if err != nil {
 				if ctx.Err() == nil {
 					slog.Error("memory visibility epoch", "run_id", runID, "error", err)
-					cancel()
+					cancel(fmt.Errorf("memory visibility epoch: %w", err))
 				}
 				return
 			}
@@ -34,13 +35,13 @@ func watchRunMemory(ctx context.Context, store core.MemoryStore, runID string, e
 			if err != nil {
 				if ctx.Err() == nil {
 					slog.Error("memory visibility exclusions", "run_id", runID, "error", err)
-					cancel()
+					cancel(fmt.Errorf("memory visibility exclusions: %w", err))
 				}
 				return
 			}
 			epoch = exclusion.Epoch
 			if exclusion.RequestRunID != runID && slices.Contains(exclusion.RunIDs, runID) {
-				cancel()
+				cancel(core.ErrMemoryExcluded)
 				return
 			}
 		}

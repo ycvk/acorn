@@ -12,7 +12,6 @@ import io.ycvk.acorn.api.models.BrowserFrame
 import io.ycvk.acorn.api.models.BrowserInputRequest
 import io.ycvk.acorn.api.models.BrowserTab
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.BrowserRepository
@@ -235,5 +234,5 @@ class BrowserViewModel @Inject constructor(
         stop()
     }
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }

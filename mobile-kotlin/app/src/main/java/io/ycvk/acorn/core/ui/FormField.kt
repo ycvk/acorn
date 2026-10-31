@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -24,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
@@ -74,4 +77,36 @@ fun FormField(
             )
         }
     }
+}
+
+/** A single-line field on a muted fill, for dialogs and sheets; [placeholder] shows while it is empty. */
+@Composable
+fun FilledField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String? = null,
+    keyboard: KeyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+    textStyle: TextStyle = AcornTheme.type.callout,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+) {
+    val colors = AcornTheme.colors
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        keyboardOptions = keyboard,
+        visualTransformation = visualTransformation,
+        textStyle = textStyle.copy(color = colors.ink),
+        cursorBrush = SolidColor(colors.accent),
+        decorationBox = { field ->
+            if (placeholder != null && value.isEmpty()) Text(placeholder, style = AcornTheme.type.callout, color = colors.inkFaint)
+            field()
+        },
+        modifier = modifier
+            .heightIn(min = 44.dp)
+            .clip(AcornShapes.medium)
+            .background(colors.surfaceMuted)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    )
 }

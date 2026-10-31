@@ -19,6 +19,7 @@ import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
 import io.ycvk.acorn.api.models.ClientViewShownEvent
 import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
+import io.ycvk.acorn.core.auth.ConnectionProfile
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -26,7 +27,6 @@ import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 
 /**
  * SSE client for `GET /v1/runs/{runId}/events?follow=true&after_seq=N`.
@@ -38,15 +38,7 @@ import java.util.concurrent.TimeUnit
  * [EventSourceListener.onEvent]) to select the matching concrete [Client*Event]
  * Moshi adapter.
  */
-class RunEventStreamClient(
-    private val baseUrl: String,
-    private val accessToken: String,
-) {
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS) // no read timeout for SSE
-        .build()
-
+class RunEventStreamClient(client: OkHttpClient) {
     // Reuse the generated client's Moshi (date/UUID adapters + KotlinJsonAdapterFactory)
     // so envelope fields (OffsetDateTime ts, Long seq) decode the same way as REST calls.
     private val moshi = Serializer.moshi
@@ -79,16 +71,17 @@ class RunEventStreamClient(
     private val factory = EventSources.createFactory(client)
 
     fun streamRunEvents(
+        profile: ConnectionProfile,
         runId: String,
         afterSeq: Long,
         onEvent: (RunEventPacket) -> Unit,
         onError: (Throwable) -> Unit,
         onClosed: () -> Unit,
     ): EventSource {
-        val url = "$baseUrl/v1/runs/$runId/events?follow=true&after_seq=$afterSeq"
+        val url = "${profile.serverUrl}/v1/runs/$runId/events?follow=true&after_seq=$afterSeq"
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $accessToken")
+            .header("Authorization", "Bearer ${profile.accessToken}")
             .header("Accept", "text/event-stream")
             .build()
 
@@ -118,7 +111,6 @@ class RunEventStreamClient(
      *
      * If the type is unknown the raw data is preserved in [RunEventPacket.Unknown].
      */
-    @Suppress("UNCHECKED_CAST")
     private fun parseRunEvent(type: String?, data: String): RunEventPacket {
         if (type == null) {
             return RunEventPacket.Unknown(rawType = "(null)", rawData = data)
@@ -156,122 +148,30 @@ class RunEventStreamClient(
 
 /**
  * Discriminated-union wrapper around the concrete generated `Client*Event` envelope
- * classes. Each subtype delegates [eventId], [runId], [seq] to the wrapped event so
- * callers can access envelope fields without unwrapping.
+ * classes. Each subtype takes [eventId] and [seq] from the wrapped event so callers
+ * can read envelope fields without unwrapping.
  *
  * [Unknown] preserves the raw SSE type and data for events the client does not
  * recognise, so they can be logged or ignored without losing information.
  */
-sealed class RunEventPacket {
-    abstract val eventId: String
-    abstract val runId: String
-    abstract val seq: Long
+sealed class RunEventPacket(val eventId: String, val seq: Long) {
+    data class Started(val event: ClientRunStartedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class AssistantDelta(val event: ClientAssistantDeltaEvent) : RunEventPacket(event.eventId, event.seq)
+    data class RunCompleted(val event: ClientRunCompletedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class RunFailed(val event: ClientRunFailedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class RunInterrupted(val event: ClientRunInterruptedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class RunResumeRequested(val event: ClientRunResumeRequestedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ElicitationPending(val event: ClientElicitationPendingEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ElicitationDecided(val event: ClientElicitationDecidedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class OperatorQuestionPending(val event: ClientOperatorQuestionPendingEvent) : RunEventPacket(event.eventId, event.seq)
+    data class OperatorQuestionDecided(val event: ClientOperatorQuestionDecidedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ToolApprovalPending(val event: ClientToolApprovalPendingEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ToolApprovalDecided(val event: ClientToolApprovalDecidedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ToolCallStarted(val event: ClientToolCallStartedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ToolCallSucceeded(val event: ClientToolCallSucceededEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ToolCallFailed(val event: ClientToolCallFailedEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ViewShown(val event: ClientViewShownEvent) : RunEventPacket(event.eventId, event.seq)
+    data class ViewUpdated(val event: ClientViewUpdatedEvent) : RunEventPacket(event.eventId, event.seq)
 
-    data class Started(val event: ClientRunStartedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class AssistantDelta(val event: ClientAssistantDeltaEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class RunCompleted(val event: ClientRunCompletedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class RunFailed(val event: ClientRunFailedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class RunInterrupted(val event: ClientRunInterruptedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class RunResumeRequested(val event: ClientRunResumeRequestedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ElicitationPending(val event: ClientElicitationPendingEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ElicitationDecided(val event: ClientElicitationDecidedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class OperatorQuestionPending(val event: ClientOperatorQuestionPendingEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class OperatorQuestionDecided(val event: ClientOperatorQuestionDecidedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ToolApprovalPending(val event: ClientToolApprovalPendingEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ToolApprovalDecided(val event: ClientToolApprovalDecidedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ToolCallStarted(val event: ClientToolCallStartedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ToolCallSucceeded(val event: ClientToolCallSucceededEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ToolCallFailed(val event: ClientToolCallFailedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ViewShown(val event: ClientViewShownEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class ViewUpdated(val event: ClientViewUpdatedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class Unknown(val rawType: String, val rawData: String) : RunEventPacket() {
-        override val eventId: String = ""
-        override val runId: String = ""
-        override val seq: Long = 0L
-    }
+    data class Unknown(val rawType: String, val rawData: String) : RunEventPacket("", 0L)
 }

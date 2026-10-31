@@ -60,7 +60,7 @@ class NotificationUploader @Inject constructor(
     fun capture(notification: CapturedNotification, ongoing: Boolean, summary: Boolean) {
         scope.launch {
             auth.authState.filter { it !is AuthState.Loading }.first()
-            val connection = (auth.authState.value as? AuthState.Connected)?.profile ?: return@launch
+            val connection = auth.profile ?: return@launch
             if (!hasAccess() || !shouldCaptureNotification(notification.packageName, context.packageName, ongoing, summary, preferences.allowed.value)) return@launch
             perform {
                 val owner = connection.notificationOwner()
@@ -85,7 +85,7 @@ class NotificationUploader @Inject constructor(
         scope.launch {
             perform {
                 preferences.setAllowed(packageName, enabled)
-                (auth.authState.value as? AuthState.Connected)?.profile?.let {
+                auth.profile?.let {
                     queue.batch(it.notificationOwner(), preferences.allowed.value)
                 }
                 publish()

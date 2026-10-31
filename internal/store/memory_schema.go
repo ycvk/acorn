@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 )
 
@@ -209,11 +208,7 @@ func (s *Store) memoryTransaction(ctx context.Context, fn func(*sql.Tx) error) (
 	if err != nil {
 		return fmt.Errorf("begin memory transaction: %w", err)
 	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			resultErr = errors.Join(resultErr, fmt.Errorf("rollback memory transaction: %w", err))
-		}
-	}()
+	defer rollbackOnErr(tx, &resultErr, "memory transaction")
 	if err := fn(tx); err != nil {
 		return err
 	}

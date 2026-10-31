@@ -7,9 +7,9 @@ import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.Persona
 import io.ycvk.acorn.api.models.PersonaRevisionSummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.PersonaRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -84,6 +84,8 @@ class PersonaViewModel @Inject constructor(
                     val revisions = async { repository.revisions(profile) }
                     PersonaLoad.Loaded(current.await(), revisions.await())
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 PersonaLoad.Failed(userMessage(e))
             }
@@ -101,6 +103,8 @@ class PersonaViewModel @Inject constructor(
         revisionJob = viewModelScope.launch {
             _revision.value = try {
                 RevisionLoad.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, revision) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 RevisionLoad.Failed(userMessage(e))
             }
@@ -174,5 +178,5 @@ class PersonaViewModel @Inject constructor(
         }
     }
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }

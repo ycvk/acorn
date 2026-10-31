@@ -1,7 +1,7 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.OwnerApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.models.Owner
 import io.ycvk.acorn.api.models.SetOwnerRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -16,8 +16,7 @@ class OwnerRepository @Inject constructor() {
     fun setName(profile: ConnectionProfile, name: String): Owner = api(profile).clientSetOwner(SetOwnerRequest(name = name))
 
     private fun api(profile: ConnectionProfile): OwnerApi {
-        ApiClient.accessToken = profile.accessToken
-        return OwnerApi(basePath = profile.serverUrl)
+        return OwnerApi(basePath = profile.serverUrl).authorized(profile)
     }
 }
 

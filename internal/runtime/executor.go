@@ -159,7 +159,7 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchRunMemory(runCtxBase, e.runRuntime.deps.MemoryStore, runID, epoch, cancel)
+		watchRunMemory(runCtxBase, e.runRuntime.deps.MemoryStore, runID, epoch, stop)
 	}()
 	return runCtxBase, func() { cancel(); <-done; unregister() }, nil
 }

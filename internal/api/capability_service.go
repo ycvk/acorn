@@ -2,11 +2,11 @@ package api
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -102,22 +102,22 @@ type CapabilitiesService struct {
 	cfg            *config.Config
 	skills         func(ctx context.Context) (*skills.Snapshot, error)
 	probeProviders providerStatusDoctor
-	catalogBuilder *runtime.RunnerFactory
+	toolSpecs      func(ctx context.Context) ([]core.ToolSpec, error)
 }
 
-func NewCapabilitiesService(cfg *config.Config, skills func(ctx context.Context) (*skills.Snapshot, error), probeProviders providerStatusDoctor, catalogBuilder *runtime.RunnerFactory) *CapabilitiesService {
+func NewCapabilitiesService(cfg *config.Config, skills func(ctx context.Context) (*skills.Snapshot, error), probeProviders providerStatusDoctor, toolSpecs func(ctx context.Context) ([]core.ToolSpec, error)) (*CapabilitiesService, error) {
+	if cfg == nil || skills == nil || probeProviders == nil || toolSpecs == nil {
+		return nil, errors.New("capabilities service: cfg, skills, probeProviders and toolSpecs are required")
+	}
 	return &CapabilitiesService{
 		cfg:            cfg,
 		skills:         skills,
 		probeProviders: probeProviders,
-		catalogBuilder: catalogBuilder,
-	}
+		toolSpecs:      toolSpecs,
+	}, nil
 }
 
 func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnapshotOptions) SystemCapabilities {
-	if s == nil || s.cfg == nil {
-		return SystemCapabilities{}
-	}
 	executionErr := s.cfg.ValidateExecutionReady()
 	skillsCap := s.snapshotSkills(ctx)
 	providers := s.snapshotMCPProviders(ctx, opts)

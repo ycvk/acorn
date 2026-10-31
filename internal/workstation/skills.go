@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,12 +24,9 @@ const (
 	// packageMarker records the hash of the package a directory holds; a
 	// directory without it is not one Acorn put there.
 	packageMarker = ".acorn-package"
-	// maxPackageBytes and maxPackageEntries bound what a package put may hold.
-	maxPackageBytes   = 8 << 20
+	// maxPackageEntries bounds the files a package put may hold.
 	maxPackageEntries = 512
 )
-
-var skillNamePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // PackageFile is one file of a package on the wire, its content in base64.
 type PackageFile struct {
@@ -89,7 +85,7 @@ func (s *Server) skillPackages(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	for _, e := range entries {
-		if !e.IsDir() || !skillNamePattern.MatchString(e.Name()) {
+		if !e.IsDir() || !skills.ValidName(e.Name()) {
 			continue
 		}
 		hash, err := os.ReadFile(filepath.Join(dir, e.Name(), packageMarker))
@@ -109,9 +105,9 @@ func (s *Server) skillPackages(w http.ResponseWriter, _ *http.Request) {
 // written beside the old one and swapped in, so the agent never reads half
 // a package.
 func (s *Server) putSkillPackage(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 2*maxPackageBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, 2*skills.MaxPackageBytes)
 	name := r.PathValue("name")
-	if !skillNamePattern.MatchString(name) || len(name) > 64 {
+	if !skills.ValidName(name) {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid skill name %q", name))
 		return
 	}
@@ -179,7 +175,7 @@ func (s *Server) writeSkillPackage(name, hash, markdown string, files []core.Ski
 func (s *Server) deleteSkillPackage(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	target := filepath.Join(s.home, skillsDir, name)
-	if !skillNamePattern.MatchString(name) {
+	if !skills.ValidName(name) {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid skill name %q", name))
 		return
 	}

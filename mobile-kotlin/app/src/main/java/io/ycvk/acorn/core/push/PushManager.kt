@@ -1,6 +1,7 @@
 package io.ycvk.acorn.core.push
 
 import android.Manifest
+import io.ycvk.acorn.core.auth.authorized
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -18,7 +19,6 @@ import io.ycvk.acorn.BuildConfig
 import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.R
 import io.ycvk.acorn.api.apis.DevicesApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.PushInstallationRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.SecureStore
@@ -138,8 +138,7 @@ class PushManager @Inject constructor(
     }
 
     private fun upload(profile: ConnectionProfile, fid: String) {
-        ApiClient.accessToken = profile.accessToken
-        DevicesApi(basePath = profile.serverUrl).clientSetPushInstallation(PushInstallationRequest(fid = fid))
+        DevicesApi(basePath = profile.serverUrl).authorized(profile).clientSetPushInstallation(PushInstallationRequest(fid = fid))
     }
 
     private fun hasPermission(): Boolean =

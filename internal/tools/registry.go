@@ -34,9 +34,6 @@ var _ core.ToolRegistry = (*toolRegistry)(nil)
 // Resolve calls can construct the concrete tool on demand; eager tools with a
 // pre-built Tool field are also supported.
 func (r *toolRegistry) Register(spec core.ToolSpec) error {
-	if r == nil {
-		return fmt.Errorf("tool registry: receiver is nil")
-	}
 	spec = normalizeCoreSpec(spec)
 	if spec.Name == "" {
 		return fmt.Errorf("tool registry: spec name is required")
@@ -58,9 +55,6 @@ func (r *toolRegistry) Register(spec core.ToolSpec) error {
 // handled gracefully; unknown names return an error so callers can distinguish
 // "removed" from "was never there".
 func (r *toolRegistry) Unregister(name string) error {
-	if r == nil {
-		return fmt.Errorf("tool registry: receiver is nil")
-	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return fmt.Errorf("tool registry: name is required")
@@ -75,11 +69,8 @@ func (r *toolRegistry) Unregister(name string) error {
 }
 
 // Specs returns all registered specs sorted by name (deterministic output).
-// It returns nil for a nil or empty registry to match Catalog conventions.
+// It returns nil for an empty registry to match Catalog conventions.
 func (r *toolRegistry) Specs() []core.ToolSpec {
-	if r == nil {
-		return nil
-	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if len(r.byName) == 0 {
@@ -130,9 +121,6 @@ func (r *toolRegistry) Tools() []einotool.BaseTool {
 // Find returns the spec registered under name. The name is trimmed; unknown
 // names return ok=false.
 func (r *toolRegistry) Find(name string) (core.ToolSpec, bool) {
-	if r == nil {
-		return core.ToolSpec{}, false
-	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	spec, ok := r.byName[strings.TrimSpace(name)]
@@ -146,9 +134,6 @@ func (r *toolRegistry) Find(name string) (core.ToolSpec, bool) {
 // is nil but whose Tool is pre-built returns that Tool instance instead. A
 // factory that returns no tool is an error.
 func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, names []string) ([]einotool.BaseTool, error) {
-	if r == nil {
-		return nil, nil
-	}
 	out := make([]einotool.BaseTool, 0, len(names))
 	for _, name := range names {
 		spec, ok := r.Find(name)
@@ -174,9 +159,6 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 // populated via Factory. A spec whose Factory is nil but whose Tool is
 // pre-built is returned as-is.
 func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context, runCtx core.RunContext) ([]core.ToolSpec, error) {
-	if r == nil {
-		return nil, nil
-	}
 	enabled := r.EnabledSpecs()
 	out := make([]core.ToolSpec, 0, len(enabled))
 	for _, spec := range enabled {

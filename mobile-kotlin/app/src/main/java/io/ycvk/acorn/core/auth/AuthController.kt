@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Owns connection/auth lifecycle as an application-scoped singleton. Exposes
@@ -26,6 +27,7 @@ import javax.inject.Inject
  * view-model injection rules. Uses a [SupervisorJob] scope that lives for the
  * app lifetime; failures in one pairing attempt do not cancel the scope.
  */
+@Singleton
 class AuthController @Inject constructor(
     private val secureStore: SecureStore,
     private val authRepository: AuthRepository,
@@ -37,6 +39,10 @@ class AuthController @Inject constructor(
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    /** The paired server while connected, or null. */
+    val profile: ConnectionProfile?
+        get() = (_authState.value as? AuthState.Connected)?.profile
 
     private val _pairingState = MutableStateFlow<PairingState>(PairingState.Idle)
     val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()

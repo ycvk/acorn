@@ -1,7 +1,7 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.PersonaApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.models.Persona
 import io.ycvk.acorn.api.models.PersonaRevisionSummary
 import io.ycvk.acorn.api.models.SavePersonaRequest
@@ -22,7 +22,6 @@ class PersonaRepository @Inject constructor() {
         api(profile).clientSavePersona(SavePersonaRequest(content = content, baseRevision = baseRevision))
 
     private fun api(profile: ConnectionProfile): PersonaApi {
-        ApiClient.accessToken = profile.accessToken
-        return PersonaApi(basePath = profile.serverUrl)
+        return PersonaApi(basePath = profile.serverUrl).authorized(profile)
     }
 }

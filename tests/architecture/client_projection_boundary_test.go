@@ -14,6 +14,7 @@ import (
 // the client wire contract.
 var clientProjectionBoundaryFiles = []string{
 	"internal/api/projection.go",
+	"internal/api/run_events.go",
 	"internal/api/projection_helpers.go",
 	"internal/api/event_service.go",
 	"internal/api/thread_service.go",

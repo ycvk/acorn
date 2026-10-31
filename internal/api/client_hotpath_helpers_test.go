@@ -213,31 +213,31 @@ func (s *clientHandlerStore) runRecord(runID string) *core.RunRecord {
 	}
 }
 
-func eventRecordFromRunEvent(item core.RunEvent) core.EventRecord {
+func eventRecordFromRunEvent(item RunEvent) core.EventRecord {
 	payload := map[string]any{}
 	switch item.Type {
 	case "run.started":
-		if data, ok := item.Data.(core.RunStartedData); ok {
+		if data, ok := item.Data.(RunStartedData); ok {
 			payload["input"] = data.Input
 		}
 	case "assistant.delta":
-		if data, ok := item.Data.(core.AssistantDeltaData); ok {
+		if data, ok := item.Data.(AssistantDeltaData); ok {
 			payload["assistant_delta"] = data.AssistantDelta
 		}
 	case "run.completed":
-		if data, ok := item.Data.(core.RunCompletedData); ok {
+		if data, ok := item.Data.(RunCompletedData); ok {
 			payload["message"] = data.Message
 		}
 	case "run.failed":
-		if data, ok := item.Data.(core.RunFailedData); ok {
+		if data, ok := item.Data.(RunFailedData); ok {
 			payload["error"] = data.Error
 		}
 	case "run.interrupted":
-		if data, ok := item.Data.(core.RunInterruptedData); ok {
+		if data, ok := item.Data.(RunInterruptedData); ok {
 			payload["interrupt"] = data.Interrupt
 		}
 	case "run.resume_requested":
-		if data, ok := item.Data.(core.RunResumeRequestedData); ok {
+		if data, ok := item.Data.(RunResumeRequestedData); ok {
 			payload["targets"] = data.Targets
 		}
 	default:

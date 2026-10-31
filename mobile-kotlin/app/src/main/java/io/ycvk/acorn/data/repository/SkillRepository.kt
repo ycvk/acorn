@@ -1,8 +1,8 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.ClientApi
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.apis.SkillsApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.RollbackSkillRequest
 import io.ycvk.acorn.api.models.SetSkillSecretRequest
 import io.ycvk.acorn.api.models.SkillChangeRequest
@@ -46,12 +46,10 @@ class SkillRepository @Inject constructor() {
 
     /** The conversation a run happened in. */
     fun threadOfRun(profile: ConnectionProfile, runId: String): String {
-        ApiClient.accessToken = profile.accessToken
-        return ClientApi(basePath = profile.serverUrl).clientGetRun(runId).threadId
+        return ClientApi(basePath = profile.serverUrl).authorized(profile).clientGetRun(runId).threadId
     }
 
     private fun api(profile: ConnectionProfile): SkillsApi {
-        ApiClient.accessToken = profile.accessToken
-        return SkillsApi(basePath = profile.serverUrl)
+        return SkillsApi(basePath = profile.serverUrl).authorized(profile)
     }
 }

@@ -4,20 +4,12 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,11 +34,11 @@ import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.net.LocalNetworkDenied
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
-import io.ycvk.acorn.core.ui.AcornMark
 import io.ycvk.acorn.core.ui.FormField
 import io.ycvk.acorn.core.ui.InlineError
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import io.ycvk.acorn.core.ui.GateLayout
 
 @Composable
 fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAccess) {
@@ -81,28 +73,7 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
     }
     val colors = AcornTheme.colors
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.canvas)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
-    ) {
-        Spacer(Modifier.height(72.dp))
-        AcornMark(size = 44.dp)
-        Spacer(Modifier.height(24.dp))
-        Text("连接你的 Acorn", style = AcornTheme.type.largeTitle, color = colors.ink)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "在服务器上运行 acorn pair，把显示的地址和配对码填在下面。",
-            style = AcornTheme.type.callout,
-            color = colors.inkSoft,
-        )
-        Spacer(Modifier.height(36.dp))
-
+    GateLayout(title = "连接你的 Acorn", lead = "在服务器上运行 acorn pair，把显示的地址和配对码填在下面。") {
         FormField(
             label = "服务器地址",
             value = serverUrl,
@@ -162,7 +133,6 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(32.dp))
     }
 }
 

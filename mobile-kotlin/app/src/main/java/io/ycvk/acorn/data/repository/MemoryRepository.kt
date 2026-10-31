@@ -1,7 +1,7 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.MemoriesApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.models.CorrectMemoryRequest
 import io.ycvk.acorn.api.models.MemoryDetail
 import io.ycvk.acorn.api.models.MemoryListResponse
@@ -30,7 +30,6 @@ class MemoryRepository @Inject constructor() {
         api(profile).clientCorrectMemory(id, CorrectMemoryRequest(revision = revision, content = content))
 
     private fun api(profile: ConnectionProfile): MemoriesApi {
-        ApiClient.accessToken = profile.accessToken
-        return MemoriesApi(basePath = profile.serverUrl)
+        return MemoriesApi(basePath = profile.serverUrl).authorized(profile)
     }
 }

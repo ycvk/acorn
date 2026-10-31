@@ -70,7 +70,7 @@ type MCPConfig struct {
 }
 
 type MCPAuthConfig struct {
-	Type     string   `yaml:"type"` // "none" | "oauth" | "api_key"
+	Type     string   `yaml:"type"` // "none" | "oauth"
 	ClientID string   `yaml:"client_id"`
 	Scopes   []string `yaml:"scopes"`
 }

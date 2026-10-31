@@ -182,9 +182,13 @@ func (s *Store) OpenThreadFile(ctx context.Context, sessionID, fileID string) (c
 		return core.ThreadFile{}, nil, fmt.Errorf("open thread file %s: %w", fileID, err)
 	}
 	info, err := content.Stat()
-	if err != nil || info.Size() != file.Size {
+	if err != nil {
 		_ = content.Close()
-		return core.ThreadFile{}, nil, fmt.Errorf("thread file %s on disk does not match its record (stat: %v)", fileID, err)
+		return core.ThreadFile{}, nil, fmt.Errorf("stat thread file %s: %w", fileID, err)
+	}
+	if info.Size() != file.Size {
+		_ = content.Close()
+		return core.ThreadFile{}, nil, fmt.Errorf("thread file %s on disk does not match its record", fileID)
 	}
 	return file, content, nil
 }

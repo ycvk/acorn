@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.live
 
 import android.app.ForegroundServiceStartNotAllowedException
+import io.ycvk.acorn.core.auth.authorized
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
@@ -14,9 +15,7 @@ import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.ui.userMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -117,14 +116,13 @@ class RunFollowService : Service() {
 
     /** Asks the server to stop a run, as the chat screen's stop does; the run's events end its Live Update. */
     private fun stop(runId: String) {
-        val profile = (authController.authState.value as? AuthState.Connected)?.profile ?: return
+        val profile = authController.profile ?: return
         val title = follower.runs.value[runId]?.title ?: "Acorn"
         follower.stopping(runId, true)
         scope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientInterruptRun(runId)
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientInterruptRun(runId)
                 }
             } catch (e: Exception) {
                 follower.stopping(runId, false)

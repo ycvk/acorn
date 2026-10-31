@@ -104,9 +104,6 @@ func NewSearchService(cfg SearchConfig) (*SearchService, error) {
 }
 
 func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchResult, error) {
-	if s == nil {
-		return SearchResult{}, errors.New("web search service is nil")
-	}
 	if strings.TrimSpace(s.apiKey) == "" {
 		return SearchResult{}, errors.New("web_access.search.api_key is required")
 	}

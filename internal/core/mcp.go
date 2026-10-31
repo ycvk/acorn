@@ -2,7 +2,7 @@ package core
 
 // AuthConfig specifies the authentication strategy for an MCP provider.
 type AuthConfig struct {
-	Type     string // "none" | "oauth" | "api_key"
+	Type     string // "none" | "oauth"
 	ClientID string
 	Scopes   []string
 }

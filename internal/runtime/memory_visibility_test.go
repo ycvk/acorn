@@ -141,10 +141,10 @@ func TestMemoryWatcherCancelsForeignRunAndPreservesForgetCaller(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	foreign, cancelForeign := context.WithCancel(ctx)
-	defer cancelForeign()
-	caller, cancelCaller := context.WithCancel(ctx)
-	defer cancelCaller()
+	foreign, cancelForeign := context.WithCancelCause(ctx)
+	defer cancelForeign(nil)
+	caller, cancelCaller := context.WithCancelCause(ctx)
+	defer cancelCaller(nil)
 	doneForeign := make(chan struct{})
 	doneCaller := make(chan struct{})
 	go func() { defer close(doneForeign); watchRunMemory(foreign, db, "foreign-run", 0, cancelForeign) }()
@@ -157,12 +157,15 @@ func TestMemoryWatcherCancelsForeignRunAndPreservesForgetCaller(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("foreign model context did not cancel")
 	}
+	if cause := context.Cause(foreign); !errors.Is(cause, core.ErrMemoryExcluded) {
+		t.Fatalf("foreign cancel cause = %v, want core.ErrMemoryExcluded", cause)
+	}
 	select {
 	case <-caller.Done():
 		t.Fatal("forget caller was cancelled before acknowledgement")
 	case <-time.After(300 * time.Millisecond):
 	}
-	cancelCaller()
+	cancelCaller(nil)
 	<-doneCaller
 	<-doneForeign
 }

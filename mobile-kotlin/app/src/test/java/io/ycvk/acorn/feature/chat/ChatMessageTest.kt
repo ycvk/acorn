@@ -69,4 +69,13 @@ class ChatMessageTest {
         org.junit.Assert.assertEquals(WakeSource.Night, wakeSource("[night 2026-10-09] night reflection"))
         org.junit.Assert.assertEquals(WakeSource.Wander, wakeSource("[wander 2026-10-09 15:00] idle time"))
     }
+
+    @Test
+    fun `a stored message keeps its row key across reloads and edits`() {
+        for (role in Message.Role.entries) {
+            assertEquals("msg_1", chatMessageFrom(role, "x", id = "msg_1").id)
+        }
+        val reply = chatMessageFrom(Message.Role.assistant, "x", id = "msg_2") as ChatMessage.Assistant
+        assertEquals("msg_2", reply.copy(text = "y").id)
+    }
 }

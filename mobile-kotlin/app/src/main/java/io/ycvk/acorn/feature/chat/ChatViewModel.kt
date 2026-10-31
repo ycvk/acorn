@@ -1,10 +1,10 @@
 package io.ycvk.acorn.feature.chat
 
 import androidx.lifecycle.ViewModel
+import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.CreateRunRequest
 import io.ycvk.acorn.api.models.CreateThreadRequest
 import io.ycvk.acorn.api.models.InboxResponse
@@ -13,7 +13,6 @@ import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.api.models.SendViewActionRequest
 import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
@@ -23,7 +22,9 @@ import io.ycvk.acorn.data.repository.ThreadFileRepository
 import io.ycvk.acorn.feature.live.FollowedRun
 import io.ycvk.acorn.feature.live.RunFollower
 import io.ycvk.acorn.feature.live.RunUpdate
+import io.ycvk.acorn.feature.live.reconnectDelayMs
 import io.ycvk.acorn.feature.views.ViewActionPress
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -158,8 +159,7 @@ class ChatViewModel @Inject constructor(
     private suspend fun fetchInbox(profile: ConnectionProfile, gen: Long): InboxResponse? = try {
         withRetries({ loadGeneration.get() == gen }) {
             withContext(Dispatchers.IO) {
-                ApiClient.accessToken = profile.accessToken
-                ClientApi(basePath = profile.serverUrl).clientGetInbox()
+                ClientApi(basePath = profile.serverUrl).authorized(profile).clientGetInbox()
             }
         }
     } catch (e: Exception) {
@@ -257,8 +257,7 @@ class ChatViewModel @Inject constructor(
             try {
                 // A new conversation keeps its thread even when the first run fails, so a retry lands in it.
                 val threadId = existing ?: withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientCreateThread(CreateThreadRequest(title = title)).id
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientCreateThread(CreateThreadRequest(title = title)).id
                 }.also {
                     _threadId.value = it
                     _threadTitle.value = title
@@ -270,8 +269,7 @@ class ChatViewModel @Inject constructor(
                 }
                 _uploading.value = null
                 val runId = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientCreateRun(
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientCreateRun(
                         threadId = threadId,
                         createRunRequest = CreateRunRequest(input = text.ifBlank { null }, fileIds = fileIds.ifEmpty { null }),
                     ).id
@@ -309,8 +307,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val sent = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientSendViewAction(
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientSendViewAction(
                         threadId = threadId,
                         viewId = press.viewId,
                         sendViewActionRequest = SendViewActionRequest(
@@ -348,8 +345,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val changed = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    val api = ClientApi(basePath = profile.serverUrl)
+                    val api = ClientApi(basePath = profile.serverUrl).authorized(profile)
                     if (view.pinnedAt != null) api.clientUnpinView(threadId, view.id) else api.clientPinView(threadId, view.id)
                 }
                 if (_threadId.value != threadId) return@launch
@@ -400,8 +396,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientDeleteThread(threadId)
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientDeleteThread(threadId)
                 }
                 onDeleted()
             } catch (e: Exception) {
@@ -418,8 +413,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientInterruptRun(runId)
+                    ClientApi(basePath = profile.serverUrl).authorized(profile).clientInterruptRun(runId)
                 }
             } catch (e: Exception) {
                 follower.stopping(runId, false)
@@ -434,12 +428,11 @@ class ChatViewModel @Inject constructor(
             try {
                 val response = withRetries({ _threadId.value == threadId }) {
                     withContext(Dispatchers.IO) {
-                        ApiClient.accessToken = profile.accessToken
-                        ClientApi(basePath = profile.serverUrl).clientListMessages(threadId, limit = 50)
+                        ClientApi(basePath = profile.serverUrl).authorized(profile).clientListMessages(threadId, limit = 50)
                     }
                 } ?: return@launch
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty()) }
+                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty(), msg.id) }
             } catch (e: Exception) {
                 if (_threadId.value == threadId) _error.value = userMessage(e)
             }
@@ -451,14 +444,15 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val title = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    val clientApi = ClientApi(basePath = profile.serverUrl)
+                    val clientApi = ClientApi(basePath = profile.serverUrl).authorized(profile)
                     clientApi.clientGetThread(threadId).title
                 }
                 if (_threadId.value != threadId) return@launch
                 _threadTitle.value = title
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                // Title is cosmetic; leave the placeholder in place silently.
+                if (_threadId.value == threadId) _error.value = userMessage(e)
             }
         }
     }
@@ -502,7 +496,7 @@ class ChatViewModel @Inject constructor(
     fun connection(): ConnectionProfile? = getConnectionProfile()
 
     private fun getConnectionProfile(): ConnectionProfile? =
-        (authController.authState.value as? AuthState.Connected)?.profile
+        authController.profile
 
     override fun onCleared() {
         _threadId.value?.let(follower::unwatch)
@@ -529,9 +523,6 @@ fun awaitsReply(messages: List<ChatMessage>): Boolean = when (val last = message
     is ChatMessage.Assistant -> last.text.isBlank()
     else -> true
 }
-
-/** How long to wait before reconnect [attempt] (from 0), or null once the retries are spent. */
-fun reconnectDelayMs(attempt: Int): Long? = if (attempt < 3) 1_000L shl attempt else null
 
 /** A new thread is titled by the first line of its first message. */
 fun threadTitleFor(text: String): String {

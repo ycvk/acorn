@@ -3,19 +3,17 @@ package api
 import (
 	"context"
 	"time"
-
-	"github.com/ycvk/acorn/internal/core"
 )
 
 type clientHandlerStub struct {
 	thread    Thread
 	message   Message
 	run       Run
-	events    []core.RunEvent
+	events    []RunEvent
 	artifacts []ArtifactSummary
 	err       error
 
-	eventBatches              []*core.RunEventBatch
+	eventBatches              []*RunEventBatch
 	loadEventCalls            int
 	lastAfterSeq              int64
 	statusChecks              int
@@ -101,7 +99,7 @@ func (s *clientHandlerStub) GetRun(context.Context, string) (*Run, error) {
 	return &s.run, nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) (*core.RunEventBatch, error) {
+func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) (*RunEventBatch, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -111,10 +109,10 @@ func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afte
 		batch := s.eventBatches[0]
 		s.eventBatches = s.eventBatches[1:]
 		if batch == nil {
-			return &core.RunEventBatch{CursorSeq: afterSeq}, nil
+			return &RunEventBatch{CursorSeq: afterSeq}, nil
 		}
-		return &core.RunEventBatch{
-			Events:    append([]core.RunEvent(nil), batch.Events...),
+		return &RunEventBatch{
+			Events:    append([]RunEvent(nil), batch.Events...),
 			CursorSeq: batch.CursorSeq,
 		}, nil
 	}
@@ -122,18 +120,18 @@ func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afte
 	if len(s.events) > 0 {
 		cursorSeq = s.events[len(s.events)-1].Seq
 	}
-	return &core.RunEventBatch{
-		Events:    append([]core.RunEvent(nil), s.events...),
+	return &RunEventBatch{
+		Events:    append([]RunEvent(nil), s.events...),
 		CursorSeq: cursorSeq,
 	}, nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*core.RunEventDetail, error) {
+func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*RunEventDetail, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &core.RunEventDetail{
-		Events: append([]core.RunEvent(nil), s.events...),
+	return &RunEventDetail{
+		Events: append([]RunEvent(nil), s.events...),
 	}, nil
 }
 

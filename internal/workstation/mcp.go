@@ -499,7 +499,7 @@ func (s *Server) runMCPServers(w http.ResponseWriter, r *http.Request) {
 	seen := map[string]bool{}
 	for _, spec := range req.Servers {
 		switch {
-		case !skillNamePattern.MatchString(spec.Name) || len(spec.Name) > 64:
+		case !skills.ValidName(spec.Name):
 			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid skill name %q", spec.Name))
 			return
 		case seen[spec.Name]:

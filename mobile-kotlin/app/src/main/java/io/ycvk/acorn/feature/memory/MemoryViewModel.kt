@@ -7,9 +7,9 @@ import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.MemoryDetail
 import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.MemoryRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -134,6 +134,8 @@ class MemoryViewModel @Inject constructor(
         memoryJob = viewModelScope.launch {
             _memory.value = try {
                 MemoryLoad.Loaded(withContext(Dispatchers.IO) { repository.get(profile, id) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 MemoryLoad.Failed(memoryMessage(e))
             }
@@ -195,13 +197,15 @@ class MemoryViewModel @Inject constructor(
             _list.value = try {
                 val page = withContext(Dispatchers.IO) { repository.list(profile, kind, query, limit) }
                 MemoryListLoad.Loaded(page.memories, page.hasMore)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 MemoryListLoad.Failed(userMessage(e))
             }
         }
     }
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }
 
 private fun memoryMessage(e: Exception): String =

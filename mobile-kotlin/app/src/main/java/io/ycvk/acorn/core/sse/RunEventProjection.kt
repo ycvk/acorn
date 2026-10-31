@@ -1,6 +1,8 @@
 package io.ycvk.acorn.core.sse
 
 import io.ycvk.acorn.api.models.View
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Projects a stream of [RunEventPacket]s into [ChatState] for a chat screen.
@@ -8,7 +10,8 @@ import io.ycvk.acorn.api.models.View
  * Accumulates assistant text from streaming deltas, finalises on agent.message /
  * run.completed, tracks run lifecycle, and surfaces pending actions as activity rows.
  */
-class RunEventProjection {
+@Singleton
+class RunEventProjection @Inject constructor() {
 
     fun apply(state: ChatState, packet: RunEventPacket): ChatState {
         return when (packet) {

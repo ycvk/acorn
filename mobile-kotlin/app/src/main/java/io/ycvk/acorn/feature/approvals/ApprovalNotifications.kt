@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.approvals
 
 import android.Manifest
+import io.ycvk.acorn.core.auth.authorized
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -16,7 +17,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.R
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
@@ -200,8 +200,7 @@ class ApprovalNotifications @Inject constructor(
     }
 
     private fun api(profile: ConnectionProfile): ClientApi {
-        ApiClient.accessToken = profile.accessToken
-        return ClientApi(basePath = profile.serverUrl)
+        return ClientApi(basePath = profile.serverUrl).authorized(profile)
     }
 
     private fun hasPermission(): Boolean =

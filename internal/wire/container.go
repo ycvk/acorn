@@ -262,7 +262,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithNews(db).WithResumer(container.runResume)
 
-	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
+	if container.capabilities, err = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory.BuildCapabilitySpecs); err != nil {
+		return nil, err
+	}
 	container.deviceAuth = api.NewDeviceAuthService(db).WithPushInstallations(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)
 	container.vault = deps.vault

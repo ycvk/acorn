@@ -15,7 +15,10 @@ func Load(path string) (*Config, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, errors.New("config path is required")
 	}
-	path = expandHome(path)
+	path, err := expandHome(path)
+	if err != nil {
+		return nil, err
+	}
 
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -48,17 +51,30 @@ func Load(path string) (*Config, error) {
 	expandConfigEnv(cfg)
 	cfg.ConfigPath = absPath
 	cfg.ConfigDir = filepath.Dir(absPath)
-	cfg.Runtime.StorageDir = resolveDir(cfg.ConfigDir, cfg.Runtime.StorageDir)
+	if strings.TrimSpace(cfg.Runtime.StorageDir) != "" {
+		if cfg.Runtime.StorageDir, err = resolveDir(cfg.ConfigDir, cfg.Runtime.StorageDir); err != nil {
+			return nil, err
+		}
+	}
 	if strings.TrimSpace(cfg.Backup.Dir) != "" {
-		cfg.Backup.Dir = resolveDir(cfg.ConfigDir, cfg.Backup.Dir)
+		if cfg.Backup.Dir, err = resolveDir(cfg.ConfigDir, cfg.Backup.Dir); err != nil {
+			return nil, err
+		}
 	}
 	if cfg.Notify.FCM.ServiceAccountFile != "" {
-		cfg.Notify.FCM.ServiceAccountFile = resolveDir(cfg.ConfigDir, cfg.Notify.FCM.ServiceAccountFile)
+		if cfg.Notify.FCM.ServiceAccountFile, err = resolveDir(cfg.ConfigDir, cfg.Notify.FCM.ServiceAccountFile); err != nil {
+			return nil, err
+		}
 	}
 	for i := range cfg.MCP.Providers {
-		cfg.MCP.Providers[i].WorkDir = resolveDir(cfg.ConfigDir, cfg.MCP.Providers[i].WorkDir)
-		cfg.MCP.Providers[i].Command = resolveExecutable(cfg.ConfigDir, cfg.MCP.Providers[i].Command)
-		cfg.MCP.Providers[i].Transport = strings.TrimSpace(cfg.MCP.Providers[i].Transport)
+		provider := &cfg.MCP.Providers[i]
+		if provider.WorkDir, err = resolveDir(cfg.ConfigDir, provider.WorkDir); err != nil {
+			return nil, err
+		}
+		if provider.Command, err = resolveExecutable(cfg.ConfigDir, provider.Command); err != nil {
+			return nil, err
+		}
+		provider.Transport = strings.TrimSpace(provider.Transport)
 	}
 
 	if err := cfg.ValidateBase(); err != nil {
@@ -81,43 +97,46 @@ func expandConfigEnv(cfg *Config) {
 	cfg.Review.APIKey = os.ExpandEnv(cfg.Review.APIKey)
 }
 
-func resolveDir(configDir, value string) string {
-	value = expandHome(value)
+func resolveDir(configDir, value string) (string, error) {
+	value, err := expandHome(value)
+	if err != nil {
+		return "", err
+	}
 	if strings.TrimSpace(value) == "" {
-		return configDir
+		return configDir, nil
 	}
 	if filepath.IsAbs(value) {
-		return value
+		return value, nil
 	}
-	return filepath.Clean(filepath.Join(configDir, value))
+	return filepath.Clean(filepath.Join(configDir, value)), nil
 }
 
-// expandHome expands a leading ~/ to the user's home directory.
-// Paths like ~user/ or bare ~ without a separator are left unchanged.
-func expandHome(path string) string {
+// expandHome expands a bare ~ or a leading ~/ to the user's home directory.
+// Paths like ~user/ are left unchanged.
+func expandHome(path string) (string, error) {
 	if len(path) == 0 || path[0] != '~' {
-		return path
+		return path, nil
 	}
 	if len(path) == 1 || path[1] == '/' || path[1] == os.PathSeparator {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return path
+			return "", fmt.Errorf("expand ~ in %q: %w", path, err)
 		}
 		if len(path) == 1 {
-			return home
+			return home, nil
 		}
-		return filepath.Join(home, path[2:])
+		return filepath.Join(home, path[2:]), nil
 	}
-	return path
+	return path, nil
 }
 
-func resolveExecutable(configDir, value string) string {
+func resolveExecutable(configDir, value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return ""
+		return "", nil
 	}
 	if filepath.IsAbs(trimmed) || strings.ContainsRune(trimmed, os.PathSeparator) {
 		return resolveDir(configDir, trimmed)
 	}
-	return trimmed
+	return trimmed, nil
 }

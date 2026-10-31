@@ -31,7 +31,7 @@ func (s *Server) runTrigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
-	case !skillNamePattern.MatchString(req.Name) || len(req.Name) > 64:
+	case !skills.ValidName(req.Name):
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid skill name %q", req.Name))
 		return
 	case strings.TrimSpace(req.Hash) == "" || strings.TrimSpace(req.Trigger) == "":
