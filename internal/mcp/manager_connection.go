@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/cloudwego/eino-ext/components/tool/mcp/officialmcp"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -227,7 +226,7 @@ func openProviderLogFile(providerName string) (*os.File, error) {
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("chmod MCP log dir: %w", err)
 	}
-	name := sanitizeProviderName(providerName)
+	name := ToolNamespace(providerName)
 	path := filepath.Join(dir, name+".log")
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -242,28 +241,21 @@ func openProviderLogFile(providerName string) (*os.File, error) {
 	return file, nil
 }
 
-func sanitizeProviderName(providerName string) string {
-	name := strings.TrimSpace(providerName)
-	if name == "" {
-		return "provider"
-	}
-	name = strings.ReplaceAll(name, "..", "-")
-	var builder strings.Builder
-	lastDash := false
-	for _, r := range name {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == '.' {
-			builder.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			builder.WriteByte('-')
-			lastDash = true
+// ToolNamespace is the provider part of the provider's tool names,
+// mcp__<namespace>__<tool>: ASCII letters and digits, with every other
+// character turned into "-", since model APIs accept no others in tool names.
+func ToolNamespace(provider string) string {
+	var b strings.Builder
+	for _, r := range provider {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
 		}
 	}
-	cleaned := strings.Trim(builder.String(), "-_.")
-	if cleaned == "" {
+	result := strings.Trim(b.String(), "-")
+	if result == "" {
 		return "provider"
 	}
-	return cleaned
+	return result
 }

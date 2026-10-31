@@ -97,7 +97,7 @@ func ProviderNamespaces(providers []core.ProviderConfig) []string {
 		if strings.TrimSpace(p.Name) == "" {
 			continue
 		}
-		out = append(out, sanitizeMCPProviderName(p.Name))
+		out = append(out, mcpprovider.ToolNamespace(p.Name))
 	}
 	return out
 }
