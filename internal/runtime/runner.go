@@ -168,8 +168,10 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
+	// Work of deleted conversations must be gone before the next run reads
+	// the workstation; a run that cannot remove it does not start.
 	if err := removeForgottenWork(ctx, f.deps.MemoryStore, f.deps.Work); err != nil {
-		slog.Warn("work directories of deleted conversations left on the workstation", "error", err)
+		return nil, fmt.Errorf("remove the work of deleted conversations: %w", err)
 	}
 	owner, err := loadOwnerFiles(ctx, f.deps.Files, f.deps.Uploads, req.SessionID)
 	if err != nil {
