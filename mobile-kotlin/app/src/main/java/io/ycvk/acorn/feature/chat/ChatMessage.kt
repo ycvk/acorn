@@ -14,9 +14,8 @@ sealed class ChatMessage {
     data class User(
         val text: String,
         val files: List<FileView> = emptyList(),
-    ) : ChatMessage() {
-        override val id: String = "user_${UUID.randomUUID()}"
-    }
+        override val id: String = "user_${UUID.randomUUID()}",
+    ) : ChatMessage()
 
     data class Assistant(
         val text: String,
@@ -24,42 +23,40 @@ sealed class ChatMessage {
         val steps: List<ToolStep> = emptyList(),
         val files: List<FileView> = emptyList(),
         val views: List<View> = emptyList(),
-    ) : ChatMessage() {
-        override val id: String = "assistant_${UUID.randomUUID()}"
-    }
+        override val id: String = "assistant_${UUID.randomUUID()}",
+    ) : ChatMessage()
 
     /** The input of a run the backend woke: a commitment, a watch, or the morning briefing. */
     data class Wake(
         val text: String,
         val source: WakeSource,
-    ) : ChatMessage() {
-        override val id: String = "wake_${UUID.randomUUID()}"
-    }
+        override val id: String = "wake_${UUID.randomUUID()}",
+    ) : ChatMessage()
 
     /** Something the owner shared from their phone; text is ready to show, image is an attachment path. */
     data class Capture(
         val text: String,
         val image: String? = null,
-    ) : ChatMessage() {
-        override val id: String = "capture_${UUID.randomUUID()}"
-    }
+        override val id: String = "capture_${UUID.randomUUID()}",
+    ) : ChatMessage()
 }
 
-/** Maps a stored thread message to its chat row. */
+/** Maps a stored thread message to its chat row, keyed by the message's [id] so a reload keeps each row. */
 fun chatMessageFrom(
     role: Message.Role,
     text: String,
     steps: List<StoredStep> = emptyList(),
     files: List<ThreadFile> = emptyList(),
     views: List<View> = emptyList(),
+    id: String = UUID.randomUUID().toString(),
 ): ChatMessage = when (role) {
-    Message.Role.user -> ChatMessage.User(text, files.map(::fileView))
-    Message.Role.wake -> ChatMessage.Wake(text, wakeSource(text))
-    Message.Role.capture -> captureMessage(text)
-    Message.Role.assistant -> ChatMessage.Assistant(text, steps = steps.mapIndexed { index, step -> toolStep(index, step) }, files = files.map(::fileView), views = views)
+    Message.Role.user -> ChatMessage.User(text, files.map(::fileView), id = id)
+    Message.Role.wake -> ChatMessage.Wake(text, wakeSource(text), id = id)
+    Message.Role.capture -> captureMessage(text, id)
+    Message.Role.assistant -> ChatMessage.Assistant(text, steps = steps.mapIndexed { index, step -> toolStep(index, step) }, files = files.map(::fileView), views = views, id = id)
     // System / tool messages render as assistant bubbles so the
     // history reads top-to-bottom without gaps.
-    Message.Role.system, Message.Role.tool -> ChatMessage.Assistant(text)
+    Message.Role.system, Message.Role.tool -> ChatMessage.Assistant(text, id = id)
 }
 
 /** [messages] with [view] in place of the view with its id, wherever a reply shows it. */
@@ -75,12 +72,12 @@ fun withView(messages: List<ChatMessage>, view: View): List<ChatMessage> = messa
  * Turns a capture run input into a card: drops the "[capture]" header line and
  * takes the attachment path out of the "Image:" line.
  */
-fun captureMessage(input: String): ChatMessage.Capture {
+fun captureMessage(input: String, id: String = UUID.randomUUID().toString()): ChatMessage.Capture {
     val lines = input.lines().dropWhile { it.startsWith("[capture]") }
     val imageLine = lines.indexOfFirst { it.startsWith("Image: ") }
     val image = lines.getOrNull(imageLine)?.removePrefix("Image: ")?.substringBefore(" (")
     val text = lines.filterIndexed { index, _ -> index != imageLine }.joinToString("\n").trim()
-    return ChatMessage.Capture(text, image)
+    return ChatMessage.Capture(text, image, id)
 }
 
 enum class WakeSource { Commitment, Watch, Briefing, Night, Wander }

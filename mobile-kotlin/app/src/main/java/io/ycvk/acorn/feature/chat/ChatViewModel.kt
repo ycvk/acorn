@@ -431,7 +431,7 @@ class ChatViewModel @Inject constructor(
                     }
                 } ?: return@launch
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty()) }
+                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty(), msg.id) }
             } catch (e: Exception) {
                 if (_threadId.value == threadId) _error.value = userMessage(e)
             }
