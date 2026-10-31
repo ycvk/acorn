@@ -153,8 +153,12 @@ func (s *Store) CommitNewsBatch(ctx context.Context, token string, commit core.N
 		if err != nil {
 			return fmt.Errorf("commit news batch: update story %d: %w", change.ID, err)
 		}
-		if n, err := result.RowsAffected(); err != nil || n != 1 {
-			return fmt.Errorf("commit news batch: story %d does not exist (%v)", change.ID, err)
+		n, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("commit news batch: story %d: %w", change.ID, err)
+		}
+		if n != 1 {
+			return fmt.Errorf("commit news batch: story %d does not exist", change.ID)
 		}
 		stories["s"+strconv.FormatInt(change.ID, 10)] = change.ID
 	}
@@ -260,8 +264,12 @@ func (s *Store) DeferNewsBatch(ctx context.Context, token string, until time.Tim
 	if err != nil {
 		return fmt.Errorf("defer news batch: %w", err)
 	}
-	if n, err := result.RowsAffected(); err != nil || n == 0 {
-		return errors.Join(core.ErrNewsLeaseLost, err)
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("defer news batch: %w", err)
+	}
+	if n == 0 {
+		return core.ErrNewsLeaseLost
 	}
 	return nil
 }
