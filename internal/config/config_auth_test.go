@@ -89,7 +89,7 @@ mcp:
 	}
 }
 
-func TestLoadMCPAuthOauthWithSSEAccepted(t *testing.T) {
+func TestLoadMCPAuthOauthWithSSERejected(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "acorn.yaml")
 	configBody := `providers:
@@ -123,25 +123,17 @@ mcp:
 		t.Fatalf("write config: %v", err)
 	}
 
-	cfg, err := Load(configPath)
-	if err != nil {
-		t.Fatalf("expected oauth+sse to be accepted, got error: %v", err)
-	}
-	if got, want := cfg.MCP.Providers[0].Auth.Type, "oauth"; got != want {
-		t.Fatalf("auth.type = %q, want %q", got, want)
-	}
-	if got, want := cfg.MCP.Providers[0].Auth.ClientID, "my-client"; got != want {
-		t.Fatalf("auth.client_id = %q, want %q", got, want)
-	}
-	if got, want := len(cfg.MCP.Providers[0].Auth.Scopes), 2; got != want {
-		t.Fatalf("len(auth.scopes) = %d, want %d", got, want)
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "oauth_sse") || !strings.Contains(err.Error(), "only valid for the streamable_http transport") {
+		t.Fatalf("expected oauth+sse to be rejected, got %v", err)
 	}
 }
 
 func TestLoadMCPAuthInvalidTypeRejected(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "acorn.yaml")
-	configBody := `providers:
+	for _, authType := range []string{"kerberos", "api_key"} {
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, "acorn.yaml")
+		configBody := `providers:
   - name: default
     model: test-model
     base_url: https://example.invalid/v1
@@ -162,21 +154,22 @@ mcp:
       url: http://localhost:8080/sse
       startup_timeout_seconds: 30
       auth:
-        type: kerberos
+        type: ` + authType + `
 `
-	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
+		if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
 
-	_, err := Load(configPath)
-	if err == nil {
-		t.Fatal("expected invalid auth.type to be rejected")
-	}
-	if !strings.Contains(err.Error(), "bad_auth") {
-		t.Fatalf("expected provider-named error, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "auth.type must be one of none, oauth, api_key") {
-		t.Fatalf("expected auth.type validation error, got %v", err)
+		_, err := Load(configPath)
+		if err == nil {
+			t.Fatalf("expected auth.type %s to be rejected", authType)
+		}
+		if !strings.Contains(err.Error(), "bad_auth") {
+			t.Fatalf("expected provider-named error, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "auth.type must be one of none, oauth") {
+			t.Fatalf("expected auth.type validation error, got %v", err)
+		}
 	}
 }
 

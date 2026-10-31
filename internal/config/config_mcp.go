@@ -57,13 +57,11 @@ func (c *Config) validateMCP() error {
 		case "", "none":
 			// default / valid
 		case "oauth":
-			if provider.Transport == "stdio" {
-				return fmt.Errorf("mcp.providers[%s]: auth.type %q is only valid for sse and streamable_http transports", name, "oauth")
+			if provider.Transport != "streamable_http" {
+				return fmt.Errorf("mcp.providers[%s]: auth.type %q is only valid for the streamable_http transport", name, "oauth")
 			}
-		case "api_key":
-			// valid
 		default:
-			return fmt.Errorf("mcp.providers[%s]: auth.type must be one of none, oauth, api_key, got %q", name, authType)
+			return fmt.Errorf("mcp.providers[%s]: auth.type must be one of none, oauth, got %q", name, authType)
 		}
 	}
 	return nil
