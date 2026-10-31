@@ -21,8 +21,8 @@ type MemoryProcessingStatus struct {
 	DailyTokenLimit int         `json:"daily_token_limit"`
 	Pending         int         `json:"pending"`
 	Failed          int         `json:"failed"`
-	Oldest          time.Time   `json:"oldest,omitempty"`
-	LastCompleted   time.Time   `json:"last_completed,omitempty"`
+	Oldest          time.Time   `json:"oldest"`
+	LastCompleted   time.Time   `json:"last_completed"`
 	LastError       string      `json:"last_error,omitempty"`
 	Index           MemoryIndex `json:"index"`
 }

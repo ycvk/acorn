@@ -14,12 +14,10 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 )
 
-// buildMCPAuxiliaryToolSpecs builds only the MCP resource and prompt tool specs
-// (not the main tool registrations). It is used on the unified-registry path,
-// where main MCP tools are already registered into the ToolRegistry by
-// mcp.Manager; the resource/prompt tools are still sourced from the manager at
-// run time because they are session-derived wrappers, not part of the
-// ToolRegistry lifecycle.
+// buildMCPAuxiliaryToolSpecs builds only the MCP resource and prompt tool specs.
+// mcp.Manager registers the main MCP tools into the ToolRegistry; the resource
+// and prompt tools come from the manager at run time because they are
+// session-derived wrappers outside the ToolRegistry lifecycle.
 func buildMCPAuxiliaryToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]core.ToolSpec, error) {
 	var resourceTools, promptTools []einotool.BaseTool
 	if mcpManager != nil {
@@ -72,13 +70,12 @@ func hasEnabledProviders(cfgs []core.ProviderConfig) bool {
 	return false
 }
 
-// mcpManagerCache holds the cached mcpprovider.Manager for a RunnerFactory,
-// reconciled across session overlays. It is the only piece of MCP manager
-// lifecycle state that needs to outlive a single run.
+// mcpManagerCache holds the cached mcpprovider.Manager for a RunnerFactory.
+// It is the only piece of MCP manager lifecycle state that needs to outlive a
+// single run.
 type mcpManagerCache struct {
-	mu                 sync.Mutex
-	manager            *mcpprovider.Manager
-	lastSessionOverlay string
+	mu      sync.Mutex
+	manager *mcpprovider.Manager
 }
 
 func bootstrapRunMCP(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, req RunnerBuildRequest) (*mcpprovider.Manager, error) {
@@ -87,11 +84,7 @@ func bootstrapRunMCP(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCac
 		return nil, nil
 	}
 
-	sessionOverlay := ""
-	if strings.TrimSpace(req.SessionID) != "" {
-		sessionOverlay = req.SessionID
-	}
-	manager, err := getOrCreateMCPManager(ctx, deps, cache, providerConfigs, sessionOverlay)
+	manager, err := getOrCreateMCPManager(ctx, deps, cache, providerConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -99,22 +92,16 @@ func bootstrapRunMCP(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCac
 	return manager, nil
 }
 
-func getOrCreateMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
+func getOrCreateMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig) (*mcpprovider.Manager, error) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	if cache.manager == nil {
-		return createMCPManager(ctx, deps, cache, providerConfigs, sessionOverlay)
-	}
-	if cache.lastSessionOverlay != sessionOverlay {
-		if err := cache.manager.ReconcileProviders(ctx, providerConfigs); err != nil {
-			return nil, fmt.Errorf("reconcile MCP providers for new session overlay: %w", err)
-		}
-		cache.lastSessionOverlay = sessionOverlay
+		return createMCPManager(ctx, deps, cache, providerConfigs)
 	}
 	return cache.manager, nil
 }
 
-func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
+func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig) (*mcpprovider.Manager, error) {
 	pendingActionStore := core.SessionStore(deps.Store)
 	if deps.MCPPendingActions != nil {
 		pendingActionStore = deps.MCPPendingActions
@@ -129,7 +116,6 @@ func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCa
 		return nil, err
 	}
 	cache.manager = mgr
-	cache.lastSessionOverlay = sessionOverlay
 	return mgr, nil
 }
 
@@ -141,7 +127,6 @@ func closeMCPCache(cache *mcpManagerCache) error {
 	if cache.manager != nil {
 		closeErr = errors.Join(closeErr, cache.manager.Close())
 		cache.manager = nil
-		cache.lastSessionOverlay = ""
 	}
 	return closeErr
 }

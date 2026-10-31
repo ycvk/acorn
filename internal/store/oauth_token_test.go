@@ -94,41 +94,6 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 	}
 }
 
-func TestOAuthTokenDelete(t *testing.T) {
-	store := openTestStore(t)
-	ctx := context.Background()
-
-	token := core.OAuthToken{
-		ProviderName: "delete-provider",
-		AccessToken:  "to-delete",
-		RefreshToken: "to-delete-refresh",
-		Expiry:       time.Now().UTC().Add(time.Hour),
-	}
-
-	if err := store.SaveOAuthToken(ctx, token); err != nil {
-		t.Fatalf("save: %v", err)
-	}
-
-	if err := store.DeleteOAuthToken(ctx, "delete-provider"); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-
-	_, err := store.GetOAuthToken(ctx, "delete-provider")
-	if !errors.Is(err, core.ErrOAuthTokenNotFound) {
-		t.Fatalf("expected core.ErrOAuthTokenNotFound after delete, got %v", err)
-	}
-}
-
-func TestOAuthTokenDeleteNotFound(t *testing.T) {
-	store := openTestStore(t)
-	ctx := context.Background()
-
-	err := store.DeleteOAuthToken(ctx, "nonexistent")
-	if !errors.Is(err, core.ErrOAuthTokenNotFound) {
-		t.Fatalf("expected core.ErrOAuthTokenNotFound on delete of missing token, got %v", err)
-	}
-}
-
 func openTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()

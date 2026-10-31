@@ -45,9 +45,8 @@ func (e *streamReadError) Error() string { return "read assistant stream: " + e.
 func (e *streamReadError) Unwrap() error { return e.err }
 
 func (p *agentEventProjector) project(event *adk.TypedAgentEvent[*schema.AgenticMessage], emit func(core.StreamItem) error) error {
-	now := time.Now().UTC()
 	if event.Err != nil {
-		return emit(core.StreamItem{Kind: core.StreamKindRunFailed, CreatedAt: now, Payload: map[string]any{"error": event.Err.Error()}})
+		return emit(core.StreamItem{Kind: core.StreamKindRunFailed, Payload: map[string]any{"error": event.Err.Error()}})
 	}
 	if event.Output != nil && event.Output.MessageOutput != nil {
 		mo := event.Output.MessageOutput
@@ -62,7 +61,7 @@ func (p *agentEventProjector) project(event *adk.TypedAgentEvent[*schema.Agentic
 				return fmt.Errorf("read tool result message: %w", err)
 			}
 			for _, block := range msg.ContentBlocks {
-				if item, ok := p.toolResultItem(block, now); ok {
+				if item, ok := p.toolResultItem(block); ok {
 					if err := emit(item); err != nil {
 						return err
 					}
@@ -71,14 +70,14 @@ func (p *agentEventProjector) project(event *adk.TypedAgentEvent[*schema.Agentic
 		}
 	}
 	if event.Action != nil && event.Action.Interrupted != nil {
-		return emit(core.StreamItem{Kind: core.StreamKindRunInterrupted, CreatedAt: now, Payload: map[string]any{
+		return emit(core.StreamItem{Kind: core.StreamKindRunInterrupted, Payload: map[string]any{
 			"interrupt": streamInterruptFromInfo(event.Action.Interrupted),
 		}})
 	}
 	return nil
 }
 
-func (p *agentEventProjector) toolResultItem(block *schema.ContentBlock, now time.Time) (core.StreamItem, bool) {
+func (p *agentEventProjector) toolResultItem(block *schema.ContentBlock) (core.StreamItem, bool) {
 	var id, name, output string
 	switch block.Type {
 	case schema.ContentBlockTypeFunctionToolResult:
@@ -96,11 +95,11 @@ func (p *agentEventProjector) toolResultItem(block *schema.ContentBlock, now tim
 		return core.StreamItem{}, false
 	}
 	if errText, failed := p.failedCalls.take(id); failed {
-		return core.StreamItem{Kind: core.StreamKindToolCallFailed, CreatedAt: now, Payload: map[string]any{
+		return core.StreamItem{Kind: core.StreamKindToolCallFailed, Payload: map[string]any{
 			"tool_call_id": id, "tool_name": name, "error": errText,
 		}}, true
 	}
-	return core.StreamItem{Kind: core.StreamKindToolCallSucceeded, CreatedAt: now, Payload: map[string]any{
+	return core.StreamItem{Kind: core.StreamKindToolCallSucceeded, Payload: map[string]any{
 		"tool_call_id": id, "tool_name": name, "output": output,
 	}}, true
 }
@@ -130,7 +129,7 @@ func (p *agentEventProjector) projectAssistant(mo *adk.TypedMessageVariant[*sche
 	if final == nil {
 		return errors.New("assistant event carried no message")
 	}
-	if err := emit(core.StreamItem{Kind: core.StreamKindAssistantMessage, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+	if err := emit(core.StreamItem{Kind: core.StreamKindAssistantMessage, Payload: map[string]any{
 		"message": StreamMessageFromSchema(final, p.provider),
 	}}); err != nil {
 		return err
@@ -143,7 +142,7 @@ func (p *agentEventProjector) projectAssistant(mo *adk.TypedMessageVariant[*sche
 		slog.Warn("model did not report token usage", "run", p.messagePrefix)
 		p.usageWarned = true
 	}
-	if err := emit(core.StreamItem{Kind: core.StreamItemKind(core.EventModelUsage), CreatedAt: time.Now().UTC(), Payload: payload}); err != nil {
+	if err := emit(core.StreamItem{Kind: core.StreamItemKind(core.EventModelUsage), Payload: payload}); err != nil {
 		return err
 	}
 	// Each tool call the model decided on starts here; its result arrives as tool.call.succeeded or tool.call.failed.
@@ -152,7 +151,7 @@ func (p *agentEventProjector) projectAssistant(mo *adk.TypedMessageVariant[*sche
 			continue
 		}
 		call := block.FunctionToolCall
-		if err := emit(core.StreamItem{Kind: core.StreamKindToolCallStarted, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+		if err := emit(core.StreamItem{Kind: core.StreamKindToolCallStarted, Payload: map[string]any{
 			"tool_call_id": call.CallID, "tool_name": call.Name, "arguments": call.Arguments,
 		}}); err != nil {
 			return err
@@ -179,7 +178,7 @@ func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader
 			continue
 		}
 		seq++
-		if err := emit(core.StreamItem{Kind: core.StreamKindAssistantDelta, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+		if err := emit(core.StreamItem{Kind: core.StreamKindAssistantDelta, Payload: map[string]any{
 			"assistant_delta": &core.StreamAssistantDelta{
 				Role:      string(schema.Assistant),
 				Delta:     public.Content,

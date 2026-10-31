@@ -678,7 +678,7 @@ func bindingPath(value any) (string, bool) {
 // validPath reports whether path is an absolute JSON Pointer or a relative
 // one (the same without its leading slash, or empty for the item itself).
 func validPath(path string) bool {
-	for _, token := range strings.Split(strings.TrimPrefix(path, "/"), "/") {
+	for token := range strings.SplitSeq(strings.TrimPrefix(path, "/"), "/") {
 		for i := 0; i < len(token); i++ {
 			if token[i] == '~' && (i+1 == len(token) || (token[i+1] != '0' && token[i+1] != '1')) {
 				return false
@@ -697,7 +697,7 @@ func lookup(root any, pointer string) (any, bool) {
 		return nil, false
 	}
 	current := root
-	for _, token := range strings.Split(pointer[1:], "/") {
+	for token := range strings.SplitSeq(pointer[1:], "/") {
 		token = strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
 		switch node := current.(type) {
 		case map[string]any:

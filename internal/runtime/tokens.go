@@ -23,25 +23,19 @@ type TokenCounter interface {
 
 // tiktokenCounter is the production TokenCounter backed by tiktoken-go.
 type tiktokenCounter struct {
-	encodingName string
-	encoder      *tiktoken.Tiktoken
+	encoder *tiktoken.Tiktoken
 }
 
 // NewTokenCounter creates a tiktoken-backed TokenCounter using o200k_base
 // (the encoding used by GPT-4o / o1 and a reasonable approximation for other providers).
 func NewTokenCounter() (TokenCounter, error) {
-	if err := ensureTokenLoader(); err != nil {
-		return nil, err
-	}
+	ensureTokenLoader()
 	encoding := "o200k_base"
 	encoder, err := tiktoken.GetEncoding(encoding)
 	if err != nil {
 		return nil, fmt.Errorf("initialize tiktoken encoding %q: %w", encoding, err)
 	}
-	return &tiktokenCounter{
-		encodingName: encoding,
-		encoder:      encoder,
-	}, nil
+	return &tiktokenCounter{encoder: encoder}, nil
 }
 
 func (c *tiktokenCounter) CountText(_ context.Context, text string) (int, error) {
@@ -68,11 +62,10 @@ func (c *tiktokenCounter) CountMessages(ctx context.Context, messages []adk.Agen
 	return total, nil
 }
 
-func ensureTokenLoader() error {
+func ensureTokenLoader() {
 	tokenLoaderOnce.Do(func() {
 		tiktoken.SetBpeLoader(tiktokenloader.NewOfflineLoader())
 	})
-	return nil
 }
 
 // normalizeMessage keeps what a model reads as text and counts image inputs

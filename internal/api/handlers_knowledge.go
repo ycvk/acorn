@@ -47,7 +47,7 @@ func readCaptureImage(r *http.Request) ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%w: image: %v", ErrInvalidCapture, err)
+		return nil, fmt.Errorf("%w: image: %w", ErrInvalidCapture, err)
 	}
 	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, maxCaptureImageBytes+1))
@@ -66,9 +66,9 @@ func captureBodyError(err error) error {
 	case errors.As(err, &tooLarge):
 		return fmt.Errorf("%w: request body is larger than %d bytes", ErrCaptureTooLarge, maxCaptureBodyBytes)
 	case errors.Is(err, http.ErrNotMultipart), errors.Is(err, multipart.ErrMessageTooLarge):
-		return fmt.Errorf("%w: send multipart/form-data: %v", ErrInvalidCapture, err)
+		return fmt.Errorf("%w: send multipart/form-data: %w", ErrInvalidCapture, err)
 	default:
-		return fmt.Errorf("%w: %v", ErrInvalidCapture, err)
+		return fmt.Errorf("%w: %w", ErrInvalidCapture, err)
 	}
 }
 

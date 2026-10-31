@@ -16,8 +16,6 @@ import (
 type Manager struct {
 	slots        []providerSlot
 	mu           sync.RWMutex
-	stopped      bool
-	stoppedMu    sync.Mutex
 	tokenStore   core.ArtifactStore
 	store        core.SessionStore
 	toolRegistry core.ToolRegistry
@@ -30,11 +28,10 @@ type providerSlot struct {
 	p             *provider // nil when provider has failed
 	lastErr       error
 	startupStatus string
-	authStatus    string // live auth status: "authenticated", "expired", "none", "env"
 	// registeredToolNames holds the namespaced names registered into the unified
 	// ToolRegistry for this slot's provider. Populated by registerProviderTools
-	// when a registry is wired; consumed by unregisterProviderTools on disconnect
-	// so reconcile/close cleanly removes exactly the specs this provider added.
+	// when a registry is wired; consumed by unregisterProviderTools and Close so
+	// they remove exactly the specs this provider added.
 	registeredToolNames []string
 }
 
@@ -56,8 +53,8 @@ type provider struct {
 // The third parameter allows the caller to supply ClientOptions (e.g. for
 // notification handler registration). When nil, the client is created with
 // no options.
-var connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
-	return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
+var connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore) (*provider, error) {
+	return connectProvider(ctx, cfg, opts, store)
 }
 
 // ManagerOption configures Manager construction.
@@ -125,10 +122,9 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	}
 
 	// Construct the manager first so the elicitation handler is initialized
-	// before providers connect. connectSlotForReconcile builds
-	// ClientOptions (ElicitationHandler, list-changed
-	// handlers, auth callback) from the manager — they must exist at connect
-	// time so the initial session carries the same handlers as a reconciled one.
+	// before providers connect: buildClientOptions takes the elicitation and
+	// list-changed handlers from the manager, and they must exist at connect
+	// time.
 	mgr := &Manager{
 		tokenStore:   o.tokenStore,
 		store:        o.store,
@@ -149,11 +145,8 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	for i, cfg := range enabled {
 		go func(idx int, c core.ProviderConfig) {
 			defer wg.Done()
-			p, err := connectProviderFunc(ctx, c, mgr.buildClientOptions(c), o.tokenStore, func(status string) { mgr.updateProviderAuthStatus(c.Name, status) })
-			slot := providerSlot{
-				cfg:        c,
-				authStatus: newProviderStatus(c).AuthStatus,
-			}
+			p, err := connectProviderFunc(ctx, c, mgr.buildClientOptions(c), o.tokenStore)
+			slot := providerSlot{cfg: c}
 			if err != nil {
 				slot.lastErr = err
 				slot.startupStatus = "failed"
@@ -193,16 +186,22 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	return mgr, nil
 }
 
+// buildClientOptions assembles a provider's MCP client options. Returns nil
+// handlers when the corresponding manager subsystem is not initialized (e.g.
+// no store wired).
+func (m *Manager) buildClientOptions(cfg core.ProviderConfig) *mcp.ClientOptions {
+	return &mcp.ClientOptions{
+		ToolListChangedHandler:     m.buildToolListChangedHandler(cfg.Name),
+		ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
+		PromptListChangedHandler:   m.buildPromptListChangedHandler(cfg.Name),
+		ElicitationHandler:         m.buildElicitationHandler(),
+	}
+}
+
 func (m *Manager) Close() error {
 	if m == nil {
 		return nil
 	}
-	m.stoppedMu.Lock()
-	if !m.stopped {
-		m.stopped = true
-	}
-	m.stoppedMu.Unlock()
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var errs []error
@@ -231,12 +230,3 @@ func (m *Manager) Close() error {
 	}
 	return errors.Join(errs...)
 }
-
-// ReconcileProviders applies a new provider config set to the live manager.
-// It classifies providers as added, removed, changed, or unchanged by name,
-// and only mutates the slots that need to change. Unchanged providers keep
-// running without interruption.
-//
-// The slot order after reconciliation is deterministic: existing providers
-// retain their original relative order, followed by newly added providers
-// in the order they appear in the input config.

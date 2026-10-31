@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image/jpeg"
 	"log/slog"
+	"maps"
 	"math"
 	"net/http"
 	"net/url"
@@ -448,9 +449,7 @@ type command struct {
 func inputCommands(in Input) ([]command, error) {
 	mouse := func(kind string, extra map[string]any) command {
 		params := map[string]any{"type": kind, "x": in.X, "y": in.Y}
-		for k, v := range extra {
-			params[k] = v
-		}
+		maps.Copy(params, extra)
 		return command{"Input.dispatchMouseEvent", params}
 	}
 	switch in.Type {

@@ -54,7 +54,7 @@ type RunRecord struct {
 	Output     string    `json:"output,omitempty"`
 	Error      string    `json:"error,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
-	FinishedAt time.Time `json:"finished_at,omitempty"`
+	FinishedAt time.Time `json:"finished_at"`
 }
 
 type EventRecord struct {

@@ -1,9 +1,6 @@
 package skills
 
-import (
-	"slices"
-	"strings"
-)
+import "strings"
 
 type HealthStatus string
 
@@ -46,8 +43,4 @@ func BuildHealthReport(scan ScanResult, ctx EligibilityContext) HealthReport {
 		report.Status = HealthFailed
 	}
 	return report
-}
-
-func CopyHealthReport(item HealthReport) HealthReport {
-	return HealthReport{Status: item.Status, Failures: slices.Clone(item.Failures)}
 }

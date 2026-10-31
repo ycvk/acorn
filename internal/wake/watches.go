@@ -91,7 +91,7 @@ func formatItems(items []core.WatchItem) string {
 			b.WriteString(" — " + item.URL)
 		}
 		b.WriteString("\n")
-		for _, line := range strings.Split(item.Summary, "\n") {
+		for line := range strings.SplitSeq(item.Summary, "\n") {
 			if strings.TrimSpace(line) != "" {
 				b.WriteString("  " + line + "\n")
 			}

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -22,11 +24,8 @@ type RunResumeService struct {
 }
 
 type resumeStatus struct {
-	RunID        string         `json:"run_id,omitempty"`
-	Status       core.RunStatus `json:"status,omitempty"`
-	Resumable    bool           `json:"resumable"`
-	InterruptIDs []string       `json:"interrupt_ids,omitempty"`
-	Reason       string         `json:"reason,omitempty"`
+	Resumable bool
+	Reason    string
 }
 
 func NewRunResumeService(store core.SessionStore) *RunResumeService {
@@ -191,7 +190,7 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 	}
 	contexts, err := latestRootInterruptContexts(items)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", core.ErrRunNotInterrupted, err)
+		return nil, fmt.Errorf("%w: %w", core.ErrRunNotInterrupted, err)
 	}
 	targets := make(map[string]any, len(contexts))
 	for _, ctxItem := range contexts {
@@ -199,9 +198,7 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 		if err != nil {
 			return nil, err
 		}
-		for interruptID, payload := range target {
-			targets[interruptID] = payload
-		}
+		maps.Copy(targets, target)
 	}
 	return targets, nil
 }
@@ -303,23 +300,20 @@ func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*co
 }
 
 func buildResumeStatus(runID string, run *core.RunRecord, items []core.EventRecord) *resumeStatus {
-	status := &resumeStatus{RunID: runID}
+	status := &resumeStatus{}
 	if run == nil {
 		status.Reason = fmt.Sprintf("run %s is unavailable", runID)
 		return status
 	}
-	status.Status = run.Status
-
 	switch run.Status {
 	case core.RunStatusInterrupted:
-		interruptIDs, err := latestRootInterruptIDs(items)
+		contexts, err := latestRootInterruptContexts(items)
 		if err != nil {
 			status.Reason = fmt.Sprintf("run %s is interrupted but missing resumable interrupt data: %v", runID, err)
 			return status
 		}
 		status.Resumable = true
-		status.InterruptIDs = append(status.InterruptIDs, interruptIDs...)
-		status.Reason = fmt.Sprintf("run %s is interrupted and waiting on %d root actions", runID, len(interruptIDs))
+		status.Reason = fmt.Sprintf("run %s is interrupted and waiting on %d root actions", runID, len(contexts))
 		return status
 	case core.RunStatusFailed:
 		status.Reason = fmt.Sprintf("run %s failed and cannot be resumed; inspect run detail or start a new client run", runID)
@@ -353,8 +347,7 @@ type runInterruptedPayload struct {
 }
 
 func latestRootInterruptContexts(raw []core.EventRecord) ([]resumeInterruptContext, error) {
-	for i := len(raw) - 1; i >= 0; i-- {
-		record := raw[i]
+	for _, record := range slices.Backward(raw) {
 		if record.Kind != "run.interrupted" {
 			continue
 		}
@@ -379,7 +372,7 @@ func latestRootInterruptContexts(raw []core.EventRecord) ([]resumeInterruptConte
 				return nil, errors.New("interrupt context id is empty")
 			}
 			ctx.ID = id
-			ctx.Info = compactResumeInterruptInfo(ctx.Info)
+			ctx.Info = core.CompactInterruptInfo(ctx.Info)
 			contexts = append(contexts, ctx)
 		}
 		if len(contexts) == 0 {
@@ -388,33 +381,4 @@ func latestRootInterruptContexts(raw []core.EventRecord) ([]resumeInterruptConte
 		return contexts, nil
 	}
 	return nil, errors.New("run has no interrupt event to resume")
-}
-
-func latestRootInterruptIDs(raw []core.EventRecord) ([]string, error) {
-	contexts, err := latestRootInterruptContexts(raw)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, 0, len(contexts))
-	for _, ctx := range contexts {
-		ids = append(ids, strings.TrimSpace(ctx.ID))
-	}
-	return ids, nil
-}
-
-func compactResumeInterruptInfo(value any) any {
-	data, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-	out := make(map[string]any)
-	for _, key := range []string{"kind", "message", "question", "action_id", "command", "command_name", "command_args", "cwd", "url", "tool_name", "interrupt_id", "arguments_json", "reason", "rule"} {
-		if current, exists := data[key]; exists {
-			out[key] = current
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }

@@ -39,7 +39,7 @@ func TestRunCatalogContainsEveryBuiltinTool(t *testing.T) {
 	for _, spec := range active.ToolCatalog.EnabledSpecs() {
 		present[spec.Name] = true
 	}
-	for _, name := range tools.BuiltinToolNames() {
+	for _, name := range []string{"ask_operator"} {
 		if !present[name] {
 			t.Errorf("built-in tool %s is missing from the run catalog", name)
 		}
@@ -65,7 +65,7 @@ func TestCapabilitySnapshotListsEveryNativeTool(t *testing.T) {
 	for _, item := range snapshot.Tools {
 		seen[item.Name]++
 	}
-	want := tools.BuiltinToolNames()
+	var want []string
 	for _, spec := range tools.ConfiguredLocalSpecs() {
 		want = append(want, spec.Name)
 	}

@@ -260,23 +260,16 @@ func newsInput(sections []core.NewsSection, stories []core.NewsStory, batch core
 	for _, it := range batch.Items {
 		item := it.Item
 		if it.Issue {
-			fmt.Fprintf(&b, "Issue %d [%s] %s %s | %s\n--- issue page ---\n%s\n--- end of issue page ---\n", item.ID, it.Section, it.Source, local(itemTime(item), loc), item.Title, pages[item.ID])
+			fmt.Fprintf(&b, "Issue %d [%s] %s %s | %s\n--- issue page ---\n%s\n--- end of issue page ---\n", item.ID, it.Section, it.Source, local(item.When(), loc), item.Title, pages[item.ID])
 			continue
 		}
-		fmt.Fprintf(&b, "- %d [%s] %s %s | %s | %s\n", item.ID, it.Section, it.Source, local(itemTime(item), loc), oneLine(item.Title), oneLine(item.Summary))
+		fmt.Fprintf(&b, "- %d [%s] %s %s | %s | %s\n", item.ID, it.Section, it.Source, local(item.When(), loc), oneLine(item.Title), oneLine(item.Summary))
 	}
 	return b.String()
 }
 
 func local(t time.Time, loc *time.Location) string {
 	return t.In(loc).Format("01-02 15:04")
-}
-
-func itemTime(item core.WatchItem) time.Time {
-	if item.PublishedAt.IsZero() {
-		return item.SeenAt
-	}
-	return item.PublishedAt
 }
 
 func oneLine(s string) string {

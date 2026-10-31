@@ -39,19 +39,7 @@ func (e *Engine) ForgetThreadForOwner(ctx context.Context, threadID, title strin
 	if err != nil {
 		return core.MemoryForgotten{}, err
 	}
-	if len(sources) == 0 {
-		return core.MemoryForgotten{}, nil
-	}
-	request, err := e.ownerRequest(ctx, "Delete conversation: "+title)
-	if err != nil {
-		return core.MemoryForgotten{}, err
-	}
-	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
-		SourceIDs:       sources,
-		RequestSourceID: request.ID,
-		Reason:          "owner deleted the conversation",
-		Now:             e.cfg.Clock(),
-	})
+	return e.forgetForOwner(ctx, sources, "Delete conversation: "+title, "owner deleted the conversation")
 }
 
 // ForgetNoteForOwner forgets the note the owner deletes: every revision of
@@ -62,17 +50,23 @@ func (e *Engine) ForgetNoteForOwner(ctx context.Context, path, title string) (co
 	if err != nil {
 		return core.MemoryForgotten{}, err
 	}
+	return e.forgetForOwner(ctx, sources, "Delete note: "+title, "owner deleted the note")
+}
+
+// forgetForOwner forgets sources on a request with body recorded as the
+// owner's source. No sources returns an empty exclusion.
+func (e *Engine) forgetForOwner(ctx context.Context, sources []string, body, reason string) (core.MemoryForgotten, error) {
 	if len(sources) == 0 {
 		return core.MemoryForgotten{}, nil
 	}
-	request, err := e.ownerRequest(ctx, "Delete note: "+title)
+	request, err := e.ownerRequest(ctx, body)
 	if err != nil {
 		return core.MemoryForgotten{}, err
 	}
 	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
 		SourceIDs:       sources,
 		RequestSourceID: request.ID,
-		Reason:          "owner deleted the note",
+		Reason:          reason,
 		Now:             e.cfg.Clock(),
 	})
 }

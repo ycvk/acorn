@@ -34,11 +34,7 @@ func NewContextBridge() core.ToolCallContextBridge {
 	return artifactToolBridge{}
 }
 
-func buildToolset(
-	ctx context.Context,
-	deps RuntimeDeps,
-	sessionID string,
-) (*Toolset, error) {
+func buildToolset(ctx context.Context, deps RuntimeDeps) (*tools.Catalog, error) {
 	if err := validateToolsetDeps(deps); err != nil {
 		return nil, err
 	}
@@ -50,7 +46,7 @@ func buildToolset(
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
-	return NewToolset(catalog), nil
+	return catalog, nil
 }
 
 func validateToolsetDeps(deps RuntimeDeps) error {
@@ -123,7 +119,7 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 // and resolves a stable skill snapshot for capability eligibility. The tools
 // of the skills' own MCP servers join the catalog once the servers serve.
 func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	toolset, err := buildToolset(ctx, deps, sessionID)
+	toolset, err := buildToolset(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -160,38 +156,17 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 //
 // There is no overlap between registry and toolset specs: the registry owns
 // static natives, the toolset owns run-scoped natives.
-func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
-	registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
+func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *tools.Catalog, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
+	registrySpecs, err := deps.ToolRegistry.ResolveEnabledSpecs(ctx, core.RunContext{RunID: runID, SessionID: sessionID})
 	if err != nil {
 		return nil, fmt.Errorf("resolve registry tools: %w", err)
 	}
 	specs := append([]core.ToolSpec(nil), registrySpecs...)
-	specs = append(specs, toolset.Catalog().Specs()...)
+	specs = append(specs, toolset.Specs()...)
 	mcpSpecs, err := buildMCPAuxiliaryToolSpecs(ctx, deps.Config, mcpManager)
 	if err != nil {
 		return nil, err
 	}
 	specs = append(specs, mcpSpecs...)
 	return tools.NewCatalog(ctx, specs)
-}
-
-// resolveRegistrySpecs resolves every enabled tool spec from the registry into
-// a concrete tool instance under the given run context, returning specs with
-// the Tool field populated so the audited-tool builder can use them directly.
-func resolveRegistrySpecs(ctx context.Context, deps RuntimeDeps, sessionID, runID string) ([]core.ToolSpec, error) {
-	runCtx := core.RunContext{RunID: runID, SessionID: sessionID}
-	return deps.ToolRegistry.ResolveEnabledSpecs(ctx, runCtx)
-}
-
-func NewToolset(catalog *tools.Catalog) *Toolset {
-	return &Toolset{catalog: catalog}
-}
-
-// Toolset is a built collection of tools for a run or serve context.
-type Toolset struct {
-	catalog *tools.Catalog
-}
-
-func (t Toolset) Catalog() *tools.Catalog {
-	return t.catalog
 }

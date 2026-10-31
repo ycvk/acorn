@@ -31,9 +31,9 @@ func NormalizeProviderTransport(transport string) string {
 // When cfg.Auth.Type is "oauth" and the transport is "streamable_http", the
 // transport is wrapped with an OAuthHandler backed by the store.
 //
-// SSEClientTransport does not support OAuth in go-sdk v1.5.0 (no OAuthHandler
-// field), so OAuth on SSE is rejected. Stdio+OAuth is also rejected per D-05.
-func NewTransportWithStore(cfg core.ProviderConfig, store core.ArtifactStore, onAuthStatusChanged ...func(status string)) (transport mcp.Transport, cleanup func(), metadata TransportMetadata, err error) {
+// SSEClientTransport has no OAuthHandler, so OAuth on SSE is rejected, and so
+// is OAuth on stdio.
+func NewTransportWithStore(cfg core.ProviderConfig, store core.ArtifactStore) (transport mcp.Transport, cleanup func(), metadata TransportMetadata, err error) {
 	transportKind := NormalizeProviderTransport(cfg.Transport)
 	if transportKind == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: transport is required", cfg.Name)
@@ -46,11 +46,7 @@ func NewTransportWithStore(cfg core.ProviderConfig, store core.ArtifactStore, on
 				"provider %s: OAuth authentication is only supported on streamable_http transport, not %q",
 				cfg.Name, transportKind)
 		}
-		var authCallback func(status string)
-		if len(onAuthStatusChanged) > 0 {
-			authCallback = onAuthStatusChanged[0]
-		}
-		return buildOAuthTransport(cfg, store, authCallback)
+		return buildOAuthTransport(cfg, store)
 	}
 
 	switch transportKind {
@@ -111,8 +107,7 @@ func buildStreamableHTTPTransport(cfg core.ProviderConfig) (mcp.Transport, func(
 	}
 	cleanup := func() {}
 	// MaxRetries is set to -1 so that startup failures are visible immediately
-	// instead of being hidden behind implicit reconnect attempts. Phase 47
-	// adds explicit reconnection with backpressure.
+	// instead of being hidden behind implicit reconnect attempts.
 	transport := &mcp.StreamableClientTransport{Endpoint: cfg.URL, MaxRetries: -1}
 	if len(cfg.Headers) > 0 {
 		transport.HTTPClient = &http.Client{Transport: headerTransport{headers: maps.Clone(cfg.Headers), base: http.DefaultTransport}}
@@ -137,7 +132,7 @@ func (t headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // buildOAuthTransport creates a StreamableClientTransport with an OAuthHandler
 // for providers configured with auth.type=oauth. The OAuthHandler is backed by
 // the provided token store for token persistence.
-func buildOAuthTransport(cfg core.ProviderConfig, store core.ArtifactStore, onAuthStatusChanged func(status string)) (mcp.Transport, func(), TransportMetadata, error) {
+func buildOAuthTransport(cfg core.ProviderConfig, store core.ArtifactStore) (mcp.Transport, func(), TransportMetadata, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: url is required for OAuth streamable_http transport", cfg.Name)
 	}
@@ -148,7 +143,7 @@ func buildOAuthTransport(cfg core.ProviderConfig, store core.ArtifactStore, onAu
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: token store is required for OAuth authentication", cfg.Name)
 	}
 
-	oauthHandler, err := newPersistentOAuthHandler(store, cfg.Name, cfg.URL, cfg.Auth.ClientID, cfg.Auth.Scopes, onAuthStatusChanged)
+	oauthHandler, err := newPersistentOAuthHandler(store, cfg.Name, cfg.URL, cfg.Auth.ClientID, cfg.Auth.Scopes)
 	if err != nil {
 		return nil, nil, TransportMetadata{}, err
 	}

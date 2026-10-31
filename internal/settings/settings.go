@@ -234,13 +234,13 @@ func decode(f field, v *Values, raw json.RawMessage) error {
 	decoder := json.NewDecoder(strings.NewReader(string(raw)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("%w: %s: %v", core.ErrSettingInvalid, f.key, err)
+		return fmt.Errorf("%w: %s: %w", core.ErrSettingInvalid, f.key, err)
 	}
 	if decoder.More() {
 		return fmt.Errorf("%w: %s holds more than one value", core.ErrSettingInvalid, f.key)
 	}
 	if err := f.tidy(v); err != nil {
-		return fmt.Errorf("%w: %s: %v", core.ErrSettingInvalid, f.key, err)
+		return fmt.Errorf("%w: %s: %w", core.ErrSettingInvalid, f.key, err)
 	}
 	return nil
 }
@@ -364,7 +364,7 @@ func tidyPatterns(patterns *[]string, gating bool) error {
 		}
 		matchesAskOperator, err := path.Match(pattern, "ask_operator")
 		if err != nil {
-			return fmt.Errorf("%q: %v", pattern, err)
+			return fmt.Errorf("%q: %w", pattern, err)
 		}
 		if gating && matchesAskOperator {
 			return fmt.Errorf("%q must not match ask_operator", pattern)

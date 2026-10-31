@@ -21,43 +21,15 @@ func newChatModel(ctx context.Context, cfg *config.Config) (einomodel.AgenticMod
 	if cfg == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	return newRuntimeChatModel(ctx, cfg, nil, nil)
-}
-
-// chatModelBuilder constructs a chat model for a given provider config.
-type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.AgenticModel, error)
-
-func buildRuntimeChatModel(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.AgenticModel, error) {
-	model, _, err := buildRuntimeChatModelWithProvider(ctx, cfg, newModel)
-	return model, err
-}
-
-func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.AgenticModel, config.ProviderConfig, error) {
-	if cfg == nil {
-		return nil, config.ProviderConfig{}, errors.New("config is required")
-	}
-	if newModel == nil {
-		newModel = newProviderModel
-	}
-
 	provider, err := cfg.EnabledProvider()
 	if err != nil {
-		return nil, config.ProviderConfig{}, err
+		return nil, err
 	}
-	model, err := newModel(ctx, provider)
+	model, err := newProviderModel(ctx, provider)
 	if err != nil {
-		return nil, config.ProviderConfig{}, fmt.Errorf("init provider %s: %w", provider.Name, err)
+		return nil, fmt.Errorf("init provider %s: %w", provider.Name, err)
 	}
-	return model, provider, nil
-}
-
-func newRuntimeChatModel(
-	ctx context.Context,
-	cfg *config.Config,
-	newModel chatModelBuilder,
-	_ any,
-) (einomodel.AgenticModel, error) {
-	return buildRuntimeChatModel(ctx, cfg, newModel)
+	return model, nil
 }
 
 // newProviderModel uses the provider's native message protocol. Agentic messages

@@ -66,7 +66,7 @@ func ExtractHTML(req ExtractRequest) (ExtractResult, error) {
 		}
 		fallback, fallbackErr := extractFullPageMarkdown(req.HTML, pageURL)
 		if fallbackErr != nil {
-			return ExtractResult{}, fmt.Errorf("readability extraction failed: %v; full-page extraction failed: %w", err, fallbackErr)
+			return ExtractResult{}, fmt.Errorf("readability extraction failed: %w; full-page extraction failed: %w", err, fallbackErr)
 		}
 		fallback.Warning = "readability_not_suitable"
 		return withCommonPageMetadata(fallback, req.HTML, pageURL), nil

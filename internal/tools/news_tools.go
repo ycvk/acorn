@@ -182,13 +182,9 @@ func buildNewsSearchTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 					Items: make([]NewsItemOutput, 0, len(s.Items)),
 				}
 				for _, item := range s.Items {
-					published := item.PublishedAt
-					if published.IsZero() {
-						published = item.SeenAt
-					}
 					story.Items = append(story.Items, NewsItemOutput{
 						Source: item.Source, Title: item.Title, URL: item.URL, Summary: item.Summary,
-						Published: published.In(loc).Format(localTimeLayout), Score: item.Score,
+						Published: item.When().In(loc).Format(localTimeLayout), Score: item.Score,
 					})
 				}
 				out.Stories = append(out.Stories, story)

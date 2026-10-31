@@ -19,8 +19,7 @@ import (
 // A tool whose spec builder returns an error, or whose Register returns an
 // error (e.g. a duplicate name from another provider), is logged and skipped
 // rather than aborting the whole provider: a single unruly tool should not
-// poison an otherwise healthy connection. This mirrors the catalog's silent-omit
-// behavior for absent backing services.
+// poison an otherwise healthy connection.
 func (m *Manager) registerProviderTools(ctx context.Context, providerName string) {
 	if m == nil || m.toolRegistry == nil || m.specBuilder == nil {
 		return
@@ -60,10 +59,8 @@ func (m *Manager) registerProviderTools(ctx context.Context, providerName string
 				"provider", providerName, "tool", spec.Name, "error", err)
 			continue
 		}
-		// Record each name immediately under the write lock so that a
-		// concurrent closeSlotByName sees it and can unregister. Previously
-		// names were written in a batch after the loop, leaving a window
-		// where registered tools could leak if the slot was removed mid-loop.
+		// Record each name under the write lock as soon as it is registered,
+		// so a concurrent Close sees it and unregisters it.
 		m.mu.Lock()
 		for i := range m.slots {
 			if m.slots[i].cfg.Name == providerName {

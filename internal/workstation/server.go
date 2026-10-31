@@ -139,6 +139,16 @@ func (s *Server) exec(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// childEnv is the environment of a command the workstation starts: its own,
+// with HOME set to home and extra added in name order.
+func childEnv(home string, extra map[string]string) []string {
+	env := append(os.Environ(), "HOME="+home)
+	for _, name := range slices.Sorted(maps.Keys(extra)) {
+		env = append(env, name+"="+extra[name])
+	}
+	return env
+}
+
 // run kills the command's whole process group on timeout or when the caller
 // goes away, so background children cannot outlive the request. env is added
 // to the command's environment.
@@ -147,10 +157,7 @@ func (s *Server) run(ctx context.Context, req ExecRequest, env map[string]string
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "bash", "-lc", req.Command)
 	cmd.Dir = s.resolve(req.Dir)
-	cmd.Env = append(os.Environ(), "HOME="+s.home)
-	for _, name := range slices.Sorted(maps.Keys(env)) {
-		cmd.Env = append(cmd.Env, name+"="+env[name])
-	}
+	cmd.Env = childEnv(s.home, env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 2 * time.Second

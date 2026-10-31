@@ -36,7 +36,7 @@ type MemorySource struct {
 	Content    string    `json:"content"`
 	Body       string    `json:"-"`
 	RecordedAt time.Time `json:"recorded_at"`
-	OccurredAt time.Time `json:"occurred_at,omitempty"`
+	OccurredAt time.Time `json:"occurred_at"`
 	Excluded   bool      `json:"excluded"`
 	ToolName   string    `json:"tool_name,omitempty"`
 	Outcome    string    `json:"outcome,omitempty"`
@@ -74,8 +74,8 @@ type MemoryRecord struct {
 	State       string              `json:"state"`
 	Basis       string              `json:"basis"`
 	Revision    int64               `json:"revision"`
-	ValidFrom   time.Time           `json:"valid_from,omitempty"`
-	ValidTo     time.Time           `json:"valid_to,omitempty"`
+	ValidFrom   time.Time           `json:"valid_from"`
+	ValidTo     time.Time           `json:"valid_to"`
 	RecordedAt  time.Time           `json:"recorded_at"`
 	UpdatedAt   time.Time           `json:"updated_at"`
 	NeedsReview bool                `json:"needs_review"`
@@ -136,10 +136,10 @@ type MemoryQuery struct {
 	Depth        string    `json:"depth,omitempty"`
 	Entities     []string  `json:"entities,omitempty"`
 	SessionID    string    `json:"session_id,omitempty"`
-	From         time.Time `json:"from,omitempty"`
-	To           time.Time `json:"to,omitempty"`
-	AsOf         time.Time `json:"as_of,omitempty"`
-	KnownAt      time.Time `json:"known_at,omitempty"`
+	From         time.Time `json:"from"`
+	To           time.Time `json:"to"`
+	AsOf         time.Time `json:"as_of"`
+	KnownAt      time.Time `json:"known_at"`
 	MaxTokens    int       `json:"max_tokens,omitempty"`
 	Limit        int       `json:"limit,omitempty"`
 }
@@ -213,7 +213,7 @@ type MemoryConcern struct {
 	ThreadID  string    `json:"thread_id"`
 	RecordIDs []string  `json:"record_ids"`
 	Revision  int64     `json:"revision"`
-	ReviewAt  time.Time `json:"review_at,omitempty"`
+	ReviewAt  time.Time `json:"review_at"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

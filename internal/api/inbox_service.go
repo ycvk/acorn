@@ -77,7 +77,7 @@ func (s *InboxService) Load(ctx context.Context) (*MobileInbox, error) {
 	if s == nil || s.store == nil || s.capabilities == nil {
 		return nil, errors.New("inbox service is not initialized")
 	}
-	pendingActions, err := s.loadPendingActionSummaries(ctx)
+	pendingActions, err := listPendingActionSummaries(ctx, s.store, defaultInboxPendingActionLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -98,14 +98,20 @@ func (s *InboxService) Load(ctx context.Context) (*MobileInbox, error) {
 	}, nil
 }
 
-func (s *InboxService) loadPendingActionSummaries(ctx context.Context) ([]PendingActionSummary, error) {
-	records, err := s.store.ListPendingActions(ctx, defaultInboxPendingActionLimit)
+// listPendingActionSummaries lists up to limit pending actions with the runs
+// they belong to.
+func listPendingActionSummaries(ctx context.Context, store core.SessionStore, limit int) ([]PendingActionSummary, error) {
+	records, err := store.ListPendingActions(ctx, limit)
 	if err != nil {
 		return nil, err
 	}
 	items := make([]PendingActionSummary, 0, len(records))
 	for _, record := range records {
-		summary, err := s.projectPendingActionSummary(ctx, record)
+		run, err := store.LoadRun(ctx, record.RunID)
+		if err != nil {
+			return nil, err
+		}
+		summary, err := buildPendingActionSummary(record, *run)
 		if err != nil {
 			return nil, err
 		}
@@ -130,14 +136,6 @@ func (s *InboxService) loadRunSummaries(ctx context.Context, list runListFunc, l
 		items = append(items, summary)
 	}
 	return items, nil
-}
-
-func (s *InboxService) projectPendingActionSummary(ctx context.Context, record core.PendingActionRecord) (PendingActionSummary, error) {
-	run, err := s.store.LoadRun(ctx, record.RunID)
-	if err != nil {
-		return PendingActionSummary{}, err
-	}
-	return buildPendingActionSummary(record, *run)
 }
 
 func buildPendingActionSummary(record core.PendingActionRecord, run core.RunRecord) (PendingActionSummary, error) {
@@ -233,7 +231,7 @@ func pendingActionPayload(record core.PendingActionRecord) (map[string]any, erro
 	}
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return nil, fmt.Errorf("%w: pending action %s payload_json: %v", ErrClientProjectionFailed, record.ActionID, err)
+		return nil, fmt.Errorf("%w: pending action %s payload_json: %w", ErrClientProjectionFailed, record.ActionID, err)
 	}
 	return payload, nil
 }
@@ -245,7 +243,7 @@ func operatorQuestionPayload(record core.PendingActionRecord) (core.OperatorQues
 	}
 	var payload core.OperatorQuestionPayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return core.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json: %v", ErrClientProjectionFailed, record.ActionID, err)
+		return core.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json: %w", ErrClientProjectionFailed, record.ActionID, err)
 	}
 	if strings.TrimSpace(payload.Question) == "" {
 		return core.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s operator question is empty", ErrClientProjectionFailed, record.ActionID)

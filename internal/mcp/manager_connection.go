@@ -19,12 +19,12 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func connectProvider(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
+func connectProvider(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore) (*provider, error) {
 	if strings.TrimSpace(cfg.Name) == "" {
 		return nil, errors.New("provider name is required")
 	}
 
-	transport, cleanup, metadata, err := NewTransportWithStore(cfg, store, onAuthStatusChanged)
+	transport, cleanup, metadata, err := NewTransportWithStore(cfg, store)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ type Connection struct {
 
 // Connect opens a session with the provider and lists its tools.
 func Connect(ctx context.Context, cfg core.ProviderConfig) (*Connection, error) {
-	p, err := connectProvider(ctx, cfg, nil, nil, nil)
+	p, err := connectProvider(ctx, cfg, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("connect MCP provider %s: %w", cfg.Name, err)
 	}

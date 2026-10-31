@@ -1,8 +1,6 @@
 package mcp
 
 import (
-	"reflect"
-
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -36,8 +34,4 @@ func providerConfigFromAppConfig(item config.MCPProviderConfig) core.ProviderCon
 			Scopes:   item.Auth.Scopes,
 		},
 	}
-}
-
-func providerConfigEquivalent(a, b core.ProviderConfig) bool {
-	return reflect.DeepEqual(a, b)
 }

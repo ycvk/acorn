@@ -112,7 +112,7 @@ func (s *Scheduler) syncTriggers(ctx context.Context, now time.Time, loc *time.L
 	}
 	byID := map[string]core.TriggerState{}
 	for _, state := range states {
-		byID[state.Skill+"/"+state.Name] = state
+		byID[state.ID()] = state
 	}
 	inUse := map[string]bool{}
 	var due []dueTrigger
@@ -285,7 +285,7 @@ func formatEvents(events []core.TriggerEvent) string {
 			break
 		}
 		b.WriteString("- " + e.Key + "\n")
-		for _, line := range strings.Split(e.Text, "\n") {
+		for line := range strings.SplitSeq(e.Text, "\n") {
 			if strings.TrimSpace(line) != "" {
 				b.WriteString("  " + line + "\n")
 			}

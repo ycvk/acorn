@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -57,9 +58,7 @@ func cloneMap(value map[string]any) map[string]any {
 		return nil
 	}
 	out := make(map[string]any, len(value))
-	for key, item := range value {
-		out[key] = item
-	}
+	maps.Copy(out, value)
 	return out
 }
 

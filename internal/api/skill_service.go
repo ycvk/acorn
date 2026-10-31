@@ -336,13 +336,6 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 			names = append(names, spec.Name)
 		}
 	}
-	for _, name := range tools.BuiltinToolNames() {
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		names = append(names, name)
-	}
 	return names
 }
 

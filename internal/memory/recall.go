@@ -306,13 +306,7 @@ func (e *Engine) semanticCandidates(ctx context.Context, q core.MemoryQuery, ind
 			if len(v.Codes) != len(values) {
 				return nil, core.ErrMemoryIndexMismatch
 			}
-			score := sketchDot(v.Codes, values) * v.Scale
-			if best.Len() < 2048 {
-				heap.Push(best, vectorScore{id: v.ID, score: score})
-			} else if score > (*best)[0].score {
-				(*best)[0] = vectorScore{id: v.ID, score: score}
-				heap.Fix(best, 0)
-			}
+			best.offer(vectorScore{id: v.ID, score: sketchDot(v.Codes, values) * v.Scale}, 2048)
 		}
 		after := batch[len(batch)-1].ID
 		batch, err = e.cfg.Store.MemoryVectorSketches(ctx, index.Generation, after, 512, q.KnownAt)
@@ -340,12 +334,7 @@ func (e *Engine) semanticCandidates(ctx context.Context, q core.MemoryQuery, ind
 		if score < 0.25 {
 			continue
 		}
-		if best.Len() < 160 {
-			heap.Push(best, vectorScore{id: v.ID, score: score})
-		} else if score > (*best)[0].score {
-			(*best)[0] = vectorScore{id: v.ID, score: score}
-			heap.Fix(best, 0)
-		}
+		best.offer(vectorScore{id: v.ID, score: score}, 160)
 	}
 	ids, err = vectorIDs(best)
 	if err != nil {
@@ -402,9 +391,19 @@ func (h *vectorHeap) Push(v any) {
 }
 func (h *vectorHeap) Pop() any { old := *h; n := len(old); v := old[n-1]; *h = old[:n-1]; return v }
 
+// offer keeps v when the heap holds fewer than k scores or v beats the lowest.
+func (h *vectorHeap) offer(v vectorScore, k int) {
+	if h.Len() < k {
+		heap.Push(h, v)
+	} else if v.score > (*h)[0].score {
+		(*h)[0] = v
+		heap.Fix(h, 0)
+	}
+}
+
 func queryTerms(query string) []string {
 	var terms []string
-	for _, word := range strings.Fields(strings.ToLower(query)) {
+	for word := range strings.FieldsSeq(strings.ToLower(query)) {
 		runes := []rune(word)
 		if len(runes) <= 3 {
 			terms = append(terms, word)

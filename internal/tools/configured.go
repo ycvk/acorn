@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -70,10 +71,8 @@ func ConfiguredLocalSpecs() []core.ToolSpec {
 
 func ConfiguredLocalSpec(name string) (core.ToolSpec, bool) {
 	name = strings.TrimSpace(name)
-	for _, candidate := range localToolNames {
-		if candidate == name {
-			return configuredLocalSpec(name), true
-		}
+	if slices.Contains(localToolNames, name) {
+		return configuredLocalSpec(name), true
 	}
 	return core.ToolSpec{}, false
 }

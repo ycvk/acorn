@@ -155,22 +155,9 @@ func (s *Server) deleteUpload(w http.ResponseWriter, r *http.Request) {
 // OpenFile streams a file of the workstation and reports its size. The
 // caller closes the body.
 func (c *Client) OpenFile(ctx context.Context, path string) (io.ReadCloser, int64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/v1/files/raw?"+url.Values{"path": {path}}.Encode(), nil)
+	resp, err := c.openStream(ctx, "/v1/files/raw", url.Values{"path": {path}})
 	if err != nil {
 		return nil, 0, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	resp, err := c.stream.Do(req)
-	if err != nil {
-		return nil, 0, fmt.Errorf("workstation /v1/files/raw: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		data, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		if err != nil {
-			return nil, 0, fmt.Errorf("workstation /v1/files/raw: read error: %w", err)
-		}
-		return nil, 0, responseError("/v1/files/raw", resp.StatusCode, data)
 	}
 	return resp.Body, resp.ContentLength, nil
 }

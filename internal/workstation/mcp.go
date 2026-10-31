@@ -198,10 +198,7 @@ func (h *mcpHost) attempt(ctx context.Context, srv *mcpServer, spec MCPServerSpe
 	defer stop()
 	cmd := h.sup.Command(attemptCtx, server.Command, server.Args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "HOME="+h.home)
-	for _, name := range slices.Sorted(maps.Keys(spec.Env)) {
-		cmd.Env = append(cmd.Env, name+"="+spec.Env[name])
-	}
+	cmd.Env = childEnv(h.home, spec.Env)
 	cmd.Stderr = h.sup.Lines("mcp:" + spec.Name)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

@@ -11,54 +11,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// builtinToolOrder is the canonical list of dynamically-registered built-in
-// tools. It is the
-// single source of truth for built-in tool identity: BuiltinToolNames and the
-// runtime spec resolver (tool.RuntimeToolSpec via BuiltinToolSpec) both derive
-// from it, so adding a built-in tool means editing this one place.
-//
-// Static local tools (artifact_*, ask_operator, keep, recall, ...) are declared
-// separately in localToolNames/configuredLocalSpec.
-var builtinToolOrder = []string{
-	"ask_operator",
-}
-
-// builtinToolContract returns the contract template (without Source/Profiles,
-// which are caller-supplied) for a built-in tool. ok is false for any name that
-// is not a built-in tool (e.g. MCP tools), which callers resolve elsewhere.
-func builtinToolContract(name string) (core.ToolContract, bool) {
-	c := core.ToolContract{
-		Name:    name,
-		Loading: core.EagerLoadingPolicy(),
-	}
-	switch name {
-	case "ask_operator":
-		c.Kind = core.ToolKindNative
-		c.Category = core.ToolCategoryIntegration
-	default:
-		return core.ToolContract{}, false
-	}
-	return c, true
-}
-
-// BuiltinToolSpec resolves the full contract for a built-in tool, applying the
-// caller-supplied source to the canonical contract template. It returns ok=false
-// for names that are not built-in toolset.
-func BuiltinToolSpec(name, source string) (core.ToolContract, bool) {
-	c, ok := builtinToolContract(name)
-	if !ok {
-		return core.ToolContract{}, false
-	}
-	c.Source = source
-	return c, true
-}
-
-// BuiltinToolNames returns the built-in tools, which are all eager-loaded and
-// therefore always eligible for skill matching.
-func BuiltinToolNames() []string {
-	return append([]string(nil), builtinToolOrder...)
-}
-
 // NativeToolDeps are the dependencies of the eager native tools. Every field
 // is required: these tools are part of every run, so a missing dependency is a
 // wiring bug and RegisterNativeTools fails on it.

@@ -176,23 +176,9 @@ pages:
 			sources = append(sources, "message:"+strconv.FormatInt(m.ID, 10))
 			processed = m.ID
 		}
-		input := prefix + "\n" + strings.Join(texts, "\n")
-		if scope := scopeFrom(ctx); scope.runID != "" {
-			sum := sha256.Sum256([]byte(input))
-			if err := e.cfg.Store.SaveMemorySnapshotRefs(ctx, hex.EncodeToString(sum[:]), scope.runID, sources, nil, epoch); err != nil {
-				return nil, err
-			}
-		}
-		content, err := e.generate(ctx, "thread_summary", threadSummaryInstruction, input, max(64, budget-64))
+		content, err := e.summarizeInput(ctx, prefix+"\n"+strings.Join(texts, "\n"), sources, epoch, budget)
 		if err != nil {
 			return nil, err
-		}
-		n, err := e.cfg.Count(ctx, content)
-		if err != nil {
-			return nil, err
-		}
-		if n+64 > budget {
-			return nil, fmt.Errorf("thread summary exceeds %d-token budget", budget)
 		}
 		summary = &core.ThreadSummary{SessionID: session, ThroughMessageID: processed, Content: content, SourceIDs: sources, Epoch: epoch, UpdatedAt: e.cfg.Clock()}
 		if err = e.cfg.Store.SaveThreadSummary(ctx, *summary); err != nil {
@@ -251,27 +237,35 @@ func (e *Engine) summarizeLargeMessage(ctx context.Context, prefix string, m cor
 		if err != nil {
 			return "", err
 		}
-		input := header + chunk
-		if scope := scopeFrom(ctx); scope.runID != "" {
-			sum := sha256.Sum256([]byte(input))
-			if err := e.cfg.Store.SaveMemorySnapshotRefs(ctx, hex.EncodeToString(sum[:]), scope.runID, sources, nil, epoch); err != nil {
-				return "", err
-			}
-		}
-		prefix, err = e.generate(ctx, "thread_summary", threadSummaryInstruction, input, max(64, budget-64))
-		if err != nil {
+		if prefix, err = e.summarizeInput(ctx, header+chunk, sources, epoch, budget); err != nil {
 			return "", err
-		}
-		n, err := e.cfg.Count(ctx, prefix)
-		if err != nil {
-			return "", err
-		}
-		if n+64 > budget {
-			return "", fmt.Errorf("thread summary exceeds %d-token budget", budget)
 		}
 		offset = next
 	}
 	return prefix, nil
+}
+
+// summarizeInput asks for a thread summary of input that fits budget,
+// recording input's sources against the current run first.
+func (e *Engine) summarizeInput(ctx context.Context, input string, sources []string, epoch int64, budget int) (string, error) {
+	if scope := scopeFrom(ctx); scope.runID != "" {
+		sum := sha256.Sum256([]byte(input))
+		if err := e.cfg.Store.SaveMemorySnapshotRefs(ctx, hex.EncodeToString(sum[:]), scope.runID, sources, nil, epoch); err != nil {
+			return "", err
+		}
+	}
+	content, err := e.generate(ctx, "thread_summary", threadSummaryInstruction, input, max(64, budget-64))
+	if err != nil {
+		return "", err
+	}
+	n, err := e.cfg.Count(ctx, content)
+	if err != nil {
+		return "", err
+	}
+	if n+64 > budget {
+		return "", fmt.Errorf("thread summary exceeds %d-token budget", budget)
+	}
+	return content, nil
 }
 
 // captureImageTokens is what the images a capture message carries to the model

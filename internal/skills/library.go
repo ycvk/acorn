@@ -435,7 +435,7 @@ func (l *Library) Rollback(ctx context.Context, name string, revision, baseRevis
 func (l *Library) ownerWrite(ctx context.Context, name, markdown string, files []core.SkillFile, baseRevision int64) (core.Skill, error) {
 	spec, files, err := l.check(markdown, files)
 	if err != nil {
-		return core.Skill{}, fmt.Errorf("%w: %v", core.ErrSkillInvalid, err)
+		return core.Skill{}, fmt.Errorf("%w: %w", core.ErrSkillInvalid, err)
 	}
 	if spec.Name != name {
 		return core.Skill{}, fmt.Errorf("%w: the content names skill %s, not %s", core.ErrSkillInvalid, spec.Name, name)
@@ -599,7 +599,7 @@ func (l *Library) declaring(ctx context.Context, name, secret string) (core.Skil
 	}
 	m, err := ParseManifest(content)
 	if err != nil {
-		return core.Skill{}, fmt.Errorf("%w: %v", core.ErrSkillInvalid, err)
+		return core.Skill{}, fmt.Errorf("%w: %w", core.ErrSkillInvalid, err)
 	}
 	if !slices.Contains(m.Secrets, secret) {
 		return core.Skill{}, fmt.Errorf("%w: skill %s's package declares the secrets %v, not %s", core.ErrSkillInvalid, skill.ID, m.Secrets, secret)

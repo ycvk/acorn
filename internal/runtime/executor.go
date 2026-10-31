@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -43,7 +42,7 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		controller = NewRunController()
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
-		return nil, fmt.Errorf("%w: %v", core.ErrExecutionNotReady, err)
+		return nil, fmt.Errorf("%w: %w", core.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
 		store:        store,
@@ -112,7 +111,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 	}
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
 	iter := active.Runner.Run(execCtx, active.Memory.messages(), adk.WithCheckPointID(runID))
-	return e.consume(ctx, runCtxBase, runID, req.SessionID, req.Input, iter, sink, active)
+	return e.consume(ctx, runCtxBase, runID, iter, sink, active)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -219,7 +218,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	if err != nil {
 		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
-	result, err := e.consume(ctx, runCtxBase, runID, run.SessionID, run.Input, iter, sink, active)
+	result, err := e.consume(ctx, runCtxBase, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
@@ -238,12 +237,12 @@ type RunState struct {
 
 // consume records the run's events and its end. ctx carries the writes; runCtx
 // is the run's own context, whose cancellation cause explains a stopped run.
-func (e *Executor) consume(ctx, runCtx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
+func (e *Executor) consume(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
 	state, err := e.collectRunState(ctx, runCtx, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
-	return e.finishCollectedRun(ctx, runID, sessionID, input, state, sink)
+	return e.finishCollectedRun(ctx, runID, state, sink)
 }
 
 func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
@@ -267,7 +266,7 @@ func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, it
 		}
 	}
 	if projector.streamErr != nil && state.failure == nil {
-		if err := emit(core.StreamItem{Kind: core.StreamKindRunFailed, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+		if err := emit(core.StreamItem{Kind: core.StreamKindRunFailed, Payload: map[string]any{
 			"error": projector.streamErr.Error(),
 		}}); err != nil {
 			return RunState{}, err
@@ -309,10 +308,9 @@ func (s *RunState) applyStreamItem(item core.StreamItem) {
 
 func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink core.StreamSink, kind core.StreamItemKind, payload map[string]any) error {
 	_, err := AppendStreamItem(ctx, e.store, sink, core.StreamItem{
-		RunID:     runID,
-		Kind:      kind,
-		CreatedAt: time.Now().UTC(),
-		Payload:   payload,
+		RunID:   runID,
+		Kind:    kind,
+		Payload: payload,
 	})
 	return err
 }
@@ -354,18 +352,18 @@ func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr er
 	return setupErr
 }
 
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
-		return e.finishFailedRun(ctx, runID, sessionID, input, state, sink)
+		return e.finishFailedRun(ctx, runID, state, sink)
 	case state.interrupt != nil:
 		return e.finishInterruptedRun(ctx, runID, state)
 	default:
-		return e.finishSucceededRun(ctx, runID, sessionID, input, state, sink)
+		return e.finishSucceededRun(ctx, runID, state, sink)
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
 	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusFailed); err != nil {
 		return nil, err
@@ -415,7 +413,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
 	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusSucceeded); err != nil {
 		return nil, err

@@ -33,6 +33,11 @@ type TriggerState struct {
 	LastRunAt time.Time
 }
 
+// ID names the trigger as package/trigger.
+func (s TriggerState) ID() string {
+	return s.Skill + "/" + s.Name
+}
+
 // TriggerEventStatus tracks what has been done with an event.
 type TriggerEventStatus string
 

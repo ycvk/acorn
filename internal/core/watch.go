@@ -139,6 +139,15 @@ type WatchItem struct {
 	SeenAt      time.Time
 }
 
+// When is when the item was published, or first seen when its source gives
+// no date.
+func (i WatchItem) When() time.Time {
+	if i.PublishedAt.IsZero() {
+		return i.SeenAt
+	}
+	return i.PublishedAt
+}
+
 // WatchCheck is what one check of a watch records: the check fields of the
 // watch and the items it found.
 type WatchCheck struct {

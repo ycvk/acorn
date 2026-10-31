@@ -8,6 +8,7 @@ import (
 
 	"github.com/cloudwego/eino-ext/components/tool/mcp/officialmcp"
 	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -16,26 +17,10 @@ func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName strin
 		return errors.New("manager is nil")
 	}
 
-	m.mu.Lock()
-	slotIdx := -1
-	for i := range m.slots {
-		if m.slots[i].cfg.Name == providerName {
-			slotIdx = i
-			break
-		}
+	session, cfg, err := m.liveSession(providerName, "catalog refresh")
+	if err != nil {
+		return err
 	}
-	if slotIdx < 0 {
-		m.mu.Unlock()
-		return fmt.Errorf("provider %q not found for catalog refresh", providerName)
-	}
-	slot := &m.slots[slotIdx]
-	if slot.p == nil || slot.p.session == nil {
-		m.mu.Unlock()
-		return fmt.Errorf("provider %q has no live session for catalog refresh", providerName)
-	}
-	session := slot.p.session
-	cfg := slot.cfg
-	m.mu.Unlock()
 
 	refreshCtx, cancel := context.WithTimeout(ctx, timeoutDuration(cfg.StartupTimeoutSeconds))
 	defer cancel()
@@ -53,15 +38,10 @@ func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName strin
 		return fmt.Errorf("collect tool names after refresh for provider %q: %w", providerName, err)
 	}
 
-	m.mu.Lock()
-	for i := range m.slots {
-		if m.slots[i].cfg.Name == providerName && m.slots[i].p != nil {
-			m.slots[i].p.tools = rawTools
-			m.slots[i].p.toolNames = toolNames
-			break
-		}
-	}
-	m.mu.Unlock()
+	m.updateProvider(providerName, func(p *provider) {
+		p.tools = rawTools
+		p.toolNames = toolNames
+	})
 
 	// Re-sync the provider's registry entries so the unified ToolRegistry
 	// reflects the refreshed tool list. No-op when no registry was wired.
@@ -75,26 +55,10 @@ func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName
 		return errors.New("manager is nil")
 	}
 
-	m.mu.Lock()
-	slotIdx := -1
-	for i := range m.slots {
-		if m.slots[i].cfg.Name == providerName {
-			slotIdx = i
-			break
-		}
+	session, cfg, err := m.liveSession(providerName, catalogType+" catalog refresh")
+	if err != nil {
+		return err
 	}
-	if slotIdx < 0 {
-		m.mu.Unlock()
-		return fmt.Errorf("provider %q not found for %s catalog refresh", providerName, catalogType)
-	}
-	slot := &m.slots[slotIdx]
-	if slot.p == nil || slot.p.session == nil {
-		m.mu.Unlock()
-		return fmt.Errorf("provider %q has no live session for %s catalog refresh", providerName, catalogType)
-	}
-	session := slot.p.session
-	cfg := slot.cfg
-	m.mu.Unlock()
 
 	refreshCtx, cancel := context.WithTimeout(ctx, timeoutDuration(cfg.StartupTimeoutSeconds))
 	defer cancel()
@@ -105,32 +69,47 @@ func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName
 		if err != nil {
 			return fmt.Errorf("refresh resource catalog for provider %q: %w", providerName, err)
 		}
-		m.mu.Lock()
-		for i := range m.slots {
-			if m.slots[i].cfg.Name == providerName && m.slots[i].p != nil {
-				m.slots[i].p.resources = resResult.Resources
-				break
-			}
-		}
-		m.mu.Unlock()
+		m.updateProvider(providerName, func(p *provider) { p.resources = resResult.Resources })
 	case "prompts":
 		promptResult, err := session.ListPrompts(refreshCtx, nil)
 		if err != nil {
 			return fmt.Errorf("refresh prompt catalog for provider %q: %w", providerName, err)
 		}
-		m.mu.Lock()
-		for i := range m.slots {
-			if m.slots[i].cfg.Name == providerName && m.slots[i].p != nil {
-				m.slots[i].p.prompts = promptResult.Prompts
-				break
-			}
-		}
-		m.mu.Unlock()
+		m.updateProvider(providerName, func(p *provider) { p.prompts = promptResult.Prompts })
 	default:
 		return fmt.Errorf("unknown catalog type %q", catalogType)
 	}
 
 	return nil
+}
+
+// liveSession returns the session and config of a connected provider; what
+// names the operation in the errors.
+func (m *Manager) liveSession(providerName, what string) (*mcp.ClientSession, core.ProviderConfig, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.slots {
+		if m.slots[i].cfg.Name != providerName {
+			continue
+		}
+		if p := m.slots[i].p; p == nil || p.session == nil {
+			return nil, core.ProviderConfig{}, fmt.Errorf("provider %q has no live session for %s", providerName, what)
+		}
+		return m.slots[i].p.session, m.slots[i].cfg, nil
+	}
+	return nil, core.ProviderConfig{}, fmt.Errorf("provider %q not found for %s", providerName, what)
+}
+
+// updateProvider applies update to a provider's connection while it has one.
+func (m *Manager) updateProvider(providerName string, update func(*provider)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.slots {
+		if m.slots[i].cfg.Name == providerName && m.slots[i].p != nil {
+			update(m.slots[i].p)
+			return
+		}
+	}
 }
 
 func (m *Manager) ResourceTools() []einotool.BaseTool {
@@ -172,7 +151,7 @@ func Doctor(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo
 			continue
 		}
 
-		p, err := connectProvider(ctx, cfg, nil, nil, nil)
+		p, err := connectProvider(ctx, cfg, nil, nil)
 		if err != nil {
 			status.StartupStatus = "failed"
 			status.Error = err.Error()
@@ -196,8 +175,6 @@ func newProviderStatus(cfg core.ProviderConfig) core.ProviderInfo {
 	authStatus := "none"
 	if transport == "stdio" {
 		authStatus = "env"
-	} else if cfg.Auth.Type == "oauth" {
-		authStatus = "none"
 	}
 	return core.ProviderInfo{
 		Name:                cfg.Name,
