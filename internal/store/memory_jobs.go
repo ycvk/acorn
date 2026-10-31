@@ -37,7 +37,9 @@ func enqueueMemoryJob(ctx context.Context, q memorySQL, operation, id, version s
 	return err
 }
 
-func (s *Store) MemoryEpoch(ctx context.Context) (int64, error) { return memoryEpoch(ctx, s.db) }
+// MemoryEpoch reads the exclusion epoch on the read pool, beside the writer;
+// runs check it before every model and tool call.
+func (s *Store) MemoryEpoch(ctx context.Context) (int64, error) { return memoryEpoch(ctx, s.read) }
 
 func memoryEpoch(ctx context.Context, q memorySQL) (int64, error) {
 	var epoch int64

@@ -28,11 +28,11 @@ type History struct {
 // summary, so a run sees only its own input.
 func (e *Engine) History(ctx context.Context, session string, after, through int64, budget int) (History, error) {
 	out := History{}
-	ex, err := e.cfg.Store.MemoryExclusions(ctx)
+	epoch, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return out, err
 	}
-	out.Epoch = ex.Epoch
+	out.Epoch = epoch
 	if budget <= 0 {
 		return out, errors.New("history budget must be positive")
 	}
@@ -73,7 +73,7 @@ func (e *Engine) History(ctx context.Context, session string, after, through int
 	slices.Reverse(out.Messages)
 	if after == 0 && len(out.Messages) > 0 && summaryBudget >= 128 {
 		cutoff := out.Messages[0].ID - 1
-		out.Summary, err = e.summarizeThrough(ctx, session, cutoff, ex.Epoch, summaryBudget)
+		out.Summary, err = e.summarizeThrough(ctx, session, cutoff, epoch, summaryBudget)
 		if err != nil {
 			return out, err
 		}
@@ -89,11 +89,11 @@ func (e *Engine) History(ctx context.Context, session string, after, through int
 	for _, m := range out.Messages {
 		out.SourceIDs = append(out.SourceIDs, "message:"+strconv.FormatInt(m.ID, 10))
 	}
-	latest, err := e.cfg.Store.MemoryExclusions(ctx)
+	latest, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return out, err
 	}
-	if latest.Epoch != out.Epoch {
+	if latest != out.Epoch {
 		return out, core.ErrMemoryExcluded
 	}
 	return out, nil
@@ -212,11 +212,11 @@ func (e *Engine) RefreshRecall(ctx context.Context, prior core.MemoryRecall) (co
 			return out, err
 		}
 	}
-	ex, err := e.cfg.Store.MemoryExclusions(ctx)
+	epoch, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return out, err
 	}
-	out.Epoch = ex.Epoch
+	out.Epoch = epoch
 	data, err := json.Marshal(out)
 	if err != nil {
 		return out, err

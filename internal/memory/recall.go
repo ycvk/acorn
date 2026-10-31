@@ -42,11 +42,11 @@ func (e *Engine) Recall(ctx context.Context, q core.MemoryQuery) (core.MemoryRec
 		q.Limit = 20
 	}
 	q.Limit = min(q.Limit, 50)
-	exclusion, err := e.cfg.Store.MemoryExclusions(ctx)
+	epoch, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return out, err
 	}
-	out.Epoch = exclusion.Epoch
+	out.Epoch = epoch
 	index, err := e.cfg.Store.MemoryIndex(ctx)
 	if err != nil {
 		return out, err
@@ -175,11 +175,11 @@ func (e *Engine) Recall(ctx context.Context, q core.MemoryQuery) (core.MemoryRec
 			break
 		}
 	}
-	latest, err := e.cfg.Store.MemoryExclusions(ctx)
+	latest, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return out, err
 	}
-	if latest.Epoch != out.Epoch {
+	if latest != out.Epoch {
 		return core.MemoryRecall{}, core.ErrMemoryExcluded
 	}
 	return out, nil
