@@ -76,7 +76,7 @@ func parseCronField(field string, min, max int) (map[int]bool, error) {
 func parseCronFieldTrackingStar(field string, min, max int) (map[int]bool, bool, error) {
 	result := make(map[int]bool)
 	star := true
-	for _, part := range strings.Split(field, ",") {
+	for part := range strings.SplitSeq(field, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue

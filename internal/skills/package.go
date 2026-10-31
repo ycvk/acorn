@@ -37,7 +37,7 @@ func cleanPath(p string) (string, error) {
 	case p == SkillFileName:
 		return "", fmt.Errorf("skill file path %q is the skill itself; write it as the markdown", p)
 	}
-	for _, segment := range strings.Split(p, "/") {
+	for segment := range strings.SplitSeq(p, "/") {
 		if segment == "" || segment == "." || segment == ".." {
 			return "", fmt.Errorf("skill file path %q has an empty, . or .. segment", p)
 		}

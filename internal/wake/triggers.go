@@ -285,7 +285,7 @@ func formatEvents(events []core.TriggerEvent) string {
 			break
 		}
 		b.WriteString("- " + e.Key + "\n")
-		for _, line := range strings.Split(e.Text, "\n") {
+		for line := range strings.SplitSeq(e.Text, "\n") {
 			if strings.TrimSpace(line) != "" {
 				b.WriteString("  " + line + "\n")
 			}

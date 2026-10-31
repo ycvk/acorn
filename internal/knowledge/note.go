@@ -29,7 +29,7 @@ func checkRelativePath(p string) error {
 	if strings.Contains(p, `\`) || path.IsAbs(p) || path.Clean(p) != p {
 		return fmt.Errorf("%w: %q must be a clean relative path with forward slashes", ErrInvalidPath, p)
 	}
-	for _, segment := range strings.Split(p, "/") {
+	for segment := range strings.SplitSeq(p, "/") {
 		if segment == ".." || strings.HasPrefix(segment, ".") {
 			return fmt.Errorf("%w: %q has a hidden or parent segment", ErrInvalidPath, p)
 		}

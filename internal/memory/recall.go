@@ -404,7 +404,7 @@ func (h *vectorHeap) Pop() any { old := *h; n := len(old); v := old[n-1]; *h = o
 
 func queryTerms(query string) []string {
 	var terms []string
-	for _, word := range strings.Fields(strings.ToLower(query)) {
+	for word := range strings.FieldsSeq(strings.ToLower(query)) {
 		runes := []rune(word)
 		if len(runes) <= 3 {
 			terms = append(terms, word)

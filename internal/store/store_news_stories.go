@@ -384,7 +384,7 @@ func (s *Store) SearchNewsStories(ctx context.Context, query core.NewsQuery) ([]
 	}
 	where := []string{"st.updated_at >= ?", "(? = '' OR st.section = ?)"}
 	args := []any{formatTimestamp(query.Since), query.Section, query.Section}
-	for _, word := range strings.Fields(query.Text) {
+	for word := range strings.FieldsSeq(query.Text) {
 		where = append(where, `(st.title LIKE ? ESCAPE '\' OR st.summary LIKE ? ESCAPE '\' OR st.development LIKE ? ESCAPE '\' OR EXISTS (
 		     SELECT 1 FROM news_scores s JOIN watch_items i ON i.id = s.item_id WHERE s.story_id = st.id AND (i.title LIKE ? ESCAPE '\' OR i.summary LIKE ? ESCAPE '\')))`)
 		pattern := "%" + escapeLike(word) + "%"
