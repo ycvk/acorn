@@ -130,6 +130,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Ends the page's watch of its thread when the page leaves the screen: a
+     * run this phone does not show as a Live Update is followed only while
+     * its conversation is open.
+     */
+    fun leave() {
+        loadGeneration.incrementAndGet()
+        _threadId.value?.let(follower::unwatch)
+        _threadId.value = null
+    }
+
     private fun followedRun(threadId: String): FollowedRun? = follower.runs.value.values.firstOrNull { it.threadId == threadId }
 
     /**

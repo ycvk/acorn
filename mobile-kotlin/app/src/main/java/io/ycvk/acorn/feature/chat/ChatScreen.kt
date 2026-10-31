@@ -63,6 +63,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -157,6 +158,7 @@ fun ChatScreen(
     val approvalError by approvals.error.collectAsStateWithLifecycle()
 
     LaunchedEffect(threadId) { viewModel.loadThread(threadId) }
+    DisposableEffect(viewModel) { onDispose { viewModel.leave() } }
     OnReturnToForeground {
         viewModel.refresh()
         approvals.loadPendingActions()
