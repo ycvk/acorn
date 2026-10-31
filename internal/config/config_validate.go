@@ -57,9 +57,6 @@ func (c *Config) ValidateExecutionReady() error {
 }
 
 func (c *Config) validateWebAccessBase() error {
-	if c == nil {
-		return nil
-	}
 	switch provider := strings.TrimSpace(c.WebAccess.Search.Provider); provider {
 	case "exa":
 	default:
