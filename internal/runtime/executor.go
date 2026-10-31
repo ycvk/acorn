@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -267,7 +266,7 @@ func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, it
 		}
 	}
 	if projector.streamErr != nil && state.failure == nil {
-		if err := emit(core.StreamItem{Kind: core.StreamKindRunFailed, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+		if err := emit(core.StreamItem{Kind: core.StreamKindRunFailed, Payload: map[string]any{
 			"error": projector.streamErr.Error(),
 		}}); err != nil {
 			return RunState{}, err
@@ -309,10 +308,9 @@ func (s *RunState) applyStreamItem(item core.StreamItem) {
 
 func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink core.StreamSink, kind core.StreamItemKind, payload map[string]any) error {
 	_, err := AppendStreamItem(ctx, e.store, sink, core.StreamItem{
-		RunID:     runID,
-		Kind:      kind,
-		CreatedAt: time.Now().UTC(),
-		Payload:   payload,
+		RunID:   runID,
+		Kind:    kind,
+		Payload: payload,
 	})
 	return err
 }
