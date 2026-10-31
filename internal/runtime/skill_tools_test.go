@@ -168,8 +168,18 @@ func TestSkillsWithServersLeaveTheRunWhenTheWorkstationCannotServe(t *testing.T)
 }
 
 func TestProviderNamespacesAreTheToolNamespaces(t *testing.T) {
-	got := ProviderNamespaces([]core.ProviderConfig{{Name: "github"}, {Name: "my_files"}, {Name: " "}})
-	if !slices.Equal(got, []string{"github", "my-files"}) {
-		t.Fatalf("namespaces = %v", got)
+	got, err := ProviderNamespaces([]core.ProviderConfig{{Name: "github"}, {Name: "my_files"}, {Name: " "}})
+	if err != nil || !slices.Equal(got, []string{"github", "my-files"}) {
+		t.Fatalf("namespaces = %v, %v", got, err)
+	}
+}
+
+func TestProviderNamespacesRejectEnabledProvidersSharingOne(t *testing.T) {
+	if _, err := ProviderNamespaces([]core.ProviderConfig{{Name: "my_files", Enabled: true}, {Name: "my.files"}}); err != nil {
+		t.Fatalf("a disabled provider takes no tool names: %v", err)
+	}
+	_, err := ProviderNamespaces([]core.ProviderConfig{{Name: "my_files", Enabled: true}, {Name: "my.files", Enabled: true}})
+	if err == nil || !strings.Contains(err.Error(), "mcp__my-files__") {
+		t.Fatalf("err = %v", err)
 	}
 }

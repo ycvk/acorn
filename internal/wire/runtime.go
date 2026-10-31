@@ -72,7 +72,11 @@ func buildNotifier(cfg *config.Config, db *store.Store, owner core.SettingsReade
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, options buildOptions) (*containerRuntimeDeps, error) {
-	skillLibrary, err := skills.NewLibrary(db, options.clock, runtime.ProviderNamespaces(mcpprovider.ProviderConfigsFromConfig(cfg.MCP.Providers)))
+	namespaces, err := runtime.ProviderNamespaces(mcpprovider.ProviderConfigsFromConfig(cfg.MCP.Providers))
+	if err != nil {
+		return nil, err
+	}
+	skillLibrary, err := skills.NewLibrary(db, options.clock, namespaces)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -90,14 +91,24 @@ func closeFor(conn *mcpprovider.Connection, skill, reason string) string {
 }
 
 // ProviderNamespaces are the names the configured MCP providers' tools are
-// namespaced under, which skill packages' MCP servers cannot take.
-func ProviderNamespaces(providers []core.ProviderConfig) []string {
+// namespaced under, which skill packages' MCP servers cannot take. Two
+// enabled providers whose names give the same namespace are an error: their
+// tools would take each other's names.
+func ProviderNamespaces(providers []core.ProviderConfig) ([]string, error) {
 	out := make([]string, 0, len(providers))
+	enabled := map[string]string{}
 	for _, p := range providers {
 		if strings.TrimSpace(p.Name) == "" {
 			continue
 		}
-		out = append(out, mcpprovider.ToolNamespace(p.Name))
+		namespace := mcpprovider.ToolNamespace(p.Name)
+		if p.Enabled {
+			if other, ok := enabled[namespace]; ok {
+				return nil, fmt.Errorf("MCP providers %q and %q both name their tools mcp__%s__; rename one", other, p.Name, namespace)
+			}
+			enabled[namespace] = p.Name
+		}
+		out = append(out, namespace)
 	}
-	return out
+	return out, nil
 }
