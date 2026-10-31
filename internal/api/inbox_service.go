@@ -233,7 +233,7 @@ func pendingActionPayload(record core.PendingActionRecord) (map[string]any, erro
 	}
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return nil, fmt.Errorf("%w: pending action %s payload_json: %v", ErrClientProjectionFailed, record.ActionID, err)
+		return nil, fmt.Errorf("%w: pending action %s payload_json: %w", ErrClientProjectionFailed, record.ActionID, err)
 	}
 	return payload, nil
 }
@@ -245,7 +245,7 @@ func operatorQuestionPayload(record core.PendingActionRecord) (core.OperatorQues
 	}
 	var payload core.OperatorQuestionPayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return core.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json: %v", ErrClientProjectionFailed, record.ActionID, err)
+		return core.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json: %w", ErrClientProjectionFailed, record.ActionID, err)
 	}
 	if strings.TrimSpace(payload.Question) == "" {
 		return core.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s operator question is empty", ErrClientProjectionFailed, record.ActionID)

@@ -43,7 +43,7 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		controller = NewRunController()
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
-		return nil, fmt.Errorf("%w: %v", core.ErrExecutionNotReady, err)
+		return nil, fmt.Errorf("%w: %w", core.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
 		store:        store,

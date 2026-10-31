@@ -53,7 +53,7 @@ func (s *PhoneNotificationService) Add(ctx context.Context, deviceID string, bat
 	items := make([]core.PhoneNotification, 0, len(batch.Notifications))
 	for i, item := range batch.Notifications {
 		if err := validatePhoneNotification(item, now); err != nil {
-			return PhoneNotificationAccepted{}, fmt.Errorf("%w: notifications[%d].%s", ErrInvalidPhoneNotification, i, err)
+			return PhoneNotificationAccepted{}, fmt.Errorf("%w: notifications[%d].%w", ErrInvalidPhoneNotification, i, err)
 		}
 		items = append(items, core.PhoneNotification{DeviceID: deviceID, Key: item.Key, Package: item.Package, App: item.App, Title: item.Title, Text: item.Text, PostedAt: item.PostedAt, ReceivedAt: now})
 	}

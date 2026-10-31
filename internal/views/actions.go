@@ -109,7 +109,7 @@ func ResolveAction(components, data json.RawMessage, req ActionRequest) (Action,
 		// An absent multiple means a single choice.
 		selected, err := chosen(options, req.Selected, n.props["multiple"] == true)
 		if err != nil {
-			return Action{}, fmt.Errorf("%w: choice %q: %v", ErrInvalidAction, n.id, err)
+			return Action{}, fmt.Errorf("%w: choice %q: %w", ErrInvalidAction, n.id, err)
 		}
 		action.Selected = selected
 		labels := make([]string, len(selected))

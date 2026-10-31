@@ -193,7 +193,7 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 	}
 	contexts, err := latestRootInterruptContexts(items)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", core.ErrRunNotInterrupted, err)
+		return nil, fmt.Errorf("%w: %w", core.ErrRunNotInterrupted, err)
 	}
 	targets := make(map[string]any, len(contexts))
 	for _, ctxItem := range contexts {
