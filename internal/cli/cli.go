@@ -195,7 +195,7 @@ func loadConfig(configPath string) (*config.Config, error) {
 	return config.Load(configPath)
 }
 
-func withContainer(ctx context.Context, configPath string, fn func(*wire.Container) error) error {
+func withContainer(ctx context.Context, configPath string, fn func(*wire.Container) error) (err error) {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return err
@@ -204,6 +204,6 @@ func withContainer(ctx context.Context, configPath string, fn func(*wire.Contain
 	if err != nil {
 		return err
 	}
-	defer container.Close()
+	defer func() { err = errors.Join(err, container.Close()) }()
 	return fn(container)
 }
