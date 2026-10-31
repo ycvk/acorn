@@ -137,10 +137,10 @@ func scanSkills(rows *sql.Rows) ([]core.Skill, error) {
 		}
 		skill.Author = core.SkillAuthor(author)
 		var err error
-		if skill.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "skills.created_at"); err != nil {
+		if skill.CreatedAt, err = parseTimestamp(created, "skills.created_at"); err != nil {
 			return nil, err
 		}
-		if skill.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "skills.updated_at"); err != nil {
+		if skill.UpdatedAt, err = parseTimestamp(updated, "skills.updated_at"); err != nil {
 			return nil, err
 		}
 		skills = append(skills, skill)
@@ -194,7 +194,7 @@ func querySkillRevisions(ctx context.Context, q memorySQL, id, where string, arg
 		}
 		r.Author = core.SkillAuthor(author)
 		var err error
-		if r.At, err = parseTimestamp(fixedTimestampLayout, at, "skill_revisions.at"); err != nil {
+		if r.At, err = parseTimestamp(at, "skill_revisions.at"); err != nil {
 			return err
 		}
 		index[r.Revision] = len(revisions)
@@ -301,7 +301,7 @@ func (s *Store) StagedSkillPackage(ctx context.Context, sha string) (core.SkillP
 	if err != nil {
 		return core.SkillPackage{}, fmt.Errorf("read staged skill package %s: %w", sha, err)
 	}
-	if pkg.StagedAt, err = parseTimestamp(fixedTimestampLayout, staged, "skill_package_stages.staged_at"); err != nil {
+	if pkg.StagedAt, err = parseTimestamp(staged, "skill_package_stages.staged_at"); err != nil {
 		return core.SkillPackage{}, err
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT path, content FROM skill_package_stage_files WHERE sha256 = ? ORDER BY path`, sha)

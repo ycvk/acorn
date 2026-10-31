@@ -55,10 +55,10 @@ func scanCommitment(row interface{ Scan(...any) error }) (core.Commitment, error
 	if c.WakeAt, err = parseOptionalTime(wake, "commitments.wake_at"); err != nil {
 		return c, err
 	}
-	if c.CreatedAt, err = time.Parse(time.RFC3339Nano, created); err != nil {
+	if c.CreatedAt, err = parseTimestamp(created, "commitments.created_at"); err != nil {
 		return c, err
 	}
-	c.UpdatedAt, err = time.Parse(time.RFC3339Nano, updated)
+	c.UpdatedAt, err = parseTimestamp(updated, "commitments.updated_at")
 	return c, err
 }
 
@@ -185,7 +185,7 @@ func (s *Store) ListDueOccurrences(ctx context.Context) ([]core.CommitmentOccurr
 		if o.DueAt, err = parseOptionalTime(due, "commitment_occurrences.due_at"); err != nil {
 			return err
 		}
-		if o.UpdatedAt, err = time.Parse(time.RFC3339Nano, updated); err != nil {
+		if o.UpdatedAt, err = parseTimestamp(updated, "commitment_occurrences.updated_at"); err != nil {
 			return err
 		}
 		out = append(out, o)

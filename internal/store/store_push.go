@@ -69,7 +69,7 @@ func (s *Store) ListPushInstallations(ctx context.Context) ([]core.PushInstallat
 			return err
 		}
 		var err error
-		p.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "push_installations.updated_at")
+		p.UpdatedAt, err = parseTimestamp(updated, "push_installations.updated_at")
 		installations = append(installations, p)
 		return err
 	})
@@ -130,10 +130,10 @@ func (s *Store) ListDueNotifications(ctx context.Context, now time.Time) ([]core
 		}
 		n.Status = core.NotificationStatus(status)
 		var err error
-		if n.SendAfter, err = parseTimestamp(fixedTimestampLayout, sendAfter, "notifications.send_after"); err != nil {
+		if n.SendAfter, err = parseTimestamp(sendAfter, "notifications.send_after"); err != nil {
 			return err
 		}
-		if n.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "notifications.created_at"); err != nil {
+		if n.CreatedAt, err = parseTimestamp(created, "notifications.created_at"); err != nil {
 			return err
 		}
 		if n.SentAt, err = parseOptionalTime(sentAt, "notifications.sent_at"); err != nil {

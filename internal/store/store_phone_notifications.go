@@ -53,10 +53,10 @@ func (s *Store) ListPhoneNotifications(ctx context.Context, since, until time.Ti
 			return err
 		}
 		var err error
-		if item.PostedAt, err = parseTimestamp(fixedTimestampLayout, posted, "phone_notifications.posted_at"); err != nil {
+		if item.PostedAt, err = parseTimestamp(posted, "phone_notifications.posted_at"); err != nil {
 			return err
 		}
-		if item.ReceivedAt, err = parseTimestamp(fixedTimestampLayout, received, "phone_notifications.received_at"); err != nil {
+		if item.ReceivedAt, err = parseTimestamp(received, "phone_notifications.received_at"); err != nil {
 			return err
 		}
 		page.Items = append(page.Items, item)

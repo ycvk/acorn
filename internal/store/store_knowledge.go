@@ -97,10 +97,10 @@ func loadKnowledgeNote(ctx context.Context, q memorySQL, path string) (core.Know
 		return core.KnowledgeNote{}, fmt.Errorf("read knowledge note %s: %w", path, err)
 	}
 	note.Tags = strings.Fields(tags)
-	if note.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "knowledge_notes.created_at"); err != nil {
+	if note.CreatedAt, err = parseTimestamp(created, "knowledge_notes.created_at"); err != nil {
 		return core.KnowledgeNote{}, err
 	}
-	if note.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "knowledge_notes.updated_at"); err != nil {
+	if note.UpdatedAt, err = parseTimestamp(updated, "knowledge_notes.updated_at"); err != nil {
 		return core.KnowledgeNote{}, err
 	}
 	return note, nil
@@ -171,7 +171,7 @@ func scanKnowledgeHits(rows *sql.Rows, snippet func(text string) string) ([]core
 		}
 		hit.Tags = strings.Fields(tags)
 		hit.Snippet = collapseSpace(snippet(text))
-		updated, err := parseTimestamp(fixedTimestampLayout, when, "knowledge_notes.updated_at")
+		updated, err := parseTimestamp(when, "knowledge_notes.updated_at")
 		if err != nil {
 			return nil, err
 		}

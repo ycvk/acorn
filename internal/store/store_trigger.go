@@ -33,7 +33,7 @@ func (s *Store) ListTriggers(ctx context.Context) ([]core.TriggerState, error) {
 		}
 		state.Status = core.TriggerStatus(status)
 		var err error
-		if state.NextAt, err = parseTimestamp(fixedTimestampLayout, next, "skill_triggers.next_at"); err != nil {
+		if state.NextAt, err = parseTimestamp(next, "skill_triggers.next_at"); err != nil {
 			return err
 		}
 		state.LastRunAt, err = parseOptionalTime(ran, "skill_triggers.last_run_at")
@@ -142,7 +142,7 @@ func (s *Store) ListTriggerEvents(ctx context.Context, status core.TriggerEventS
 		}
 		event.Status = core.TriggerEventStatus(eventStatus)
 		var err error
-		event.SeenAt, err = parseTimestamp(fixedTimestampLayout, at, "skill_trigger_events.seen_at")
+		event.SeenAt, err = parseTimestamp(at, "skill_trigger_events.seen_at")
 		events = append(events, event)
 		return err
 	}); err != nil {

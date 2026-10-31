@@ -33,7 +33,7 @@ func (s *Store) MemoryMessages(ctx context.Context, session string, after, throu
 		if err := scan(&m.ID, &m.TurnIndex, &m.Role, &m.RunID, &at); err != nil {
 			return err
 		}
-		m.CreatedAt, err = parseTimestamp("2006-01-02T15:04:05.999999999Z07:00", at, "memory.message.created_at")
+		m.CreatedAt, err = parseTimestamp(at, "memory.message.created_at")
 		items = append(items, m)
 		return err
 	})

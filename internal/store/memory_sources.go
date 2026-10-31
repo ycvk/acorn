@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/redact"
@@ -93,13 +92,11 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, view sourceVi
 	if err != nil {
 		return source, err
 	}
-	if source.RecordedAt, err = time.Parse(time.RFC3339Nano, recorded); err != nil {
+	if source.RecordedAt, err = parseTimestamp(recorded, "memory_sources.recorded_at"); err != nil {
 		return source, err
 	}
-	if occurred != "" {
-		if source.OccurredAt, err = time.Parse(time.RFC3339Nano, occurred); err != nil {
-			return source, err
-		}
+	if source.OccurredAt, err = parseOptionalTime(occurred, "memory_sources.occurred_at"); err != nil {
+		return source, err
 	}
 	source.Content = source.Body
 	// A wholly excluded source is read without its content, which a deleted

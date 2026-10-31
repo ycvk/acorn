@@ -46,7 +46,7 @@ func (s *Store) OwnerName(ctx context.Context) (core.OwnerName, error) {
 	if err != nil {
 		return core.OwnerName{}, fmt.Errorf("read owner name: %w", err)
 	}
-	if owner.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, at, "owner.updated_at"); err != nil {
+	if owner.UpdatedAt, err = parseTimestamp(at, "owner.updated_at"); err != nil {
 		return core.OwnerName{}, err
 	}
 	return owner, nil

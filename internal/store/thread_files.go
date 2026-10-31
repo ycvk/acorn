@@ -156,7 +156,7 @@ func scanThreadFile(scan func(...any) error) (core.ThreadFile, error) {
 	if err := scan(&file.ID, &file.SessionID, &file.MessageID, &file.RunID, &file.Origin, &file.Name, &file.MIME, &file.Size, &file.SHA256, &created); err != nil {
 		return core.ThreadFile{}, err
 	}
-	at, err := parseTimestamp(fixedTimestampLayout, created, "thread_files.created_at")
+	at, err := parseTimestamp(created, "thread_files.created_at")
 	if err != nil {
 		return core.ThreadFile{}, err
 	}

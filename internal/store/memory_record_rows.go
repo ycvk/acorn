@@ -79,10 +79,10 @@ func loadMemoryRevisions(ctx context.Context, q memorySQL, keys []memoryRevision
 
 func setMemoryTimes(record *core.MemoryRecord, recorded, updated, validFrom, validTo string) error {
 	var err error
-	if record.RecordedAt, err = parseTimestamp(fixedTimestampLayout, recorded, "memory recorded_at"); err != nil {
+	if record.RecordedAt, err = parseTimestamp(recorded, "memory recorded_at"); err != nil {
 		return err
 	}
-	if record.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "memory updated_at"); err != nil {
+	if record.UpdatedAt, err = parseTimestamp(updated, "memory updated_at"); err != nil {
 		return err
 	}
 	if record.ValidFrom, err = parseOptionalTime(validFrom, "memory valid_from"); err != nil {

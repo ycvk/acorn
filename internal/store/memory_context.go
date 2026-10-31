@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -89,7 +88,7 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			if expected != revision {
 				return core.ErrMemoryConflict
 			}
-			if concern.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "concern created_at"); err != nil {
+			if concern.CreatedAt, err = parseTimestamp(created, "concern created_at"); err != nil {
 				return err
 			}
 			concern.Revision = revision + 1
@@ -179,10 +178,10 @@ func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.Memor
 		if c.ReviewAt, err = parseOptionalTime(reviewAt, "concern review_at"); err != nil {
 			return err
 		}
-		if c.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "concern created_at"); err != nil {
+		if c.CreatedAt, err = parseTimestamp(created, "concern created_at"); err != nil {
 			return err
 		}
-		if c.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "concern updated_at"); err != nil {
+		if c.UpdatedAt, err = parseTimestamp(updated, "concern updated_at"); err != nil {
 			return err
 		}
 		if err := json.Unmarshal([]byte(records), &c.RecordIDs); err != nil {
@@ -261,7 +260,7 @@ func (s *Store) LoadThreadSummary(ctx context.Context, sessionID string) (*core.
 	if err := json.Unmarshal([]byte(sourceJSON), &out.SourceIDs); err != nil {
 		return nil, err
 	}
-	if out.UpdatedAt, err = time.Parse(time.RFC3339Nano, updated); err != nil {
+	if out.UpdatedAt, err = parseTimestamp(updated, "thread_summaries.updated_at"); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -277,7 +277,7 @@ func scanEventRows(rows *sql.Rows, runID string) ([]core.EventRecord, error) {
 		if err := json.Unmarshal([]byte(payload), &body); err != nil {
 			return nil, fmt.Errorf("unmarshal event payload run_id=%s sequence=%d kind=%s: %w", runID, seq, kind, err)
 		}
-		parsed, err := parseTimestamp(time.RFC3339Nano, created, "event.created_at")
+		parsed, err := parseTimestamp(created, "event.created_at")
 		if err != nil {
 			return nil, err
 		}
@@ -315,7 +315,7 @@ func (s *Store) LoadToolCallEvents(ctx context.Context, runIDs []string) (map[st
 		if err := json.Unmarshal([]byte(payload), &record.Payload); err != nil {
 			return nil, fmt.Errorf("unmarshal event payload run_id=%s sequence=%d kind=%s: %w", record.RunID, record.Sequence, record.Kind, err)
 		}
-		if record.CreatedAt, err = parseTimestamp(time.RFC3339Nano, created, "event.created_at"); err != nil {
+		if record.CreatedAt, err = parseTimestamp(created, "event.created_at"); err != nil {
 			return nil, err
 		}
 		result[record.RunID] = append(result[record.RunID], record)
