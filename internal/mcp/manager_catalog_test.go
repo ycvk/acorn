@@ -526,3 +526,39 @@ func TestManagerToolCountReflectsOnlyRegularTools(t *testing.T) {
 		t.Fatalf("ToolCount = %d, want %d (only regular tools, not resource/prompt)", got, want)
 	}
 }
+
+func TestRefreshCatalogNamesAMissingOrDisconnectedProvider(t *testing.T) {
+	binary := buildFixtureServer(t)
+
+	origFunc := connectProviderFunc
+	t.Cleanup(func() { connectProviderFunc = origFunc })
+	connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore) (*provider, error) {
+		if cfg.Name == "broken" {
+			return nil, errors.New("connection failed")
+		}
+		return connectProvider(ctx, cfg, opts, store)
+	}
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
+		{Name: "healthy", Enabled: true, Transport: "stdio", Command: binary, StartupTimeoutSeconds: 10},
+		{Name: "broken", Enabled: true, Transport: "stdio", Command: "./does-not-exist", StartupTimeoutSeconds: 2},
+	})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	t.Cleanup(func() { _ = mgr.Close() })
+
+	ctx := context.Background()
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{mgr.RefreshProviderCatalog(ctx, "missing"), `provider "missing" not found for catalog refresh`},
+		{mgr.RefreshProviderCatalog(ctx, "broken"), `provider "broken" has no live session for catalog refresh`},
+		{mgr.refreshProviderCatalogByType(ctx, "missing", "prompts"), `provider "missing" not found for prompts catalog refresh`},
+		{mgr.refreshProviderCatalogByType(ctx, "broken", "resources"), `provider "broken" has no live session for resources catalog refresh`},
+	} {
+		if tc.err == nil || tc.err.Error() != tc.want {
+			t.Errorf("err = %v, want %q", tc.err, tc.want)
+		}
+	}
+}
