@@ -73,7 +73,7 @@ data class Thread (
     /**
      * 
      *
-     * Values: new,running,completed,failed,interrupted,degraded
+     * Values: new,running,completed,failed,interrupted
      */
     @JsonClass(generateAdapter = false)
     enum class State(val value: kotlin.String) {
@@ -81,8 +81,7 @@ data class Thread (
         @Json(name = "running") running("running"),
         @Json(name = "completed") completed("completed"),
         @Json(name = "failed") failed("failed"),
-        @Json(name = "interrupted") interrupted("interrupted"),
-        @Json(name = "degraded") degraded("degraded");
+        @Json(name = "interrupted") interrupted("interrupted");
     }
     /**
      * 

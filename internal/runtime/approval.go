@@ -69,7 +69,9 @@ type pageKey struct {
 
 // approvalRequest is why a call waits for the owner and how to show it.
 type approvalRequest struct {
-	reason  string
+	reason string
+	// rule is the approval.require pattern the call matched.
+	rule    string
 	summary string
 	verdict *review.Verdict
 }
@@ -104,12 +106,17 @@ func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, de
 // matchesAny takes patterns newApprovalMiddleware already validated, so
 // path.Match cannot fail on them.
 func matchesAny(patterns []string, name string) bool {
+	return matchingPattern(patterns, name) != ""
+}
+
+// matchingPattern is the first pattern that matches name, or "".
+func matchingPattern(patterns []string, name string) string {
 	for _, p := range patterns {
 		if ok, err := path.Match(p, name); err == nil && ok {
-			return true
+			return p
 		}
 	}
-	return false
+	return ""
 }
 
 // Why a call waits for the owner, as the owner reads it on the approval.
@@ -138,14 +145,15 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 	if tCtx.Name == "shell" {
 		run = m.observing(endpoint)
 	}
+	required := matchingPattern(m.rules.Require, tCtx.Name)
 	switch {
 	case matchesAny(m.rules.Block, tCtx.Name):
 		return func(context.Context, string, ...einotool.Option) (string, error) {
 			return fmt.Sprintf("The owner's rules block %s (approval.block). Do not retry it; tell the owner what you wanted to do.", tCtx.Name), nil
 		}, nil
-	case matchesAny(m.rules.Require, tCtx.Name):
+	case required != "":
 		return m.gated(run, tCtx, func(context.Context, string) (*approvalRequest, error) {
-			return &approvalRequest{reason: requireReason}, nil
+			return &approvalRequest{reason: requireReason, rule: required}, nil
 		}), nil
 	case ownerDecides(tCtx.Name) && !matchesAny(m.rules.Allow, tCtx.Name):
 		return m.gated(run, tCtx, m.ownerDecision(tCtx.Name)), nil
@@ -427,6 +435,9 @@ func (m *approvalMiddleware) requestApproval(ctx context.Context, tCtx *adk.Tool
 	}
 	if request.verdict != nil {
 		payload["review"] = request.verdict
+	}
+	if request.rule != "" {
+		payload["rule"] = request.rule
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {

@@ -3192,7 +3192,7 @@ components:
           type: string
         state:
           type: string
-          enum: [new, running, completed, failed, interrupted, degraded]
+          enum: [new, running, completed, failed, interrupted]
         preview:
           type: string
           description: The latest owner or assistant message, flattened to one line of at most 120 characters.
