@@ -44,7 +44,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 // registry's native tools plus the per-run toolset (web, memory, skill). MCP
 // tools are reported per provider by the capability snapshot.
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSpec, error) {
-	toolset, err := buildToolset(ctx, f.deps, "")
+	toolset, err := buildToolset(ctx, f.deps)
 	if err != nil {
 		return nil, err
 	}

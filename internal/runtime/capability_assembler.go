@@ -34,11 +34,7 @@ func NewContextBridge() core.ToolCallContextBridge {
 	return artifactToolBridge{}
 }
 
-func buildToolset(
-	ctx context.Context,
-	deps RuntimeDeps,
-	sessionID string,
-) (*Toolset, error) {
+func buildToolset(ctx context.Context, deps RuntimeDeps) (*Toolset, error) {
 	if err := validateToolsetDeps(deps); err != nil {
 		return nil, err
 	}
@@ -123,7 +119,7 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 // and resolves a stable skill snapshot for capability eligibility. The tools
 // of the skills' own MCP servers join the catalog once the servers serve.
 func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	toolset, err := buildToolset(ctx, deps, sessionID)
+	toolset, err := buildToolset(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
