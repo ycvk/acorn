@@ -7,7 +7,6 @@ package redact
 import (
 	"regexp"
 	"sort"
-	"strings"
 )
 
 // Span is a credential at text[Start:End].
@@ -81,20 +80,3 @@ func Find(text string) []Span {
 
 // Placeholder is the text that replaces a credential of kind.
 func Placeholder(kind string) string { return "[REDACTED:" + kind + "]" }
-
-// Text replaces every credential in text with its placeholder.
-func Text(text string) string {
-	spans := Find(text)
-	if len(spans) == 0 {
-		return text
-	}
-	var b strings.Builder
-	at := 0
-	for _, s := range spans {
-		b.WriteString(text[at:s.Start])
-		b.WriteString(Placeholder(s.Kind))
-		at = s.End
-	}
-	b.WriteString(text[at:])
-	return b.String()
-}

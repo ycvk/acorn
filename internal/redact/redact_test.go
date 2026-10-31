@@ -1,6 +1,9 @@
 package redact
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestTextRedactsHighConfidenceCredentials(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
@@ -58,4 +61,22 @@ func TestTextKeepsOrdinaryFacts(t *testing.T) {
 			t.Errorf("Text(%q) = %q", in, got)
 		}
 	}
+}
+
+// Text replaces every credential in text with its placeholder, so the tests
+// read the rules as their effect on text.
+func Text(text string) string {
+	spans := Find(text)
+	if len(spans) == 0 {
+		return text
+	}
+	var b strings.Builder
+	at := 0
+	for _, s := range spans {
+		b.WriteString(text[at:s.Start])
+		b.WriteString(Placeholder(s.Kind))
+		at = s.End
+	}
+	b.WriteString(text[at:])
+	return b.String()
 }
