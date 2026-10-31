@@ -58,10 +58,10 @@ fun NotificationAccessSection(viewModel: NotificationAccessViewModel = hiltViewM
     var chooseApps by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
 
+    // Adding the observer replays ON_RESUME, which loads the section on entry.
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh() }
         lifecycle.addObserver(observer)
-        viewModel.refresh()
         onDispose { lifecycle.removeObserver(observer) }
     }
 
