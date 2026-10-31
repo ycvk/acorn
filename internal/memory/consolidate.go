@@ -64,7 +64,7 @@ func (e *Engine) consolidate(ctx context.Context, job core.MemoryJob) error {
 	if fmt.Sprint(read.Record.Revision) != job.Version {
 		return e.cfg.Store.FinishMemoryJob(ctx, job, "record revision has advanced", e.cfg.Clock())
 	}
-	changed, batch, err := e.consolidationBatch(ctx, job, read.Record)
+	changed, batch, err := e.consolidationBatch(ctx, read.Record)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (e *Engine) consolidate(ctx context.Context, job core.MemoryJob) error {
 
 // consolidationBatch claims further ready consolidation jobs whose current
 // records fit the model input beside the leased record.
-func (e *Engine) consolidationBatch(ctx context.Context, job core.MemoryJob, record core.MemoryRecord) ([]core.MemoryRecord, []core.MemoryJob, error) {
+func (e *Engine) consolidationBatch(ctx context.Context, record core.MemoryRecord) ([]core.MemoryRecord, []core.MemoryJob, error) {
 	now := e.cfg.Clock()
 	ready, err := e.cfg.Store.ReadyMemoryJobs(ctx, now, "consolidate", 2*consolidateBatchRecords)
 	if err != nil {
