@@ -36,19 +36,20 @@ type CorrectInput struct {
 	ValidFrom string   `json:"valid_from,omitempty" jsonschema_description:"When this becomes true, RFC3339; defaults to now."`
 }
 
-func (e *Engine) currentOwner(ctx context.Context, runID, id string) (core.MemorySource, error) {
+// requireCurrentOwner checks that id is an owner source of the current run.
+func (e *Engine) requireCurrentOwner(ctx context.Context, runID, id string) error {
 	source, err := e.cfg.Store.LoadMemorySource(ctx, id)
 	if err != nil {
-		return source, err
+		return err
 	}
 	if runID == "" || source.RunID != runID || source.Speaker != "owner" {
-		return source, errors.New("memory change requires the current owner's request source")
+		return errors.New("memory change requires the current owner's request source")
 	}
-	return source, nil
+	return nil
 }
 
 func (e *Engine) Keep(ctx context.Context, runID string, in WriteInput) (core.MemoryRecord, error) {
-	if _, err := e.currentOwner(ctx, runID, in.SourceID); err != nil {
+	if err := e.requireCurrentOwner(ctx, runID, in.SourceID); err != nil {
 		return core.MemoryRecord{}, err
 	}
 	if in.ID != "" || in.Revision != 0 || in.State != "" {
@@ -121,7 +122,7 @@ func (e *Engine) Think(ctx context.Context, runID, sessionID string, in WriteInp
 }
 
 func (e *Engine) Correct(ctx context.Context, runID string, in CorrectInput) (core.MemoryRecord, error) {
-	if _, err := e.currentOwner(ctx, runID, in.SourceID); err != nil {
+	if err := e.requireCurrentOwner(ctx, runID, in.SourceID); err != nil {
 		return core.MemoryRecord{}, err
 	}
 	return e.correct(ctx, in)
@@ -162,7 +163,7 @@ func (e *Engine) correct(ctx context.Context, in CorrectInput) (core.MemoryRecor
 // Forget commits exclusions before the runtime cancels old model input. The
 // tool acknowledges only after its injected visibility barrier has completed.
 func (e *Engine) Forget(ctx context.Context, runID string, request core.MemoryForget) (core.MemoryForgotten, error) {
-	if _, err := e.currentOwner(ctx, runID, request.RequestSourceID); err != nil {
+	if err := e.requireCurrentOwner(ctx, runID, request.RequestSourceID); err != nil {
 		return core.MemoryForgotten{}, err
 	}
 	request.Now = e.cfg.Clock()
