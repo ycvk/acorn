@@ -53,10 +53,6 @@ func RuntimeToolSpec(
 		return localSpec, nil
 	}
 
-	if contract, ok := tools.BuiltinToolSpec(name, source); ok {
-		return core.ToolSpec{ToolContract: contract, Tool: tool}, nil
-	}
-
 	spec := core.ToolSpec{
 		ToolContract: core.ToolContract{
 			Name:     name,

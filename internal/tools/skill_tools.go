@@ -189,9 +189,6 @@ func checkRequiredTools(markdown string) error {
 	for _, name := range localToolNames {
 		known[name] = struct{}{}
 	}
-	for _, name := range BuiltinToolNames() {
-		known[name] = struct{}{}
-	}
 	var unknown []string
 	for _, name := range spec.RequiresTools {
 		if _, ok := known[name]; !ok && !strings.HasPrefix(name, "mcp__") {
