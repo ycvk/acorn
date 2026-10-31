@@ -10,7 +10,8 @@ func WithRunID(ctx context.Context, runID string) context.Context {
 	return context.WithValue(ctx, runIDContextKey{}, runID)
 }
 
-func GetRunID(ctx context.Context) string {
+// CurrentRunID returns the run ID stored in the context, or empty string.
+func CurrentRunID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}

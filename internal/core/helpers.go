@@ -35,11 +35,6 @@ func DurableContext(ctx context.Context) context.Context {
 	return context.WithoutCancel(ctx)
 }
 
-// CurrentRunID returns the run ID stored in the context, or empty string.
-func CurrentRunID(ctx context.Context) string {
-	return GetRunID(ctx)
-}
-
 // InterruptPayloadFromStream converts a StreamInterrupt into a serializable
 // map suitable for event payloads. Returns nil if interrupt is nil.
 func InterruptPayloadFromStream(interrupt *StreamInterrupt) map[string]any {

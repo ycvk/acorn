@@ -213,7 +213,7 @@ func TestInterruptPayloadFromStream(t *testing.T) {
 func TestDurableContextPreservesValues(t *testing.T) {
 	ctx := WithRunID(context.Background(), "run_99")
 	durable := DurableContext(ctx)
-	if got := GetRunID(durable); got != "run_99" {
+	if got := CurrentRunID(durable); got != "run_99" {
 		t.Fatalf("got %q, want run_99", got)
 	}
 }
@@ -233,11 +233,11 @@ func TestDurableContextSurvivesCancel(t *testing.T) {
 
 func TestRunIDContextRoundtrip(t *testing.T) {
 	ctx := context.Background()
-	if got := GetRunID(ctx); got != "" {
+	if got := CurrentRunID(ctx); got != "" {
 		t.Fatalf("empty ctx: got %q", got)
 	}
 	ctx = WithRunID(ctx, "run_123")
-	if got := GetRunID(ctx); got != "run_123" {
+	if got := CurrentRunID(ctx); got != "run_123" {
 		t.Fatalf("got %q, want run_123", got)
 	}
 	if got := CurrentRunID(ctx); got != "run_123" {
