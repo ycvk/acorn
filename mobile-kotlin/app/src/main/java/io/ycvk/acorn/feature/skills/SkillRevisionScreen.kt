@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.SkillDiff
 import io.ycvk.acorn.api.models.SkillDiffLine
 import io.ycvk.acorn.api.models.SkillFileDiff
+import io.ycvk.acorn.api.models.SkillRevision
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornDialog
@@ -37,6 +38,7 @@ import io.ycvk.acorn.core.ui.DiffLine
 import io.ycvk.acorn.core.ui.DiffView
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SegmentedControl
@@ -62,14 +64,14 @@ fun SkillRevisionScreen(
     val change by viewModel.change.collectAsStateWithLifecycle()
     LaunchedEffect(name, revision) {
         viewModel.openRevision(name, revision)
-        if ((skill as? SkillLoad.Loaded)?.detail?.name != name) viewModel.open(name)
+        if ((skill as? Load.Loaded<SkillHistory>)?.value?.detail?.name != name) viewModel.open(name)
     }
     val colors = AcornTheme.colors
     val scroll = rememberScrollState()
     var selected by rememberSaveable { mutableIntStateOf(0) }
     var confirmRollback by rememberSaveable { mutableStateOf(false) }
-    val shown = (load as? SkillRevisionLoad.Loaded)?.revision?.takeIf { it.name == name && it.revision == revision }
-    val current = (skill as? SkillLoad.Loaded)?.detail?.takeIf { it.name == name }
+    val shown = (load as? Load.Loaded<SkillRevision>)?.value?.takeIf { it.name == name && it.revision == revision }
+    val current = (skill as? Load.Loaded<SkillHistory>)?.value?.detail?.takeIf { it.name == name }
     val now = OffsetDateTime.now()
 
     Column(modifier = Modifier.fillMaxSize().background(colors.canvas)) {
@@ -79,8 +81,8 @@ fun SkillRevisionScreen(
             subtitle = shown?.let { "$name · ${skillRevisionMeta(it.author, it.at, now)}" },
         )
         when {
-            load is SkillRevisionLoad.Failed -> ErrorState((load as SkillRevisionLoad.Failed).message, onRetry = { viewModel.openRevision(name, revision) })
-            skill is SkillLoad.Failed -> ErrorState((skill as SkillLoad.Failed).message, onRetry = { viewModel.open(name) })
+            load is Load.Failed -> ErrorState((load as Load.Failed).message, onRetry = { viewModel.openRevision(name, revision) })
+            skill is Load.Failed -> ErrorState((skill as Load.Failed).message, onRetry = { viewModel.open(name) })
             shown == null || current == null -> SkeletonRows(rows = 4)
             else -> {
                 val sameAsCurrent = shown.sha256 == current.sha256
@@ -194,10 +196,10 @@ private fun Caption(text: String) {
 }
 
 @Composable
-private fun DiffSection(load: SkillDiffLoad, name: String, from: Long, to: Long, onRetry: () -> Unit) {
-    val diff = (load as? SkillDiffLoad.Loaded)?.diff?.takeIf { it.name == name && it.from == from && it.to == to }
+private fun DiffSection(load: Load<SkillDiff>, name: String, from: Long, to: Long, onRetry: () -> Unit) {
+    val diff = (load as? Load.Loaded<SkillDiff>)?.value?.takeIf { it.name == name && it.from == from && it.to == to }
     when {
-        load is SkillDiffLoad.Failed -> InlineError(load.message, action = "重试", onAction = onRetry)
+        load is Load.Failed -> InlineError(load.message, action = "重试", onAction = onRetry)
         diff == null -> SkeletonRows(rows = 3)
         else -> SkillDiffView(diff)
     }

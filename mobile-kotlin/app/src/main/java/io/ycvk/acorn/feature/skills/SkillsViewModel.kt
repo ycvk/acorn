@@ -11,6 +11,7 @@ import io.ycvk.acorn.api.models.SkillRevisionSummary
 import io.ycvk.acorn.api.models.SkillSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.SkillRepository
 import kotlinx.coroutines.CancellationException
@@ -24,29 +25,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-sealed interface SkillsLoad {
-    data object Loading : SkillsLoad
-    data class Loaded(val items: List<SkillSummary>) : SkillsLoad
-    data class Failed(val message: String) : SkillsLoad
-}
-
-sealed interface SkillLoad {
-    data object Loading : SkillLoad
-    data class Loaded(val detail: SkillDetail, val revisions: List<SkillRevisionSummary>) : SkillLoad
-    data class Failed(val message: String) : SkillLoad
-}
-
-sealed interface SkillRevisionLoad {
-    data object Loading : SkillRevisionLoad
-    data class Loaded(val revision: SkillRevision) : SkillRevisionLoad
-    data class Failed(val message: String) : SkillRevisionLoad
-}
-
-sealed interface SkillDiffLoad {
-    data object Loading : SkillDiffLoad
-    data class Loaded(val diff: SkillDiff) : SkillDiffLoad
-    data class Failed(val message: String) : SkillDiffLoad
-}
+/** A skill's page: its detail and its revisions. */
+data class SkillHistory(val detail: SkillDetail, val revisions: List<SkillRevisionSummary>)
 
 sealed interface SkillChange {
     data object Idle : SkillChange
@@ -61,17 +41,17 @@ class SkillsViewModel @Inject constructor(
     private val repository: SkillRepository,
 ) : ViewModel() {
 
-    private val _list = MutableStateFlow<SkillsLoad>(SkillsLoad.Loading)
-    val list: StateFlow<SkillsLoad> = _list.asStateFlow()
+    private val _list = MutableStateFlow<Load<List<SkillSummary>>>(Load.Loading)
+    val list: StateFlow<Load<List<SkillSummary>>> = _list.asStateFlow()
 
-    private val _skill = MutableStateFlow<SkillLoad>(SkillLoad.Loading)
-    val skill: StateFlow<SkillLoad> = _skill.asStateFlow()
+    private val _skill = MutableStateFlow<Load<SkillHistory>>(Load.Loading)
+    val skill: StateFlow<Load<SkillHistory>> = _skill.asStateFlow()
 
-    private val _revision = MutableStateFlow<SkillRevisionLoad>(SkillRevisionLoad.Loading)
-    val revision: StateFlow<SkillRevisionLoad> = _revision.asStateFlow()
+    private val _revision = MutableStateFlow<Load<SkillRevision>>(Load.Loading)
+    val revision: StateFlow<Load<SkillRevision>> = _revision.asStateFlow()
 
-    private val _diff = MutableStateFlow<SkillDiffLoad>(SkillDiffLoad.Loading)
-    val diff: StateFlow<SkillDiffLoad> = _diff.asStateFlow()
+    private val _diff = MutableStateFlow<Load<SkillDiff>>(Load.Loading)
+    val diff: StateFlow<Load<SkillDiff>> = _diff.asStateFlow()
 
     private val _change = MutableStateFlow<SkillChange>(SkillChange.Idle)
     val change: StateFlow<SkillChange> = _change.asStateFlow()
@@ -83,18 +63,18 @@ class SkillsViewModel @Inject constructor(
 
     fun loadList() {
         val profile = profile() ?: run {
-            _list.value = SkillsLoad.Failed("还没有连接服务器")
+            _list.value = Load.Failed("还没有连接服务器")
             return
         }
-        if (_list.value !is SkillsLoad.Loaded) _list.value = SkillsLoad.Loading
+        if (_list.value !is Load.Loaded) _list.value = Load.Loading
         listJob?.cancel()
         listJob = viewModelScope.launch {
             _list.value = try {
-                SkillsLoad.Loaded(withContext(Dispatchers.IO) { repository.list(profile) })
+                Load.Loaded(withContext(Dispatchers.IO) { repository.list(profile) })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SkillsLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }
@@ -102,12 +82,12 @@ class SkillsViewModel @Inject constructor(
     /** Loads a skill's page with its history; a page already showing the skill stays while it reloads. */
     fun open(name: String) {
         val profile = profile() ?: run {
-            _skill.value = SkillLoad.Failed("还没有连接服务器")
+            _skill.value = Load.Failed("还没有连接服务器")
             return
         }
-        val shown = (_skill.value as? SkillLoad.Loaded)?.detail?.name
+        val shown = (_skill.value as? Load.Loaded<SkillHistory>)?.value?.detail?.name
         if (shown != name) {
-            _skill.value = SkillLoad.Loading
+            _skill.value = Load.Loading
             _change.value = SkillChange.Idle
         }
         skillJob?.cancel()
@@ -116,31 +96,31 @@ class SkillsViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     val detail = async { repository.detail(profile, name) }
                     val revisions = async { repository.revisions(profile, name) }
-                    SkillLoad.Loaded(detail.await(), revisions.await())
+                    Load.Loaded(SkillHistory(detail.await(), revisions.await()))
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SkillLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }
 
     fun openRevision(name: String, revision: Long) {
         val profile = profile() ?: run {
-            _revision.value = SkillRevisionLoad.Failed("还没有连接服务器")
+            _revision.value = Load.Failed("还没有连接服务器")
             return
         }
-        _revision.value = SkillRevisionLoad.Loading
+        _revision.value = Load.Loading
         _change.value = SkillChange.Idle
         revisionJob?.cancel()
         revisionJob = viewModelScope.launch {
             _revision.value = try {
-                SkillRevisionLoad.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, name, revision) })
+                Load.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, name, revision) })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SkillRevisionLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }
@@ -148,20 +128,20 @@ class SkillsViewModel @Inject constructor(
     /** Loads how the skill changes from revision [from] to revision [to]. */
     fun loadDiff(name: String, from: Long, to: Long) {
         val profile = profile() ?: run {
-            _diff.value = SkillDiffLoad.Failed("还没有连接服务器")
+            _diff.value = Load.Failed("还没有连接服务器")
             return
         }
-        val shown = (_diff.value as? SkillDiffLoad.Loaded)?.diff
+        val shown = (_diff.value as? Load.Loaded<SkillDiff>)?.value
         if (shown != null && shown.name == name && shown.from == from && shown.to == to) return
-        _diff.value = SkillDiffLoad.Loading
+        _diff.value = Load.Loading
         diffJob?.cancel()
         diffJob = viewModelScope.launch {
             _diff.value = try {
-                SkillDiffLoad.Loaded(withContext(Dispatchers.IO) { repository.diff(profile, name, from, to) })
+                Load.Loaded(withContext(Dispatchers.IO) { repository.diff(profile, name, from, to) })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SkillDiffLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }
@@ -233,7 +213,7 @@ class SkillsViewModel @Inject constructor(
         }
     }
 
-    private fun loadedDetail(): SkillDetail? = (_skill.value as? SkillLoad.Loaded)?.detail
+    private fun loadedDetail(): SkillDetail? = (_skill.value as? Load.Loaded<SkillHistory>)?.value?.detail
 
     private fun profile() = authController.profile
 }

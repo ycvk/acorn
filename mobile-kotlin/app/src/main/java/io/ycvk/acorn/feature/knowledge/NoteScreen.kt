@@ -44,6 +44,7 @@ import io.ycvk.acorn.core.ui.AcornMenuItem
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
@@ -65,7 +66,7 @@ fun NoteScreen(
         viewModel.openNote(path)
     }
     val scroll = rememberScrollState()
-    val note = (load as? NoteLoad.Loaded)?.note
+    val note = (load as? Load.Loaded<KnowledgeNote>)?.value
     val colors = AcornTheme.colors
     var menu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -97,10 +98,10 @@ fun NoteScreen(
             )
         }
         when (val current = load) {
-            NoteLoad.Loading -> SkeletonRows(rows = 5)
-            is NoteLoad.Failed -> ErrorState(current.message, onRetry = { viewModel.openNote(path) })
-            is NoteLoad.Loaded -> NoteBody(
-                note = current.note,
+            Load.Loading -> SkeletonRows(rows = 5)
+            is Load.Failed -> ErrorState(current.message, onRetry = { viewModel.openNote(path) })
+            is Load.Loaded -> NoteBody(
+                note = current.value,
                 profile = viewModel.connection(),
                 modifier = Modifier.verticalScroll(scroll),
             )

@@ -40,6 +40,7 @@ import io.ycvk.acorn.core.ui.DiffView
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.RevisionRow
@@ -62,7 +63,7 @@ fun PersonaScreen(
     val save by viewModel.save.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.load() }
 
-    val current = (load as? PersonaLoad.Loaded)?.current
+    val current = (load as? Load.Loaded<PersonaHistory>)?.value?.current
     val editing = draft
     if (editing != null && current != null) {
         PersonaEditor(editing, current, save, viewModel)
@@ -73,9 +74,9 @@ fun PersonaScreen(
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = "人格")
         when (val state = load) {
-            PersonaLoad.Loading -> SkeletonRows(rows = 4)
-            is PersonaLoad.Failed -> ErrorState(state.message, onRetry = viewModel::load)
-            is PersonaLoad.Loaded -> {
+            Load.Loading -> SkeletonRows(rows = 4)
+            is Load.Failed -> ErrorState(state.message, onRetry = viewModel::load)
+            is Load.Loaded -> {
                 Column(modifier = Modifier.weight(1f).verticalScroll(scroll)) {
                     PersonaBody(state, viewModel.deviceId, onOpenRevision)
                 }
@@ -93,10 +94,10 @@ fun PersonaScreen(
 }
 
 @Composable
-private fun PersonaBody(state: PersonaLoad.Loaded, thisDevice: String?, onOpenRevision: (Long) -> Unit) {
+private fun PersonaBody(state: Load.Loaded<PersonaHistory>, thisDevice: String?, onOpenRevision: (Long) -> Unit) {
     val colors = AcornTheme.colors
     val now = OffsetDateTime.now()
-    val current = state.current
+    val current = state.value.current
     Column(modifier = Modifier.padding(start = ScreenPadding, end = ScreenPadding, top = 4.dp)) {
         Text(
             "Acorn 每次开始工作时都会读这段话，它决定 Acorn 是谁、怎么跟你说话。只有你能改它。",
@@ -115,7 +116,7 @@ private fun PersonaBody(state: PersonaLoad.Loaded, thisDevice: String?, onOpenRe
         )
         Text("历史", style = AcornTheme.type.footnote, color = colors.inkFaint, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp))
     }
-    state.revisions.forEachIndexed { index, revision ->
+    state.value.revisions.forEachIndexed { index, revision ->
         if (index > 0) Hairline(inset = ScreenPadding)
         RevisionRow(
             title = revisionTitle(revision.revision),
@@ -226,14 +227,14 @@ fun PersonaRevisionScreen(
     val save by viewModel.save.collectAsStateWithLifecycle()
     LaunchedEffect(revision) {
         viewModel.openRevision(revision)
-        if (persona !is PersonaLoad.Loaded) viewModel.load()
+        if (persona !is Load.Loaded) viewModel.load()
     }
     val colors = AcornTheme.colors
     val scroll = rememberScrollState()
     var view by rememberSaveable { mutableIntStateOf(0) }
     var confirmRestore by rememberSaveable { mutableStateOf(false) }
-    val shown = (load as? RevisionLoad.Loaded)?.revision?.takeIf { it.revision == revision }
-    val current = (persona as? PersonaLoad.Loaded)?.current
+    val shown = (load as? Load.Loaded<Persona>)?.value?.takeIf { it.revision == revision }
+    val current = (persona as? Load.Loaded<PersonaHistory>)?.value?.current
     val now = OffsetDateTime.now()
 
     Column(modifier = Modifier.fillMaxSize().background(colors.canvas)) {
@@ -243,8 +244,8 @@ fun PersonaRevisionScreen(
             subtitle = shown?.let { revisionMeta(it.author.value, it.deviceId, viewModel.deviceId, it.savedAt, now) },
         )
         when {
-            load is RevisionLoad.Failed -> ErrorState((load as RevisionLoad.Failed).message, onRetry = { viewModel.openRevision(revision) })
-            persona is PersonaLoad.Failed -> ErrorState((persona as PersonaLoad.Failed).message, onRetry = viewModel::load)
+            load is Load.Failed -> ErrorState((load as Load.Failed).message, onRetry = { viewModel.openRevision(revision) })
+            persona is Load.Failed -> ErrorState((persona as Load.Failed).message, onRetry = viewModel::load)
             shown == null || current == null -> SkeletonRows(rows = 4)
             else -> {
                 val inUse = shown.sha256 == current.sha256

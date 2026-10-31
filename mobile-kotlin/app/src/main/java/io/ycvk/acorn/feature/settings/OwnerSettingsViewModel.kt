@@ -8,6 +8,7 @@ import io.ycvk.acorn.api.models.OwnerSettings
 import io.ycvk.acorn.api.models.OwnerSettingsChanges
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.OwnerSettingsRepository
 import kotlinx.coroutines.Dispatchers
@@ -29,14 +30,8 @@ class OwnerSettingsViewModel @Inject constructor(
     private val repository: OwnerSettingsRepository,
 ) : ViewModel() {
 
-    sealed interface Load {
-        data object Loading : Load
-        data class Loaded(val settings: OwnerSettings) : Load
-        data class Failed(val message: String) : Load
-    }
-
-    private val _state = MutableStateFlow<Load>(Load.Loading)
-    val state: StateFlow<Load> = _state.asStateFlow()
+    private val _state = MutableStateFlow<Load<OwnerSettings>>(Load.Loading)
+    val state: StateFlow<Load<OwnerSettings>> = _state.asStateFlow()
 
     private val _toolNames = MutableStateFlow<List<String>>(emptyList())
     val toolNames: StateFlow<List<String>> = _toolNames.asStateFlow()

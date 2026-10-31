@@ -7,6 +7,7 @@ import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.Persona
 import io.ycvk.acorn.api.models.PersonaRevisionSummary
 import io.ycvk.acorn.core.auth.AuthController
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.PersonaRepository
 import kotlinx.coroutines.CancellationException
@@ -20,17 +21,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-sealed interface PersonaLoad {
-    data object Loading : PersonaLoad
-    data class Loaded(val current: Persona, val revisions: List<PersonaRevisionSummary>) : PersonaLoad
-    data class Failed(val message: String) : PersonaLoad
-}
-
-sealed interface RevisionLoad {
-    data object Loading : RevisionLoad
-    data class Loaded(val revision: Persona) : RevisionLoad
-    data class Failed(val message: String) : RevisionLoad
-}
+/** The persona page: the current persona and its revisions. */
+data class PersonaHistory(val current: Persona, val revisions: List<PersonaRevisionSummary>)
 
 /**
  * The persona being edited, on top of [baseRevision]. [mine] is what the owner
@@ -52,11 +44,11 @@ class PersonaViewModel @Inject constructor(
     private val repository: PersonaRepository,
 ) : ViewModel() {
 
-    private val _persona = MutableStateFlow<PersonaLoad>(PersonaLoad.Loading)
-    val persona: StateFlow<PersonaLoad> = _persona.asStateFlow()
+    private val _persona = MutableStateFlow<Load<PersonaHistory>>(Load.Loading)
+    val persona: StateFlow<Load<PersonaHistory>> = _persona.asStateFlow()
 
-    private val _revision = MutableStateFlow<RevisionLoad>(RevisionLoad.Loading)
-    val revision: StateFlow<RevisionLoad> = _revision.asStateFlow()
+    private val _revision = MutableStateFlow<Load<Persona>>(Load.Loading)
+    val revision: StateFlow<Load<Persona>> = _revision.asStateFlow()
 
     private val _draft = MutableStateFlow<PersonaDraft?>(null)
     val draft: StateFlow<PersonaDraft?> = _draft.asStateFlow()
@@ -72,47 +64,47 @@ class PersonaViewModel @Inject constructor(
 
     fun load() {
         val profile = profile() ?: run {
-            _persona.value = PersonaLoad.Failed("还没有连接服务器")
+            _persona.value = Load.Failed("还没有连接服务器")
             return
         }
-        if (_persona.value !is PersonaLoad.Loaded) _persona.value = PersonaLoad.Loading
+        if (_persona.value !is Load.Loaded) _persona.value = Load.Loading
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _persona.value = try {
                 withContext(Dispatchers.IO) {
                     val current = async { repository.current(profile) }
                     val revisions = async { repository.revisions(profile) }
-                    PersonaLoad.Loaded(current.await(), revisions.await())
+                    Load.Loaded(PersonaHistory(current.await(), revisions.await()))
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                PersonaLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }
 
     fun openRevision(revision: Long) {
         val profile = profile() ?: run {
-            _revision.value = RevisionLoad.Failed("还没有连接服务器")
+            _revision.value = Load.Failed("还没有连接服务器")
             return
         }
-        _revision.value = RevisionLoad.Loading
+        _revision.value = Load.Loading
         _save.value = PersonaSave.Idle
         revisionJob?.cancel()
         revisionJob = viewModelScope.launch {
             _revision.value = try {
-                RevisionLoad.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, revision) })
+                Load.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, revision) })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                RevisionLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }
 
     fun startEditing() {
-        val current = (_persona.value as? PersonaLoad.Loaded)?.current ?: return
+        val current = (_persona.value as? Load.Loaded<PersonaHistory>)?.value?.current ?: return
         _save.value = PersonaSave.Idle
         _draft.value = PersonaDraft(current.content, current.revision)
     }
@@ -143,7 +135,7 @@ class PersonaViewModel @Inject constructor(
 
     /** Saves [revision]'s content as a new revision on top of the current one; [onRestored] runs once it is saved. */
     fun restore(revision: Persona, onRestored: () -> Unit) {
-        val current = (_persona.value as? PersonaLoad.Loaded)?.current ?: return
+        val current = (_persona.value as? Load.Loaded<PersonaHistory>)?.value?.current ?: return
         submit(revision.content, current.revision, onSaved = { onRestored() }, onChanged = {
             _save.value = PersonaSave.Failed("人格刚在别处改过，已载入最新的版本，确认后再恢复一次")
         })

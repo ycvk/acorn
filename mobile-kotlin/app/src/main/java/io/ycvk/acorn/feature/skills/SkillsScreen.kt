@@ -27,6 +27,7 @@ import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.ListRow
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
@@ -48,16 +49,16 @@ fun SkillsScreen(
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = "技能")
         when (val state = load) {
-            SkillsLoad.Loading -> SkeletonRows(rows = 5)
-            is SkillsLoad.Failed -> ErrorState(state.message, onRetry = viewModel::loadList)
-            is SkillsLoad.Loaded -> if (state.items.isEmpty()) {
+            Load.Loading -> SkeletonRows(rows = 5)
+            is Load.Failed -> ErrorState(state.message, onRetry = viewModel::loadList)
+            is Load.Loaded -> if (state.value.isEmpty()) {
                 EmptyState(
                     icon = Icons.Outlined.AutoAwesome,
                     title = "还没有技能",
                     body = "Acorn 做成一件多步骤的事之后会把做法记成技能，也可以让它导入现成的技能包。",
                 )
             } else {
-                SkillList(state.items, onOpenSkill)
+                SkillList(state.value, onOpenSkill)
             }
         }
     }

@@ -44,6 +44,7 @@ import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.TopBar
@@ -73,14 +74,14 @@ fun MemoryScreen(
     val scroll = rememberScrollState()
     var confirmForget by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
-    val detail = (load as? MemoryLoad.Loaded)?.detail?.takeIf { it.memory.id == id }
+    val detail = (load as? Load.Loaded<MemoryDetail>)?.value?.takeIf { it.memory.id == id }
 
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = detail?.let { kindLabel(it.memory.kind) })
         when (val current = load) {
-            MemoryLoad.Loading -> SkeletonRows(rows = 4)
-            is MemoryLoad.Failed -> ErrorState(current.message, onRetry = { viewModel.open(id) })
-            is MemoryLoad.Loaded -> if (detail == null) {
+            Load.Loading -> SkeletonRows(rows = 4)
+            is Load.Failed -> ErrorState(current.message, onRetry = { viewModel.open(id) })
+            is Load.Loaded -> if (detail == null) {
                 SkeletonRows(rows = 4)
             } else {
                 Column(modifier = Modifier.weight(1f).verticalScroll(scroll)) {

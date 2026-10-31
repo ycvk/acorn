@@ -10,6 +10,7 @@ import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.NowRepository
@@ -31,12 +32,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-sealed interface NowLoad {
-    data object Loading : NowLoad
-    data class Loaded(val now: NowResponse) : NowLoad
-    data class Failed(val message: String) : NowLoad
-}
-
 /** Backs the Today tab. Every change is followed by a fresh load; nothing is changed locally. */
 @HiltViewModel
 class NowViewModel @Inject constructor(
@@ -45,8 +40,8 @@ class NowViewModel @Inject constructor(
     private val follower: RunFollower,
 ) : ViewModel() {
 
-    private val _load = MutableStateFlow<NowLoad>(NowLoad.Loading)
-    val load: StateFlow<NowLoad> = _load.asStateFlow()
+    private val _load = MutableStateFlow<Load<NowResponse>>(Load.Loading)
+    val load: StateFlow<Load<NowResponse>> = _load.asStateFlow()
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
@@ -67,7 +62,7 @@ class NowViewModel @Inject constructor(
 
     fun refresh() {
         val profile = profile() ?: run {
-            _load.value = NowLoad.Failed("还没有连接服务器")
+            _load.value = Load.Failed("还没有连接服务器")
             return
         }
         loadJob?.cancel()
@@ -159,15 +154,15 @@ class NowViewModel @Inject constructor(
 
     private suspend fun reload(profile: ConnectionProfile) {
         _refreshing.value = true
-        if (_load.value !is NowLoad.Loaded) _load.value = NowLoad.Loading
+        if (_load.value !is Load.Loaded) _load.value = Load.Loading
         _load.value = try {
             withContext(Dispatchers.IO) {
-                NowLoad.Loaded(repository.now(profile))
+                Load.Loaded(repository.now(profile))
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            NowLoad.Failed(userMessage(e))
+            Load.Failed(userMessage(e))
         } finally {
             _refreshing.value = false
         }

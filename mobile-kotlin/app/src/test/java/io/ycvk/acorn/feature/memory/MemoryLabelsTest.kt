@@ -1,7 +1,9 @@
 package io.ycvk.acorn.feature.memory
 
 import io.ycvk.acorn.api.models.MemoryEvidence
+import io.ycvk.acorn.api.models.MemoryListResponse
 import io.ycvk.acorn.api.models.MemorySummary
+import io.ycvk.acorn.core.ui.Load
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.OffsetDateTime
@@ -59,7 +61,7 @@ class MemoryLabelsTest {
 
     @Test
     fun `an empty list reads differently when narrowed`() {
-        val empty = MemoryListLoad.Loaded(emptyList(), hasMore = false)
+        val empty = Load.Loaded(MemoryListResponse(emptyList(), hasMore = false))
         assertEquals(MemoryListContent.Empty, memoryListContent(empty, " ", null, 50))
         assertEquals(MemoryListContent.NoMatches, memoryListContent(empty, "茶", null, 50))
         assertEquals(MemoryListContent.NoMatches, memoryListContent(empty, "", MemorySummary.Kind.insight, 50))
@@ -67,7 +69,7 @@ class MemoryLabelsTest {
 
     @Test
     fun `more loads until the server limit`() {
-        val page = MemoryListLoad.Loaded(listOf(fact), hasMore = true)
+        val page = Load.Loaded(MemoryListResponse(listOf(fact), hasMore = true))
         assertEquals(MemoryListContent.Items(listOf(fact), canLoadMore = true), memoryListContent(page, "", null, 150))
         assertEquals(MemoryListContent.Items(listOf(fact), canLoadMore = false), memoryListContent(page, "", null, 200))
     }

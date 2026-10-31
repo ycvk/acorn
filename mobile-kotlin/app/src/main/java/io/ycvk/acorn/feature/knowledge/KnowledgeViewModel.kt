@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.models.KnowledgeNote
 import io.ycvk.acorn.api.models.KnowledgeNoteSummary
 import io.ycvk.acorn.core.auth.AuthController
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.data.repository.KnowledgeRepository
@@ -25,18 +26,6 @@ import javax.inject.Inject
 
 private const val SEARCH_DEBOUNCE_MS = 300L
 
-sealed interface KnowledgeLoad {
-    data object Loading : KnowledgeLoad
-    data class Loaded(val notes: List<KnowledgeNoteSummary>) : KnowledgeLoad
-    data class Failed(val message: String) : KnowledgeLoad
-}
-
-sealed interface NoteLoad {
-    data object Loading : NoteLoad
-    data class Loaded(val note: KnowledgeNote) : NoteLoad
-    data class Failed(val message: String) : NoteLoad
-}
-
 /** What the knowledge list area shows. */
 sealed interface KnowledgeContent {
     data object Loading : KnowledgeContent
@@ -47,16 +36,16 @@ sealed interface KnowledgeContent {
 }
 
 /** The list once the note at [path] is deleted. */
-fun withoutNote(load: KnowledgeLoad, path: String): KnowledgeLoad = when (load) {
-    is KnowledgeLoad.Loaded -> KnowledgeLoad.Loaded(load.notes.filterNot { it.path == path })
+fun withoutNote(load: Load<List<KnowledgeNoteSummary>>, path: String): Load<List<KnowledgeNoteSummary>> = when (load) {
+    is Load.Loaded -> Load.Loaded(load.value.filterNot { it.path == path })
     else -> load
 }
 
-fun knowledgeContent(load: KnowledgeLoad, query: String): KnowledgeContent = when (load) {
-    KnowledgeLoad.Loading -> KnowledgeContent.Loading
-    is KnowledgeLoad.Failed -> KnowledgeContent.Failed(load.message)
-    is KnowledgeLoad.Loaded -> when {
-        load.notes.isNotEmpty() -> KnowledgeContent.Items(load.notes)
+fun knowledgeContent(load: Load<List<KnowledgeNoteSummary>>, query: String): KnowledgeContent = when (load) {
+    Load.Loading -> KnowledgeContent.Loading
+    is Load.Failed -> KnowledgeContent.Failed(load.message)
+    is Load.Loaded -> when {
+        load.value.isNotEmpty() -> KnowledgeContent.Items(load.value)
         query.isBlank() -> KnowledgeContent.Empty
         else -> KnowledgeContent.NoMatches
     }
@@ -73,11 +62,11 @@ class KnowledgeViewModel @Inject constructor(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val _load = MutableStateFlow<KnowledgeLoad>(KnowledgeLoad.Loading)
-    val load: StateFlow<KnowledgeLoad> = _load.asStateFlow()
+    private val _load = MutableStateFlow<Load<List<KnowledgeNoteSummary>>>(Load.Loading)
+    val load: StateFlow<Load<List<KnowledgeNoteSummary>>> = _load.asStateFlow()
 
-    private val _note = MutableStateFlow<NoteLoad>(NoteLoad.Loading)
-    val note: StateFlow<NoteLoad> = _note.asStateFlow()
+    private val _note = MutableStateFlow<Load<KnowledgeNote>>(Load.Loading)
+    val note: StateFlow<Load<KnowledgeNote>> = _note.asStateFlow()
 
     private val _deleteError = MutableStateFlow<String?>(null)
     val deleteError: StateFlow<String?> = _deleteError.asStateFlow()
@@ -102,18 +91,18 @@ class KnowledgeViewModel @Inject constructor(
 
     fun openNote(path: String) {
         val profile = profile() ?: run {
-            _note.value = NoteLoad.Failed("还没有连接服务器")
+            _note.value = Load.Failed("还没有连接服务器")
             return
         }
-        _note.value = NoteLoad.Loading
+        _note.value = Load.Loading
         noteJob?.cancel()
         noteJob = viewModelScope.launch {
             _note.value = try {
-                NoteLoad.Loaded(withContext(Dispatchers.IO) { repository.note(profile, path) })
+                Load.Loaded(withContext(Dispatchers.IO) { repository.note(profile, path) })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                NoteLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }
@@ -141,18 +130,18 @@ class KnowledgeViewModel @Inject constructor(
 
     private fun load(query: String) {
         val profile = profile() ?: run {
-            _load.value = KnowledgeLoad.Failed("还没有连接服务器")
+            _load.value = Load.Failed("还没有连接服务器")
             return
         }
-        _load.value = KnowledgeLoad.Loading
+        _load.value = Load.Loading
         listJob?.cancel()
         listJob = viewModelScope.launch {
             _load.value = try {
-                KnowledgeLoad.Loaded(withContext(Dispatchers.IO) { repository.notes(profile, query) })
+                Load.Loaded(withContext(Dispatchers.IO) { repository.notes(profile, query) })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                KnowledgeLoad.Failed(userMessage(e))
+                Load.Failed(userMessage(e))
             }
         }
     }

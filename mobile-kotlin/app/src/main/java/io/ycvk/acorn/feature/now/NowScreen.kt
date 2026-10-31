@@ -75,6 +75,7 @@ import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.IconTile
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.ListRow
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.OrbState
 import io.ycvk.acorn.core.ui.Panel
@@ -181,10 +182,10 @@ fun NowScreen(
                     }
                 }
                 when (val state = load) {
-                    NowLoad.Loading -> item(key = "loading") { SkeletonRows(rows = 4) }
-                    is NowLoad.Failed -> item(key = "failed") { ErrorState(state.message, onRetry = refresh) }
-                    is NowLoad.Loaded -> nowSections(
-                        now = state.now,
+                    Load.Loading -> item(key = "loading") { SkeletonRows(rows = 4) }
+                    is Load.Failed -> item(key = "failed") { ErrorState(state.message, onRetry = refresh) }
+                    is Load.Loaded -> nowSections(
+                        now = state.value,
                         pending = pending,
                         today = today,
                         zone = zone,
