@@ -50,7 +50,7 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 	}
 	records, err := s.store.LoadEventsAfter(ctx, runID, afterSeq)
 	if err != nil {
-		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
+		return nil, fmt.Errorf("load run %s events: %w", runID, err)
 	}
 	events := make([]RunEvent, 0, len(records))
 	cursorSeq := afterSeq
@@ -82,7 +82,7 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 	}
 	records, err := s.store.LoadEvents(ctx, runID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
+		return nil, fmt.Errorf("load run %s events: %w", runID, err)
 	}
 	events := make([]RunEvent, 0, len(records))
 	for _, record := range records {
