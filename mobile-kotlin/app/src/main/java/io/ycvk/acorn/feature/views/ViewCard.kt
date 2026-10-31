@@ -505,7 +505,7 @@ const val MIN_WRAPPED_COLUMN = 96f
 
 /** A column wide enough for its longest line, within limits; CJK characters count double. */
 fun columnWidth(texts: List<String>): Dp {
-    val longest = texts.maxOfOrNull { text -> text.sumOf { if (it.code >= 0x2E80) 2 else 1 }.toInt() } ?: 0
+    val longest = texts.maxOfOrNull { text -> text.sumOf { if (it.code >= 0x2E80) 2 else 1 } } ?: 0
     return (longest * 7 + 20).coerceIn(56, 240).dp
 }
 
