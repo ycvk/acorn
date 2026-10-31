@@ -148,7 +148,7 @@ func (s *Status) Triggers(ctx context.Context) ([]TriggerReport, error) {
 	}
 	byID := map[string]core.TriggerState{}
 	for _, state := range states {
-		byID[state.Skill+"/"+state.Name] = state
+		byID[state.ID()] = state
 	}
 	out := make([]TriggerReport, 0, len(triggers))
 	for _, t := range triggers {

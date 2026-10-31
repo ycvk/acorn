@@ -112,7 +112,7 @@ func (s *Scheduler) syncTriggers(ctx context.Context, now time.Time, loc *time.L
 	}
 	byID := map[string]core.TriggerState{}
 	for _, state := range states {
-		byID[state.Skill+"/"+state.Name] = state
+		byID[state.ID()] = state
 	}
 	inUse := map[string]bool{}
 	var due []dueTrigger
