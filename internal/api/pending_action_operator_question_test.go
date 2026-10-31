@@ -261,3 +261,34 @@ func TestOperatorQuestionResumeTargetsRequireADecidedAction(t *testing.T) {
 		})
 	}
 }
+
+func TestToolApprovalResumeTargetsRequireADecidedAction(t *testing.T) {
+	decided := func(mutate func(*core.PendingActionRecord)) core.PendingActionRecord {
+		record := newOperatorQuestionRecord(`{}`)
+		record.Kind = core.PendingActionKindToolApproval
+		record.Status = core.PendingActionStatusApproved
+		record.DecisionJSON = `{"approved":true}`
+		mutate(&record)
+		return record
+	}
+	interrupt := resumeInterruptContext{ID: "interrupt_1", Info: map[string]any{"kind": "tool_approval", "action_id": "action_00000000000000b1"}}
+	for _, tc := range []struct {
+		name    string
+		record  core.PendingActionRecord
+		wantErr string
+	}{
+		{"another run", decided(func(r *core.PendingActionRecord) { r.RunID = "run_2" }), "tool_approval action action_00000000000000b1 belongs to run run_2"},
+		{"another kind", decided(func(r *core.PendingActionRecord) { r.Kind = core.PendingActionKindOperatorQuestion }), `has kind "operator_question"`},
+		{"still pending", decided(func(r *core.PendingActionRecord) { r.Status = core.PendingActionStatusPending }), "tool_approval action action_00000000000000b1 is still pending"},
+		{"resolved", decided(func(r *core.PendingActionRecord) { r.Status = core.PendingActionStatusResolved }), `unsupported status "resolved"`},
+		{"invalid decision json", decided(func(r *core.PendingActionRecord) { r.DecisionJSON = "" }), "tool_approval action action_00000000000000b1 has invalid decision_json"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := NewRunResumeService(&operatorQuestionStore{record: tc.record})
+			_, err := svc.resumeTargetsForContext(context.Background(), "run_1", interrupt)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("err = %v, want it to mention %q", err, tc.wantErr)
+			}
+		})
+	}
+}

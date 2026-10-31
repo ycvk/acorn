@@ -207,62 +207,39 @@ func (s *RunResumeService) resumeTargetsForContext(ctx context.Context, runID st
 	switch kind := interruptInfoKind(interrupt.Info); kind {
 	case "":
 		return defaultTargets(interrupt.ID), nil
-	case "operator_question":
-		return s.operatorQuestionTargets(ctx, runID, interrupt)
-	case "tool_approval":
-		return s.toolApprovalTargets(ctx, runID, interrupt)
+	case string(core.PendingActionKindOperatorQuestion), string(core.PendingActionKindToolApproval):
+		return s.decidedActionTargets(ctx, runID, interrupt, core.PendingActionKind(kind))
 	default:
 		return nil, fmt.Errorf("run %s interrupt %s has unsupported kind %q", runID, interrupt.ID, kind)
 	}
 }
 
-func (s *RunResumeService) operatorQuestionTargets(ctx context.Context, runID string, interrupt resumeInterruptContext) (map[string]any, error) {
+// decidedActionTargets resumes an interrupt from the owner's decision on the
+// pending action of the given kind that the interrupt registered.
+func (s *RunResumeService) decidedActionTargets(ctx context.Context, runID string, interrupt resumeInterruptContext, kind core.PendingActionKind) (map[string]any, error) {
 	actionID := interruptInfoField(interrupt.Info, "action_id")
 	if actionID == "" {
-		return nil, fmt.Errorf("run %s interrupt %s operator_question is missing action_id", runID, interrupt.ID)
+		return nil, fmt.Errorf("run %s interrupt %s %s is missing action_id", runID, interrupt.ID, kind)
 	}
 	record, err := s.store.LoadPendingAction(ctx, actionID)
 	if err != nil {
 		return nil, err
 	}
 	if record.RunID != runID {
-		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s belongs to run %s", runID, interrupt.ID, actionID, record.RunID)
+		return nil, fmt.Errorf("run %s interrupt %s %s action %s belongs to run %s", runID, interrupt.ID, kind, actionID, record.RunID)
 	}
-	if record.Kind != core.PendingActionKindOperatorQuestion {
+	if record.Kind != kind {
 		return nil, fmt.Errorf("run %s interrupt %s action %s has kind %q", runID, interrupt.ID, actionID, record.Kind)
 	}
 	if record.Status == core.PendingActionStatusPending {
-		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s is still pending", runID, interrupt.ID, actionID)
+		return nil, fmt.Errorf("run %s interrupt %s %s action %s is still pending", runID, interrupt.ID, kind, actionID)
 	}
 	if record.Status != core.PendingActionStatusApproved && record.Status != core.PendingActionStatusRejected {
-		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s has unsupported status %q", runID, interrupt.ID, actionID, record.Status)
+		return nil, fmt.Errorf("run %s interrupt %s %s action %s has unsupported status %q", runID, interrupt.ID, kind, actionID, record.Status)
 	}
 	var decision map[string]any
 	if err := json.Unmarshal([]byte(record.DecisionJSON), &decision); err != nil {
-		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s has invalid decision_json: %w", runID, interrupt.ID, actionID, err)
-	}
-	decision["action_id"] = actionID
-	return map[string]any{interrupt.ID: decision}, nil
-}
-
-func (s *RunResumeService) toolApprovalTargets(ctx context.Context, runID string, interrupt resumeInterruptContext) (map[string]any, error) {
-	actionID := interruptInfoField(interrupt.Info, "action_id")
-	if actionID == "" {
-		return nil, fmt.Errorf("run %s interrupt %s tool_approval is missing action_id", runID, interrupt.ID)
-	}
-	record, err := s.store.LoadPendingAction(ctx, actionID)
-	if err != nil {
-		return nil, err
-	}
-	if record.RunID != runID || record.Kind != core.PendingActionKindToolApproval {
-		return nil, fmt.Errorf("run %s interrupt %s: action %s is %s of run %s", runID, interrupt.ID, actionID, record.Kind, record.RunID)
-	}
-	if record.Status != core.PendingActionStatusApproved && record.Status != core.PendingActionStatusRejected {
-		return nil, fmt.Errorf("run %s interrupt %s: tool_approval action %s has status %q", runID, interrupt.ID, actionID, record.Status)
-	}
-	var decision map[string]any
-	if err := json.Unmarshal([]byte(record.DecisionJSON), &decision); err != nil {
-		return nil, fmt.Errorf("run %s interrupt %s: tool_approval action %s decision_json: %w", runID, interrupt.ID, actionID, err)
+		return nil, fmt.Errorf("run %s interrupt %s %s action %s has invalid decision_json: %w", runID, interrupt.ID, kind, actionID, err)
 	}
 	decision["action_id"] = actionID
 	return map[string]any{interrupt.ID: decision}, nil
