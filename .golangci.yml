@@ -55,7 +55,7 @@ linters:
       - linters: [noctx]
         text: "os/exec.Command must not be called"
       # One-shot schema bootstrap during Open; no caller context exists yet.
-      - path: internal/(store/store_schema|memory/vector_index)\.go
+      - path: internal/store/store_schema\.go
         linters: [noctx]
 
 issues:
