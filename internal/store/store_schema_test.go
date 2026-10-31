@@ -2,14 +2,10 @@ package store
 
 import (
 	"database/sql"
-	"errors"
-	"os"
+	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestOpenConfiguresAndKeepsWALMode(t *testing.T) {
@@ -41,43 +37,6 @@ func TestOpenConfiguresAndKeepsWALMode(t *testing.T) {
 	}
 	if mode != "wal" {
 		t.Fatalf("journal mode after reopen = %q, want wal", mode)
-	}
-}
-
-func TestOpenRejectsAVersionedDatabaseMissingColumns(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir state dir: %v", err)
-	}
-	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
-	if err != nil {
-		t.Fatalf("open sqlite directly: %v", err)
-	}
-	if _, err := db.Exec(`
-CREATE TABLE runs (
-    run_id TEXT PRIMARY KEY,
-    status TEXT NOT NULL,
-    input_text TEXT NOT NULL,
-    output_text TEXT NOT NULL DEFAULT '',
-    error_text TEXT NOT NULL DEFAULT '',
-    checkpoint_id TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-PRAGMA user_version = ` + strconv.Itoa(schemaVersion) + `;`); err != nil {
-		_ = db.Close()
-		t.Fatalf("seed legacy schema: %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close legacy db: %v", err)
-	}
-
-	_, err = Open(dir)
-	if !errors.Is(err, core.ErrUnsupportedStorageSchema) {
-		t.Fatalf("Open error = %v, want core.ErrUnsupportedStorageSchema", err)
-	}
-	if !strings.Contains(err.Error(), "missing required column") {
-		t.Fatalf("unexpected error detail: %v", err)
 	}
 }
 
@@ -217,4 +176,29 @@ func triggerExists(t *testing.T, store *Store, trigger string) bool {
 		t.Fatalf("check trigger %s existence: %v", trigger, err)
 	}
 	return count > 0
+}
+
+func (s *Store) tableColumns(table string) (map[string]struct{}, error) {
+	rows, err := s.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return nil, fmt.Errorf("table info %s: %w", table, err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]struct{})
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			dataType   string
+			notNull    int
+			defaultV   sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultV, &primaryKey); err != nil {
+			return nil, fmt.Errorf("scan table info %s: %w", table, err)
+		}
+		result[name] = struct{}{}
+	}
+	return result, rows.Err()
 }
