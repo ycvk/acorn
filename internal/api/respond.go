@@ -173,7 +173,8 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 	case errors.Is(err, ErrPendingActionDecisionInvalid):
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, ErrClientProjectionFailed):
-		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", err.Error())
+		s.logInternalError(r, "client_projection_failed", err, slog.Int("status", http.StatusInternalServerError))
+		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", "a stored record could not be shown to the client")
 	case errors.Is(err, core.ErrExecutionNotReady):
 		s.respondError(w, r, http.StatusServiceUnavailable, "execution_not_ready", err.Error())
 	default:
