@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import com.squareup.moshi.Moshi
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import java.io.File
 import java.io.FileOutputStream
@@ -16,6 +17,8 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Stores the connection profile (server URL, device ID, access token) in a file
@@ -24,7 +27,8 @@ import javax.crypto.spec.GCMParameterSpec
  * Keystore calls go through a system service and the first use migrates the
  * previous store, so callers access the store off the main thread.
  */
-class SecureStore(context: Context) {
+@Singleton
+class SecureStore @Inject constructor(@ApplicationContext context: Context) {
     private val file by lazy {
         ConnectionFile(File(context.filesDir, "connection.bin"), KeystoreConnectionKey("acorn_connection_key"))
             // COMPAT: carries over a pairing made by an earlier build — remove with LegacyConnection.kt.

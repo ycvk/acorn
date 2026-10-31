@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Owns connection/auth lifecycle as an application-scoped singleton. Exposes
@@ -26,6 +27,7 @@ import javax.inject.Inject
  * view-model injection rules. Uses a [SupervisorJob] scope that lives for the
  * app lifetime; failures in one pairing attempt do not cancel the scope.
  */
+@Singleton
 class AuthController @Inject constructor(
     private val secureStore: SecureStore,
     private val authRepository: AuthRepository,
