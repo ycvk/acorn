@@ -58,6 +58,7 @@ import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.data.repository.ownerNameDraft
+import io.ycvk.acorn.feature.shell.ConfirmDisconnectDialog
 
 @Composable
 fun SettingsScreen(
@@ -253,11 +254,7 @@ fun SettingsScreen(
     }
 
     if (confirmDisconnect) {
-        AcornDialog(
-            title = "断开连接？",
-            body = "这台手机会退出配对，不再收到推送。要重新连接，需要在服务器上生成新的配对码。",
-            confirm = "断开",
-            destructive = true,
+        ConfirmDisconnectDialog(
             onConfirm = {
                 confirmDisconnect = false
                 viewModel.disconnect()

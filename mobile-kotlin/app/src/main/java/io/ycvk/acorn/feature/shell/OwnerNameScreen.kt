@@ -1,21 +1,11 @@
 package io.ycvk.acorn.feature.shell
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,14 +19,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornDialog
-import io.ycvk.acorn.core.ui.AcornMark
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.FormField
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.data.repository.ownerNameDraft
+import io.ycvk.acorn.core.ui.GateLayout
 
 /**
  * Asks what Acorn should call the owner. Runs and the memories Acorn writes
@@ -85,11 +74,7 @@ internal fun OwnerCheckFailedScreen(message: String, onRetry: () -> Unit, onDisc
         AcornButton("断开连接", onClick = { confirmDisconnect = true }, kind = ButtonKind.Quiet, modifier = Modifier.fillMaxWidth())
     }
     if (confirmDisconnect) {
-        AcornDialog(
-            title = "断开连接？",
-            body = "这台手机会退出配对，不再收到推送。要重新连接，需要在服务器上生成新的配对码。",
-            confirm = "断开",
-            destructive = true,
+        ConfirmDisconnectDialog(
             onConfirm = {
                 confirmDisconnect = false
                 onDisconnect()
@@ -99,27 +84,15 @@ internal fun OwnerCheckFailedScreen(message: String, onRetry: () -> Unit, onDisc
     }
 }
 
+/** Asks before this phone leaves its pairing. */
 @Composable
-private fun GateLayout(title: String, lead: String, content: @Composable ColumnScope.() -> Unit) {
-    val colors = AcornTheme.colors
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.canvas)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
-    ) {
-        Spacer(Modifier.height(72.dp))
-        AcornMark(size = 44.dp)
-        Spacer(Modifier.height(24.dp))
-        Text(title, style = AcornTheme.type.largeTitle, color = colors.ink)
-        Spacer(Modifier.height(8.dp))
-        Text(lead, style = AcornTheme.type.callout, color = colors.inkSoft)
-        Spacer(Modifier.height(36.dp))
-        content()
-        Spacer(Modifier.height(32.dp))
-    }
+internal fun ConfirmDisconnectDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AcornDialog(
+        title = "断开连接？",
+        body = "这台手机会退出配对，不再收到推送。要重新连接，需要在服务器上生成新的配对码。",
+        confirm = "断开",
+        destructive = true,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    )
 }
