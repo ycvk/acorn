@@ -157,7 +157,7 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 // There is no overlap between registry and toolset specs: the registry owns
 // static natives, the toolset owns run-scoped natives.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *tools.Catalog, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
-	registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
+	registrySpecs, err := deps.ToolRegistry.ResolveEnabledSpecs(ctx, core.RunContext{RunID: runID, SessionID: sessionID})
 	if err != nil {
 		return nil, fmt.Errorf("resolve registry tools: %w", err)
 	}
@@ -169,12 +169,4 @@ func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, tools
 	}
 	specs = append(specs, mcpSpecs...)
 	return tools.NewCatalog(ctx, specs)
-}
-
-// resolveRegistrySpecs resolves every enabled tool spec from the registry into
-// a concrete tool instance under the given run context, returning specs with
-// the Tool field populated so the audited-tool builder can use them directly.
-func resolveRegistrySpecs(ctx context.Context, deps RuntimeDeps, sessionID, runID string) ([]core.ToolSpec, error) {
-	runCtx := core.RunContext{RunID: runID, SessionID: sessionID}
-	return deps.ToolRegistry.ResolveEnabledSpecs(ctx, runCtx)
 }
