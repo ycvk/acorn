@@ -27,20 +27,19 @@ import (
 // with insufficient_scope error and performs step-up re-authorization with expanded
 // scope (authorization_code.go line 185-192).
 type persistentOAuthHandler struct {
-	store               core.ArtifactStore
-	providerName        string
-	serverURL           string
-	clientID            string
-	scopes              []string
-	inner               auth.OAuthHandler
-	onAuthStatusChanged func(status string)
+	store        core.ArtifactStore
+	providerName string
+	serverURL    string
+	clientID     string
+	scopes       []string
+	inner        auth.OAuthHandler
 }
 
 // newPersistentOAuthHandler creates an OAuth handler backed by the given token store.
 // The handler delegates PKCE S256 authorization to go-sdk's
 // AuthorizationCodeHandler, which performs metadata discovery and step-up
 // authorization internally.
-func newPersistentOAuthHandler(store core.ArtifactStore, providerName, serverURL, clientID string, scopes []string, onAuthStatusChanged func(status string)) (*persistentOAuthHandler, error) {
+func newPersistentOAuthHandler(store core.ArtifactStore, providerName, serverURL, clientID string, scopes []string) (*persistentOAuthHandler, error) {
 	// Create go-sdk AuthorizationCodeHandler with PKCE S256 support.
 	// The AuthorizationCodeFetcher prints the authorization URL to stderr
 	// and reads the code from stdin for operator consent.
@@ -68,13 +67,12 @@ func newPersistentOAuthHandler(store core.ArtifactStore, providerName, serverURL
 	}
 
 	return &persistentOAuthHandler{
-		store:               store,
-		providerName:        providerName,
-		serverURL:           serverURL,
-		clientID:            clientID,
-		scopes:              scopes,
-		inner:               inner,
-		onAuthStatusChanged: onAuthStatusChanged,
+		store:        store,
+		providerName: providerName,
+		serverURL:    serverURL,
+		clientID:     clientID,
+		scopes:       scopes,
+		inner:        inner,
 	}, nil
 }
 
@@ -100,10 +98,9 @@ func (h *persistentOAuthHandler) TokenSource(ctx context.Context) (oauth2.TokenS
 
 	// Return a TokenSource that auto-refreshes and persists the refreshed token.
 	src := oauth2.ReuseTokenSource(oauth2Token, &refreshTokenSource{
-		store:               h.store,
-		providerName:        h.providerName,
-		inner:               h.inner,
-		onAuthStatusChanged: h.onAuthStatusChanged,
+		store:        h.store,
+		providerName: h.providerName,
+		inner:        h.inner,
 	})
 	return src, nil
 }
@@ -141,24 +138,15 @@ func (h *persistentOAuthHandler) Authorize(ctx context.Context, req *http.Reques
 	if saveErr != nil {
 		return fmt.Errorf("persist OAuth token for provider %q: %w", h.providerName, saveErr)
 	}
-
-	// Notify auth status change after successful authorization.
-	if h.onAuthStatusChanged != nil {
-		h.onAuthStatusChanged("authenticated")
-	}
-
 	return nil
 }
 
 // refreshTokenSource wraps token refresh with store persistence.
 // When oauth2.Client retrieves a refreshed token, we persist it.
-// When the refresh token is expired or revoked, onAuthStatusChanged
-// is called with "expired" to transition the provider auth status.
 type refreshTokenSource struct {
-	store               core.ArtifactStore
-	providerName        string
-	inner               auth.OAuthHandler
-	onAuthStatusChanged func(status string)
+	store        core.ArtifactStore
+	providerName string
+	inner        auth.OAuthHandler
 }
 
 func (r *refreshTokenSource) Token() (*oauth2.Token, error) {
@@ -168,18 +156,6 @@ func (r *refreshTokenSource) Token() (*oauth2.Token, error) {
 	}
 	tok, err := ts.Token()
 	if err != nil {
-		// Detect expired/revoked refresh token: 401 response or invalid_grant
-		// indicates the refresh token is no longer valid (RFC 6749 Section 5.2).
-		var retrieveErr *oauth2.RetrieveError
-		if errors.As(err, &retrieveErr) && retrieveErr.Response != nil && retrieveErr.Response.StatusCode == 401 {
-			if r.onAuthStatusChanged != nil {
-				r.onAuthStatusChanged("expired")
-			}
-		} else if errors.As(err, &retrieveErr) && retrieveErr.ErrorCode == "invalid_grant" {
-			if r.onAuthStatusChanged != nil {
-				r.onAuthStatusChanged("expired")
-			}
-		}
 		return nil, err
 	}
 	if err := r.store.SaveOAuthToken(context.Background(), core.OAuthToken{

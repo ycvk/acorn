@@ -7,23 +7,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func (m *Manager) updateProviderAuthStatus(providerName, newStatus string) {
-	m.mu.Lock()
-	var oldStatus string
-	for i := range m.slots {
-		if m.slots[i].cfg.Name == providerName {
-			oldStatus = m.slots[i].authStatus
-			if oldStatus == newStatus {
-				m.mu.Unlock()
-				return
-			}
-			m.slots[i].authStatus = newStatus
-			break
-		}
-	}
-	m.mu.Unlock()
-}
-
 func (m *Manager) buildToolListChangedHandler(providerName string) func(context.Context, *mcp.ToolListChangedRequest) {
 	return func(ctx context.Context, _ *mcp.ToolListChangedRequest) {
 		if err := m.RefreshProviderCatalog(ctx, providerName); err != nil {

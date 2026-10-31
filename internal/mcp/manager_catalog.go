@@ -172,7 +172,7 @@ func Doctor(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo
 			continue
 		}
 
-		p, err := connectProvider(ctx, cfg, nil, nil, nil)
+		p, err := connectProvider(ctx, cfg, nil, nil)
 		if err != nil {
 			status.StartupStatus = "failed"
 			status.Error = err.Error()
@@ -196,8 +196,6 @@ func newProviderStatus(cfg core.ProviderConfig) core.ProviderInfo {
 	authStatus := "none"
 	if transport == "stdio" {
 		authStatus = "env"
-	} else if cfg.Auth.Type == "oauth" {
-		authStatus = "none"
 	}
 	return core.ProviderInfo{
 		Name:                cfg.Name,

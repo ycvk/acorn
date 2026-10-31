@@ -28,7 +28,6 @@ type providerSlot struct {
 	p             *provider // nil when provider has failed
 	lastErr       error
 	startupStatus string
-	authStatus    string // live auth status: "authenticated", "expired", "none", "env"
 	// registeredToolNames holds the namespaced names registered into the unified
 	// ToolRegistry for this slot's provider. Populated by registerProviderTools
 	// when a registry is wired; consumed by unregisterProviderTools on disconnect
@@ -54,8 +53,8 @@ type provider struct {
 // The third parameter allows the caller to supply ClientOptions (e.g. for
 // notification handler registration). When nil, the client is created with
 // no options.
-var connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
-	return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
+var connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore) (*provider, error) {
+	return connectProvider(ctx, cfg, opts, store)
 }
 
 // ManagerOption configures Manager construction.
@@ -146,11 +145,8 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	for i, cfg := range enabled {
 		go func(idx int, c core.ProviderConfig) {
 			defer wg.Done()
-			p, err := connectProviderFunc(ctx, c, mgr.buildClientOptions(c), o.tokenStore, func(status string) { mgr.updateProviderAuthStatus(c.Name, status) })
-			slot := providerSlot{
-				cfg:        c,
-				authStatus: newProviderStatus(c).AuthStatus,
-			}
+			p, err := connectProviderFunc(ctx, c, mgr.buildClientOptions(c), o.tokenStore)
+			slot := providerSlot{cfg: c}
 			if err != nil {
 				slot.lastErr = err
 				slot.startupStatus = "failed"

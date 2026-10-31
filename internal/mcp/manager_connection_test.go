@@ -124,7 +124,7 @@ func TestConnectProviderFailsWhenCommandPathCannotBeResolved(t *testing.T) {
 		Transport:             "stdio",
 		Command:               "./does-not-exist-mcp",
 		StartupTimeoutSeconds: 1,
-	}, nil, nil, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Fatal("expected command resolution failure")
 	}

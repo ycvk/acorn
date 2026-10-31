@@ -115,9 +115,6 @@ func (m *Manager) Statuses() []core.ProviderInfo {
 	for i := range m.slots {
 		status := newProviderStatus(m.slots[i].cfg)
 		status.StartupStatus = m.slots[i].startupStatus
-		if m.slots[i].authStatus != "" {
-			status.AuthStatus = m.slots[i].authStatus
-		}
 		if m.slots[i].p != nil {
 			status.CommandPath = m.slots[i].p.commandPath
 			status.DiscoveredToolNames = append([]string(nil), m.slots[i].p.toolNames...)

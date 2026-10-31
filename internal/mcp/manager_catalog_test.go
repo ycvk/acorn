@@ -303,11 +303,11 @@ func TestManagerResourcesFromHealthyProvidersOnly(t *testing.T) {
 	origFunc := connectProviderFunc
 	t.Cleanup(func() { connectProviderFunc = origFunc })
 
-	connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
+	connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore) (*provider, error) {
 		if cfg.Name == "broken" {
 			return nil, errors.New("connection failed")
 		}
-		return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
+		return connectProvider(ctx, cfg, opts, store)
 	}
 
 	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
