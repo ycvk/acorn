@@ -19,6 +19,7 @@ import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
 import io.ycvk.acorn.api.models.ClientViewShownEvent
 import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
+import io.ycvk.acorn.core.auth.ConnectionProfile
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -26,7 +27,6 @@ import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 
 /**
  * SSE client for `GET /v1/runs/{runId}/events?follow=true&after_seq=N`.
@@ -38,15 +38,7 @@ import java.util.concurrent.TimeUnit
  * [EventSourceListener.onEvent]) to select the matching concrete [Client*Event]
  * Moshi adapter.
  */
-class RunEventStreamClient(
-    private val baseUrl: String,
-    private val accessToken: String,
-) {
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS) // no read timeout for SSE
-        .build()
-
+class RunEventStreamClient(client: OkHttpClient) {
     // Reuse the generated client's Moshi (date/UUID adapters + KotlinJsonAdapterFactory)
     // so envelope fields (OffsetDateTime ts, Long seq) decode the same way as REST calls.
     private val moshi = Serializer.moshi
@@ -79,16 +71,17 @@ class RunEventStreamClient(
     private val factory = EventSources.createFactory(client)
 
     fun streamRunEvents(
+        profile: ConnectionProfile,
         runId: String,
         afterSeq: Long,
         onEvent: (RunEventPacket) -> Unit,
         onError: (Throwable) -> Unit,
         onClosed: () -> Unit,
     ): EventSource {
-        val url = "$baseUrl/v1/runs/$runId/events?follow=true&after_seq=$afterSeq"
+        val url = "${profile.serverUrl}/v1/runs/$runId/events?follow=true&after_seq=$afterSeq"
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $accessToken")
+            .header("Authorization", "Bearer ${profile.accessToken}")
             .header("Accept", "text/event-stream")
             .build()
 
