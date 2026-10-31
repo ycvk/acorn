@@ -156,6 +156,8 @@ class ShellViewModel @Inject constructor(
                         ClientApi(profile.serverUrl).authorized(profile).clientGetInbox()
                     }
                     _pendingCount.value = resp.pendingActions.size
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     // The badge refreshes on the next poll; Today shows load failures.
                 }

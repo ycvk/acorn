@@ -24,6 +24,7 @@ import io.ycvk.acorn.feature.live.RunFollower
 import io.ycvk.acorn.feature.live.RunUpdate
 import io.ycvk.acorn.feature.live.reconnectDelayMs
 import io.ycvk.acorn.feature.views.ViewActionPress
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -448,8 +449,10 @@ class ChatViewModel @Inject constructor(
                 }
                 if (_threadId.value != threadId) return@launch
                 _threadTitle.value = title
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                // Title is cosmetic; leave the placeholder in place silently.
+                if (_threadId.value == threadId) _error.value = userMessage(e)
             }
         }
     }

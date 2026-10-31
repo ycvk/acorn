@@ -5,6 +5,7 @@ import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunEventProjection
 import io.ycvk.acorn.core.sse.RunStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -256,7 +257,13 @@ class RunFollower(
     /** Names the run after its thread; when the title cannot be read the Live Update keeps saying Acorn. */
     private fun readTitle(profile: ConnectionProfile, runId: String, threadId: String) {
         scope.launch {
-            val title = runCatching { withContext(io) { titles.title(profile, threadId) } }.getOrNull() ?: return@launch
+            val title = try {
+                withContext(io) { titles.title(profile, threadId) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@launch
+            }
             _runs.value[runId]?.let { put(it.copy(title = title)) }
         }
     }
