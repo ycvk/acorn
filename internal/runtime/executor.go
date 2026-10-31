@@ -335,7 +335,7 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 	if strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
 	}
-	durableCtx := core.DurableContext(ctx)
+	durableCtx := context.WithoutCancel(ctx)
 	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
 		return err
 	}
@@ -361,7 +361,7 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID string, state R
 }
 
 func (e *Executor) finishFailedRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
-	durableCtx := core.DurableContext(ctx)
+	durableCtx := context.WithoutCancel(ctx)
 	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusFailed); err != nil {
 		return nil, err
 	}
@@ -398,7 +398,7 @@ func (e *Executor) recordAssistantMessage(ctx context.Context, runID, output str
 }
 
 func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state RunState) (*Result, error) {
-	durableCtx := core.DurableContext(ctx)
+	durableCtx := context.WithoutCancel(ctx)
 	if err := e.store.MarkInterrupted(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
@@ -411,7 +411,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 }
 
 func (e *Executor) finishSucceededRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
-	durableCtx := core.DurableContext(ctx)
+	durableCtx := context.WithoutCancel(ctx)
 	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusSucceeded); err != nil {
 		return nil, err
 	}

@@ -303,7 +303,7 @@ func pendingActionAnnouncement(db *store.Store, notifier *notify.Sender) (func(c
 		if result == nil || result.Status != core.RunStatusInterrupted {
 			return
 		}
-		if err := announcer.AnnounceRun(core.DurableContext(ctx), result.RunID); err != nil {
+		if err := announcer.AnnounceRun(context.WithoutCancel(ctx), result.RunID); err != nil {
 			slog.Error("push pending actions", "run_id", result.RunID, "error", err)
 		}
 	}, nil
