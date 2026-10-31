@@ -196,50 +196,10 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 			}
-			w := *loaded
-			now := deps.Clock()
-			inBriefing := w.Mode == core.WatchModeNews && !w.Trial
-			if inBriefing && (input.Status == string(core.WatchPaused) || (input.Mode != "" && input.Mode != string(core.WatchModeNews))) {
-				return WatchOutput{}, errors.New("watch_update: this news source is in the briefing; stopping it needs the owner, so use news_source stop")
+			w, err := applyWatchUpdate(*loaded, input, deps.Clock())
+			if err != nil {
+				return WatchOutput{}, err
 			}
-			if name := strings.TrimSpace(input.Name); name != "" {
-				w.Name = name
-			}
-			if input.Mode != "" {
-				if w.Mode, err = watchMode(input.Mode, w.Mode); err != nil {
-					return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
-				}
-				if w.Mode == core.WatchModeNews && loaded.Mode != core.WatchModeNews {
-					w.Trial = true
-				}
-			}
-			if section := strings.TrimSpace(input.Section); section != "" {
-				w.Section = section
-			}
-			if input.Issue != nil {
-				w.Issue = *input.Issue
-			}
-			if w.Mode != core.WatchModeNews && input.Section == "" && input.Issue == nil {
-				w.Section, w.Issue, w.Trial = "", false, false
-			}
-			if err := newsFields(w.Mode, w.Section, w.Issue); err != nil {
-				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
-			}
-			if input.Every != "" {
-				if w.Interval, err = watchEvery(input.Every, w.Interval); err != nil {
-					return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
-				}
-			}
-			switch input.Status {
-			case "":
-			case string(core.WatchPaused):
-				w = w.Pause(now)
-			case string(core.WatchActive):
-				w = w.Resume(now)
-			default:
-				return WatchOutput{}, fmt.Errorf("watch_update: status %q must be active or paused", input.Status)
-			}
-			w.UpdatedAt = now
 			if selector := strings.TrimSpace(input.Selector); selector != "" && selector != w.Selector {
 				if err := deps.Checker.Validate(w.Kind, w.Target, selector); err != nil {
 					return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
@@ -256,6 +216,56 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			}
 			return watchOutput(w, 0, loc), nil
 		})
+}
+
+// applyWatchUpdate patches w with the fields input sets, at now. A news source
+// the briefing takes is not paused or moved out of news here.
+func applyWatchUpdate(w core.Watch, input WatchUpdateInput, now time.Time) (core.Watch, error) {
+	from := w.Mode
+	var err error
+	inBriefing := w.Mode == core.WatchModeNews && !w.Trial
+	if inBriefing && (input.Status == string(core.WatchPaused) || (input.Mode != "" && input.Mode != string(core.WatchModeNews))) {
+		return core.Watch{}, errors.New("watch_update: this news source is in the briefing; stopping it needs the owner, so use news_source stop")
+	}
+	if name := strings.TrimSpace(input.Name); name != "" {
+		w.Name = name
+	}
+	if input.Mode != "" {
+		if w.Mode, err = watchMode(input.Mode, w.Mode); err != nil {
+			return core.Watch{}, fmt.Errorf("watch_update: %w", err)
+		}
+		if w.Mode == core.WatchModeNews && from != core.WatchModeNews {
+			w.Trial = true
+		}
+	}
+	if section := strings.TrimSpace(input.Section); section != "" {
+		w.Section = section
+	}
+	if input.Issue != nil {
+		w.Issue = *input.Issue
+	}
+	if w.Mode != core.WatchModeNews && input.Section == "" && input.Issue == nil {
+		w.Section, w.Issue, w.Trial = "", false, false
+	}
+	if err := newsFields(w.Mode, w.Section, w.Issue); err != nil {
+		return core.Watch{}, fmt.Errorf("watch_update: %w", err)
+	}
+	if input.Every != "" {
+		if w.Interval, err = watchEvery(input.Every, w.Interval); err != nil {
+			return core.Watch{}, fmt.Errorf("watch_update: %w", err)
+		}
+	}
+	switch input.Status {
+	case "":
+	case string(core.WatchPaused):
+		w = w.Pause(now)
+	case string(core.WatchActive):
+		w = w.Resume(now)
+	default:
+		return core.Watch{}, fmt.Errorf("watch_update: status %q must be active or paused", input.Status)
+	}
+	w.UpdatedAt = now
+	return w, nil
 }
 
 // rebaseline fetches a watch whose selector changed and records the result as
