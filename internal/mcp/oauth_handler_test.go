@@ -710,6 +710,24 @@ func TestRefreshTokenSource_ReturnsErrorWhenPersistFails(t *testing.T) {
 	}
 }
 
+func TestRefreshTokenSource_ReturnsRefreshError(t *testing.T) {
+	store := newMockTokenStore()
+	refreshErr := &oauth2.RetrieveError{ErrorCode: "invalid_grant"}
+	rts := &refreshTokenSource{
+		store:        store,
+		providerName: "refresh-failure-provider",
+		inner:        &mockAuthHandler{tokenSource: &failingTokenSource{err: refreshErr}},
+	}
+
+	tok, err := rts.Token()
+	if tok != nil || !errors.Is(err, refreshErr) {
+		t.Fatalf("Token() = %v, %v; want nil and the refresh error", tok, err)
+	}
+	if _, err := store.GetOAuthToken(context.Background(), "refresh-failure-provider"); !errors.Is(err, core.ErrOAuthTokenNotFound) {
+		t.Fatalf("a failed refresh must not save a token, got err %v", err)
+	}
+}
+
 // --- failingTokenSource for testing error paths ---
 
 type failingTokenSource struct {
