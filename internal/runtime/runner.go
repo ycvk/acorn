@@ -21,11 +21,8 @@ import (
 )
 
 type RunnerFactory struct {
-	deps RuntimeDeps
-
-	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.AgenticModel, error)
-	mcpCache            *mcpManagerCache
-	toolRegistry        core.ToolRegistry
+	deps     RuntimeDeps
+	mcpCache *mcpManagerCache
 }
 
 func NewRunnerFactory(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
@@ -37,7 +34,15 @@ func NewRunnerFactory(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 }
 
 func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
-	return f.buildRun(ctx, req)
+	chatModel, err := newChatModel(ctx, f.deps.Config)
+	if err != nil {
+		return nil, err
+	}
+	capabilityAssembly, err := f.buildRunCapabilityAssembly(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
 }
 
 // BuildCapabilitySpecs returns the non-MCP tool specs a run can see: the
@@ -63,30 +68,12 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSp
 	return specs, nil
 }
 
-func (f *RunnerFactory) Config() *config.Config {
-	return f.deps.Config
-}
-
-func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.AgenticModel, error) {
-	return newChatModel(ctx, f.deps.Config)
-}
-
-func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.AgenticModel, error) {
-	if f.runChatModelBuilder != nil {
-		return f.runChatModelBuilder(ctx, req)
-	}
-	return newChatModel(ctx, f.deps.Config)
-}
-
 // Close releases the cached MCP manager.
 func (f *RunnerFactory) Close() error {
 	return closeMCPCache(f.mcpCache)
 }
 
 func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
-	if f == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
 	mcpManager, err := bootstrapRunMCP(ctx, f.deps, f.mcpCache, req)
 	if err != nil {
 		return nil, err
@@ -173,9 +160,8 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	return &RunnerFactory{
-		deps:         deps,
-		mcpCache:     &mcpManagerCache{},
-		toolRegistry: deps.ToolRegistry,
+		deps:     deps,
+		mcpCache: &mcpManagerCache{},
 	}
 }
 
@@ -185,17 +171,6 @@ type runCapabilities struct {
 	// skillDir is where the workstation holds the files of skills that carry
 	// them.
 	skillDir string
-}
-
-func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (active *ActiveRunner, err error) {
-	if f == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	chatModel, capabilityAssembly, err := f.buildRunPrerequisites(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
 }
 
 func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.AgenticModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
@@ -324,18 +299,6 @@ type ActiveRunner struct {
 	FailedCalls *failedToolCalls
 	RunID       string
 	ToolCatalog *tools.Catalog
-}
-
-func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.AgenticModel, *capabilityAssembly, error) {
-	chatModel, err := f.buildRunChatModel(ctx, req)
-	if err != nil {
-		return nil, nil, err
-	}
-	capabilityAssembly, err := f.buildRunCapabilityAssembly(ctx, req)
-	if err != nil {
-		return nil, nil, err
-	}
-	return chatModel, capabilityAssembly, nil
 }
 
 // operatingRules follow the owner's persona in every instruction. They cover

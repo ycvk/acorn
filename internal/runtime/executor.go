@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/cloudwego/eino/adk"
-	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
@@ -22,10 +21,9 @@ type Result struct {
 }
 
 type Executor struct {
-	store        core.SessionStore
-	runRuntime   *RunnerFactory
-	controller   *RunController
-	newChatModel func(ctx context.Context) (einomodel.AgenticModel, error)
+	store      core.SessionStore
+	runRuntime *RunnerFactory
+	controller *RunController
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
@@ -45,10 +43,9 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		return nil, fmt.Errorf("%w: %w", core.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
-		store:        store,
-		runRuntime:   runRuntime,
-		controller:   controller,
-		newChatModel: runRuntime.NewChatModel,
+		store:      store,
+		runRuntime: runRuntime,
+		controller: controller,
 	}
 	return exec, nil
 }
