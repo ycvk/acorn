@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 )
 
@@ -46,9 +47,7 @@ func (item StreamItem) MarshalJSON() ([]byte, error) {
 	if item.Sequence != 0 {
 		obj["sequence"] = item.Sequence
 	}
-	for k, v := range item.Payload {
-		obj[k] = v
-	}
+	maps.Copy(obj, item.Payload)
 	return json.Marshal(obj)
 }
 

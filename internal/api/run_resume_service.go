@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -199,9 +200,7 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 		if err != nil {
 			return nil, err
 		}
-		for interruptID, payload := range target {
-			targets[interruptID] = payload
-		}
+		maps.Copy(targets, target)
 	}
 	return targets, nil
 }
