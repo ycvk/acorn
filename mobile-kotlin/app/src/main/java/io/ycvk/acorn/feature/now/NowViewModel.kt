@@ -14,6 +14,7 @@ import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.NowRepository
 import io.ycvk.acorn.feature.live.RunFollower
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -117,6 +118,9 @@ class NowViewModel @Inject constructor(
                 val sent = withContext(Dispatchers.IO) { send(profile) }
                 follower.follow(profile, sent.run.id, sent.threadId, story.title, live = true, sendKey = sendKey)
                 _openThread.emit(sent.threadId)
+            } catch (e: CancellationException) {
+                follower.endSend(sendKey)
+                throw e
             } catch (e: Exception) {
                 follower.endSend(sendKey)
                 _actionError.value = userMessage(e)
@@ -144,6 +148,8 @@ class NowViewModel @Inject constructor(
         loadJob = viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { action(profile) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _actionError.value = userMessage(e)
             }
@@ -158,6 +164,8 @@ class NowViewModel @Inject constructor(
             withContext(Dispatchers.IO) {
                 NowLoad.Loaded(repository.now(profile))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NowLoad.Failed(userMessage(e))
         } finally {
