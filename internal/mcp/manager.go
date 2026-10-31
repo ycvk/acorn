@@ -16,8 +16,6 @@ import (
 type Manager struct {
 	slots        []providerSlot
 	mu           sync.RWMutex
-	stopped      bool
-	stoppedMu    sync.Mutex
 	tokenStore   core.ArtifactStore
 	store        core.SessionStore
 	toolRegistry core.ToolRegistry
@@ -197,12 +195,6 @@ func (m *Manager) Close() error {
 	if m == nil {
 		return nil
 	}
-	m.stoppedMu.Lock()
-	if !m.stopped {
-		m.stopped = true
-	}
-	m.stoppedMu.Unlock()
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var errs []error
