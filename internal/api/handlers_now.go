@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -113,9 +112,9 @@ func (s *Server) respondStoryMessage(w http.ResponseWriter, r *http.Request, int
 
 // pathID reads a positive integer path parameter, answering 400 when it is not one.
 func (s *Server) pathID(w http.ResponseWriter, r *http.Request, name string) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, name), 10, 64)
-	if err != nil || id <= 0 {
-		s.respondBadRequest(w, r, name+" must be a positive integer")
+	id, err := parsePositiveInt(chi.URLParam(r, name), name)
+	if err != nil {
+		s.respondBadRequest(w, r, err.Error())
 		return 0, false
 	}
 	return id, true

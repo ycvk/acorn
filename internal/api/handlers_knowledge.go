@@ -7,7 +7,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
@@ -84,14 +83,10 @@ func (s *Server) respondCaptureError(w http.ResponseWriter, r *http.Request, err
 }
 
 func (s *Server) handleListKnowledgeNotes(w http.ResponseWriter, r *http.Request) {
-	limit := defaultKnowledgeListLimit
-	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
-		value, err := strconv.Atoi(raw)
-		if err != nil || value < 1 || value > maxKnowledgeListLimit {
-			s.respondBadRequest(w, r, fmt.Sprintf("limit must be between 1 and %d", maxKnowledgeListLimit))
-			return
-		}
-		limit = value
+	limit, err := parseBoundedLimit(r.URL.Query().Get("limit"), defaultKnowledgeListLimit, maxKnowledgeListLimit)
+	if err != nil {
+		s.respondBadRequest(w, r, err.Error())
+		return
 	}
 	query := r.URL.Query()
 	notes, err := s.knowledge.ListNotes(r.Context(), query.Get("q"), query.Get("prefix"), limit)

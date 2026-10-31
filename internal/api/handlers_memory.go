@@ -2,9 +2,7 @@ package api
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -14,14 +12,10 @@ import (
 
 func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	limit := defaultMemoryListLimit
-	if raw := strings.TrimSpace(query.Get("limit")); raw != "" {
-		value, err := strconv.Atoi(raw)
-		if err != nil || value < 1 || value > maxMemoryListLimit {
-			s.respondBadRequest(w, r, fmt.Sprintf("limit must be between 1 and %d", maxMemoryListLimit))
-			return
-		}
-		limit = value
+	limit, err := parseBoundedLimit(query.Get("limit"), defaultMemoryListLimit, maxMemoryListLimit)
+	if err != nil {
+		s.respondBadRequest(w, r, err.Error())
+		return
 	}
 	kind := query.Get("kind")
 	if kind != "" && kind != "fact" && kind != "insight" && kind != "thought" {
