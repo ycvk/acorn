@@ -16,16 +16,9 @@ import (
 
 // persistentOAuthHandler implements auth.OAuthHandler by persisting tokens
 // through core.ArtifactStore and delegating authorization to go-sdk's
-// AuthorizationCodeHandler.
-//
-// OAUTH-02 compliance: AuthorizationCodeHandler.Authorize() internally performs
-// Protected Resource Metadata discovery (RFC 9728) via oauthex.GetProtectedResourceMetadata
-// and Authorization Server Metadata discovery (RFC 8414) via oauthex.GetAuthServerMeta.
-// These happen automatically when Authorize is called with a 401/403 response.
-//
-// OAUTH-05 compliance: AuthorizationCodeHandler.Authorize() detects 403 responses
-// with insufficient_scope error and performs step-up re-authorization with expanded
-// scope (authorization_code.go line 185-192).
+// AuthorizationCodeHandler. On a 401/403 that handler discovers the Protected
+// Resource Metadata (RFC 9728) and Authorization Server Metadata (RFC 8414),
+// and on a 403 with insufficient_scope it re-authorizes with the wider scope.
 type persistentOAuthHandler struct {
 	store        core.ArtifactStore
 	providerName string
@@ -107,9 +100,9 @@ func (h *persistentOAuthHandler) TokenSource(ctx context.Context) (oauth2.TokenS
 
 // Authorize implements auth.OAuthHandler. It delegates to go-sdk's
 // AuthorizationCodeHandler which performs the full PKCE S256 flow, including:
-//   - Protected Resource Metadata discovery (RFC 9728 / OAUTH-02)
-//   - Authorization Server Metadata discovery (RFC 8414 / OAUTH-02)
-//   - Step-up authorization on 403+insufficient_scope (OAUTH-05)
+//   - Protected Resource Metadata discovery (RFC 9728)
+//   - Authorization Server Metadata discovery (RFC 8414)
+//   - Step-up authorization on 403+insufficient_scope
 //
 // On success, the resulting token is persisted to the store.
 func (h *persistentOAuthHandler) Authorize(ctx context.Context, req *http.Request, resp *http.Response) error {

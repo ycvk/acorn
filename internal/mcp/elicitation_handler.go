@@ -20,9 +20,8 @@ const defaultElicitationTimeout = 30 * time.Second
 // a PendingAction, emitting stream items, and blocking until the operator decides
 // or the 30s timeout expires (returning "decline" on timeout).
 //
-// Per RESEARCH.md Pitfall 1, this uses a channel-wait-with-timeout pattern
-// instead of StatefulInterrupt, because MCP client callbacks must return a
-// result synchronously to the server.
+// It waits inside the callback instead of interrupting the run, because an MCP
+// client callback must return its result to the server synchronously.
 type ElicitationHandler struct {
 	store       core.SessionStore
 	activeRunID string
@@ -49,8 +48,8 @@ func (h *ElicitationHandler) getActiveRunID() string {
 	return h.activeRunID
 }
 
-// HandleElicitation handles an MCP elicitation/create request.
-// Per D-01 (reuse PendingAction), D-02 (30s timeout), D-03 (always require approval):
+// HandleElicitation handles an MCP elicitation/create request. Every request
+// waits for the owner's decision on a PendingAction:
 //
 //  1. If no active run context, return decline immediately.
 //  2. Create a PendingAction with Kind="elicitation" in the store.
@@ -118,7 +117,7 @@ func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID strin
 		}
 
 		if time.Now().After(deadline) {
-			// Timeout: auto-decline per D-02
+			// Timed out: decline.
 			slog.Info("elicitation handler: timed out waiting for operator decision, auto-declining",
 				"action_id", actionID)
 			decisionJSON, err := json.Marshal(map[string]any{

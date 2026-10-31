@@ -31,8 +31,8 @@ func NormalizeProviderTransport(transport string) string {
 // When cfg.Auth.Type is "oauth" and the transport is "streamable_http", the
 // transport is wrapped with an OAuthHandler backed by the store.
 //
-// SSEClientTransport does not support OAuth in go-sdk v1.5.0 (no OAuthHandler
-// field), so OAuth on SSE is rejected. Stdio+OAuth is also rejected per D-05.
+// SSEClientTransport has no OAuthHandler, so OAuth on SSE is rejected, and so
+// is OAuth on stdio.
 func NewTransportWithStore(cfg core.ProviderConfig, store core.ArtifactStore) (transport mcp.Transport, cleanup func(), metadata TransportMetadata, err error) {
 	transportKind := NormalizeProviderTransport(cfg.Transport)
 	if transportKind == "" {
@@ -107,8 +107,7 @@ func buildStreamableHTTPTransport(cfg core.ProviderConfig) (mcp.Transport, func(
 	}
 	cleanup := func() {}
 	// MaxRetries is set to -1 so that startup failures are visible immediately
-	// instead of being hidden behind implicit reconnect attempts. Phase 47
-	// adds explicit reconnection with backpressure.
+	// instead of being hidden behind implicit reconnect attempts.
 	transport := &mcp.StreamableClientTransport{Endpoint: cfg.URL, MaxRetries: -1}
 	if len(cfg.Headers) > 0 {
 		transport.HTTPClient = &http.Client{Transport: headerTransport{headers: maps.Clone(cfg.Headers), base: http.DefaultTransport}}

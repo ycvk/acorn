@@ -14,12 +14,10 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 )
 
-// buildMCPAuxiliaryToolSpecs builds only the MCP resource and prompt tool specs
-// (not the main tool registrations). It is used on the unified-registry path,
-// where main MCP tools are already registered into the ToolRegistry by
-// mcp.Manager; the resource/prompt tools are still sourced from the manager at
-// run time because they are session-derived wrappers, not part of the
-// ToolRegistry lifecycle.
+// buildMCPAuxiliaryToolSpecs builds only the MCP resource and prompt tool specs.
+// mcp.Manager registers the main MCP tools into the ToolRegistry; the resource
+// and prompt tools come from the manager at run time because they are
+// session-derived wrappers outside the ToolRegistry lifecycle.
 func buildMCPAuxiliaryToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]core.ToolSpec, error) {
 	var resourceTools, promptTools []einotool.BaseTool
 	if mcpManager != nil {

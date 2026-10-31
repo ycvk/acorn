@@ -30,8 +30,8 @@ type providerSlot struct {
 	startupStatus string
 	// registeredToolNames holds the namespaced names registered into the unified
 	// ToolRegistry for this slot's provider. Populated by registerProviderTools
-	// when a registry is wired; consumed by unregisterProviderTools on disconnect
-	// so reconcile/close cleanly removes exactly the specs this provider added.
+	// when a registry is wired; consumed by unregisterProviderTools and Close so
+	// they remove exactly the specs this provider added.
 	registeredToolNames []string
 }
 
@@ -230,12 +230,3 @@ func (m *Manager) Close() error {
 	}
 	return errors.Join(errs...)
 }
-
-// ReconcileProviders applies a new provider config set to the live manager.
-// It classifies providers as added, removed, changed, or unchanged by name,
-// and only mutates the slots that need to change. Unchanged providers keep
-// running without interruption.
-//
-// The slot order after reconciliation is deterministic: existing providers
-// retain their original relative order, followed by newly added providers
-// in the order they appear in the input config.

@@ -6,9 +6,7 @@ import (
 )
 
 // SessionStore combines session, message, run, event, and pending-action
-// persistence into a single capability interface. It replaces the former
-// SessionRepo, MessageRepo, RunRepo, EventRepo, PendingActionRepo, and the
-// ExecutorStore bind methods.
+// persistence into a single capability interface.
 type SessionStore interface {
 	// --- Sessions ---
 	CreateSession(ctx context.Context, sessionID, title string) (*SessionRecord, error)
