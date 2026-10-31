@@ -79,23 +79,7 @@ func (s *PendingActionService) List(ctx context.Context, limit int) ([]PendingAc
 	if s == nil || s.store == nil {
 		return nil, errors.New("pending action store is nil")
 	}
-	records, err := s.store.ListPendingActions(ctx, limit)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]PendingActionSummary, 0, len(records))
-	for _, record := range records {
-		run, err := s.store.LoadRun(ctx, record.RunID)
-		if err != nil {
-			return nil, err
-		}
-		summary, err := buildPendingActionSummary(record, *run)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, summary)
-	}
-	return items, nil
+	return listPendingActionSummaries(ctx, s.store, limit)
 }
 
 func (s *PendingActionService) Get(ctx context.Context, actionID string) (*PendingActionDetail, error) {
