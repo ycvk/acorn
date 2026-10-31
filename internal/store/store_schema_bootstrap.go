@@ -1,9 +1,7 @@
 package store
 
-// storeBootstrapTables creates the 20 core tables if they do not already
-// exist. This is split from index creation so that validateSchema can detect
-// a stale/incompatible database (missing columns) before index creation
-// attempts to reference those columns.
+// storeBootstrapTables creates the tables of an empty database outside the
+// memory schema.
 const storeBootstrapTables = `
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
@@ -204,9 +202,8 @@ CREATE TABLE IF NOT EXISTS phone_notifications (
 );
 `
 
-// storeBootstrapIndexes creates all indexes, full-text tables and their sync
-// triggers after table creation and schema validation have succeeded, ensuring
-// the columns they reference exist.
+// storeBootstrapIndexes creates the indexes, full-text tables and their sync
+// triggers once every table exists.
 const storeBootstrapIndexes = `
 CREATE INDEX IF NOT EXISTS idx_session_messages_run_id ON session_messages(run_id);
 CREATE INDEX IF NOT EXISTS idx_session_messages_session_turn ON session_messages(session_id, turn_index);

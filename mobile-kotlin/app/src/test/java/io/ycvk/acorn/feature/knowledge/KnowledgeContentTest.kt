@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.knowledge
 
 import io.ycvk.acorn.api.models.KnowledgeNoteSummary
+import io.ycvk.acorn.core.ui.Load
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.OffsetDateTime
@@ -16,22 +17,22 @@ class KnowledgeContentTest {
 
     @Test
     fun `list area follows the load`() {
-        assertEquals(KnowledgeContent.Loading, knowledgeContent(KnowledgeLoad.Loading, ""))
-        assertEquals(KnowledgeContent.Failed("boom"), knowledgeContent(KnowledgeLoad.Failed("boom"), ""))
-        assertEquals(KnowledgeContent.Items(listOf(note)), knowledgeContent(KnowledgeLoad.Loaded(listOf(note)), "tokio"))
+        assertEquals(KnowledgeContent.Loading, knowledgeContent(Load.Loading, ""))
+        assertEquals(KnowledgeContent.Failed("boom"), knowledgeContent(Load.Failed("boom"), ""))
+        assertEquals(KnowledgeContent.Items(listOf(note)), knowledgeContent(Load.Loaded(listOf(note)), "tokio"))
     }
 
     @Test
     fun `an empty result reads differently with and without a query`() {
-        assertEquals(KnowledgeContent.Empty, knowledgeContent(KnowledgeLoad.Loaded(emptyList()), "  "))
-        assertEquals(KnowledgeContent.NoMatches, knowledgeContent(KnowledgeLoad.Loaded(emptyList()), "rust"))
+        assertEquals(KnowledgeContent.Empty, knowledgeContent(Load.Loaded(emptyList()), "  "))
+        assertEquals(KnowledgeContent.NoMatches, knowledgeContent(Load.Loaded(emptyList()), "rust"))
     }
 
     @Test
     fun `a deleted note leaves the list it was in`() {
         val other = note.copy(path = "inbox/rust.md", title = "Rust")
-        assertEquals(KnowledgeLoad.Loaded(listOf(other)), withoutNote(KnowledgeLoad.Loaded(listOf(note, other)), "inbox/tokio.md"))
-        assertEquals(KnowledgeLoad.Loading, withoutNote(KnowledgeLoad.Loading, "inbox/tokio.md"))
+        assertEquals(Load.Loaded(listOf(other)), withoutNote(Load.Loaded(listOf(note, other)), "inbox/tokio.md"))
+        assertEquals(Load.Loading, withoutNote(Load.Loading, "inbox/tokio.md"))
     }
 
     @Test

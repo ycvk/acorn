@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/ycvk/acorn/internal/core"
@@ -19,9 +18,8 @@ func (s *Server) handleGetPersona(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSavePersona(w http.ResponseWriter, r *http.Request) {
-	device, ok := DeviceFromContext(r.Context())
+	device, ok := s.authenticatedDevice(w, r)
 	if !ok {
-		s.respondInternalError(w, r, errors.New("persona request reached the handler without an authenticated device"))
 		return
 	}
 	var req SavePersonaRequest
@@ -51,9 +49,9 @@ func (s *Server) handleListPersonaRevisions(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleGetPersonaRevision(w http.ResponseWriter, r *http.Request) {
-	revision, err := strconv.ParseInt(chi.URLParam(r, "revision"), 10, 64)
-	if err != nil || revision < 1 {
-		s.respondBadRequest(w, r, "revision must be a positive integer")
+	revision, err := parsePositiveInt(chi.URLParam(r, "revision"), "revision")
+	if err != nil {
+		s.respondBadRequest(w, r, err.Error())
 		return
 	}
 	persona, err := s.persona.Revision(r.Context(), revision)

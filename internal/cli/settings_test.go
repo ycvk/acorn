@@ -2,12 +2,16 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 )
@@ -75,6 +79,13 @@ memory:
 	if err := Run(ctx, []string{"settings", "set", "-c", path, "briefing.at", "8am"}); err == nil || !strings.Contains(err.Error(), "briefing.at") {
 		t.Fatalf("a bad time = %v", err)
 	}
+	var shown api.SettingsDTO
+	if err := json.Unmarshal(captureStdout(t, func() error { return Run(ctx, []string{"settings", "show", "-c", path, "--json"}) }), &shown); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"owner_timezone", "thinking_wander_at"}; !slices.Equal(shown.Customized, want) {
+		t.Fatalf("show --json customized = %v, want the JSON names %v", shown.Customized, want)
+	}
 	db, err := store.Open(filepath.Join(dir, "state"))
 	if err != nil {
 		t.Fatal(err)
@@ -110,4 +121,28 @@ func settingsDefaults(t *testing.T) settings.Values {
 		t.Fatal(err)
 	}
 	return current.Defaults
+}
+
+// captureStdout returns what run printed to standard output.
+func captureStdout(t *testing.T, run func() error) []byte {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := os.Stdout
+	os.Stdout = w
+	runErr := run()
+	os.Stdout = saved
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runErr != nil {
+		t.Fatal(runErr)
+	}
+	return out
 }

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -24,15 +23,6 @@ func NewActionID() string {
 	var b [8]byte
 	_, _ = rand.Read(b[:]) // crypto/rand.Read never returns an error.
 	return "action_" + hex.EncodeToString(b[:])
-}
-
-// DurableContext returns a copy of ctx that is not cancelled when the parent
-// is cancelled. If ctx is nil, it returns context.Background().
-func DurableContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return context.WithoutCancel(ctx)
 }
 
 // InterruptPayloadFromStream converts a StreamInterrupt into a serializable

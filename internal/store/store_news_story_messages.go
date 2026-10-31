@@ -166,7 +166,7 @@ func (s *Store) StoryMessages(ctx context.Context, sessionID string) ([]core.Sto
 			return fmt.Errorf("news_story_messages.story of message %d: %w", m.MessageID, err)
 		}
 		var err error
-		m.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "news_story_messages.created_at")
+		m.CreatedAt, err = parseTimestamp(created, "news_story_messages.created_at")
 		messages = append(messages, m)
 		return err
 	}); err != nil {

@@ -40,11 +40,11 @@ func (s *Store) LoadSession(ctx context.Context, sessionID string) (*core.Sessio
 		}
 		return nil, fmt.Errorf("load session: %w", err)
 	}
-	createdAt, err := parseTimestamp(time.RFC3339Nano, created, "session.created_at")
+	createdAt, err := parseTimestamp(created, "session.created_at")
 	if err != nil {
 		return nil, err
 	}
-	updatedAt, err := parseTimestamp(time.RFC3339Nano, updated, "session.updated_at")
+	updatedAt, err := parseTimestamp(updated, "session.updated_at")
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +80,11 @@ func (s *Store) ListSessions(ctx context.Context, limit int) ([]core.SessionReco
 		if err := rows.Scan(&rec.SessionID, &rec.Title, &created, &updated); err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
-		createdAt, err := parseTimestamp(time.RFC3339Nano, created, "session.created_at")
+		createdAt, err := parseTimestamp(created, "session.created_at")
 		if err != nil {
 			return nil, err
 		}
-		updatedAt, err := parseTimestamp(time.RFC3339Nano, updated, "session.updated_at")
+		updatedAt, err := parseTimestamp(updated, "session.updated_at")
 		if err != nil {
 			return nil, err
 		}

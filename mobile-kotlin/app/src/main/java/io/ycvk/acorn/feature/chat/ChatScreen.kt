@@ -63,6 +63,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -122,6 +123,8 @@ import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.core.ui.shimmer
+import io.ycvk.acorn.data.repository.FileView
+import io.ycvk.acorn.data.repository.pendingAttachment
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
@@ -155,6 +158,7 @@ fun ChatScreen(
     val approvalError by approvals.error.collectAsStateWithLifecycle()
 
     LaunchedEffect(threadId) { viewModel.loadThread(threadId) }
+    DisposableEffect(viewModel) { onDispose { viewModel.leave() } }
     OnReturnToForeground {
         viewModel.refresh()
         approvals.loadPendingActions()

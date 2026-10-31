@@ -292,3 +292,27 @@ func TestToolApprovalResumeTargetsRequireADecidedAction(t *testing.T) {
 		})
 	}
 }
+
+type toolApprovalDetailStore struct {
+	operatorQuestionStore
+}
+
+func (s *toolApprovalDetailStore) LoadRun(context.Context, string) (*core.RunRecord, error) {
+	return &core.RunRecord{RunID: "run_1", SessionID: "thread_1", Status: core.RunStatusInterrupted}, nil
+}
+
+func TestToolApprovalDetailNamesTheMatchedRule(t *testing.T) {
+	record := core.PendingActionRecord{
+		ActionID:    "action_00000000000000c1",
+		RunID:       "run_1",
+		Kind:        core.PendingActionKindToolApproval,
+		Subject:     "Approve mcp__mail__send",
+		PayloadJSON: `{"tool_name":"mcp__mail__send","arguments":"{}","message":"send mail","rule":"mcp__mail__*"}`,
+		Status:      core.PendingActionStatusPending,
+		CreatedAt:   time.Date(2026, 10, 31, 9, 0, 0, 0, time.UTC),
+	}
+	detail, err := NewPendingActionService(&toolApprovalDetailStore{operatorQuestionStore{record: record}}).Get(context.Background(), record.ActionID)
+	if err != nil || detail.Rule != "mcp__mail__*" {
+		t.Fatalf("detail = %+v, err = %v", detail, err)
+	}
+}

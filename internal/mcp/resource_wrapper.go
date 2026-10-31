@@ -19,7 +19,7 @@ type listResourcesTool struct {
 
 func (t *listResourcesTool) Info(_ context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{
-		Name: "mcp__" + sanitizeProviderName(t.providerName) + "__list_resources",
+		Name: "mcp__" + ToolNamespace(t.providerName) + "__list_resources",
 		Desc: "List resources available from MCP provider " + t.providerName,
 	}, nil
 }
@@ -48,7 +48,7 @@ type readResourceTool struct {
 
 func (t *readResourceTool) Info(_ context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{
-		Name: "mcp__" + sanitizeProviderName(t.providerName) + "__read_resource",
+		Name: "mcp__" + ToolNamespace(t.providerName) + "__read_resource",
 		Desc: "Read a resource from MCP provider " + t.providerName + ". Provide 'uri' in arguments.",
 	}, nil
 }

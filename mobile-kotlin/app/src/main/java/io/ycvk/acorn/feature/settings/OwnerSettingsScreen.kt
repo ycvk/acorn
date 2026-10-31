@@ -63,6 +63,7 @@ import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.FilterPill
 import io.ycvk.acorn.core.ui.Hairline
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
@@ -91,16 +92,16 @@ fun OwnerSettingsScreen(onBack: () -> Unit, viewModel: OwnerSettingsViewModel = 
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = "作息、预算与审批")
         when (val load = state) {
-            OwnerSettingsViewModel.Load.Loading -> SkeletonRows(Modifier.padding(horizontal = ScreenPadding, vertical = 16.dp))
-            is OwnerSettingsViewModel.Load.Failed -> ErrorState(load.message, onRetry = viewModel::load)
-            is OwnerSettingsViewModel.Load.Loaded -> OwnerSettingsContent(load.settings) {
+            Load.Loading -> SkeletonRows(Modifier.padding(horizontal = ScreenPadding, vertical = 16.dp))
+            is Load.Failed -> ErrorState(load.message, onRetry = viewModel::load)
+            is Load.Loaded -> OwnerSettingsContent(load.value) {
                 viewModel.dismissSaveError()
                 editing = it
             }
         }
     }
 
-    val settings = (state as? OwnerSettingsViewModel.Load.Loaded)?.settings
+    val settings = (state as? Load.Loaded<OwnerSettings>)?.value
     val name = editing
     if (settings != null && name != null) {
         SettingEditor(

@@ -275,11 +275,11 @@ type memoryVisibilityMiddleware struct {
 // reconstructs source-backed history and removes generated state derived from
 // the older input, including compacted summaries and prior tool arguments.
 func (m *memoryVisibilityMiddleware) BeforeModelRewriteState(ctx context.Context, state *adk.TypedChatModelAgentState[*schema.AgenticMessage], _ *adk.TypedModelContext[*schema.AgenticMessage]) (context.Context, *adk.TypedChatModelAgentState[*schema.AgenticMessage], error) {
-	ex, err := m.memory.store.MemoryExclusions(ctx)
+	epoch, err := m.memory.store.MemoryEpoch(ctx)
 	if err != nil {
 		return ctx, nil, err
 	}
-	if ex.Epoch == m.memory.epoch.Load() {
+	if epoch == m.memory.epoch.Load() {
 		return ctx, state, nil
 	}
 	history := m.memory.history
@@ -299,9 +299,9 @@ func (m *memoryVisibilityMiddleware) BeforeModelRewriteState(ctx context.Context
 		history.Messages = append(history.Messages, msg)
 		history.SourceIDs = append(history.SourceIDs, id)
 	}
-	history.Epoch = ex.Epoch
+	history.Epoch = epoch
 	m.memory.history = history
-	m.memory.epoch.Store(ex.Epoch)
+	m.memory.epoch.Store(epoch)
 	clone := *state
 	clone.Messages = m.memory.messages()
 	if m.memory.instruction != "" {
@@ -309,10 +309,10 @@ func (m *memoryVisibilityMiddleware) BeforeModelRewriteState(ctx context.Context
 	}
 	// Preserve the verified outcome while removing source-bearing tool history.
 	status := "Cancellation completion is unconfirmed; report that limitation and do not claim full completion."
-	if memoryForgetConfirmed(state.Messages, ex.Epoch) {
+	if memoryForgetConfirmed(state.Messages, epoch) {
 		status = "Affected executions have stopped; acknowledge the completed memory update."
 	}
-	clone.Messages = append(clone.Messages, schema.UserAgenticMessage(fmt.Sprintf("Memory exclusion version %d is committed. %s Continue from the visible conversation without repeating excluded information.", ex.Epoch, status)))
+	clone.Messages = append(clone.Messages, schema.UserAgenticMessage(fmt.Sprintf("Memory exclusion version %d is committed. %s Continue from the visible conversation without repeating excluded information.", epoch, status)))
 	return ctx, &clone, nil
 }
 
@@ -322,11 +322,11 @@ func memoryScope(ctx context.Context, runID string, autonomous bool) context.Con
 
 func (m *memoryVisibilityMiddleware) WrapInvokableToolCall(_ context.Context, next adk.InvokableToolCallEndpoint, _ *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {
 	return func(ctx context.Context, args string, opts ...einotool.Option) (string, error) {
-		ex, err := m.memory.store.MemoryExclusions(ctx)
+		epoch, err := m.memory.store.MemoryEpoch(ctx)
 		if err != nil {
 			return "", err
 		}
-		if ex.Epoch != m.memory.epoch.Load() {
+		if epoch != m.memory.epoch.Load() {
 			return "", core.ErrMemoryExcluded
 		}
 		return next(ctx, args, opts...)

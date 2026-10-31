@@ -75,6 +75,7 @@ import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.IconTile
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.ListRow
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.OrbState
 import io.ycvk.acorn.core.ui.Panel
@@ -87,6 +88,7 @@ import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.ThinkingOrb
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.groupItem
+import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.rememberHaptics
@@ -180,11 +182,10 @@ fun NowScreen(
                     }
                 }
                 when (val state = load) {
-                    NowLoad.Loading -> item(key = "loading") { SkeletonRows(rows = 4) }
-                    is NowLoad.Failed -> item(key = "failed") { ErrorState(state.message, onRetry = refresh) }
-                    is NowLoad.Loaded -> nowSections(
-                        now = state.now,
-                        briefingSections = state.briefing,
+                    Load.Loading -> item(key = "loading") { SkeletonRows(rows = 4) }
+                    is Load.Failed -> item(key = "failed") { ErrorState(state.message, onRetry = refresh) }
+                    is Load.Loaded -> nowSections(
+                        now = state.value,
                         pending = pending,
                         today = today,
                         zone = zone,
@@ -267,7 +268,6 @@ fun greeting(now: LocalTime): String = when (now.hour) {
 
 private fun LazyListScope.nowSections(
     now: NowResponse,
-    briefingSections: List<BriefingSection>,
     pending: List<PendingActionSummary>,
     today: LocalDate,
     zone: ZoneId,
@@ -295,7 +295,7 @@ private fun LazyListScope.nowSections(
 
     if (briefing != null) {
         item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
-        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onThreadClick(briefing.threadId) }, stories = stories) }
+        item(key = "briefing") { BriefingCard(briefing, onClick = { onThreadClick(briefing.threadId) }, stories = stories) }
     }
 
     if (now.panels.isNotEmpty()) {
@@ -354,7 +354,6 @@ private class StoryActions(
 @Composable
 private fun BriefingCard(
     briefing: NowBriefing,
-    sections: List<BriefingSection>,
     onClick: () -> Unit,
     stories: StoryActions,
 ) {
@@ -383,15 +382,15 @@ private fun BriefingCard(
             Spacer(Modifier.height(2.dp))
             picked.forEach { story -> StoryRow(story, stories) }
         }
-        val previews = previewSections(sections, briefing.stories)
-        previews.take(if (briefing.stories.isEmpty()) 4 else 3).forEach { section ->
-            Spacer(Modifier.height(12.dp))
-            section.heading?.let {
-                Text(it, style = AcornTheme.type.eyebrow, color = colors.accentInk)
-                Spacer(Modifier.height(2.dp))
+        briefing.parts.map { it.heading to plainSnippet(it.body) }.filter { it.second.isNotEmpty() }
+            .take(if (briefing.stories.isEmpty()) 4 else 3).forEach { (heading, text) ->
+                Spacer(Modifier.height(12.dp))
+                heading?.let {
+                    Text(it, style = AcornTheme.type.eyebrow, color = colors.accentInk)
+                    Spacer(Modifier.height(2.dp))
+                }
+                Text(text, style = preview, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            Text(section.text, style = preview, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        }
         Spacer(Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("阅读全文", style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = colors.accent)

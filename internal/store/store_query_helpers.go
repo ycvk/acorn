@@ -55,5 +55,5 @@ func parseOptionalTime(value, field string) (time.Time, error) {
 	if value == "" {
 		return time.Time{}, nil
 	}
-	return parseTimestamp(fixedTimestampLayout, value, field)
+	return parseTimestamp(value, field)
 }

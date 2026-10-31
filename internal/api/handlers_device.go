@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -12,10 +12,6 @@ import (
 
 func (s *Server) requireDeviceAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.deviceAuth == nil {
-			s.respondInternalError(w, r, errors.New("web device auth service is required"))
-			return
-		}
 		token, err := bearerToken(r.Header.Get("Authorization"))
 		if err != nil {
 			s.respondKnownError(w, r, err)
@@ -36,10 +32,15 @@ func withDevice(ctx context.Context, device *DeviceAuthContext) context.Context 
 	return context.WithValue(ctx, deviceContextKey{}, device)
 }
 
-// DeviceFromContext returns the device that authenticated the request.
-func DeviceFromContext(ctx context.Context) (*DeviceAuthContext, bool) {
-	device, ok := ctx.Value(deviceContextKey{}).(*DeviceAuthContext)
-	return device, ok && device != nil
+// authenticatedDevice returns the device requireDeviceAuth put on the
+// request. A handler that runs without it answers 500.
+func (s *Server) authenticatedDevice(w http.ResponseWriter, r *http.Request) (*DeviceAuthContext, bool) {
+	device, ok := r.Context().Value(deviceContextKey{}).(*DeviceAuthContext)
+	if !ok || device == nil {
+		s.respondInternalError(w, r, fmt.Errorf("%s %s reached its handler without an authenticated device", r.Method, r.URL.Path))
+		return nil, false
+	}
+	return device, true
 }
 
 // PushInstallationRequest registers the Firebase installation ID under which
@@ -53,9 +54,8 @@ type PushInstallationRequest struct {
 var firebaseInstallationID = regexp.MustCompile(`^[cdef][A-Za-z0-9_-]{21}$`)
 
 func (s *Server) handleSetPushInstallation(w http.ResponseWriter, r *http.Request) {
-	device, ok := DeviceFromContext(r.Context())
+	device, ok := s.authenticatedDevice(w, r)
 	if !ok {
-		s.respondInternalError(w, r, errors.New("push installation request reached the handler without an authenticated device"))
 		return
 	}
 	var req PushInstallationRequest
@@ -75,10 +75,6 @@ func (s *Server) handleSetPushInstallation(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handlePairDevice(w http.ResponseWriter, r *http.Request) {
-	if s.deviceAuth == nil {
-		s.respondInternalError(w, r, errors.New("web device auth service is required"))
-		return
-	}
 	var req PairDeviceRequest
 	if err := decodeJSONBody(r, &req); err != nil {
 		s.respondBadRequest(w, r, err.Error())

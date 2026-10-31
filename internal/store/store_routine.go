@@ -80,7 +80,7 @@ func (s *Store) LastRoutineAt(ctx context.Context, routine, beforeSlot string) (
 	if err != nil {
 		return time.Time{}, fmt.Errorf("last routine time: %w", err)
 	}
-	return parseTimestamp(fixedTimestampLayout, at, "routine_runs.created_at")
+	return parseTimestamp(at, "routine_runs.created_at")
 }
 
 // LatestRoutineOutput is the reply of routine's newest succeeded run; zero
@@ -100,6 +100,6 @@ func (s *Store) LatestRoutineOutput(ctx context.Context, routine string) (core.R
 	if err != nil {
 		return core.RoutineOutput{}, fmt.Errorf("latest routine output: %w", err)
 	}
-	out.FinishedAt, err = parseTimestamp(time.RFC3339Nano, finished, "runs.finished_at")
+	out.FinishedAt, err = parseTimestamp(finished, "runs.finished_at")
 	return out, err
 }

@@ -144,7 +144,7 @@ func scanArtifact(scanner interface{ Scan(dest ...any) error }) (core.ArtifactRe
 		return core.ArtifactRecord{}, err
 	}
 	record.Kind = kind
-	parsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "artifact.created_at")
+	parsed, err := parseTimestamp(createdAt, "artifact.created_at")
 	if err != nil {
 		return core.ArtifactRecord{}, err
 	}

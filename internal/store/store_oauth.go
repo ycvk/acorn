@@ -29,11 +29,11 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*core.O
 		}
 		return nil, fmt.Errorf("get oauth token: %w", err)
 	}
-	expiryAt, err := parseTimestamp(fixedTimestampLayout, expiry, "mcp_oauth_token.expiry")
+	expiryAt, err := parseTimestamp(expiry, "mcp_oauth_token.expiry")
 	if err != nil {
 		return nil, err
 	}
-	updatedAt, err := parseTimestamp(fixedTimestampLayout, updated, "mcp_oauth_token.updated_at")
+	updatedAt, err := parseTimestamp(updated, "mcp_oauth_token.updated_at")
 	if err != nil {
 		return nil, err
 	}

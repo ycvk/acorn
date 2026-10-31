@@ -1,11 +1,15 @@
 package api
 
 import (
+	"bytes"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -187,5 +191,27 @@ func TestRunEventsReturnErrorsBeforeSSEStarts(t *testing.T) {
 				t.Fatalf("code = %q, want %q body=%s", response.Error.Code, tt.wantCode, rec.Body.String())
 			}
 		})
+	}
+}
+
+func TestProjectionFailureIsLoggedAndKeptOutOfTheResponse(t *testing.T) {
+	var logs bytes.Buffer
+	server := newClientHotPathServer(&clientHandlerStub{err: fmt.Errorf("%w: unknown event kind \"secret.kind\"", ErrClientProjectionFailed)})
+	server.deviceAuth = newDeviceAuthTestService(&deviceAuthHandlerStub{})
+	server.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	router := chi.NewRouter()
+	server.registerRoutes(router)
+
+	rec := performClientRequest(router, http.MethodGet, "/v1/runs/run_1/events", "")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response ErrorResponse
+	decodeClientTestJSON(t, rec, &response)
+	if response.Error.Code != "run_event_projection_failed" || strings.Contains(response.Error.Message, "secret.kind") {
+		t.Fatalf("error = %+v", response.Error)
+	}
+	if !strings.Contains(logs.String(), "secret.kind") {
+		t.Fatalf("projection failure not logged: %s", logs.String())
 	}
 }

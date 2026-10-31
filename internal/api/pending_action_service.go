@@ -117,7 +117,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 		PendingActionSummary: summary,
 		Payload:              payload,
 		Reason:               record.Reason,
-		Rule:                 "",
+		Rule:                 topLevelString(payload, "rule"),
 		ToolDetail:           detail,
 	}, nil
 }

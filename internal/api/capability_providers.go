@@ -122,7 +122,7 @@ func enabledCapabilityProviderCount(items []SystemMCPProviderCapability) int {
 func healthyCapabilityProviderCount(items []SystemMCPProviderCapability) int {
 	count := 0
 	for _, item := range items {
-		if item.Enabled && item.Error == "" {
+		if providerReadinessFromCapability(item).Status == ProviderReadinessPassed {
 			count++
 		}
 	}

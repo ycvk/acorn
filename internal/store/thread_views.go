@@ -283,14 +283,14 @@ func scanThreadView(scan func(...any) error) (core.ThreadView, error) {
 		return core.ThreadView{}, err
 	}
 	var err error
-	if view.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "thread_views.created_at"); err != nil {
+	if view.CreatedAt, err = parseTimestamp(created, "thread_views.created_at"); err != nil {
 		return core.ThreadView{}, err
 	}
-	if view.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "thread_views.updated_at"); err != nil {
+	if view.UpdatedAt, err = parseTimestamp(updated, "thread_views.updated_at"); err != nil {
 		return core.ThreadView{}, err
 	}
 	if pinned != "" {
-		if view.PinnedAt, err = parseTimestamp(fixedTimestampLayout, pinned, "thread_views.pinned_at"); err != nil {
+		if view.PinnedAt, err = parseTimestamp(pinned, "thread_views.pinned_at"); err != nil {
 			return core.ThreadView{}, err
 		}
 	}
@@ -388,7 +388,7 @@ func (s *Store) viewActionsWhere(ctx context.Context, where string, args ...any)
 		if err := json.Unmarshal([]byte(selected), &action.Selected); err != nil {
 			return fmt.Errorf("thread_view_actions.selected_json: %w", err)
 		}
-		at, err := parseTimestamp(fixedTimestampLayout, created, "thread_view_actions.created_at")
+		at, err := parseTimestamp(created, "thread_view_actions.created_at")
 		if err != nil {
 			return err
 		}

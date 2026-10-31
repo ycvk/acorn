@@ -33,7 +33,7 @@ func (s *Store) StoredSettings(ctx context.Context) ([]core.StoredSetting, error
 			return err
 		}
 		var err error
-		setting.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, at, "owner_settings.updated_at")
+		setting.UpdatedAt, err = parseTimestamp(at, "owner_settings.updated_at")
 		settings = append(settings, setting)
 		return err
 	}); err != nil {

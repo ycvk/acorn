@@ -102,10 +102,7 @@ func parseBrowserStatus(out string) BrowserStatus {
 
 // WorkstationStatus asks the configured workstation for its status.
 func (c *Container) WorkstationStatus(ctx context.Context) WorkstationStatus {
-	client, err := buildWorkstationClient(c.cfg)
-	if err != nil {
-		return WorkstationStatus{URL: c.cfg.Workstation.URL, State: "error", Error: err.Error()}
-	}
+	client := c.workstation
 	if client == nil {
 		return WorkstationStatus{State: "off"}
 	}

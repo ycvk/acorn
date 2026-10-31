@@ -461,7 +461,7 @@ func (s *Store) FailingNewsSources(ctx context.Context) ([]core.FailingWork, err
 			return err
 		}
 		var err error
-		work.Since, err = parseTimestamp(fixedTimestampLayout, since, "news_scores.sorted_at")
+		work.Since, err = parseTimestamp(since, "news_scores.sorted_at")
 		failing = append(failing, work)
 		return err
 	}); err != nil {
@@ -558,10 +558,10 @@ func scanNewsStories(rows *sql.Rows) ([]core.NewsStory, error) {
 			return err
 		}
 		var err error
-		if story.FirstSeen, err = parseTimestamp(fixedTimestampLayout, first, "news_stories.first_seen"); err != nil {
+		if story.FirstSeen, err = parseTimestamp(first, "news_stories.first_seen"); err != nil {
 			return err
 		}
-		story.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "news_stories.updated_at")
+		story.UpdatedAt, err = parseTimestamp(updated, "news_stories.updated_at")
 		stories = append(stories, story)
 		return err
 	})

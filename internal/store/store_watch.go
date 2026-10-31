@@ -296,7 +296,7 @@ func scanWatchItem(scan func(...any) error, item *core.WatchItem, extra ...any) 
 	if item.PublishedAt, err = parseOptionalTime(published, "watch_items.published_at"); err != nil {
 		return err
 	}
-	item.SeenAt, err = parseTimestamp(fixedTimestampLayout, seen, "watch_items.seen_at")
+	item.SeenAt, err = parseTimestamp(seen, "watch_items.seen_at")
 	return err
 }
 
@@ -373,16 +373,16 @@ func scanWatches(rows *sql.Rows) ([]core.Watch, error) {
 		w.Kind, w.Mode, w.Status, w.Section = core.WatchKind(kind), core.WatchMode(mode), core.WatchStatus(status), section.String
 		w.Interval = time.Duration(intervalSeconds) * time.Second
 		var err error
-		if w.NextCheckAt, err = parseTimestamp(fixedTimestampLayout, next, "watches.next_check_at"); err != nil {
+		if w.NextCheckAt, err = parseTimestamp(next, "watches.next_check_at"); err != nil {
 			return err
 		}
 		if w.LastCheckedAt, err = parseOptionalTime(lastChecked, "watches.last_checked_at"); err != nil {
 			return err
 		}
-		if w.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "watches.created_at"); err != nil {
+		if w.CreatedAt, err = parseTimestamp(created, "watches.created_at"); err != nil {
 			return err
 		}
-		w.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "watches.updated_at")
+		w.UpdatedAt, err = parseTimestamp(updated, "watches.updated_at")
 		watches = append(watches, w)
 		return err
 	})

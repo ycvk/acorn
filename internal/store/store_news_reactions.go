@@ -72,7 +72,7 @@ func (s *Store) UnrecordedBriefings(ctx context.Context, since time.Time) ([]cor
 			return err
 		}
 		var err error
-		o.FinishedAt, err = parseTimestamp(time.RFC3339Nano, finished, "runs.finished_at")
+		o.FinishedAt, err = parseTimestamp(finished, "runs.finished_at")
 		out = append(out, o)
 		return err
 	}); err != nil {
@@ -225,7 +225,7 @@ func (s *Store) NewsReactions(ctx context.Context, since time.Time) ([]core.Stor
 			return err
 		}
 		var err error
-		r.At, err = parseTimestamp(fixedTimestampLayout, at, "news_reactions.created_at")
+		r.At, err = parseTimestamp(at, "news_reactions.created_at")
 		reactions = append(reactions, r)
 		return err
 	}); err != nil {

@@ -24,15 +24,13 @@ import javax.inject.Singleton
  * Stores the connection profile (server URL, device ID, access token) in a file
  * sealed with an Android Keystore key.
  *
- * Keystore calls go through a system service and the first use migrates the
- * previous store, so callers access the store off the main thread.
+ * Keystore calls go through a system service, so callers access the store off
+ * the main thread.
  */
 @Singleton
 class SecureStore @Inject constructor(@ApplicationContext context: Context) {
     private val file by lazy {
         ConnectionFile(File(context.filesDir, "connection.bin"), KeystoreConnectionKey("acorn_connection_key"))
-            // COMPAT: carries over a pairing made by an earlier build — remove with LegacyConnection.kt.
-            .also { migrateLegacyConnection(EncryptedPrefsConnection(context), it) }
     }
 
     fun saveConnection(serverUrl: String, deviceId: String, accessToken: String) {

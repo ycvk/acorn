@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -39,7 +38,7 @@ func (s *Server) handleListSkillRevisions(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleGetSkillRevision(w http.ResponseWriter, r *http.Request) {
-	revision, err := parseRevision(chi.URLParam(r, "revision"), "revision")
+	revision, err := parsePositiveInt(chi.URLParam(r, "revision"), "revision")
 	if err != nil {
 		s.respondBadRequest(w, r, err.Error())
 		return
@@ -53,12 +52,12 @@ func (s *Server) handleGetSkillRevision(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleSkillDiff(w http.ResponseWriter, r *http.Request) {
-	from, err := parseRevision(r.URL.Query().Get("from"), "from")
+	from, err := parsePositiveInt(r.URL.Query().Get("from"), "from")
 	if err != nil {
 		s.respondBadRequest(w, r, err.Error())
 		return
 	}
-	to, err := parseRevision(r.URL.Query().Get("to"), "to")
+	to, err := parsePositiveInt(r.URL.Query().Get("to"), "to")
 	if err != nil {
 		s.respondBadRequest(w, r, err.Error())
 		return
@@ -139,14 +138,6 @@ func (s *Server) handleClearSkillSecret(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.respondJSON(w, r, http.StatusOK, SkillSecretListResponse{Secrets: skillSecretDTOs(secrets)})
-}
-
-func parseRevision(raw, field string) (int64, error) {
-	revision, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || revision < 1 {
-		return 0, errors.New(field + " must be a positive integer")
-	}
-	return revision, nil
 }
 
 func (s *Server) respondSkillError(w http.ResponseWriter, r *http.Request, err error) {

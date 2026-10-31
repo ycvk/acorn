@@ -215,7 +215,7 @@ private fun ThreadRow(thread: Thread, time: String, onClick: () -> Unit, onDelet
 private fun threadStatus(state: Thread.State): Status = when (state) {
     Thread.State.running -> Status.Running
     Thread.State.interrupted -> Status.Waiting
-    Thread.State.failed, Thread.State.degraded -> Status.Failed
+    Thread.State.failed -> Status.Failed
     Thread.State.completed -> Status.Done
     Thread.State.new -> Status.Idle
 }
@@ -224,7 +224,6 @@ private fun threadStateLabel(state: Thread.State): String? = when (state) {
     Thread.State.running -> "正在进行"
     Thread.State.interrupted -> "已暂停，等你确认"
     Thread.State.failed -> "上次运行出错了"
-    Thread.State.degraded -> "部分步骤失败"
     Thread.State.new, Thread.State.completed -> null
 }
 

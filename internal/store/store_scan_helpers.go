@@ -1,9 +1,7 @@
 package store
 
 import (
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -19,13 +17,13 @@ func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*core.RunRecor
 		return nil, err
 	}
 	rec.Status = core.RunStatus(status)
-	createdAt, err := parseTimestamp(time.RFC3339Nano, created, "run.created_at")
+	createdAt, err := parseTimestamp(created, "run.created_at")
 	if err != nil {
 		return nil, err
 	}
 	rec.CreatedAt = createdAt
 	if strings.TrimSpace(finished) != "" {
-		finishedAt, err := parseTimestamp(time.RFC3339Nano, finished, "run.finished_at")
+		finishedAt, err := parseTimestamp(finished, "run.finished_at")
 		if err != nil {
 			return nil, err
 		}
@@ -67,17 +65,13 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*cor
 	record.PayloadJSON = payload
 	record.Status = core.PendingActionStatus(status)
 	record.DecisionJSON = decision
-	createdParsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "pending_action.created_at")
+	createdParsed, err := parseTimestamp(createdAt, "pending_action.created_at")
 	if err != nil {
 		return nil, err
 	}
 	record.CreatedAt = createdParsed
-	if strings.TrimSpace(resolvedAt) != "" {
-		parsedResolvedAt, err := time.Parse(fixedTimestampLayout, resolvedAt)
-		if err != nil {
-			return nil, fmt.Errorf("parse pending action resolved_at: %w", err)
-		}
-		record.ResolvedAt = &parsedResolvedAt
+	if record.ResolvedAt, err = parseOptionalTimestamp(strings.TrimSpace(resolvedAt), "pending_action.resolved_at"); err != nil {
+		return nil, err
 	}
 	return &record, nil
 }

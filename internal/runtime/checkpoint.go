@@ -29,26 +29,26 @@ func (s storeCheckpointStore) Get(ctx context.Context, id string) ([]byte, bool,
 	if err = json.Unmarshal(data, &cp); err != nil {
 		return nil, false, fmt.Errorf("decode checkpoint visibility: %w", err)
 	}
-	ex, err := s.memory.MemoryExclusions(ctx)
+	epoch, err := s.memory.MemoryEpoch(ctx)
 	if err != nil {
 		return nil, false, err
 	}
-	if cp.Epoch != ex.Epoch {
-		return nil, false, fmt.Errorf("%w: checkpoint input version %d, current %d; start a fresh run", core.ErrMemoryExcluded, cp.Epoch, ex.Epoch)
+	if cp.Epoch != epoch {
+		return nil, false, fmt.Errorf("%w: checkpoint input version %d, current %d; start a fresh run", core.ErrMemoryExcluded, cp.Epoch, epoch)
 	}
 	return cp.Data, true, nil
 }
 func (s storeCheckpointStore) Set(ctx context.Context, id string, data []byte) error {
-	ex, err := s.memory.MemoryExclusions(ctx)
+	epoch, err := s.memory.MemoryEpoch(ctx)
 	if err != nil {
 		return err
 	}
-	if s.visibility.epoch.Load() != ex.Epoch {
+	if s.visibility.epoch.Load() != epoch {
 		return core.ErrMemoryExcluded
 	}
-	encoded, err := json.Marshal(memoryCheckpoint{Epoch: ex.Epoch, Data: data})
+	encoded, err := json.Marshal(memoryCheckpoint{Epoch: epoch, Data: data})
 	if err != nil {
 		return err
 	}
-	return s.memory.SaveMemoryCheckpoint(ctx, id, encoded, ex.Epoch, s.visibility.clock())
+	return s.memory.SaveMemoryCheckpoint(ctx, id, encoded, epoch, s.visibility.clock())
 }

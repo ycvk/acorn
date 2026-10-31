@@ -10,11 +10,12 @@ import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ago
-import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.NowRepository
 import io.ycvk.acorn.feature.live.RunFollower
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,12 +32,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-sealed interface NowLoad {
-    data object Loading : NowLoad
-    data class Loaded(val now: NowResponse, val briefing: List<BriefingSection> = emptyList()) : NowLoad
-    data class Failed(val message: String) : NowLoad
-}
-
 /** Backs the Today tab. Every change is followed by a fresh load; nothing is changed locally. */
 @HiltViewModel
 class NowViewModel @Inject constructor(
@@ -45,8 +40,8 @@ class NowViewModel @Inject constructor(
     private val follower: RunFollower,
 ) : ViewModel() {
 
-    private val _load = MutableStateFlow<NowLoad>(NowLoad.Loading)
-    val load: StateFlow<NowLoad> = _load.asStateFlow()
+    private val _load = MutableStateFlow<Load<NowResponse>>(Load.Loading)
+    val load: StateFlow<Load<NowResponse>> = _load.asStateFlow()
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
@@ -67,7 +62,7 @@ class NowViewModel @Inject constructor(
 
     fun refresh() {
         val profile = profile() ?: run {
-            _load.value = NowLoad.Failed("还没有连接服务器")
+            _load.value = Load.Failed("还没有连接服务器")
             return
         }
         loadJob?.cancel()
@@ -118,6 +113,9 @@ class NowViewModel @Inject constructor(
                 val sent = withContext(Dispatchers.IO) { send(profile) }
                 follower.follow(profile, sent.run.id, sent.threadId, story.title, live = true, sendKey = sendKey)
                 _openThread.emit(sent.threadId)
+            } catch (e: CancellationException) {
+                follower.endSend(sendKey)
+                throw e
             } catch (e: Exception) {
                 follower.endSend(sendKey)
                 _actionError.value = userMessage(e)
@@ -145,6 +143,8 @@ class NowViewModel @Inject constructor(
         loadJob = viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { action(profile) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _actionError.value = userMessage(e)
             }
@@ -154,15 +154,15 @@ class NowViewModel @Inject constructor(
 
     private suspend fun reload(profile: ConnectionProfile) {
         _refreshing.value = true
-        if (_load.value !is NowLoad.Loaded) _load.value = NowLoad.Loading
+        if (_load.value !is Load.Loaded) _load.value = Load.Loading
         _load.value = try {
             withContext(Dispatchers.IO) {
-                val now = repository.now(profile)
-                val sections = now.briefing?.let { briefingSections(it.body) }.orEmpty()
-                NowLoad.Loaded(now, sections)
+                Load.Loaded(repository.now(profile))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            NowLoad.Failed(userMessage(e))
+            Load.Failed(userMessage(e))
         } finally {
             _refreshing.value = false
         }
@@ -198,33 +198,6 @@ fun intervalLabel(seconds: Long): String = when {
     else -> "每 ${seconds / 60} 分钟"
 }
 
-/** A part of the briefing: the lines under one heading, flattened for a preview. */
-data class BriefingSection(val heading: String?, val text: String)
-
-/** Splits a briefing at its headings; a heading with nothing under it is dropped. */
-fun briefingSections(body: String): List<BriefingSection> {
-    val sections = mutableListOf<BriefingSection>()
-    var heading: String? = null
-    val lines = mutableListOf<String>()
-    fun flush() {
-        val text = plainSnippet(lines.joinToString("\n"))
-        if (text.isNotEmpty() || heading != null) sections += BriefingSection(heading, text)
-        lines.clear()
-    }
-    for (line in body.lines()) {
-        val trimmed = line.trim()
-        when {
-            trimmed.startsWith("#") -> {
-                flush()
-                heading = trimmed.trimStart('#').trim()
-            }
-            trimmed.isNotEmpty() -> lines += trimmed
-        }
-    }
-    flush()
-    return sections.filter { it.text.isNotEmpty() }
-}
-
 /** The reaction after the owner chooses one: the same one again takes it back. */
 fun nextReaction(current: NowBriefingStory.Reaction?, chosen: NowBriefingStory.Reaction): NowBriefingStory.Reaction? =
     if (current == chosen) null else chosen
@@ -232,16 +205,3 @@ fun nextReaction(current: NowBriefingStory.Reaction?, chosen: NowBriefingStory.R
 /** The stories a briefing picked, by section in the order the briefing gave them. */
 fun storySections(stories: List<NowBriefingStory>): List<Pair<String, List<NowBriefingStory>>> =
     stories.groupBy { it.section }.toList()
-
-/** The heading of the briefing's focus, listed with the stories it names. */
-const val FocusHeading = "今日关注"
-
-/**
- * The parts of the briefing the card previews: with stories listed, the
- * parts other than the news sections and today's focus.
- */
-fun previewSections(sections: List<BriefingSection>, stories: List<NowBriefingStory>): List<BriefingSection> {
-    if (stories.isEmpty()) return sections
-    val news = stories.map { it.section }.toSet() + FocusHeading
-    return sections.filter { it.heading !in news }
-}

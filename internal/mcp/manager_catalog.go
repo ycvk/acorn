@@ -45,9 +45,7 @@ func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName strin
 
 	// Re-sync the provider's registry entries so the unified ToolRegistry
 	// reflects the refreshed tool list. No-op when no registry was wired.
-	m.refreshProviderToolRegistrations(ctx, providerName)
-
-	return nil
+	return m.refreshProviderToolRegistrations(ctx, providerName)
 }
 
 func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName, catalogType string) error {

@@ -41,8 +41,9 @@ type containerRuntimeDeps struct {
 	vault        *knowledge.Vault
 	watchChecker *watch.Checker
 	news         *news.Processor
-	// triggers is nil without a workstation.
+	// triggers and workstation are nil without a workstation.
 	triggers      *skills.TriggerRunner
+	workstation   *workstation.Client
 	panels        *views.Feeder
 	packageStatus *skills.Status
 }
@@ -71,7 +72,11 @@ func buildNotifier(cfg *config.Config, db *store.Store, owner core.SettingsReade
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, options buildOptions) (*containerRuntimeDeps, error) {
-	skillLibrary, err := skills.NewLibrary(db, options.clock, runtime.ProviderNamespaces(mcpprovider.ProviderConfigsFromConfig(cfg.MCP.Providers)))
+	namespaces, err := runtime.ProviderNamespaces(mcpprovider.ProviderConfigsFromConfig(cfg.MCP.Providers))
+	if err != nil {
+		return nil, err
+	}
+	skillLibrary, err := skills.NewLibrary(db, options.clock, namespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -122,17 +127,17 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	watchChecker, err := buildWatchChecker(cfg, db, webFetcher, webPolicy, options)
+	workstationClient, err := buildWorkstationClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	watchChecker, err := buildWatchChecker(cfg, db, webFetcher, webPolicy, workstationClient, options)
 	if err != nil {
 		return nil, err
 	}
 	newsProcessor, err := buildNews(ctx, cfg, db, ownerSettings, webFetcher, options.clock)
 	if err != nil {
 		return nil, fmt.Errorf("news: %w", err)
-	}
-	workstationClient, err := buildWorkstationClient(cfg)
-	if err != nil {
-		return nil, err
 	}
 	skillDeps := tools.SkillToolDeps{Library: skillLibrary, Context: ctxBridge, Settings: ownerSettings, PackagesDisabledReason: noWorkstation}
 	var skillPackages skills.PackageHost
@@ -211,31 +216,33 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if reviewer != nil {
 		actionReviewer = reviewer
 	}
-	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
-		Attachments:           vault,
-		Files:                 db,
-		Views:                 db,
-		Stories:               db,
-		Uploads:               uploads,
-		Work:                  work,
-		Persona:               db,
-		Owner:                 db,
-		Skills:                skillLibrary,
-		SkillPackages:         skillPackages,
-		SkillServers:          skillServers,
-		MCPPendingActionStore: mcpPendingActionStore,
-		ArtifactService:       artifactSvc,
-		ToolRegistry:          toolRegistry,
-		Activity:              db,
-		MemoryStore:           db,
-		Memory:                memoryEngine,
-		Commitments:           db,
-		PhoneNotifications:    db,
-		Workstation:           workstationTools,
-		Reviewer:              actionReviewer,
-		Describer:             tools.ApprovalDescriber{News: db},
-		Clock:                 options.clock,
-		Settings:              ownerSettings,
+	runnerFactory, err := runtime.NewRunnerFactory(runtime.RuntimeDeps{
+		Config:             cfg,
+		Store:              db,
+		Attachments:        vault,
+		Files:              db,
+		Views:              db,
+		Stories:            db,
+		Uploads:            uploads,
+		Work:               work,
+		Persona:            db,
+		Owner:              db,
+		Skills:             skillLibrary,
+		SkillPackages:      skillPackages,
+		SkillServers:       skillServers,
+		MCPPendingActions:  mcpPendingActionStore,
+		ArtifactService:    artifactSvc,
+		ToolRegistry:       toolRegistry,
+		Activity:           db,
+		MemoryStore:        db,
+		Memory:             memoryEngine,
+		Commitments:        db,
+		PhoneNotifications: db,
+		Workstation:        workstationTools,
+		Reviewer:           actionReviewer,
+		Describer:          tools.ApprovalDescriber{News: db},
+		Clock:              options.clock,
+		Settings:           ownerSettings,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)
@@ -278,6 +285,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		watchChecker:          watchChecker,
 		news:                  newsProcessor,
 		triggers:              triggers,
+		workstation:           workstationClient,
 		panels:                panels,
 		packageStatus:         packageStatus,
 	}, nil
@@ -299,7 +307,7 @@ func pendingActionAnnouncement(db *store.Store, notifier *notify.Sender) (func(c
 		if result == nil || result.Status != core.RunStatusInterrupted {
 			return
 		}
-		if err := announcer.AnnounceRun(core.DurableContext(ctx), result.RunID); err != nil {
+		if err := announcer.AnnounceRun(context.WithoutCancel(ctx), result.RunID); err != nil {
 			slog.Error("push pending actions", "run_id", result.RunID, "error", err)
 		}
 	}, nil

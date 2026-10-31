@@ -148,8 +148,11 @@ func openReadPool(path string) (*sql.DB, error) {
 	return read, nil
 }
 
-func parseTimestamp(layout, value, field string) (time.Time, error) {
-	t, err := time.Parse(layout, value)
+// parseTimestamp reads a stored timestamp. Acorn writes them with
+// formatTimestamp; RFC 3339 also reads those written with fewer fraction
+// digits.
+func parseTimestamp(value, field string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("parse %s timestamp %q: %w", field, value, err)
 	}

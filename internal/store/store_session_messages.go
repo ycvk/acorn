@@ -72,7 +72,7 @@ func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit
 		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &rec.RunID, &created); err != nil {
 			return nil, fmt.Errorf("scan session message: %w", err)
 		}
-		createdAt, err := parseTimestamp(time.RFC3339Nano, created, "session_message.created_at")
+		createdAt, err := parseTimestamp(created, "session_message.created_at")
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +116,7 @@ func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID stri
 		}
 		return nil, fmt.Errorf("load latest unbound user message: %w", err)
 	}
-	createdAt, err := parseTimestamp(time.RFC3339Nano, created, "session_message.created_at")
+	createdAt, err := parseTimestamp(created, "session_message.created_at")
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (s *Store) LoadLatestRepliesForSessions(ctx context.Context, sessionIDs []s
 		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &rec.RunID, &created); err != nil {
 			return nil, fmt.Errorf("scan latest reply: %w", err)
 		}
-		if rec.CreatedAt, err = parseTimestamp(time.RFC3339Nano, created, "session_message.created_at"); err != nil {
+		if rec.CreatedAt, err = parseTimestamp(created, "session_message.created_at"); err != nil {
 			return nil, err
 		}
 		result[rec.SessionID] = rec

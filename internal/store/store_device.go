@@ -191,7 +191,7 @@ func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*core.Pairin
 	if err := scanner.Scan(&code.CodeHash, &expiresAt, &usedAt, &createdAt); err != nil {
 		return nil, err
 	}
-	parsedExpiresAt, err := parseTimestamp(fixedTimestampLayout, expiresAt, "pairing_code.expires_at")
+	parsedExpiresAt, err := parseTimestamp(expiresAt, "pairing_code.expires_at")
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*core.Pairin
 	if err != nil {
 		return nil, err
 	}
-	parsedCreatedAt, err := parseTimestamp(fixedTimestampLayout, createdAt, "pairing_code.created_at")
+	parsedCreatedAt, err := parseTimestamp(createdAt, "pairing_code.created_at")
 	if err != nil {
 		return nil, err
 	}
@@ -219,11 +219,11 @@ func scanDevice(scanner interface{ Scan(dest ...any) error }) (*core.Device, err
 	if err := scanner.Scan(&device.DeviceID, &device.Name, &device.Platform, &device.TokenHash, &createdAt, &lastSeenAt, &revokedAt); err != nil {
 		return nil, err
 	}
-	parsedCreatedAt, err := parseTimestamp(fixedTimestampLayout, createdAt, "device.created_at")
+	parsedCreatedAt, err := parseTimestamp(createdAt, "device.created_at")
 	if err != nil {
 		return nil, err
 	}
-	parsedLastSeenAt, err := parseTimestamp(fixedTimestampLayout, lastSeenAt, "device.last_seen_at")
+	parsedLastSeenAt, err := parseTimestamp(lastSeenAt, "device.last_seen_at")
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func parseOptionalTimestamp(value, field string) (*time.Time, error) {
 	if value == "" {
 		return nil, nil
 	}
-	parsed, err := parseTimestamp(fixedTimestampLayout, value, field)
+	parsed, err := parseTimestamp(value, field)
 	if err != nil {
 		return nil, err
 	}

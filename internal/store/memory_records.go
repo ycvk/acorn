@@ -140,11 +140,11 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 			return empty, fmt.Errorf("%w: %s in memory content, scope or entities", core.ErrMemoryCredential, spans[0].Kind)
 		}
 	}
-	validFrom, err := parseMemoryValidity(d.ValidFrom, "memory.valid_from")
+	validFrom, err := parseOptionalTime(d.ValidFrom, "memory.valid_from")
 	if err != nil {
 		return empty, err
 	}
-	validTo, err := parseMemoryValidity(d.ValidTo, "memory.valid_to")
+	validTo, err := parseOptionalTime(d.ValidTo, "memory.valid_to")
 	if err != nil {
 		return empty, err
 	}
@@ -295,7 +295,7 @@ func supersedeMemory(ctx context.Context, q memorySQL, c core.MemoryChange, now 
 	if old.Revision != c.SupersedesRevision || old.State == "superseded" {
 		return core.ErrMemoryConflict
 	}
-	validFrom, err := parseMemoryValidity(c.Draft.ValidFrom, "correction.valid_from")
+	validFrom, err := parseOptionalTime(c.Draft.ValidFrom, "correction.valid_from")
 	if err != nil {
 		return err
 	}
@@ -403,11 +403,4 @@ func uniqueMemoryStrings(in []string) []string {
 	}
 	slices.Sort(out)
 	return out
-}
-
-func parseMemoryValidity(value, field string) (time.Time, error) {
-	if value == "" {
-		return time.Time{}, nil
-	}
-	return parseTimestamp(time.RFC3339Nano, value, field)
 }

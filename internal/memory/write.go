@@ -36,19 +36,20 @@ type CorrectInput struct {
 	ValidFrom string   `json:"valid_from,omitempty" jsonschema_description:"When this becomes true, RFC3339; defaults to now."`
 }
 
-func (e *Engine) currentOwner(ctx context.Context, runID, id string) (core.MemorySource, error) {
+// requireCurrentOwner checks that id is an owner source of the current run.
+func (e *Engine) requireCurrentOwner(ctx context.Context, runID, id string) error {
 	source, err := e.cfg.Store.LoadMemorySource(ctx, id)
 	if err != nil {
-		return source, err
+		return err
 	}
 	if runID == "" || source.RunID != runID || source.Speaker != "owner" {
-		return source, errors.New("memory change requires the current owner's request source")
+		return errors.New("memory change requires the current owner's request source")
 	}
-	return source, nil
+	return nil
 }
 
 func (e *Engine) Keep(ctx context.Context, runID string, in WriteInput) (core.MemoryRecord, error) {
-	if _, err := e.currentOwner(ctx, runID, in.SourceID); err != nil {
+	if err := e.requireCurrentOwner(ctx, runID, in.SourceID); err != nil {
 		return core.MemoryRecord{}, err
 	}
 	if in.ID != "" || in.Revision != 0 || in.State != "" {
@@ -57,11 +58,11 @@ func (e *Engine) Keep(ctx context.Context, runID string, in WriteInput) (core.Me
 	if len(in.Parents) > 0 {
 		return core.MemoryRecord{}, errors.New("keep takes direct owner evidence; parents belong to thoughts")
 	}
-	exclusion, err := e.cfg.Store.MemoryExclusions(ctx)
+	epoch, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
-	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: exclusion.Epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "fact", Content: in.Content, Scope: in.Scope, Entities: in.Entities, Pinned: true, Evidence: []core.MemoryEvidence{{SourceID: in.SourceID, Quote: in.Quote, Relation: "supports"}}}, Reason: "owner explicitly asked to remember"}}})
+	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "fact", Content: in.Content, Scope: in.Scope, Entities: in.Entities, Pinned: true, Evidence: []core.MemoryEvidence{{SourceID: in.SourceID, Quote: in.Quote, Relation: "supports"}}}, Reason: "owner explicitly asked to remember"}}})
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
@@ -82,7 +83,7 @@ func (e *Engine) Think(ctx context.Context, runID, sessionID string, in WriteInp
 	if strings.TrimSpace(in.Quote) == "" || !strings.Contains(origin.Content, in.Quote) {
 		return core.MemoryRecord{}, errors.New("thought origin quote is absent from source")
 	}
-	exclusion, err := e.cfg.Store.MemoryExclusions(ctx)
+	epoch, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
@@ -101,7 +102,7 @@ func (e *Engine) Think(ctx context.Context, runID, sessionID string, in WriteInp
 		}
 		evidence := append([]core.MemoryEvidence(nil), old.Record.Evidence...)
 		evidence = append(evidence, core.MemoryEvidence{SourceID: origin.ID, Quote: in.Quote, Relation: "supports"})
-		records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: exclusion.Epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{ID: in.ID, Kind: "thought", Content: in.Content, State: in.State, Scope: in.Scope, Entities: in.Entities, Parents: in.Parents, Evidence: evidence}, ExpectedRevision: in.Revision, Reason: in.Reason}}})
+		records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{ID: in.ID, Kind: "thought", Content: in.Content, State: in.State, Scope: in.Scope, Entities: in.Entities, Parents: in.Parents, Evidence: evidence}, ExpectedRevision: in.Revision, Reason: in.Reason}}})
 		if err != nil {
 			return core.MemoryRecord{}, err
 		}
@@ -113,7 +114,7 @@ func (e *Engine) Think(ctx context.Context, runID, sessionID string, in WriteInp
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
-	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: exclusion.Epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "thought", Content: in.Content, Scope: in.Scope, Entities: in.Entities, Parents: in.Parents, Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: in.Content, Relation: "supports"}, {SourceID: origin.ID, Quote: in.Quote, Relation: "supports"}}}, Reason: "agent thought with originating evidence"}}})
+	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "thought", Content: in.Content, Scope: in.Scope, Entities: in.Entities, Parents: in.Parents, Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: in.Content, Relation: "supports"}, {SourceID: origin.ID, Quote: in.Quote, Relation: "supports"}}}, Reason: "agent thought with originating evidence"}}})
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
@@ -121,7 +122,7 @@ func (e *Engine) Think(ctx context.Context, runID, sessionID string, in WriteInp
 }
 
 func (e *Engine) Correct(ctx context.Context, runID string, in CorrectInput) (core.MemoryRecord, error) {
-	if _, err := e.currentOwner(ctx, runID, in.SourceID); err != nil {
+	if err := e.requireCurrentOwner(ctx, runID, in.SourceID); err != nil {
 		return core.MemoryRecord{}, err
 	}
 	return e.correct(ctx, in)
@@ -148,11 +149,11 @@ func (e *Engine) correct(ctx context.Context, in CorrectInput) (core.MemoryRecor
 			return core.MemoryRecord{}, fmt.Errorf("valid_from: %w", err)
 		}
 	}
-	exclusion, err := e.cfg.Store.MemoryExclusions(ctx)
+	epoch, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
-	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: exclusion.Epoch, Now: now, Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "fact", Content: in.Content, Scope: in.Scope, Entities: in.Entities, ValidFrom: from.Format(time.RFC3339Nano), Evidence: []core.MemoryEvidence{{SourceID: in.SourceID, Quote: in.Quote, Relation: "supports"}}}, Supersedes: in.ID, SupersedesRevision: in.Revision, Reason: "owner correction"}}})
+	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: epoch, Now: now, Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "fact", Content: in.Content, Scope: in.Scope, Entities: in.Entities, ValidFrom: from.Format(time.RFC3339Nano), Evidence: []core.MemoryEvidence{{SourceID: in.SourceID, Quote: in.Quote, Relation: "supports"}}}, Supersedes: in.ID, SupersedesRevision: in.Revision, Reason: "owner correction"}}})
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
@@ -162,7 +163,7 @@ func (e *Engine) correct(ctx context.Context, in CorrectInput) (core.MemoryRecor
 // Forget commits exclusions before the runtime cancels old model input. The
 // tool acknowledges only after its injected visibility barrier has completed.
 func (e *Engine) Forget(ctx context.Context, runID string, request core.MemoryForget) (core.MemoryForgotten, error) {
-	if _, err := e.currentOwner(ctx, runID, request.RequestSourceID); err != nil {
+	if err := e.requireCurrentOwner(ctx, runID, request.RequestSourceID); err != nil {
 		return core.MemoryForgotten{}, err
 	}
 	request.Now = e.cfg.Clock()

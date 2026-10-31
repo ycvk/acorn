@@ -178,6 +178,9 @@ func TestGateRulesComeBeforeReview(t *testing.T) {
 	if _, err := f.call(t, "mcp__mail__send", `{}`); err == nil || len(f.store.actions) != 1 || f.store.actions[0].Reason != requireReason {
 		t.Fatalf("require: err=%v actions=%+v", err, f.store.actions)
 	}
+	if !strings.Contains(f.store.actions[0].PayloadJSON, `"rule":"mcp__mail__*"`) {
+		t.Fatalf("require: payload %s does not name the matched rule", f.store.actions[0].PayloadJSON)
+	}
 	if _, err := f.call(t, "mcp__calendar__list", `{"command":"x"}`); err != nil || len(f.reviewer.calls) != 0 {
 		t.Fatalf("allow: err=%v reviews=%v", err, f.reviewer.calls)
 	}

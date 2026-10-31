@@ -19,7 +19,7 @@ type listPromptsTool struct {
 
 func (t *listPromptsTool) Info(_ context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{
-		Name: "mcp__" + sanitizeProviderName(t.providerName) + "__list_prompts",
+		Name: "mcp__" + ToolNamespace(t.providerName) + "__list_prompts",
 		Desc: "List prompts available from MCP provider " + t.providerName,
 	}, nil
 }
@@ -48,7 +48,7 @@ type getPromptTool struct {
 
 func (t *getPromptTool) Info(_ context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{
-		Name: "mcp__" + sanitizeProviderName(t.providerName) + "__get_prompt",
+		Name: "mcp__" + ToolNamespace(t.providerName) + "__get_prompt",
 		Desc: "Get a prompt from MCP provider " + t.providerName + ". Provide 'name' and optional 'arguments' in JSON input.",
 	}, nil
 }

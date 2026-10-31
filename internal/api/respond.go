@@ -104,6 +104,28 @@ func parseLimit(raw string) (int, error) {
 	return value, nil
 }
 
+// parseBoundedLimit reads an optional limit between 1 and maxLimit.
+func parseBoundedLimit(raw string, fallback, maxLimit int) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 || value > maxLimit {
+		return 0, fmt.Errorf("limit must be between 1 and %d", maxLimit)
+	}
+	return value, nil
+}
+
+// parsePositiveInt reads a positive integer parameter named field.
+func parsePositiveInt(raw, field string) (int64, error) {
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value < 1 {
+		return 0, errors.New(field + " must be a positive integer")
+	}
+	return value, nil
+}
+
 func parseClientAfterSeq(raw string) (int64, error) {
 	if strings.TrimSpace(raw) == "" {
 		return 0, nil
@@ -173,7 +195,8 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 	case errors.Is(err, ErrPendingActionDecisionInvalid):
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, ErrClientProjectionFailed):
-		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", err.Error())
+		s.logInternalError(r, "client_projection_failed", err, slog.Int("status", http.StatusInternalServerError))
+		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", "a stored record could not be shown to the client")
 	case errors.Is(err, core.ErrExecutionNotReady):
 		s.respondError(w, r, http.StatusServiceUnavailable, "execution_not_ready", err.Error())
 	default:

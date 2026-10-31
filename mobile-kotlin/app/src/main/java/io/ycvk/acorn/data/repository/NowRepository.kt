@@ -1,12 +1,12 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.api.models.StoryReactionRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,8 +34,5 @@ class NowRepository @Inject constructor() {
     /** Asks Acorn to keep following a story, in its conversation. */
     fun followStory(profile: ConnectionProfile, storyId: Long): StoryMessageResponse = api(profile).clientFollowStory(storyId)
 
-    private fun api(profile: ConnectionProfile): ClientApi {
-        ApiClient.accessToken = profile.accessToken
-        return ClientApi(basePath = profile.serverUrl)
-    }
+    private fun api(profile: ConnectionProfile): ClientApi = ClientApi(basePath = profile.serverUrl).authorized(profile)
 }

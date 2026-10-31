@@ -8,6 +8,7 @@ import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,8 +32,8 @@ class ThreadsViewModel @Inject constructor(
     private val _threads = MutableStateFlow<List<Thread>>(emptyList())
     val threads: StateFlow<List<Thread>> = _threads.asStateFlow()
 
-    private val _load = MutableStateFlow<ThreadsLoad>(ThreadsLoad.Loading)
-    val load: StateFlow<ThreadsLoad> = _load.asStateFlow()
+    private val _load = MutableStateFlow<Load<Unit>>(Load.Loading)
+    val load: StateFlow<Load<Unit>> = _load.asStateFlow()
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
@@ -44,10 +45,10 @@ class ThreadsViewModel @Inject constructor(
     fun loadThreads() {
         val profile = getConnectionProfile()
         if (profile == null) {
-            _load.value = ThreadsLoad.Failed("还没有连接服务器")
+            _load.value = Load.Failed("还没有连接服务器")
             return
         }
-        if (_load.value !is ThreadsLoad.Loaded) _load.value = ThreadsLoad.Loading
+        if (_load.value !is Load.Loaded) _load.value = Load.Loading
         _refreshing.value = true
         viewModelScope.launch {
             try {
@@ -56,9 +57,9 @@ class ThreadsViewModel @Inject constructor(
                     clientApi.clientListThreads(limit = 50)
                 }
                 _threads.value = response.items
-                _load.value = ThreadsLoad.Loaded
+                _load.value = Load.Loaded(Unit)
             } catch (e: Exception) {
-                _load.value = ThreadsLoad.Failed(userMessage(e))
+                _load.value = Load.Failed(userMessage(e))
             } finally {
                 _refreshing.value = false
             }
@@ -87,12 +88,6 @@ class ThreadsViewModel @Inject constructor(
         authController.profile
 }
 
-sealed interface ThreadsLoad {
-    data object Loading : ThreadsLoad
-    data object Loaded : ThreadsLoad
-    data class Failed(val message: String) : ThreadsLoad
-}
-
 /** What the thread list area shows. */
 sealed interface ThreadsContent {
     data object Loading : ThreadsContent
@@ -105,9 +100,9 @@ sealed interface ThreadsContent {
  * Threads already on screen stay visible while a reload runs or fails; the
  * empty state shows only after a successful load returned nothing.
  */
-fun threadsContent(load: ThreadsLoad, threadCount: Int): ThreadsContent = when {
+fun threadsContent(load: Load<Unit>, threadCount: Int): ThreadsContent = when {
     threadCount > 0 -> ThreadsContent.Items
-    load is ThreadsLoad.Loading -> ThreadsContent.Loading
-    load is ThreadsLoad.Failed -> ThreadsContent.Failed(load.message)
+    load is Load.Loading -> ThreadsContent.Loading
+    load is Load.Failed -> ThreadsContent.Failed(load.message)
     else -> ThreadsContent.Empty
 }

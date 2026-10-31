@@ -122,10 +122,6 @@ func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnaps
 	skillsCap := s.snapshotSkills(ctx)
 	providers := s.snapshotMCPProviders(ctx, opts)
 	tools, catalogErr := s.snapshotTools(ctx, providers)
-	healthyProviderCount := 0
-	if opts.ProbeMCP {
-		healthyProviderCount = healthyCapabilityProviderCount(providers)
-	}
 	runtimeReadiness := buildRuntimeReadiness(s.runtimeReadinessReason(executionErr, catalogErr))
 	providerReadiness := buildProviderReadiness(providers)
 
@@ -139,7 +135,7 @@ func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnaps
 			InvalidSkillCount:          skillsCap.InvalidCount,
 			MCPConfiguredProviderCount: len(providers),
 			MCPEnabledProviderCount:    enabledCapabilityProviderCount(providers),
-			MCPHealthyProviderCount:    healthyProviderCount,
+			MCPHealthyProviderCount:    healthyCapabilityProviderCount(providers),
 		},
 		Model: SystemModelCapabilities{
 			Name: firstEnabledProviderModel(s.cfg),

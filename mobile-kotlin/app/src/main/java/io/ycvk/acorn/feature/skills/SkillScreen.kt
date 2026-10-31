@@ -53,6 +53,7 @@ import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.RevisionRow
@@ -82,7 +83,7 @@ fun SkillScreen(
     var clearingSecret by rememberSaveable { mutableStateOf<String?>(null) }
     // The value lives only while the dialog is open and is never saved with the screen's state.
     var secretValue by remember { mutableStateOf("") }
-    val loaded = (load as? SkillLoad.Loaded)?.takeIf { it.detail.name == name }
+    val loaded = (load as? Load.Loaded<SkillHistory>)?.value?.takeIf { it.detail.name == name }
     val saving = change == SkillChange.Saving
     val now = OffsetDateTime.now()
 
@@ -93,7 +94,7 @@ fun SkillScreen(
             subtitle = loaded?.detail?.let { "${skillRevisionTitle(it.revision)} · ${skillRevisionMeta(it.author, it.updatedAt, now)}" },
         )
         when {
-            load is SkillLoad.Failed -> ErrorState((load as SkillLoad.Failed).message, onRetry = { viewModel.open(name) })
+            load is Load.Failed -> ErrorState((load as Load.Failed).message, onRetry = { viewModel.open(name) })
             loaded == null -> SkeletonRows(rows = 4)
             else -> {
                 val detail = loaded.detail

@@ -137,23 +137,7 @@ const (
 )
 
 func mcpToolName(provider, toolName string) string {
-	return mcpNamespacePrefix + sanitizeMCPProviderName(provider) + mcpNamespaceSep + toolName
-}
-
-func sanitizeMCPProviderName(name string) string {
-	var b strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-		} else {
-			b.WriteByte('-')
-		}
-	}
-	result := strings.Trim(b.String(), "-_ .")
-	if result == "" {
-		return "provider"
-	}
-	return result
+	return mcpNamespacePrefix + mcpprovider.ToolNamespace(provider) + mcpNamespaceSep + toolName
 }
 
 func augmentDescription(desc, provider string) string {

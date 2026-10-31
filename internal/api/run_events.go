@@ -27,17 +27,6 @@ type RunEventDetail struct {
 	Events []RunEvent
 }
 
-type SessionState string
-
-const (
-	SessionStateNew         SessionState = "new"
-	SessionStateRunning     SessionState = "running"
-	SessionStateCompleted   SessionState = "completed"
-	SessionStateFailed      SessionState = "failed"
-	SessionStateInterrupted SessionState = "interrupted"
-	SessionStateDegraded    SessionState = "degraded"
-)
-
 // --- Event payload data types ---
 
 type RunStartedData struct {

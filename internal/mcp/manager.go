@@ -160,30 +160,56 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	wg.Wait()
 
 	slots := make([]providerSlot, len(results))
-	var healthyCount int
 	for i, r := range results {
 		slots[i] = r.slot
-		if r.slot.startupStatus == "healthy" {
-			healthyCount++
-		}
 	}
-
-	if healthyCount == 0 {
-		var errs []error
-		for _, s := range slots {
-			errs = append(errs, fmt.Errorf("connect MCP provider %s: %w", s.cfg.Name, s.lastErr))
-		}
-		return nil, fmt.Errorf("all MCP providers failed: %w", errors.Join(errs...))
-	}
-
+	mgr.mu.Lock()
 	mgr.slots = slots
-	for _, slot := range slots {
-		if slot.startupStatus == "healthy" {
-			mgr.registerProviderTools(ctx, slot.cfg.Name)
+	mgr.mu.Unlock()
+	for i := range slots {
+		if slots[i].startupStatus != "healthy" {
+			continue
+		}
+		if err := mgr.registerProviderTools(ctx, slots[i].cfg.Name); err != nil {
+			mgr.failSlot(slots[i].cfg.Name, err)
 		}
 	}
 
+	var failed []error
+	healthy := 0
+	mgr.mu.RLock()
+	for _, s := range mgr.slots {
+		if s.startupStatus == "healthy" {
+			healthy++
+			continue
+		}
+		failed = append(failed, fmt.Errorf("MCP provider %s: %w", s.cfg.Name, s.lastErr))
+	}
+	mgr.mu.RUnlock()
+	if healthy == 0 {
+		return nil, fmt.Errorf("all MCP providers failed: %w", errors.Join(failed...))
+	}
+	for _, err := range failed {
+		slog.Error("MCP provider left out of runs", "error", err)
+	}
 	return mgr, nil
+}
+
+// failSlot closes a connected provider whose tools could not be registered
+// and marks it failed, as a provider that could not connect.
+func (m *Manager) failSlot(providerName string, cause error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.slots {
+		if m.slots[i].cfg.Name != providerName {
+			continue
+		}
+		if err := m.slots[i].p.close(); err != nil {
+			cause = errors.Join(cause, fmt.Errorf("close: %w", err))
+		}
+		m.slots[i].p, m.slots[i].lastErr, m.slots[i].startupStatus = nil, cause, "failed"
+		return
+	}
 }
 
 // buildClientOptions assembles a provider's MCP client options. Returns nil

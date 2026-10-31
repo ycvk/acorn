@@ -333,7 +333,7 @@ func (s *Store) openSchema(ctx context.Context) error {
 			return err
 		}
 	}
-	return s.validateSchema()
+	return nil
 }
 
 func schemaState(ctx context.Context, db *sql.DB) (version, tables int, err error) {

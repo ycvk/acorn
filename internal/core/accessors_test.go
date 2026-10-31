@@ -208,27 +208,6 @@ func TestInterruptPayloadFromStream(t *testing.T) {
 	}
 }
 
-// --- DurableContext ---
-
-func TestDurableContextPreservesValues(t *testing.T) {
-	ctx := WithRunID(context.Background(), "run_99")
-	durable := DurableContext(ctx)
-	if got := CurrentRunID(durable); got != "run_99" {
-		t.Fatalf("got %q, want run_99", got)
-	}
-}
-
-func TestDurableContextSurvivesCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	durable := DurableContext(ctx)
-	select {
-	case <-durable.Done():
-		t.Fatal("durable context should not be cancelled")
-	default:
-	}
-}
-
 // --- Context plumbing roundtrip ---
 
 func TestRunIDContextRoundtrip(t *testing.T) {

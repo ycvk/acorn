@@ -2,6 +2,7 @@ package io.ycvk.acorn.feature.chat
 
 import io.ycvk.acorn.api.models.Message
 import io.ycvk.acorn.api.models.ThreadFile
+import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.data.repository.photoName
 import java.time.OffsetDateTime
 import org.junit.Assert.assertEquals

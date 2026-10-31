@@ -226,33 +226,18 @@ func (s *ThreadService) projectThread(record core.SessionRecord, latestRun *core
 		Title:     record.Title,
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
-		State:     string(SessionStateNew),
+		State:     "new",
 	}
 	if latestRun == nil {
 		return thread, nil
 	}
-	state, err := projectThreadState(latestRun.Status)
+	state, err := projectRunStatus(latestRun.Status)
 	if err != nil {
 		return Thread{}, err
 	}
 	thread.LatestRunID = latestRun.RunID
 	thread.State = state
 	return thread, nil
-}
-
-func projectThreadState(status core.RunStatus) (string, error) {
-	switch status {
-	case core.RunStatusRunning:
-		return string(SessionStateRunning), nil
-	case core.RunStatusSucceeded:
-		return string(SessionStateCompleted), nil
-	case core.RunStatusFailed:
-		return string(SessionStateFailed), nil
-	case core.RunStatusInterrupted:
-		return string(SessionStateInterrupted), nil
-	default:
-		return "", projectionError("unknown run status %q", status)
-	}
 }
 
 func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit int) ([]Message, error) {

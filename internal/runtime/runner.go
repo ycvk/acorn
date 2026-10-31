@@ -7,13 +7,11 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
@@ -21,23 +19,27 @@ import (
 )
 
 type RunnerFactory struct {
-	deps RuntimeDeps
-
-	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.AgenticModel, error)
-	mcpCache            *mcpManagerCache
-	toolRegistry        core.ToolRegistry
+	deps     RuntimeDeps
+	mcpCache *mcpManagerCache
 }
 
-func NewRunnerFactory(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
-	deps, err := buildRuntimeDeps(cfg, store, opts)
-	if err != nil {
+func NewRunnerFactory(deps RuntimeDeps) (*RunnerFactory, error) {
+	if err := validateRuntimeDeps(deps); err != nil {
 		return nil, fmt.Errorf("build runtime deps: %w", err)
 	}
-	return assembleRunnerFactory(deps), nil
+	return &RunnerFactory{deps: deps, mcpCache: &mcpManagerCache{}}, nil
 }
 
 func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
-	return f.buildRun(ctx, req)
+	chatModel, err := newChatModel(ctx, f.deps.Config)
+	if err != nil {
+		return nil, err
+	}
+	capabilityAssembly, err := f.buildRunCapabilityAssembly(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
 }
 
 // BuildCapabilitySpecs returns the non-MCP tool specs a run can see: the
@@ -63,30 +65,12 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSp
 	return specs, nil
 }
 
-func (f *RunnerFactory) Config() *config.Config {
-	return f.deps.Config
-}
-
-func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.AgenticModel, error) {
-	return newChatModel(ctx, f.deps.Config)
-}
-
-func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.AgenticModel, error) {
-	if f.runChatModelBuilder != nil {
-		return f.runChatModelBuilder(ctx, req)
-	}
-	return newChatModel(ctx, f.deps.Config)
-}
-
 // Close releases the cached MCP manager.
 func (f *RunnerFactory) Close() error {
 	return closeMCPCache(f.mcpCache)
 }
 
 func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
-	if f == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
 	mcpManager, err := bootstrapRunMCP(ctx, f.deps, f.mcpCache, req)
 	if err != nil {
 		return nil, err
@@ -103,80 +87,44 @@ type capabilityAssembly struct {
 	capabilities *runCapabilities
 }
 
-func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (RuntimeDeps, error) {
-	if cfg == nil {
-		return RuntimeDeps{}, errors.New("config is required")
+func validateRuntimeDeps(deps RuntimeDeps) error {
+	if deps.Config == nil {
+		return errors.New("config is required")
 	}
-	if store == nil {
-		return RuntimeDeps{}, errors.New("store is required")
+	if deps.Store == nil {
+		return errors.New("store is required")
 	}
-	artifactService := opts.ArtifactService
-	if opts.ToolRegistry == nil {
-		return RuntimeDeps{}, errors.New("tool registry is required")
+	if deps.ToolRegistry == nil {
+		return errors.New("tool registry is required")
 	}
-	if opts.Persona == nil {
-		return RuntimeDeps{}, errors.New("persona reader is required")
+	if deps.Persona == nil {
+		return errors.New("persona reader is required")
 	}
-	if opts.Owner == nil {
-		return RuntimeDeps{}, errors.New("owner name reader is required")
+	if deps.Owner == nil {
+		return errors.New("owner name reader is required")
 	}
-	if opts.Skills == nil {
-		return RuntimeDeps{}, errors.New("skill library is required")
+	if deps.Skills == nil {
+		return errors.New("skill library is required")
 	}
-	if opts.Attachments == nil {
-		return RuntimeDeps{}, errors.New("attachment reader is required")
+	if deps.Attachments == nil {
+		return errors.New("attachment reader is required")
 	}
-	if opts.Files == nil {
-		return RuntimeDeps{}, errors.New("thread files are required")
+	if deps.Files == nil {
+		return errors.New("thread files are required")
 	}
-	if opts.Views == nil {
-		return RuntimeDeps{}, errors.New("thread views are required")
+	if deps.Views == nil {
+		return errors.New("thread views are required")
 	}
-	if opts.Stories == nil {
-		return RuntimeDeps{}, errors.New("story messages are required")
+	if deps.Stories == nil {
+		return errors.New("story messages are required")
 	}
-	if opts.Activity == nil || opts.MemoryStore == nil || opts.Commitments == nil || opts.PhoneNotifications == nil || opts.Clock == nil {
-		return RuntimeDeps{}, errors.New("presence, phone notifications and clock are required")
+	if deps.Activity == nil || deps.MemoryStore == nil || deps.Commitments == nil || deps.PhoneNotifications == nil || deps.Clock == nil {
+		return errors.New("presence, phone notifications and clock are required")
 	}
-	if opts.Settings == nil {
-		return RuntimeDeps{}, errors.New("settings are required")
+	if deps.Settings == nil {
+		return errors.New("settings are required")
 	}
-	return RuntimeDeps{
-		Config:             cfg,
-		Store:              store,
-		Persona:            opts.Persona,
-		Owner:              opts.Owner,
-		Skills:             opts.Skills,
-		SkillPackages:      opts.SkillPackages,
-		SkillServers:       opts.SkillServers,
-		MCPPendingActions:  opts.MCPPendingActionStore,
-		ArtifactService:    artifactService,
-		ToolRegistry:       opts.ToolRegistry,
-		Activity:           opts.Activity,
-		MemoryStore:        opts.MemoryStore,
-		Memory:             opts.Memory,
-		Commitments:        opts.Commitments,
-		Attachments:        opts.Attachments,
-		Files:              opts.Files,
-		Views:              opts.Views,
-		Stories:            opts.Stories,
-		Uploads:            opts.Uploads,
-		Work:               opts.Work,
-		PhoneNotifications: opts.PhoneNotifications,
-		Workstation:        opts.Workstation,
-		Reviewer:           opts.Reviewer,
-		Describer:          opts.Describer,
-		Clock:              opts.Clock,
-		Settings:           opts.Settings,
-	}, nil
-}
-
-func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
-	return &RunnerFactory{
-		deps:         deps,
-		mcpCache:     &mcpManagerCache{},
-		toolRegistry: deps.ToolRegistry,
-	}
+	return nil
 }
 
 type runCapabilities struct {
@@ -185,17 +133,6 @@ type runCapabilities struct {
 	// skillDir is where the workstation holds the files of skills that carry
 	// them.
 	skillDir string
-}
-
-func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (active *ActiveRunner, err error) {
-	if f == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	chatModel, capabilityAssembly, err := f.buildRunPrerequisites(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
 }
 
 func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.AgenticModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
@@ -231,8 +168,10 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
+	// Work of deleted conversations must be gone before the next run reads
+	// the workstation; a run that cannot remove it does not start.
 	if err := removeForgottenWork(ctx, f.deps.MemoryStore, f.deps.Work); err != nil {
-		slog.Warn("work directories of deleted conversations left on the workstation", "error", err)
+		return nil, fmt.Errorf("remove the work of deleted conversations: %w", err)
 	}
 	owner, err := loadOwnerFiles(ctx, f.deps.Files, f.deps.Uploads, req.SessionID)
 	if err != nil {
@@ -273,37 +212,6 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	}, nil
 }
 
-type RunnerFactoryOptions struct {
-	Persona               PersonaReader
-	Owner                 OwnerReader
-	Skills                SkillLibrary
-	SkillPackages         skills.PackageHost
-	SkillServers          SkillServerHost
-	MCPPendingActionStore core.SessionStore
-	ArtifactService       core.ArtifactService
-	ToolRegistry          core.ToolRegistry
-	PhoneNotifications    core.PhoneNotificationStore
-	Activity              core.ActivityStore
-	MemoryStore           core.MemoryStore
-	Memory                MemoryContextService
-	Commitments           core.CommitmentStore
-	Attachments           core.AttachmentReader
-	Files                 core.ThreadFiles
-	Views                 ThreadViewLister
-	Stories               core.StoryMessageLister
-	// Uploads, Work and SkillServers are nil when no workstation is
-	// configured.
-	Uploads     UploadHost
-	Work        WorkHost
-	Workstation tools.WorkstationToolsConfig
-	// Reviewer judges calls the approval rules leave open; nil turns review off.
-	Reviewer ActionReviewer
-	// Describer writes the owner-facing summary of calls the owner decides on.
-	Describer ApprovalDescriber
-	Clock     func() time.Time
-	Settings  core.SettingsReader
-}
-
 // RunnerBuildRequest holds the parameters for building a new run.
 type RunnerBuildRequest struct {
 	Wake string
@@ -324,18 +232,6 @@ type ActiveRunner struct {
 	FailedCalls *failedToolCalls
 	RunID       string
 	ToolCatalog *tools.Catalog
-}
-
-func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.AgenticModel, *capabilityAssembly, error) {
-	chatModel, err := f.buildRunChatModel(ctx, req)
-	if err != nil {
-		return nil, nil, err
-	}
-	capabilityAssembly, err := f.buildRunCapabilityAssembly(ctx, req)
-	if err != nil {
-		return nil, nil, err
-	}
-	return chatModel, capabilityAssembly, nil
 }
 
 // operatingRules follow the owner's persona in every instruction. They cover

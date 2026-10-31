@@ -2,27 +2,26 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 )
 
 // registerProviderTools registers every discovered tool for the named provider
-// into the unified ToolRegistry. It is a no-op when no registry (or no spec
-// builder) was wired, which only happens in tests.
+// into the unified ToolRegistry, all or none: a tool whose spec cannot be
+// built or registered unregisters the provider's tools and the error is
+// returned, so the provider fails instead of losing a tool unseen. It is a
+// no-op when no registry (or no spec builder) was wired, which only happens
+// in tests.
 //
 // The slot is looked up by name under the manager read-lock; its tools are
 // read outside the lock to avoid holding it across the (possibly slow) Info
 // calls the spec builder performs. registeredToolNames records the namespaced
 // names actually registered so unregisterProviderTools can remove exactly those.
-//
-// A tool whose spec builder returns an error, or whose Register returns an
-// error (e.g. a duplicate name from another provider), is logged and skipped
-// rather than aborting the whole provider: a single unruly tool should not
-// poison an otherwise healthy connection.
-func (m *Manager) registerProviderTools(ctx context.Context, providerName string) {
-	if m == nil || m.toolRegistry == nil || m.specBuilder == nil {
-		return
+func (m *Manager) registerProviderTools(ctx context.Context, providerName string) error {
+	if m.toolRegistry == nil || m.specBuilder == nil {
+		return nil
 	}
 
 	m.mu.RLock()
@@ -35,29 +34,19 @@ func (m *Manager) registerProviderTools(ctx context.Context, providerName string
 	}
 	if slotIdx < 0 {
 		m.mu.RUnlock()
-		return
+		return nil
 	}
 	tools := m.slots[slotIdx].tools()
 	m.mu.RUnlock()
 
-	if len(tools) == 0 {
-		return
-	}
-
 	for _, tool := range tools {
 		spec, err := m.specBuilder(ctx, providerName, tool)
-		if err != nil {
-			slog.Warn("MCP tool spec build failed, skipping registration",
-				"provider", providerName, "error", err)
-			continue
+		if err == nil {
+			err = m.toolRegistry.Register(spec)
 		}
-		if err := m.toolRegistry.Register(spec); err != nil {
-			// A duplicate name from a different provider is the expected
-			// collision case for cross-provider tools that share a suffix;
-			// the registry rejects it and we log rather than fail.
-			slog.Warn("MCP tool registration to unified registry skipped",
-				"provider", providerName, "tool", spec.Name, "error", err)
-			continue
+		if err != nil {
+			m.unregisterProviderTools(providerName)
+			return fmt.Errorf("register tools of MCP provider %s: %w", providerName, err)
 		}
 		// Record each name under the write lock as soon as it is registered,
 		// so a concurrent Close sees it and unregisters it.
@@ -70,6 +59,7 @@ func (m *Manager) registerProviderTools(ctx context.Context, providerName string
 		}
 		m.mu.Unlock()
 	}
+	return nil
 }
 
 // unregisterProviderTools removes the specs previously registered for the named
@@ -106,14 +96,11 @@ func (m *Manager) unregisterProviderTools(providerName string) {
 
 // refreshProviderToolRegistrations re-syncs a provider's registry entries after
 // its tool list changes (tools/list_changed notification). It unregisters the
-// stale names then registers the current set. Called by RefreshProviderCatalog
-// only when a registry is wired.
-func (m *Manager) refreshProviderToolRegistrations(ctx context.Context, providerName string) {
-	if m == nil || m.toolRegistry == nil || m.specBuilder == nil {
-		return
-	}
+// stale names then registers the current set; when that fails the provider
+// is left with no registered tools.
+func (m *Manager) refreshProviderToolRegistrations(ctx context.Context, providerName string) error {
 	m.unregisterProviderTools(providerName)
-	m.registerProviderTools(ctx, providerName)
+	return m.registerProviderTools(ctx, providerName)
 }
 
 // tools returns the provider's discovered tools, or nil when the slot has no

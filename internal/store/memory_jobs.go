@@ -37,7 +37,9 @@ func enqueueMemoryJob(ctx context.Context, q memorySQL, operation, id, version s
 	return err
 }
 
-func (s *Store) MemoryEpoch(ctx context.Context) (int64, error) { return memoryEpoch(ctx, s.db) }
+// MemoryEpoch reads the exclusion epoch on the read pool, beside the writer;
+// runs check it before every model and tool call.
+func (s *Store) MemoryEpoch(ctx context.Context) (int64, error) { return memoryEpoch(ctx, s.read) }
 
 func memoryEpoch(ctx context.Context, q memorySQL) (int64, error) {
 	var epoch int64
@@ -200,15 +202,11 @@ func (s *Store) MemoryProcessingStatus(ctx context.Context) (core.MemoryProcessi
 	if err != nil {
 		return status, err
 	}
-	if oldest != "" {
-		if status.Oldest, err = time.Parse(time.RFC3339Nano, oldest); err != nil {
-			return status, err
-		}
+	if status.Oldest, err = parseOptionalTime(oldest, "memory_jobs.created_at"); err != nil {
+		return status, err
 	}
-	if last != "" {
-		if status.LastCompleted, err = time.Parse(time.RFC3339Nano, last); err != nil {
-			return status, err
-		}
+	if status.LastCompleted, err = parseOptionalTime(last, "memory_jobs.completed_at"); err != nil {
+		return status, err
 	}
 	err = s.read.QueryRowContext(ctx, `SELECT error FROM memory_jobs WHERE state='failed' ORDER BY id DESC LIMIT 1`).Scan(&status.LastError)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -243,7 +241,7 @@ func (s *Store) FailingMemoryWork(ctx context.Context) ([]core.FailingWork, erro
 			return err
 		}
 		var err error
-		work.Since, err = parseTimestamp(fixedTimestampLayout, since, "memory_jobs.failed_at")
+		work.Since, err = parseTimestamp(since, "memory_jobs.failed_at")
 		failing = append(failing, work)
 		return err
 	}); err != nil {

@@ -104,10 +104,10 @@ func (s *Store) ListNewsSections(ctx context.Context) ([]core.NewsSection, error
 			return err
 		}
 		var err error
-		if section.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "news_sections.created_at"); err != nil {
+		if section.CreatedAt, err = parseTimestamp(created, "news_sections.created_at"); err != nil {
 			return err
 		}
-		section.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "news_sections.updated_at")
+		section.UpdatedAt, err = parseTimestamp(updated, "news_sections.updated_at")
 		sections = append(sections, section)
 		return err
 	}); err != nil {

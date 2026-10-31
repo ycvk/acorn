@@ -91,7 +91,7 @@ func queryPersonaRevisions(ctx context.Context, q memorySQL, content, tail strin
 		}
 		revision.Author = core.PersonaAuthor(author)
 		var err error
-		if revision.At, err = parseTimestamp(fixedTimestampLayout, at, "persona_revisions.at"); err != nil {
+		if revision.At, err = parseTimestamp(at, "persona_revisions.at"); err != nil {
 			return err
 		}
 		revisions = append(revisions, revision)
