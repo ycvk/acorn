@@ -13,6 +13,7 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.SkillRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -90,6 +91,8 @@ class SkillsViewModel @Inject constructor(
         listJob = viewModelScope.launch {
             _list.value = try {
                 SkillsLoad.Loaded(withContext(Dispatchers.IO) { repository.list(profile) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 SkillsLoad.Failed(userMessage(e))
             }
@@ -115,6 +118,8 @@ class SkillsViewModel @Inject constructor(
                     val revisions = async { repository.revisions(profile, name) }
                     SkillLoad.Loaded(detail.await(), revisions.await())
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 SkillLoad.Failed(userMessage(e))
             }
@@ -132,6 +137,8 @@ class SkillsViewModel @Inject constructor(
         revisionJob = viewModelScope.launch {
             _revision.value = try {
                 SkillRevisionLoad.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, name, revision) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 SkillRevisionLoad.Failed(userMessage(e))
             }
@@ -151,6 +158,8 @@ class SkillsViewModel @Inject constructor(
         diffJob = viewModelScope.launch {
             _diff.value = try {
                 SkillDiffLoad.Loaded(withContext(Dispatchers.IO) { repository.diff(profile, name, from, to) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 SkillDiffLoad.Failed(userMessage(e))
             }

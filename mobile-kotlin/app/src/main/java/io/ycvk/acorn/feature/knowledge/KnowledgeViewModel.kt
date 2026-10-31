@@ -9,6 +9,7 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.data.repository.KnowledgeRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -109,6 +110,8 @@ class KnowledgeViewModel @Inject constructor(
         noteJob = viewModelScope.launch {
             _note.value = try {
                 NoteLoad.Loaded(withContext(Dispatchers.IO) { repository.note(profile, path) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 NoteLoad.Failed(userMessage(e))
             }
@@ -146,6 +149,8 @@ class KnowledgeViewModel @Inject constructor(
         listJob = viewModelScope.launch {
             _load.value = try {
                 KnowledgeLoad.Loaded(withContext(Dispatchers.IO) { repository.notes(profile, query) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 KnowledgeLoad.Failed(userMessage(e))
             }
