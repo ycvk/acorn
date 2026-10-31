@@ -85,13 +85,16 @@ type RuntimeDeps struct {
 	Files              core.ThreadFiles
 	Views              ThreadViewLister
 	Stories            core.StoryMessageLister
-	// Uploads and Work are nil when no workstation is configured.
+	// Uploads, Work and SkillServers are nil when no workstation is
+	// configured.
 	Uploads     UploadHost
 	Work        WorkHost
 	Workstation tools.WorkstationToolsConfig
-	Reviewer    ActionReviewer
-	Describer   ApprovalDescriber
-	Clock       func() time.Time
+	// Reviewer judges calls the approval rules leave open; nil turns review off.
+	Reviewer ActionReviewer
+	// Describer writes the owner-facing summary of calls the owner decides on.
+	Describer ApprovalDescriber
+	Clock     func() time.Time
 	// Settings gives each run the owner's time zone and approval rules.
 	Settings core.SettingsReader
 }
