@@ -13,7 +13,6 @@ import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.api.models.SendViewActionRequest
 import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
@@ -502,7 +501,7 @@ class ChatViewModel @Inject constructor(
     fun connection(): ConnectionProfile? = getConnectionProfile()
 
     private fun getConnectionProfile(): ConnectionProfile? =
-        (authController.authState.value as? AuthState.Connected)?.profile
+        authController.profile
 
     override fun onCleared() {
         _threadId.value?.let(follower::unwatch)

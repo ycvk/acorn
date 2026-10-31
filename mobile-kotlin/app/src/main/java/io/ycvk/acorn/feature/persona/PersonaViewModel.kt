@@ -7,7 +7,6 @@ import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.Persona
 import io.ycvk.acorn.api.models.PersonaRevisionSummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.PersonaRepository
 import kotlinx.coroutines.Dispatchers
@@ -174,5 +173,5 @@ class PersonaViewModel @Inject constructor(
         }
     }
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }

@@ -7,7 +7,6 @@ import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.MemoryDetail
 import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.MemoryRepository
 import kotlinx.coroutines.Dispatchers
@@ -201,7 +200,7 @@ class MemoryViewModel @Inject constructor(
         }
     }
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }
 
 private fun memoryMessage(e: Exception): String =

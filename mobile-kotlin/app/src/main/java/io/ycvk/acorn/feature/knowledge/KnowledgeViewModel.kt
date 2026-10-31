@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.models.KnowledgeNote
 import io.ycvk.acorn.api.models.KnowledgeNoteSummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.data.repository.KnowledgeRepository
@@ -156,7 +155,7 @@ class KnowledgeViewModel @Inject constructor(
     /** The paired server, for loading attachments. */
     fun connection(): ConnectionProfile? = profile()
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }
 
 private val attachmentEmbed = Regex("""!\[([^\]\n]*)]\((attachments/[^)\s]+)\)""")

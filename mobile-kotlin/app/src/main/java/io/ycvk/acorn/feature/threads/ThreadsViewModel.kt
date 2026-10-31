@@ -7,7 +7,6 @@ import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import kotlinx.coroutines.Dispatchers
@@ -88,7 +87,7 @@ class ThreadsViewModel @Inject constructor(
     }
 
     private fun getConnectionProfile(): ConnectionProfile? =
-        (authController.authState.value as? AuthState.Connected)?.profile
+        authController.profile
 }
 
 sealed interface ThreadsLoad {

@@ -40,6 +40,10 @@ class AuthController @Inject constructor(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
+    /** The paired server while connected, or null. */
+    val profile: ConnectionProfile?
+        get() = (_authState.value as? AuthState.Connected)?.profile
+
     private val _pairingState = MutableStateFlow<PairingState>(PairingState.Idle)
     val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
 

@@ -166,7 +166,7 @@ class ShellViewModel @Inject constructor(
     }
 
     private fun getConnectionProfile(): ConnectionProfile? =
-        (authController.authState.value as? AuthState.Connected)?.profile
+        authController.profile
 
     /**
      * Reads what Acorn calls the owner, unless that is already known. Call it

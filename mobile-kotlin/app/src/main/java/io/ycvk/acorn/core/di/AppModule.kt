@@ -2,7 +2,6 @@ package io.ycvk.acorn.core.di
 
 import java.io.File
 import androidx.core.app.NotificationManagerCompat
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.notifications.NotificationQueue
 import io.ycvk.acorn.core.notifications.NotificationPreferences
 import io.ycvk.acorn.core.notifications.NotificationDelivery
@@ -37,7 +36,7 @@ object AppModule {
         repository: PhoneNotificationRepository,
     ): NotificationDelivery = NotificationDelivery(
         queue = queue,
-        profile = { (auth.authState.value as? AuthState.Connected)?.profile },
+        profile = { auth.profile },
         allowed = { preferences.allowed.value },
         hasAccess = { NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName) },
         send = repository::send,

@@ -7,7 +7,6 @@ import io.ycvk.acorn.api.models.OwnerSettingName
 import io.ycvk.acorn.api.models.OwnerSettings
 import io.ycvk.acorn.api.models.OwnerSettingsChanges
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.OwnerSettingsRepository
@@ -54,7 +53,7 @@ class OwnerSettingsViewModel @Inject constructor(
     val saveError: StateFlow<String?> = _saveError.asStateFlow()
 
     private val profile: ConnectionProfile?
-        get() = (authController.authState.value as? AuthState.Connected)?.profile
+        get() = authController.profile
 
     fun load() {
         val profile = profile ?: return

@@ -10,7 +10,6 @@ import io.ycvk.acorn.api.models.SkillRevision
 import io.ycvk.acorn.api.models.SkillRevisionSummary
 import io.ycvk.acorn.api.models.SkillSummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.SkillRepository
@@ -227,5 +226,5 @@ class SkillsViewModel @Inject constructor(
 
     private fun loadedDetail(): SkillDetail? = (_skill.value as? SkillLoad.Loaded)?.detail
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }

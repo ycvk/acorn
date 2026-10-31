@@ -7,7 +7,6 @@ import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.push.PushManager
@@ -71,7 +70,7 @@ class SettingsViewModel @Inject constructor(
     val nameError: StateFlow<String?> = _nameError.asStateFlow()
 
     val profile: ConnectionProfile?
-        get() = (authController.authState.value as? AuthState.Connected)?.profile
+        get() = authController.profile
 
 	fun loadSettings() {
 		val profile = profile ?: return

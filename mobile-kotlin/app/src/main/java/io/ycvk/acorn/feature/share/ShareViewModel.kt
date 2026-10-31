@@ -58,7 +58,7 @@ class ShareViewModel @Inject constructor(
 
     fun send(note: String) {
         val editing = _state.value as? ShareState.Editing ?: return
-        val profile = (authController.authState.value as? AuthState.Connected)?.profile ?: run {
+        val profile = authController.profile ?: run {
             _state.value = ShareState.NotPaired
             return
         }

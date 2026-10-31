@@ -9,7 +9,6 @@ import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.feature.live.RunFollower
@@ -119,5 +118,5 @@ class ApprovalsViewModel @Inject constructor(
     }
 
     private fun getConnectionProfile(): ConnectionProfile? =
-        (authController.authState.value as? AuthState.Connected)?.profile
+        authController.profile
 }
