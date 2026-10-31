@@ -4,6 +4,7 @@ package presence
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -67,8 +68,8 @@ func Render(in RenderInput) (string, error) {
 			return out, nil
 		}
 		drop := -1
-		for i := len(lines) - 1; i >= 0; i-- {
-			if !lines[i].essential {
+		for i, line := range slices.Backward(lines) {
+			if !line.essential {
 				drop = i
 				break
 			}

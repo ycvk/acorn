@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -352,8 +353,7 @@ type runInterruptedPayload struct {
 }
 
 func latestRootInterruptContexts(raw []core.EventRecord) ([]resumeInterruptContext, error) {
-	for i := len(raw) - 1; i >= 0; i-- {
-		record := raw[i]
+	for _, record := range slices.Backward(raw) {
 		if record.Kind != "run.interrupted" {
 			continue
 		}
