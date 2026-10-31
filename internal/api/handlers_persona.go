@@ -18,9 +18,8 @@ func (s *Server) handleGetPersona(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSavePersona(w http.ResponseWriter, r *http.Request) {
-	device, ok := DeviceFromContext(r.Context())
+	device, ok := s.authenticatedDevice(w, r)
 	if !ok {
-		s.respondInternalError(w, r, errors.New("persona request reached the handler without an authenticated device"))
 		return
 	}
 	var req SavePersonaRequest

@@ -52,9 +52,8 @@ func (s *Server) handleReactToStory(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	device, ok := DeviceFromContext(r.Context())
+	device, ok := s.authenticatedDevice(w, r)
 	if !ok {
-		s.respondInternalError(w, r, errors.New("story reaction reached the handler without an authenticated device"))
 		return
 	}
 	var req StoryReactionRequest

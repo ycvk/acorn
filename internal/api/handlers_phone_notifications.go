@@ -6,9 +6,8 @@ import (
 )
 
 func (s *Server) handlePhoneNotifications(w http.ResponseWriter, r *http.Request) {
-	device, ok := DeviceFromContext(r.Context())
+	device, ok := s.authenticatedDevice(w, r)
 	if !ok {
-		s.respondInternalError(w, r, errors.New("phone notifications require an authenticated device"))
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4*1024*1024)
