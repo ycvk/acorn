@@ -41,8 +41,9 @@ type containerRuntimeDeps struct {
 	vault        *knowledge.Vault
 	watchChecker *watch.Checker
 	news         *news.Processor
-	// triggers is nil without a workstation.
+	// triggers and workstation are nil without a workstation.
 	triggers      *skills.TriggerRunner
+	workstation   *workstation.Client
 	panels        *views.Feeder
 	packageStatus *skills.Status
 }
@@ -122,17 +123,17 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	watchChecker, err := buildWatchChecker(cfg, db, webFetcher, webPolicy, options)
+	workstationClient, err := buildWorkstationClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	watchChecker, err := buildWatchChecker(cfg, db, webFetcher, webPolicy, workstationClient, options)
 	if err != nil {
 		return nil, err
 	}
 	newsProcessor, err := buildNews(ctx, cfg, db, ownerSettings, webFetcher, options.clock)
 	if err != nil {
 		return nil, fmt.Errorf("news: %w", err)
-	}
-	workstationClient, err := buildWorkstationClient(cfg)
-	if err != nil {
-		return nil, err
 	}
 	skillDeps := tools.SkillToolDeps{Library: skillLibrary, Context: ctxBridge, Settings: ownerSettings, PackagesDisabledReason: noWorkstation}
 	var skillPackages skills.PackageHost
@@ -280,6 +281,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		watchChecker:          watchChecker,
 		news:                  newsProcessor,
 		triggers:              triggers,
+		workstation:           workstationClient,
 		panels:                panels,
 		packageStatus:         packageStatus,
 	}, nil

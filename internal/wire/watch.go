@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
+	"github.com/ycvk/acorn/internal/workstation"
 )
 
 const defaultGitHubAPI = "https://api.github.com"
@@ -47,8 +48,8 @@ func (p newsPages) ReadPage(ctx context.Context, url string) (string, error) {
 
 // buildWatchChecker builds the checker the scheduler and the watch tools
 // share. The workstation's browser renders web_rendered watches when a
-// workstation is configured.
-func buildWatchChecker(cfg *config.Config, db *store.Store, fetcher *webaccess.FetchService, policy webaccess.URLPolicy, options buildOptions) (*watch.Checker, error) {
+// workstation is configured; client is nil otherwise.
+func buildWatchChecker(cfg *config.Config, db *store.Store, fetcher *webaccess.FetchService, policy webaccess.URLPolicy, client *workstation.Client, options buildOptions) (*watch.Checker, error) {
 	githubAPI := defaultGitHubAPI
 	if options.githubAPI != "" {
 		githubAPI = options.githubAPI
@@ -60,10 +61,6 @@ func buildWatchChecker(cfg *config.Config, db *store.Store, fetcher *webaccess.F
 		RSSHubBaseURL: strings.TrimSpace(cfg.Watch.RSSHubBaseURL),
 		GitHubAPI:     githubAPI,
 		GitHubToken:   strings.TrimSpace(cfg.Watch.GitHubToken),
-	}
-	client, err := buildWorkstationClient(cfg)
-	if err != nil {
-		return nil, err
 	}
 	if client != nil {
 		checkerCfg.Renderer = policyRenderer{policy: policy, renderer: client}

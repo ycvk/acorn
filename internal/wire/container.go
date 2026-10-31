@@ -21,6 +21,7 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/wake"
+	"github.com/ycvk/acorn/internal/workstation"
 )
 
 type Container struct {
@@ -52,6 +53,8 @@ type Container struct {
 	phoneNotifications *api.PhoneNotificationService
 	now                *api.NowService
 	wake               *wake.Scheduler
+	// workstation is nil when no workstation is configured.
+	workstation *workstation.Client
 }
 
 // buildOptions are the process-level dependencies of a container.
@@ -114,13 +117,9 @@ func (c *Container) DeviceAuth() *api.DeviceAuthService {
 
 // Handler is the /v1 client API over this container's services.
 func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
-	workstationClient, err := buildWorkstationClient(c.cfg)
-	if err != nil {
-		return nil, err
-	}
 	var browser api.BrowserView
-	if workstationClient != nil {
-		browser = workstationClient
+	if c.workstation != nil {
+		browser = c.workstation
 	}
 	return api.NewHandler(api.Dependencies{
 		Threads:            c.threads,
@@ -244,6 +243,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		clock:         clock,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
+		workstation:   deps.workstation,
 	}
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
