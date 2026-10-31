@@ -79,24 +79,34 @@ func (c *Client) BrowserFrames(ctx context.Context, tab string, viewport Viewpor
 		query.Set("width", strconv.Itoa(viewport.Width))
 		query.Set("height", strconv.Itoa(viewport.Height))
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/v1/browser/frames?"+query.Encode(), nil)
+	resp, err := c.openStream(ctx, "/v1/browser/frames", query)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+// openStream starts a GET of path whose body the caller reads and closes. A
+// status other than 200 comes back as the workstation's error.
+func (c *Client) openStream(ctx context.Context, path string, query url.Values) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path+"?"+query.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	resp, err := c.stream.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("workstation /v1/browser/frames: %w", err)
+		return nil, fmt.Errorf("workstation %s: %w", path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		data, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		if err != nil {
-			return nil, fmt.Errorf("workstation /v1/browser/frames: read error: %w", err)
+			return nil, fmt.Errorf("workstation %s: read error: %w", path, err)
 		}
-		return nil, responseError("/v1/browser/frames", resp.StatusCode, data)
+		return nil, responseError(path, resp.StatusCode, data)
 	}
-	return resp.Body, nil
+	return resp, nil
 }
 
 // HTTPError is a workstation response other than 200, so callers can tell a
