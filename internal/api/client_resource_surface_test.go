@@ -14,6 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 func TestClientResourceSurfaceHandlers(t *testing.T) {
@@ -96,7 +97,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		StartupTimeoutSeconds: 10,
 	}}
 	server := newClientHotPathServer(service)
-	server.capabilities = NewCapabilitiesService(
+	capabilities, err := NewCapabilitiesService(
 		cfg,
 		func(context.Context) (*skills.Snapshot, error) {
 			return &skills.Snapshot{Skills: []skills.View{{
@@ -121,8 +122,12 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				AuthStatus:          "env",
 			}}
 		},
-		nil,
+		func(context.Context) ([]core.ToolSpec, error) { return tools.ConfiguredLocalSpecs(), nil },
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.capabilities = capabilities
 	pendingActionStub := &pendingActionHandlerStub{
 		summaries: []PendingActionSummary{{
 			ActionID: "action_1",
@@ -199,6 +204,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		System: systemSnapshot,
 	}}
 	inboxStore := &inboxServiceStore{
+		capabilities: capabilities,
 		runByID: map[string]core.RunRecord{
 			"run_1":        inboxRunRecordFromSummary(inboxStub.item.ActiveRuns[0]),
 			"run_terminal": inboxRunRecordFromSummary(inboxStub.item.RecentTerminalRuns[0]),

@@ -21,9 +21,6 @@ func newInboxTestService(store *inboxServiceStore) *InboxService {
 	if store == nil {
 		store = &inboxServiceStore{}
 	}
-	if store.capabilities == nil {
-		store.capabilities = NewCapabilitiesService(nil, nil, nil, nil)
-	}
 	return NewInboxService(store, store.capabilities)
 }
 

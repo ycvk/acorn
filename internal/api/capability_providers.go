@@ -11,9 +11,6 @@ import (
 )
 
 func (s *CapabilitiesService) snapshotSkills(ctx context.Context) SystemSkillCapabilities {
-	if s == nil || s.skills == nil {
-		return SystemSkillCapabilities{}
-	}
 	snapshot, err := s.skills(ctx)
 	if err != nil {
 		return SystemSkillCapabilities{
@@ -79,7 +76,7 @@ func (s *CapabilitiesService) snapshotMCPProviders(ctx context.Context, opts Cap
 }
 
 func (s *CapabilitiesService) resolveProviderStatuses(ctx context.Context, configured []core.ProviderConfig, opts CapabilitySnapshotOptions) []core.ProviderInfo {
-	if opts.ProbeMCP && s.probeProviders != nil {
+	if opts.ProbeMCP {
 		return s.probeProviders(ctx, configured)
 	}
 	statuses := make([]core.ProviderInfo, 0, len(configured))
@@ -99,9 +96,6 @@ func (s *CapabilitiesService) resolveProviderStatuses(ctx context.Context, confi
 }
 
 func configuredProviderConfigs(cfg *config.Config) []core.ProviderConfig {
-	if cfg == nil {
-		return nil
-	}
 	return mcpprovider.ProviderConfigsFromConfig(cfg.MCP.Providers)
 }
 
