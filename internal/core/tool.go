@@ -54,6 +54,9 @@ const (
 	HealthStateHealthy  HealthState = "healthy"
 	HealthStateDegraded HealthState = "degraded"
 	HealthStateDisabled HealthState = "disabled"
+	// HealthStateUnknown is an MCP provider's tools when the provider was not
+	// probed.
+	HealthStateUnknown HealthState = "unknown"
 )
 
 type ToolHealth struct {

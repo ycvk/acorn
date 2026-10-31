@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -41,6 +40,7 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 	if len(toolNames) == 0 {
 		toolNames = provider.ConfiguredToolNames
 	}
+	health, reason := providerToolHealth(provider)
 	items := make([]SystemToolCapability, 0, len(toolNames))
 	for _, toolName := range toolNames {
 		items = append(items, SystemToolCapability{
@@ -48,9 +48,9 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 			Source:       provider.Name,
 			Kind:         string(core.ToolKindMCP),
 			Category:     string(core.ToolCategoryIntegration),
-			Enabled:      provider.Enabled && provider.Error == "",
-			HealthState:  providerHealthState(provider),
-			HealthReason: strings.TrimSpace(provider.Error),
+			Enabled:      health == core.HealthStateHealthy || health == core.HealthStateUnknown,
+			HealthState:  string(health),
+			HealthReason: reason,
 			Risk:         "integration",
 		})
 	}
@@ -85,14 +85,19 @@ func toolRisk(spec core.ToolSpec) string {
 	}
 }
 
-func providerHealthState(provider SystemMCPProviderCapability) string {
+// providerToolHealth reads the health of a provider's tools from the
+// provider's readiness, so tools and readiness never disagree.
+func providerToolHealth(provider SystemMCPProviderCapability) (core.HealthState, string) {
+	readiness := providerReadinessFromCapability(provider)
 	switch {
-	case !provider.Enabled:
-		return string(core.HealthStateDisabled)
-	case strings.TrimSpace(provider.Error) != "":
-		return string(core.HealthStateDegraded)
+	case !provider.Configured || !provider.Enabled:
+		return core.HealthStateDisabled, readiness.Reason
+	case readiness.Status == ProviderReadinessFailed:
+		return core.HealthStateDegraded, readiness.Reason
+	case readiness.Status == ProviderReadinessBlocked:
+		return core.HealthStateUnknown, readiness.Reason
 	default:
-		return string(core.HealthStateHealthy)
+		return core.HealthStateHealthy, ""
 	}
 }
 
