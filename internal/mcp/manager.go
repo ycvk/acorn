@@ -123,10 +123,9 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	}
 
 	// Construct the manager first so the elicitation handler is initialized
-	// before providers connect. connectSlotForReconcile builds
-	// ClientOptions (ElicitationHandler, list-changed
-	// handlers, auth callback) from the manager — they must exist at connect
-	// time so the initial session carries the same handlers as a reconciled one.
+	// before providers connect: buildClientOptions takes the elicitation and
+	// list-changed handlers from the manager, and they must exist at connect
+	// time.
 	mgr := &Manager{
 		tokenStore:   o.tokenStore,
 		store:        o.store,
@@ -189,6 +188,18 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	}
 
 	return mgr, nil
+}
+
+// buildClientOptions assembles a provider's MCP client options. Returns nil
+// handlers when the corresponding manager subsystem is not initialized (e.g.
+// no store wired).
+func (m *Manager) buildClientOptions(cfg core.ProviderConfig) *mcp.ClientOptions {
+	return &mcp.ClientOptions{
+		ToolListChangedHandler:     m.buildToolListChangedHandler(cfg.Name),
+		ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
+		PromptListChangedHandler:   m.buildPromptListChangedHandler(cfg.Name),
+		ElicitationHandler:         m.buildElicitationHandler(),
+	}
 }
 
 func (m *Manager) Close() error {
