@@ -91,8 +91,13 @@ func (e *Engine) Think(ctx context.Context, runID, sessionID string, in WriteInp
 		if err != nil {
 			return core.MemoryRecord{}, err
 		}
-		if old.Record.Kind != "thought" || in.Revision <= 0 || in.Reason == "" {
-			return core.MemoryRecord{}, errors.New("think updates require a thought ID, revision and reason")
+		switch {
+		case old.Record.Kind != "thought":
+			return core.MemoryRecord{}, fmt.Errorf("think updates only thoughts: %s is a %s; omit id to record a new thought", in.ID, old.Record.Kind)
+		case in.Revision <= 0:
+			return core.MemoryRecord{}, fmt.Errorf("think update of %s requires its current revision, %d", in.ID, old.Record.Revision)
+		case in.Reason == "":
+			return core.MemoryRecord{}, fmt.Errorf("think update of %s requires a reason", in.ID)
 		}
 		evidence := append([]core.MemoryEvidence(nil), old.Record.Evidence...)
 		evidence = append(evidence, core.MemoryEvidence{SourceID: origin.ID, Quote: in.Quote, Relation: "supports"})

@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
+import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -13,10 +14,14 @@ import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.NowRepository
+import io.ycvk.acorn.feature.live.RunFollower
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,6 +42,7 @@ sealed interface NowLoad {
 class NowViewModel @Inject constructor(
     private val authController: AuthController,
     private val repository: NowRepository,
+    private val follower: RunFollower,
 ) : ViewModel() {
 
     private val _load = MutableStateFlow<NowLoad>(NowLoad.Loading)
@@ -48,6 +54,14 @@ class NowViewModel @Inject constructor(
     /** The last failed change, shown until dismissed or the next change. */
     private val _actionError = MutableStateFlow<String?>(null)
     val actionError: StateFlow<String?> = _actionError.asStateFlow()
+
+    /** The story the owner just asked about, until its message is sent; its row takes no other tap meanwhile. */
+    private val _askingStory = MutableStateFlow<Long?>(null)
+    val askingStory: StateFlow<Long?> = _askingStory.asStateFlow()
+
+    /** Conversations to open: a story's, once it exists. */
+    private val _openThread = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val openThread: SharedFlow<String> = _openThread.asSharedFlow()
 
     private var loadJob: Job? = null
 
@@ -73,6 +87,44 @@ class NowViewModel @Inject constructor(
         when (val next = nextReaction(story.reaction, chosen)) {
             null -> repository.clearStoryReaction(it, story.storyId)
             else -> repository.reactToStory(it, story.storyId, next)
+        }
+    }
+
+    /** Opens a story's conversation; the first time, asks Acorn there to explain the story. */
+    fun openStory(story: NowBriefingStory) {
+        val threadId = story.threadId
+        if (threadId != null) {
+            _openThread.tryEmit(threadId)
+            return
+        }
+        ask(story) { repository.discussStory(it, story.storyId) }
+    }
+
+    /** Asks Acorn to keep following a story, in the story's conversation. */
+    fun followStory(story: NowBriefingStory) = ask(story) { repository.followStory(it, story.storyId) }
+
+    /** Sends the owner's ask about a story, follows the run it starts and opens the story's conversation. */
+    private fun ask(story: NowBriefingStory, send: (ConnectionProfile) -> StoryMessageResponse) {
+        val profile = profile() ?: run {
+            _actionError.value = "还没有连接服务器"
+            return
+        }
+        if (_askingStory.value != null) return
+        _askingStory.value = story.storyId
+        _actionError.value = null
+        val sendKey = follower.beginSend(story.title)
+        viewModelScope.launch {
+            try {
+                val sent = withContext(Dispatchers.IO) { send(profile) }
+                follower.follow(profile, sent.run.id, sent.threadId, story.title, live = true, sendKey = sendKey)
+                _openThread.emit(sent.threadId)
+            } catch (e: Exception) {
+                follower.endSend(sendKey)
+                _actionError.value = userMessage(e)
+            } finally {
+                _askingStory.value = null
+            }
+            reload(profile)
         }
     }
 

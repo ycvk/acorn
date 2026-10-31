@@ -44,6 +44,7 @@ import io.ycvk.acorn.api.models.Run
 import io.ycvk.acorn.api.models.RunDetail
 import io.ycvk.acorn.api.models.RunEvent
 import io.ycvk.acorn.api.models.SendViewActionRequest
+import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.api.models.StoryReactionRequest
 import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.api.models.Thread
@@ -589,6 +590,152 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.DELETE,
             path = "/v1/threads/{thread_id}".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/news/stories/{story_id}:discuss
+     * Ask Acorn to explain a story the morning briefing picked
+     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
+     * @param storyId 
+     * @return StoryMessageResponse
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientDiscussStory(storyId: kotlin.Long) : StoryMessageResponse {
+        val localVarResponse = clientDiscussStoryWithHttpInfo(storyId = storyId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as StoryMessageResponse
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/news/stories/{story_id}:discuss
+     * Ask Acorn to explain a story the morning briefing picked
+     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
+     * @param storyId 
+     * @return ApiResponse<StoryMessageResponse?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientDiscussStoryWithHttpInfo(storyId: kotlin.Long) : ApiResponse<StoryMessageResponse?> {
+        val localVariableConfig = clientDiscussStoryRequestConfig(storyId = storyId)
+
+        return request<Unit, StoryMessageResponse>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientDiscussStory
+     *
+     * @param storyId 
+     * @return RequestConfig
+     */
+    fun clientDiscussStoryRequestConfig(storyId: kotlin.Long) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/news/stories/{story_id}:discuss".replace("{"+"story_id"+"}", encodeURIComponent(storyId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/news/stories/{story_id}:follow
+     * Ask Acorn to keep following a story the morning briefing picked
+     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
+     * @param storyId 
+     * @return StoryMessageResponse
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientFollowStory(storyId: kotlin.Long) : StoryMessageResponse {
+        val localVarResponse = clientFollowStoryWithHttpInfo(storyId = storyId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as StoryMessageResponse
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/news/stories/{story_id}:follow
+     * Ask Acorn to keep following a story the morning briefing picked
+     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
+     * @param storyId 
+     * @return ApiResponse<StoryMessageResponse?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientFollowStoryWithHttpInfo(storyId: kotlin.Long) : ApiResponse<StoryMessageResponse?> {
+        val localVariableConfig = clientFollowStoryRequestConfig(storyId = storyId)
+
+        return request<Unit, StoryMessageResponse>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientFollowStory
+     *
+     * @param storyId 
+     * @return RequestConfig
+     */
+    fun clientFollowStoryRequestConfig(storyId: kotlin.Long) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/news/stories/{story_id}:follow".replace("{"+"story_id"+"}", encodeURIComponent(storyId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

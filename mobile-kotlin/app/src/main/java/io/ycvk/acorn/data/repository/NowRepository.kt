@@ -4,6 +4,7 @@ import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowResponse
+import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.api.models.StoryReactionRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import javax.inject.Inject
@@ -26,6 +27,12 @@ class NowRepository @Inject constructor() {
         api(profile).clientReactToStory(storyId, StoryReactionRequest(StoryReactionRequest.Reaction.valueOf(reaction.name)))
 
     fun clearStoryReaction(profile: ConnectionProfile, storyId: Long) = api(profile).clientClearStoryReaction(storyId)
+
+    /** Asks Acorn to explain a story in its conversation, which the server creates the first time. */
+    fun discussStory(profile: ConnectionProfile, storyId: Long): StoryMessageResponse = api(profile).clientDiscussStory(storyId)
+
+    /** Asks Acorn to keep following a story, in its conversation. */
+    fun followStory(profile: ConnectionProfile, storyId: Long): StoryMessageResponse = api(profile).clientFollowStory(storyId)
 
     private fun api(profile: ConnectionProfile): ClientApi {
         ApiClient.accessToken = profile.accessToken

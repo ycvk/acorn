@@ -132,6 +132,9 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.Views == nil {
 		return RuntimeDeps{}, errors.New("thread views are required")
 	}
+	if opts.Stories == nil {
+		return RuntimeDeps{}, errors.New("story messages are required")
+	}
 	if opts.Activity == nil || opts.MemoryStore == nil || opts.Commitments == nil || opts.PhoneNotifications == nil || opts.Clock == nil {
 		return RuntimeDeps{}, errors.New("presence, phone notifications and clock are required")
 	}
@@ -156,6 +159,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		Attachments:        opts.Attachments,
 		Files:              opts.Files,
 		Views:              opts.Views,
+		Stories:            opts.Stories,
 		Uploads:            opts.Uploads,
 		Work:               opts.Work,
 		PhoneNotifications: opts.PhoneNotifications,
@@ -237,6 +241,9 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if owner.viewNotes, err = loadViewActionNotes(ctx, f.deps.Views, req.SessionID); err != nil {
 		return nil, err
 	}
+	if owner.storyNotes, err = loadStoryMessageNotes(ctx, f.deps.Stories, req.SessionID); err != nil {
+		return nil, err
+	}
 	mem, err := prepareRunMemory(ctx, f.deps, req, instruction, toolTokens, owner)
 	if err != nil {
 		return nil, err
@@ -283,6 +290,7 @@ type RunnerFactoryOptions struct {
 	Attachments           core.AttachmentReader
 	Files                 core.ThreadFiles
 	Views                 ThreadViewLister
+	Stories               core.StoryMessageLister
 	// Uploads, Work and SkillServers are nil when no workstation is
 	// configured.
 	Uploads     UploadHost

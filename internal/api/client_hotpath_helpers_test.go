@@ -69,9 +69,21 @@ func (noThreadViews) UnpinThreadView(_ context.Context, _, viewID string) (core.
 	return core.ThreadView{}, fmt.Errorf("%w: %s", core.ErrThreadViewNotFound, viewID)
 }
 
+type noStories struct{}
+
+func (noStories) NewsStory(_ context.Context, id int64) (core.NewsStory, error) {
+	return core.NewsStory{}, fmt.Errorf("%w: %d", core.ErrNewsStoryNotFound, id)
+}
+
+func (noStories) BriefingStoryTitle(context.Context, int64) (string, error) { return "", nil }
+
+func (noStories) SendStoryMessage(context.Context, core.StoryMessageWrite) (core.SessionMessageRecord, error) {
+	return core.SessionMessageRecord{}, errors.New("no stories in this test")
+}
+
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
-	threads, err := NewThreadService(store, noThreadFiles{}, noThreadViews{}, noThreadMemory{}, noForgetBarrier)
+	threads, err := NewThreadService(store, noThreadFiles{}, noThreadViews{}, noStories{}, noThreadMemory{}, noForgetBarrier)
 	if err != nil {
 		panic(err)
 	}

@@ -79,6 +79,38 @@ func (s *Server) handleClearStoryReaction(w http.ResponseWriter, r *http.Request
 	s.respondNowChange(w, r, s.now.ClearStoryReaction(r.Context(), id))
 }
 
+// StoryMessageResponse is the story's conversation, the run the owner's
+// message started and the message's text.
+type StoryMessageResponse struct {
+	ThreadID string `json:"thread_id"`
+	Run      RunDTO `json:"run"`
+	Text     string `json:"text"`
+}
+
+// handleDiscussStory asks Acorn to explain a story in its conversation.
+func (s *Server) handleDiscussStory(w http.ResponseWriter, r *http.Request) {
+	s.respondStoryMessage(w, r, core.StoryDiscuss)
+}
+
+// handleFollowStory asks Acorn to keep following a story in its
+// conversation.
+func (s *Server) handleFollowStory(w http.ResponseWriter, r *http.Request) {
+	s.respondStoryMessage(w, r, core.StoryFollow)
+}
+
+func (s *Server) respondStoryMessage(w http.ResponseWriter, r *http.Request, intent core.StoryIntent) {
+	id, ok := s.pathID(w, r, "story_id")
+	if !ok {
+		return
+	}
+	result, err := s.runs.SendStoryMessage(r.Context(), id, intent)
+	if err != nil {
+		s.respondClientKnownError(w, r, err)
+		return
+	}
+	s.respondJSON(w, r, http.StatusCreated, StoryMessageResponse{ThreadID: result.ThreadID, Run: runDTOFromDomain(result.Run), Text: result.Text})
+}
+
 // pathID reads a positive integer path parameter, answering 400 when it is not one.
 func (s *Server) pathID(w http.ResponseWriter, r *http.Request, name string) (int64, bool) {
 	id, err := strconv.ParseInt(chi.URLParam(r, name), 10, 64)

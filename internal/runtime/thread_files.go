@@ -31,6 +31,8 @@ type ownerFiles struct {
 	missing   string
 	// viewNotes say which view and action sent an owner message.
 	viewNotes map[int64]string
+	// storyNotes give the briefing story an owner message was sent from.
+	storyNotes map[int64]string
 }
 
 // loadOwnerFiles reads the files the owner sent in the thread and copies
@@ -135,10 +137,10 @@ func readThreadFile(ctx context.Context, files core.ThreadFiles, sessionID, file
 	return data, errors.Join(readErr, content.Close())
 }
 
-// note tells the model what came with an owner message: the view action that
-// sent it and the files the owner attached.
+// note tells the model what came with an owner message: the view action or
+// briefing story that sent it and the files the owner attached.
 func (o ownerFiles) note(messageID int64) string {
-	return strings.TrimSpace(o.viewNotes[messageID] + "\n" + o.filesNote(messageID))
+	return strings.TrimSpace(o.viewNotes[messageID] + "\n" + o.storyNotes[messageID] + "\n" + o.filesNote(messageID))
 }
 
 // filesNote lists the files the owner sent with a message for the model.

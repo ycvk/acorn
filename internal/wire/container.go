@@ -253,7 +253,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	}
 	container.skills, container.skillLibrary, container.packageStatus = skillService, deps.skills, deps.packageStatus
 	forgetBarrier := memoryForgetBarrier(deps.runController, db)
-	threads, err := api.NewThreadService(db, db, db, deps.memory, forgetBarrier)
+	threads, err := api.NewThreadService(db, db, db, db, deps.memory, forgetBarrier)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +307,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Checker:            deps.watchChecker,
 		News:               db,
 		Sorter:             deps.news,
+		Stories:            db,
 		Triggers:           db,
 		Clock:              clock,
 		Settings:           deps.settings,

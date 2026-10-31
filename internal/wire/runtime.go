@@ -215,6 +215,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Attachments:           vault,
 		Files:                 db,
 		Views:                 db,
+		Stories:               db,
 		Uploads:               uploads,
 		Work:                  work,
 		Persona:               db,

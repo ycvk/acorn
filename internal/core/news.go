@@ -38,16 +38,20 @@ func (r NewsReaction) Valid() bool {
 // BriefingStory is a story a briefing picked: the section it stood in, the
 // title and sentence the briefing wrote and the link it gave, whether it was
 // among today's focus, the news sources of its items, and the owner's
-// reaction to the story, empty without one.
+// reaction to the story, empty without one. ThreadID is the story's
+// conversation, empty before the owner opens or follows the story;
+// Following holds while that conversation has an active or waiting concern.
 type BriefingStory struct {
-	StoryID  int64
-	Section  string
-	Title    string
-	Summary  string
-	URL      string
-	Focus    bool
-	Sources  []int64
-	Reaction NewsReaction
+	StoryID   int64
+	Section   string
+	Title     string
+	Summary   string
+	URL       string
+	Focus     bool
+	Sources   []int64
+	Reaction  NewsReaction
+	ThreadID  string
+	Following bool
 }
 
 // BriefingPicks is what a finished briefing picked, in its order, and how

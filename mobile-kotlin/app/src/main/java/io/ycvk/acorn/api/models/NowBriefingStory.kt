@@ -35,8 +35,10 @@ import com.squareup.moshi.JsonClass
  * @param title 
  * @param url The source the briefing linked.
  * @param focus Whether it is one of today's focus.
+ * @param following Whether the story's conversation has an active or waiting concern.
  * @param summary The sentence the briefing wrote after the title.
  * @param reaction The owner's reaction to the story; absent without one.
+ * @param threadId The story's conversation; absent until the owner asks Acorn to explain or follow the story.
  */
 
 
@@ -60,13 +62,21 @@ data class NowBriefingStory (
     @Json(name = "focus")
     val focus: kotlin.Boolean,
 
+    /* Whether the story's conversation has an active or waiting concern. */
+    @Json(name = "following")
+    val following: kotlin.Boolean,
+
     /* The sentence the briefing wrote after the title. */
     @Json(name = "summary")
     val summary: kotlin.String? = null,
 
     /* The owner's reaction to the story; absent without one. */
     @Json(name = "reaction")
-    val reaction: NowBriefingStory.Reaction? = null
+    val reaction: NowBriefingStory.Reaction? = null,
+
+    /* The story's conversation; absent until the owner asks Acorn to explain or follow the story. */
+    @Json(name = "thread_id")
+    val threadId: kotlin.String? = null
 
 ) {
 

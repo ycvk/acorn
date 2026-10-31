@@ -76,7 +76,7 @@ class NowLabelsTest {
     }
 
     private fun story(id: Long, section: String, focus: Boolean = false, reaction: NowBriefingStory.Reaction? = null) =
-        NowBriefingStory(storyId = id, section = section, title = "事件 $id", url = "https://x.test/$id", focus = focus, reaction = reaction)
+        NowBriefingStory(storyId = id, section = section, title = "事件 $id", url = "https://x.test/$id", focus = focus, following = false, reaction = reaction)
 
     @Test
     fun `choosing the current reaction again takes it back`() {

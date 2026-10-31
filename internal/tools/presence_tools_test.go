@@ -110,6 +110,43 @@ func TestKeepAndThinkRequireTraceableCurrentSource(t *testing.T) {
 		t.Fatal("empty fact accepted")
 	}
 }
+
+// A think update the model gets wrong says which part is wrong: on the test
+// host it once revised a fact, and once listed the thought among its own
+// parents, and could not tell from the error what to fix.
+func TestThinkUpdateSaysWhatIsWrong(t *testing.T) {
+	db, tools := newPresenceToolsForTest(t)
+	ctx := context.Background()
+	if _, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: "owner-1", Kind: "fixture", ObjectID: "owner-1", Version: "1", Speaker: "owner", RunID: "run_1", SessionID: "thread_1", Body: "周末别打扰我", RecordedAt: presenceTestNow}); err != nil {
+		t.Fatal(err)
+	}
+	record := func(tool, args string) core.MemoryRecord {
+		t.Helper()
+		out, err := runPresenceTool(t, tools[tool], args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var saved core.MemoryRecord
+		if err := json.Unmarshal([]byte(out), &saved); err != nil {
+			t.Fatal(err)
+		}
+		return saved
+	}
+	fact := record("keep", `{"content":"周末别打扰我","source_id":"owner-1","quote":"周末别打扰我"}`)
+	thought := record("think", `{"content":"owner 可能需要更多安静时间","source_id":"owner-1","quote":"周末别打扰我"}`)
+	const evidence = `"content":"周末先不打扰","source_id":"owner-1","quote":"周末别打扰我"`
+	for name, tc := range map[string]struct{ args, want string }{
+		"a fact":           {`{"id":"` + fact.ID + `","revision":1,"reason":"补充",` + evidence + `}`, "think updates only thoughts: " + fact.ID + " is a fact; omit id to record a new thought"},
+		"no revision":      {`{"id":"` + thought.ID + `","reason":"补充",` + evidence + `}`, "think update of " + thought.ID + " requires its current revision, 1"},
+		"no reason":        {`{"id":"` + thought.ID + `","revision":1,` + evidence + `}`, "think update of " + thought.ID + " requires a reason"},
+		"itself as parent": {`{"id":"` + thought.ID + `","revision":1,"reason":"补充","parents":["` + thought.ID + `"],` + evidence + `}`, "memory " + thought.ID + " cannot list itself among its parents"},
+	} {
+		if _, err := runPresenceTool(t, tools["think"], tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: err = %v, want %q", name, err, tc.want)
+		}
+	}
+}
+
 func TestSettleRequiresOutcomeSource(t *testing.T) {
 	db, tools := newPresenceToolsForTest(t)
 	ctx := context.Background()

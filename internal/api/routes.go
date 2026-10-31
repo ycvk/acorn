@@ -145,6 +145,8 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Post("/watches/{watch_id}:resume", s.handleResumeWatch)
 			r.Put("/news/stories/{story_id}/reaction", s.handleReactToStory)
 			r.Delete("/news/stories/{story_id}/reaction", s.handleClearStoryReaction)
+			r.Post("/news/stories/{story_id}:discuss", s.handleDiscussStory)
+			r.Post("/news/stories/{story_id}:follow", s.handleFollowStory)
 			r.Post("/phone-notifications", s.handlePhoneNotifications)
 			r.Post("/captures", s.handleCreateCapture)
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
