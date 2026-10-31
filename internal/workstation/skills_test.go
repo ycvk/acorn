@@ -83,6 +83,24 @@ func TestSkillPackagePutRejectsPathsOutsideThePackage(t *testing.T) {
 	}
 }
 
+func TestSkillPackageDeleteRejectsANameTooLongForASkill(t *testing.T) {
+	client, home := newTestClient(t)
+	name := strings.Repeat("a", 65)
+	dir := filepath.Join(home, skillsDir, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, packageMarker), []byte("hash\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.DeleteSkillPackage(t.Context(), name); err == nil || !strings.Contains(err.Error(), "invalid skill name") {
+		t.Fatalf("delete err = %v", err)
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("package directory after a rejected delete: %v", err)
+	}
+}
+
 func TestReadPackageReadsDirectoriesAndZips(t *testing.T) {
 	client, home := newTestClient(t)
 	ctx := t.Context()
