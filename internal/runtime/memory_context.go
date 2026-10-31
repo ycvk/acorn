@@ -39,7 +39,6 @@ type runMemory struct {
 	images      map[int64][]*schema.UserInputImage
 	owner       ownerFiles
 	recall      core.MemoryRecall
-	current     []core.MemorySource
 	budget      int
 	service     MemoryContextService
 	store       core.MemoryStore
@@ -139,7 +138,7 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, fmt.Errorf("automatic recall: %w", err)
 	}
-	m := &runMemory{instruction: instruction, history: history, images: images, owner: owner, recall: recall, current: current, budget: memoryBudget, service: deps.Memory, store: deps.MemoryStore, activity: deps.Activity, runID: req.RunID, counter: counter, clock: deps.Clock}
+	m := &runMemory{instruction: instruction, history: history, images: images, owner: owner, recall: recall, budget: memoryBudget, service: deps.Memory, store: deps.MemoryStore, activity: deps.Activity, runID: req.RunID, counter: counter, clock: deps.Clock}
 	if recall.Epoch != history.Epoch {
 		return nil, core.ErrMemoryExcluded
 	}
