@@ -12,10 +12,7 @@ const trigramMinRunes = 3
 // snippetAround returns up to 40 runes on each side of the first match.
 func snippetAround(text, query string) string {
 	runes := []rune(text)
-	idx := strings.Index(text, query)
-	if idx < 0 {
-		idx = 0
-	}
+	idx := max(strings.Index(text, query), 0)
 	start := utf8.RuneCountInString(text[:idx])
 	from, to := max(start-40, 0), min(start+utf8.RuneCountInString(query)+40, len(runes))
 	out := string(runes[from:to])
