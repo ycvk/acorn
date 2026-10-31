@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/wire"
 )
@@ -40,12 +41,7 @@ func runSettingsShow(ctx context.Context, args []string) error {
 			return err
 		}
 		if *jsonMode {
-			return printJSON(struct {
-				Values     settings.Values `json:"values"`
-				Defaults   settings.Values `json:"defaults"`
-				Customized []string        `json:"customized"`
-				Usage      settings.Usage  `json:"usage"`
-			}{current.Values, current.Defaults, current.Customized, current.Usage})
+			return printJSON(api.NewSettingsDTO(current))
 		}
 		text, err := renderSettings(current)
 		if err != nil {

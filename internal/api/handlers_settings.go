@@ -31,7 +31,7 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		s.respondKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, settingsDTO(current))
+	s.respondJSON(w, r, http.StatusOK, NewSettingsDTO(current))
 }
 
 func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
@@ -75,10 +75,12 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		s.respondKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, settingsDTO(current))
+	s.respondJSON(w, r, http.StatusOK, NewSettingsDTO(current))
 }
 
-func settingsDTO(current settings.Current) SettingsDTO {
+// NewSettingsDTO is the settings as /v1/settings and acorn settings show
+// --json give them: customized under the JSON names of the values.
+func NewSettingsDTO(current settings.Current) SettingsDTO {
 	customized := make([]string, len(current.Customized))
 	for i, key := range current.Customized {
 		customized[i] = settings.NameForKey(key)
