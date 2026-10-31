@@ -77,19 +77,11 @@ func (s *Store) ClaimNewsBatch(ctx context.Context, now time.Time, lease time.Du
 	var items []core.NewsBatchItem
 	if err := scanRows(rows, func(scan func(...any) error) error {
 		var (
-			it                          core.NewsBatchItem
-			itemStatus, published, seen string
-			section                     sql.NullString
+			it      core.NewsBatchItem
+			section sql.NullString
 		)
-		if err := scan(&it.Item.ID, &it.Item.WatchID, &it.Item.Key, &it.Item.Title, &it.Item.URL, &it.Item.Summary, &published, &itemStatus, &it.Item.RunID, &seen, &it.Source, &section, &it.Issue); err != nil {
-			return err
-		}
-		it.Item.Status, it.Section = core.WatchItemStatus(itemStatus), section.String
-		var err error
-		if it.Item.PublishedAt, err = parseOptionalTime(published, "watch_items.published_at"); err != nil {
-			return err
-		}
-		it.Item.SeenAt, err = parseTimestamp(fixedTimestampLayout, seen, "watch_items.seen_at")
+		err := scanWatchItem(scan, &it.Item, &it.Source, &section, &it.Issue)
+		it.Section = section.String
 		items = append(items, it)
 		return err
 	}); err != nil {
@@ -426,19 +418,8 @@ func (s *Store) attachStoryItems(ctx context.Context, stories []core.NewsStory, 
 			return err
 		}
 		if err := scanRows(rows, func(scan func(...any) error) error {
-			var (
-				item                        core.NewsStoryItem
-				itemStatus, published, seen string
-			)
-			if err := scan(&item.ID, &item.WatchID, &item.Key, &item.Title, &item.URL, &item.Summary, &published, &itemStatus, &item.RunID, &seen, &item.Source, &item.Score); err != nil {
-				return err
-			}
-			item.Status = core.WatchItemStatus(itemStatus)
-			var err error
-			if item.PublishedAt, err = parseOptionalTime(published, "watch_items.published_at"); err != nil {
-				return err
-			}
-			item.SeenAt, err = parseTimestamp(fixedTimestampLayout, seen, "watch_items.seen_at")
+			var item core.NewsStoryItem
+			err := scanWatchItem(scan, &item.WatchItem, &item.Source, &item.Score)
 			stories[i].Items = append(stories[i].Items, item)
 			return err
 		}); err != nil {

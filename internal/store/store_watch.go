@@ -276,23 +276,28 @@ func (s *Store) ListWatchItems(ctx context.Context, status core.WatchItemStatus,
 func scanWatchItems(rows *sql.Rows) ([]core.WatchItem, error) {
 	var items []core.WatchItem
 	err := scanRows(rows, func(scan func(...any) error) error {
-		var (
-			item                        core.WatchItem
-			itemStatus, published, seen string
-		)
-		if err := scan(&item.ID, &item.WatchID, &item.Key, &item.Title, &item.URL, &item.Summary, &published, &itemStatus, &item.RunID, &seen); err != nil {
-			return err
-		}
-		item.Status = core.WatchItemStatus(itemStatus)
-		var err error
-		if item.PublishedAt, err = parseOptionalTime(published, "watch_items.published_at"); err != nil {
-			return err
-		}
-		item.SeenAt, err = parseTimestamp(fixedTimestampLayout, seen, "watch_items.seen_at")
+		var item core.WatchItem
+		err := scanWatchItem(scan, &item)
 		items = append(items, item)
 		return err
 	})
 	return items, err
+}
+
+// scanWatchItem scans the watchItemColumns of a row into item, followed by
+// extra.
+func scanWatchItem(scan func(...any) error, item *core.WatchItem, extra ...any) error {
+	var itemStatus, published, seen string
+	if err := scan(append([]any{&item.ID, &item.WatchID, &item.Key, &item.Title, &item.URL, &item.Summary, &published, &itemStatus, &item.RunID, &seen}, extra...)...); err != nil {
+		return err
+	}
+	item.Status = core.WatchItemStatus(itemStatus)
+	var err error
+	if item.PublishedAt, err = parseOptionalTime(published, "watch_items.published_at"); err != nil {
+		return err
+	}
+	item.SeenAt, err = parseTimestamp(fixedTimestampLayout, seen, "watch_items.seen_at")
+	return err
 }
 
 func (s *Store) MarkWatchItems(ctx context.Context, ids []int64, status core.WatchItemStatus, runID string) (err error) {
