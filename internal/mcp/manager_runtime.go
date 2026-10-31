@@ -10,7 +10,7 @@ import (
 func (m *Manager) buildToolListChangedHandler(providerName string) func(context.Context, *mcp.ToolListChangedRequest) {
 	return func(ctx context.Context, _ *mcp.ToolListChangedRequest) {
 		if err := m.RefreshProviderCatalog(ctx, providerName); err != nil {
-			slog.Warn("tool catalog refresh failed after tools/list_changed notification",
+			slog.Error("tool catalog refresh failed after tools/list_changed notification",
 				"provider", providerName, "error", err)
 		}
 	}
