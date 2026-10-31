@@ -90,37 +90,36 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	defer func() {
+		if !success {
+			_ = db.Close()
+		}
+	}()
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
 	artifactDir := filepath.Join(dir, "artifacts")
 	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
-		_ = db.Close()
 		return nil, fmt.Errorf("create artifact dir: %w", err)
 	}
 	filesDir := filepath.Join(dir, threadFilesDir)
 	if err := os.MkdirAll(filesDir, 0o700); err != nil {
-		_ = db.Close()
 		return nil, fmt.Errorf("create thread files dir: %w", err)
 	}
 	store := &Store{dir: dir, lock: lock, exclusive: exclusive, process: process, processLock: processLock, db: db, artifactDir: artifactDir, filesDir: filesDir}
 	artifactSvc, err := NewArtifactService(artifactDir, store)
 	if err != nil {
-		_ = db.Close()
 		return nil, fmt.Errorf("create artifact service: %w", err)
 	}
 	store.artifactSvc = artifactSvc
 	if err := store.configure(); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 	if err := store.openSchema(context.Background()); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 	read, err := openReadPool(filepath.Join(dir, "acorn.db"))
 	if err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 	store.read = read
@@ -129,9 +128,6 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 }
 
 func (s *Store) Close() error {
-	if s == nil || s.db == nil {
-		return nil
-	}
 	return errors.Join(s.read.Close(), s.db.Close(), s.releaseProcessLock(), s.lock.Close())
 }
 
