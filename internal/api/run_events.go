@@ -1,6 +1,10 @@
-package core
+package api
 
-import "time"
+import (
+	"time"
+
+	"github.com/ycvk/acorn/internal/core"
+)
 
 // RunEvent is the client-visible live event envelope used by /v1 run detail and SSE.
 type RunEvent struct {
@@ -69,13 +73,13 @@ type ElicitationPendingData struct {
 type ElicitationDecidedData = ElicitationPendingData
 
 type OperatorQuestionData struct {
-	ActionID         string                `json:"action_id"`
-	Question         string                `json:"question,omitempty"`
-	Options          []PendingActionOption `json:"options,omitempty"`
-	AllowFreeform    bool                  `json:"allow_freeform,omitempty"`
-	Decision         string                `json:"decision,omitempty"`
-	SelectedOptionID string                `json:"selected_option_id,omitempty"`
-	Answer           string                `json:"answer,omitempty"`
+	ActionID         string                     `json:"action_id"`
+	Question         string                     `json:"question,omitempty"`
+	Options          []core.PendingActionOption `json:"options,omitempty"`
+	AllowFreeform    bool                       `json:"allow_freeform,omitempty"`
+	Decision         string                     `json:"decision,omitempty"`
+	SelectedOptionID string                     `json:"selected_option_id,omitempty"`
+	Answer           string                     `json:"answer,omitempty"`
 }
 
 type OperatorQuestionPendingData = OperatorQuestionData

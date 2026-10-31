@@ -41,7 +41,7 @@ func NewEventService(store core.SessionStore, artifacts core.ArtifactService) *E
 	}
 }
 
-func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*core.RunEventBatch, error) {
+func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*RunEventBatch, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -52,7 +52,7 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 	if err != nil {
 		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
 	}
-	events := make([]core.RunEvent, 0, len(records))
+	events := make([]RunEvent, 0, len(records))
 	cursorSeq := afterSeq
 	for _, record := range records {
 		if record.Sequence > cursorSeq {
@@ -67,13 +67,13 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 		}
 		events = append(events, event)
 	}
-	return &core.RunEventBatch{
+	return &RunEventBatch{
 		Events:    events,
 		CursorSeq: cursorSeq,
 	}, nil
 }
 
-func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string) (*core.RunEventDetail, error) {
+func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string) (*RunEventDetail, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -84,7 +84,7 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 	if err != nil {
 		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
 	}
-	events := make([]core.RunEvent, 0, len(records))
+	events := make([]RunEvent, 0, len(records))
 	for _, record := range records {
 		if !IsLiveRunEventKind(record.Kind) {
 			continue
@@ -95,7 +95,7 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 		}
 		events = append(events, event)
 	}
-	return &core.RunEventDetail{
+	return &RunEventDetail{
 		Events: events,
 	}, nil
 }

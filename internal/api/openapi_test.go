@@ -432,7 +432,7 @@ func TestProjectToolApprovalEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project pending: %v", err)
 	}
-	if got := pending.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.ToolName != "browser" || got.Arguments != `{"url":"https://example.com"}` {
+	if got := pending.Data.(ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.ToolName != "browser" || got.Arguments != `{"url":"https://example.com"}` {
 		t.Fatalf("pending data = %+v", got)
 	}
 	decided, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 4, Kind: "tool_approval.decided", Payload: map[string]any{
@@ -441,7 +441,7 @@ func TestProjectToolApprovalEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project decided: %v", err)
 	}
-	if got := decided.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.Decision != "decline" {
+	if got := decided.Data.(ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.Decision != "decline" {
 		t.Fatalf("decided data = %+v", got)
 	}
 }

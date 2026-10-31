@@ -68,7 +68,7 @@ type ArtifactSummaryDTO struct {
 type RunDetailDTO struct {
 	Run       RunDTO               `json:"run"`
 	Thread    ThreadDTO            `json:"thread"`
-	Events    []core.RunEvent      `json:"events"`
+	Events    []RunEvent           `json:"events"`
 	Artifacts []ArtifactSummaryDTO `json:"artifacts"`
 }
 

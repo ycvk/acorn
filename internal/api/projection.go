@@ -34,19 +34,19 @@ func IsLiveRunEventKind(kind string) bool {
 }
 
 // ProjectRunEvent converts an EventRecord into the /v1 client run event contract.
-func ProjectRunEvent(record core.EventRecord) (core.RunEvent, error) {
+func ProjectRunEvent(record core.EventRecord) (RunEvent, error) {
 	payload, ok := record.Payload.(map[string]any)
 	if !ok {
-		return core.RunEvent{}, projectionError("run event payload must be object: run_id=%s sequence=%d kind=%s", record.RunID, record.Sequence, record.Kind)
+		return RunEvent{}, projectionError("run event payload must be object: run_id=%s sequence=%d kind=%s", record.RunID, record.Sequence, record.Kind)
 	}
 	if !IsLiveRunEventKind(record.Kind) {
-		return core.RunEvent{}, projectionError("event %q is diagnostic-only and not part of the live client contract", record.Kind)
+		return RunEvent{}, projectionError("event %q is diagnostic-only and not part of the live client contract", record.Kind)
 	}
 	data, err := ProjectRunEventData(record.Kind, payload)
 	if err != nil {
-		return core.RunEvent{}, err
+		return RunEvent{}, err
 	}
-	return core.RunEvent{
+	return RunEvent{
 		EventID: fmt.Sprintf("%s:%d", record.RunID, record.Sequence),
 		RunID:   record.RunID,
 		Seq:     record.Sequence,
@@ -60,32 +60,32 @@ func ProjectRunEvent(record core.EventRecord) (core.RunEvent, error) {
 func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 	switch kind {
 	case "run.started":
-		return core.RunStartedData{Input: topLevelString(payload, "input")}, nil
+		return RunStartedData{Input: topLevelString(payload, "input")}, nil
 	case "assistant.delta":
 		value, ok := objectField(payload, "assistant_delta")
 		if !ok {
 			return nil, projectionError("assistant.delta payload missing assistant_delta object")
 		}
-		return core.AssistantDeltaData{AssistantDelta: value}, nil
+		return AssistantDeltaData{AssistantDelta: value}, nil
 	case "run.completed":
 		value, _ := objectField(payload, "message")
-		return core.RunCompletedData{Message: value}, nil
+		return RunCompletedData{Message: value}, nil
 	case "run.failed":
-		return core.RunFailedData{Error: topLevelString(payload, "error")}, nil
+		return RunFailedData{Error: topLevelString(payload, "error")}, nil
 	case "run.interrupted":
 		value, _ := objectField(payload, "interrupt")
-		return core.RunInterruptedData{Interrupt: value}, nil
+		return RunInterruptedData{Interrupt: value}, nil
 	case "run.resume_requested":
 		value, _ := objectField(payload, "targets")
-		return core.RunResumeRequestedData{Targets: value}, nil
+		return RunResumeRequestedData{Targets: value}, nil
 	case "elicitation.pending":
-		return core.ElicitationPendingData{
+		return ElicitationPendingData{
 			ActionID:        topLevelString(payload, "action_id"),
 			Message:         topLevelString(payload, "message"),
 			RequestedSchema: payload["requested_schema"],
 		}, nil
 	case "elicitation.decided":
-		return core.ElicitationDecidedData{
+		return ElicitationDecidedData{
 			ActionID:        topLevelString(payload, "action_id"),
 			Message:         topLevelString(payload, "message"),
 			RequestedSchema: payload["requested_schema"],
@@ -93,14 +93,14 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 	case "operator_question.pending", "operator_question.decided":
 		return projectOperatorQuestionData(payload), nil
 	case "tool_approval.pending", "tool_approval.decided":
-		return core.ToolApprovalData{
+		return ToolApprovalData{
 			ActionID:  topLevelString(payload, "action_id"),
 			ToolName:  topLevelString(payload, "tool_name"),
 			Arguments: topLevelString(payload, "arguments"),
 			Decision:  topLevelString(payload, "decision"),
 		}, nil
 	case "tool.call.started", "tool.call.succeeded", "tool.call.failed":
-		return core.ToolCallData{
+		return ToolCallData{
 			ToolCallID: topLevelString(payload, "tool_call_id"),
 			ToolName:   topLevelString(payload, "tool_name"),
 			Summary:    toolCallSummary(topLevelString(payload, "arguments")),
@@ -125,8 +125,8 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 	}
 }
 
-func projectOperatorQuestionData(payload map[string]any) core.OperatorQuestionData {
-	return core.OperatorQuestionData{
+func projectOperatorQuestionData(payload map[string]any) OperatorQuestionData {
+	return OperatorQuestionData{
 		ActionID:         topLevelString(payload, "action_id"),
 		Question:         topLevelString(payload, "question"),
 		Options:          pendingActionOptionsFromAny(payload["options"]),

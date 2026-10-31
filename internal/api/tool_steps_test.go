@@ -17,7 +17,7 @@ func TestProjectToolCallEventsCarrySummaryNotOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project started: %v", err)
 	}
-	if got := started.Data.(core.ToolCallData); got != (core.ToolCallData{ToolCallID: "call_1", ToolName: "web_search", Summary: "go 1.28 release"}) {
+	if got := started.Data.(ToolCallData); got != (ToolCallData{ToolCallID: "call_1", ToolName: "web_search", Summary: "go 1.28 release"}) {
 		t.Fatalf("started data = %+v", got)
 	}
 
@@ -27,7 +27,7 @@ func TestProjectToolCallEventsCarrySummaryNotOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project succeeded: %v", err)
 	}
-	if got := succeeded.Data.(core.ToolCallData); got != (core.ToolCallData{ToolCallID: "call_1", ToolName: "web_search"}) {
+	if got := succeeded.Data.(ToolCallData); got != (ToolCallData{ToolCallID: "call_1", ToolName: "web_search"}) {
 		t.Fatalf("succeeded data = %+v", got)
 	}
 
@@ -37,7 +37,7 @@ func TestProjectToolCallEventsCarrySummaryNotOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project failed: %v", err)
 	}
-	if got := failed.Data.(core.ToolCallData).Error; len([]rune(got)) != toolCallErrorRunes+1 || !strings.HasSuffix(got, "…") {
+	if got := failed.Data.(ToolCallData).Error; len([]rune(got)) != toolCallErrorRunes+1 || !strings.HasSuffix(got, "…") {
 		t.Fatalf("failed error not clipped: %d runes", len([]rune(got)))
 	}
 }

@@ -11,14 +11,14 @@ import (
 
 func TestRunEventsBacklogSSE(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []core.RunEvent{
+		events: []RunEvent{
 			{
 				EventID: "run_1:2",
 				RunID:   "run_1",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: core.AssistantDeltaData{
+				Data: AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -28,7 +28,7 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 				Seq:     3,
 				TS:      time.Date(2026, 5, 2, 10, 5, 0, 0, time.UTC),
 				Type:    "run.completed",
-				Data:    core.RunCompletedData{Message: map[string]any{"content": "done"}},
+				Data:    RunCompletedData{Message: map[string]any{"content": "done"}},
 			},
 		},
 	}
@@ -63,14 +63,14 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 
 func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []core.RunEvent{
+		events: []RunEvent{
 			{
 				EventID: "run_1:2",
 				RunID:   "run_1\nbroken",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: core.AssistantDeltaData{
+				Data: AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -93,29 +93,29 @@ func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 
 func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 	service := &clientHandlerStub{
-		eventBatches: []*core.RunEventBatch{
+		eventBatches: []*RunEventBatch{
 			{
-				Events: []core.RunEvent{
+				Events: []RunEvent{
 					{
 						EventID: "run_follow:1",
 						RunID:   "run_follow",
 						Seq:     1,
 						TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 						Type:    "run.started",
-						Data:    core.RunStartedData{Input: "hello"},
+						Data:    RunStartedData{Input: "hello"},
 					},
 				},
 				CursorSeq: 1,
 			},
 			{
-				Events: []core.RunEvent{
+				Events: []RunEvent{
 					{
 						EventID: "run_follow:2",
 						RunID:   "run_follow",
 						Seq:     2,
 						TS:      time.Date(2026, 5, 2, 10, 4, 1, 0, time.UTC),
 						Type:    "run.completed",
-						Data:    core.RunCompletedData{Message: map[string]any{"content": "done"}},
+						Data:    RunCompletedData{Message: map[string]any{"content": "done"}},
 					},
 				},
 				CursorSeq: 2,

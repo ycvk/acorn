@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/api"
-	"github.com/ycvk/acorn/internal/core"
 )
 
 // TestViewActionsComeBackAsTheOwnersMessage has the agent offer a button and
@@ -98,7 +97,7 @@ func TestViewActionsComeBackAsTheOwnersMessage(t *testing.T) {
 
 	var detail api.RunDetailDTO
 	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/runs/"+sent.Run.ID+"/detail", nil), http.StatusOK, &detail)
-	if !slices.ContainsFunc(detail.Events, func(e core.RunEvent) bool { return e.Type == "view.updated" }) {
+	if !slices.ContainsFunc(detail.Events, func(e api.RunEvent) bool { return e.Type == "view.updated" }) {
 		t.Fatalf("the action's run has no view.updated event: %+v", detail.Events)
 	}
 }

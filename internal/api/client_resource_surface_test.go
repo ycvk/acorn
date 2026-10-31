@@ -31,14 +31,14 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			Status:    "completed",
 			CreatedAt: time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 		},
-		events: []core.RunEvent{
+		events: []RunEvent{
 			{
 				EventID: "run_1:1",
 				RunID:   "run_1",
 				Seq:     1,
 				TS:      time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 				Type:    "run.started",
-				Data:    core.RunStartedData{Input: "hello"},
+				Data:    RunStartedData{Input: "hello"},
 			},
 		},
 		artifacts: []ArtifactSummary{{

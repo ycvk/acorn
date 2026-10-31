@@ -215,7 +215,7 @@ func (s *ThreadService) projectThread(record core.SessionRecord, latestRun *core
 		Title:     record.Title,
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
-		State:     string(core.SessionStateNew),
+		State:     string(SessionStateNew),
 	}
 	if latestRun == nil {
 		return thread, nil
@@ -232,13 +232,13 @@ func (s *ThreadService) projectThread(record core.SessionRecord, latestRun *core
 func projectThreadState(status core.RunStatus) (string, error) {
 	switch status {
 	case core.RunStatusRunning:
-		return string(core.SessionStateRunning), nil
+		return string(SessionStateRunning), nil
 	case core.RunStatusSucceeded:
-		return string(core.SessionStateCompleted), nil
+		return string(SessionStateCompleted), nil
 	case core.RunStatusFailed:
-		return string(core.SessionStateFailed), nil
+		return string(SessionStateFailed), nil
 	case core.RunStatusInterrupted:
-		return string(core.SessionStateInterrupted), nil
+		return string(SessionStateInterrupted), nil
 	default:
 		return "", projectionError("unknown run status %q", status)
 	}
@@ -413,7 +413,7 @@ func toolSteps(events []core.EventRecord) ([]ToolStep, error) {
 		if err != nil {
 			return nil, err
 		}
-		call, ok := data.(core.ToolCallData)
+		call, ok := data.(ToolCallData)
 		if !ok {
 			return nil, projectionError("event %q is not a tool call: run_id=%s sequence=%d", event.Kind, event.RunID, event.Sequence)
 		}
