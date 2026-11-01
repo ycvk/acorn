@@ -24,10 +24,7 @@ func TestProviderToolsTakeTheProvidersReadiness(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.provider.Name = "fixture"
 			tc.provider.ConfiguredToolNames = []string{"mcp__fixture__x"}
-			items, err := (&CapabilitiesService{}).providerToolCapabilities(tc.provider)
-			if err != nil {
-				t.Fatal(err)
-			}
+			items := providerToolCapabilities(tc.provider)
 			if got := items[0]; got.HealthState != string(tc.wantHealth) || got.Enabled != tc.wantEnabled {
 				t.Fatalf("tool = %+v, want health %s enabled %t", got, tc.wantHealth, tc.wantEnabled)
 			}
