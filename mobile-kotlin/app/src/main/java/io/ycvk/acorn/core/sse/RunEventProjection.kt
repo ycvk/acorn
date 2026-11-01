@@ -7,8 +7,8 @@ import javax.inject.Singleton
 /**
  * Projects a stream of [RunEventPacket]s into [ChatState] for a chat screen.
  *
- * Accumulates assistant text from streaming deltas, finalises on agent.message /
- * run.completed, tracks run lifecycle, and surfaces pending actions as activity rows.
+ * Accumulates assistant text from streaming deltas, finalises on run.completed,
+ * tracks run lifecycle, and surfaces pending actions as activity rows.
  */
 @Singleton
 class RunEventProjection @Inject constructor() {

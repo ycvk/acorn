@@ -151,8 +151,7 @@ class RunEventStreamClient(client: OkHttpClient) {
  * classes. Each subtype takes [eventId] and [seq] from the wrapped event so callers
  * can read envelope fields without unwrapping.
  *
- * [Unknown] preserves the raw SSE type and data for events the client does not
- * recognise, so they can be logged or ignored without losing information.
+ * [Unknown] stands for an event the client does not recognise; it is ignored.
  */
 sealed class RunEventPacket(val eventId: String, val seq: Long) {
     data class Started(val event: ClientRunStartedEvent) : RunEventPacket(event.eventId, event.seq)

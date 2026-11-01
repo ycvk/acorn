@@ -167,7 +167,7 @@ fun PageHeader(
     }
 }
 
-/** Detail page bar: back, a one-line title with an optional status line, actions, and a rule below. */
+/** Detail page bar: back, a one-line title with an optional status line, and actions. */
 @Composable
 fun TopBar(
     onBack: () -> Unit,
