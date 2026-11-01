@@ -29,15 +29,16 @@ type ArtifactSummary struct {
 type EventService struct {
 	store     core.SessionStore
 	artifacts core.ArtifactService
-	eventPoll time.Duration
 }
+
+// eventPollInterval is how often a followed run's stream checks for new events.
+const eventPollInterval = 100 * time.Millisecond
 
 // NewEventService constructs an EventService backed by the given store.
 func NewEventService(store core.SessionStore, artifacts core.ArtifactService) *EventService {
 	return &EventService{
 		store:     store,
 		artifacts: artifacts,
-		eventPoll: 100 * time.Millisecond,
 	}
 }
 
@@ -98,13 +99,6 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 	return &RunEventDetail{
 		Events: events,
 	}, nil
-}
-
-func (s *EventService) EventPollInterval() time.Duration {
-	if s == nil || s.eventPoll <= 0 {
-		return 100 * time.Millisecond
-	}
-	return s.eventPoll
 }
 
 func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]ArtifactSummary, error) {

@@ -15,9 +15,8 @@ import (
 )
 
 type RunResumeService struct {
-	store       core.SessionStore
-	resumeRun   func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
-	reportError func(context.Context, string, error)
+	store     core.SessionStore
+	resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
 
 	mu       sync.Mutex
 	inflight map[string]struct{}
@@ -30,9 +29,8 @@ type resumeStatus struct {
 
 func NewRunResumeService(store core.SessionStore) *RunResumeService {
 	return &RunResumeService{
-		store:       store,
-		reportError: reportClientBackgroundError,
-		inflight:    make(map[string]struct{}),
+		store:    store,
+		inflight: make(map[string]struct{}),
 	}
 }
 
@@ -144,7 +142,7 @@ func (s *RunResumeService) resumeClaimed(ctx context.Context, runID string) {
 	s.release(runID)
 	if result != nil && result.Status == core.RunStatusInterrupted {
 		if err := s.ResumeIfReady(ctx, runID); err != nil {
-			s.reportError(ctx, runID, err)
+			reportClientBackgroundError(ctx, runID, err)
 		}
 	}
 }
@@ -159,11 +157,11 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 	}
 	run, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
-		s.reportError(ctx, runID, errors.Join(cause, err))
+		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
 		return
 	}
 	if run.Status == core.RunStatusSucceeded || run.Status == core.RunStatusFailed {
-		s.reportError(ctx, runID, cause)
+		reportClientBackgroundError(ctx, runID, cause)
 		return
 	}
 	// Another resumer (or process) already claimed the run.
@@ -171,11 +169,11 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 		return
 	}
 	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
-		s.reportError(ctx, runID, errors.Join(cause, err))
+		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
 		return
 	}
 	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
-		s.reportError(ctx, runID, errors.Join(cause, err))
+		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
 	}
 }
 

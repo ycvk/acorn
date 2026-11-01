@@ -21,13 +21,12 @@ type threadForgetter interface {
 // derives thread state from the latest run, and projects stored messages into
 // client-facing DTOs.
 type ThreadService struct {
-	store       core.SessionStore
-	files       core.ThreadFiles
-	views       threadViewStore
-	stories     threadStoryStore
-	forgetter   threadForgetter
-	barrier     func(context.Context, core.MemoryExclusion, string) error
-	newThreadID func() string
+	store     core.SessionStore
+	files     core.ThreadFiles
+	views     threadViewStore
+	stories   threadStoryStore
+	forgetter threadForgetter
+	barrier   func(context.Context, core.MemoryExclusion, string) error
 }
 
 // threadViewStore keeps the views runs showed in a thread and the actions
@@ -57,18 +56,13 @@ func NewThreadService(store core.SessionStore, files core.ThreadFiles, views thr
 		return nil, errors.New("thread service: store, files, views, stories, forgetter and barrier are required")
 	}
 	return &ThreadService{
-		store:       store,
-		files:       files,
-		views:       views,
-		stories:     stories,
-		forgetter:   forgetter,
-		barrier:     barrier,
-		newThreadID: newThreadID,
+		store:     store,
+		files:     files,
+		views:     views,
+		stories:   stories,
+		forgetter: forgetter,
+		barrier:   barrier,
 	}, nil
-}
-
-func newThreadID() string {
-	return core.NewSessionID()
 }
 
 const generatedThreadTitleMaxRunes = 64
@@ -116,10 +110,10 @@ func (s *ThreadService) ListThreads(ctx context.Context, limit int) ([]Thread, e
 }
 
 func (s *ThreadService) CreateThread(ctx context.Context, title string) (*Thread, error) {
-	if s == nil || s.store == nil || s.newThreadID == nil {
+	if s == nil || s.store == nil {
 		return nil, errors.New("client service is not initialized")
 	}
-	session, err := s.store.CreateSession(ctx, s.newThreadID(), strings.TrimSpace(title))
+	session, err := s.store.CreateSession(ctx, core.NewSessionID(), strings.TrimSpace(title))
 	if err != nil {
 		return nil, err
 	}

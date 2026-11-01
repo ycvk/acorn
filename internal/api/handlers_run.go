@@ -120,8 +120,7 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID string, lastSeq int64) {
-	interval := s.events.EventPollInterval()
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(eventPollInterval)
 	defer ticker.Stop()
 
 	for {
