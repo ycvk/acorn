@@ -163,7 +163,7 @@ func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, tools
 	}
 	specs := append([]core.ToolSpec(nil), registrySpecs...)
 	specs = append(specs, toolset.Specs()...)
-	mcpSpecs, err := buildMCPAuxiliaryToolSpecs(ctx, deps.Config, mcpManager)
+	mcpSpecs, err := buildMCPAuxiliaryToolSpecs(ctx, mcpManager)
 	if err != nil {
 		return nil, err
 	}

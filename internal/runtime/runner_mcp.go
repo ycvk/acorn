@@ -9,7 +9,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 )
@@ -18,17 +17,17 @@ import (
 // mcp.Manager registers the main MCP tools into the ToolRegistry; the resource
 // and prompt tools come from the manager at run time because they are
 // session-derived wrappers outside the ToolRegistry lifecycle.
-func buildMCPAuxiliaryToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]core.ToolSpec, error) {
+func buildMCPAuxiliaryToolSpecs(ctx context.Context, mcpManager *mcpprovider.Manager) ([]core.ToolSpec, error) {
 	var resourceTools, promptTools []einotool.BaseTool
 	if mcpManager != nil {
 		resourceTools = mcpManager.ResourceTools()
 		promptTools = mcpManager.PromptTools()
 	}
-	resourceSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.resource", core.ToolKindMCP, resourceTools)
+	resourceSpecs, err := BuildCatalogSpecs(ctx, "mcp.resource", core.ToolKindMCP, resourceTools)
 	if err != nil {
 		return nil, err
 	}
-	promptSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.prompt", core.ToolKindMCP, promptTools)
+	promptSpecs, err := BuildCatalogSpecs(ctx, "mcp.prompt", core.ToolKindMCP, promptTools)
 	if err != nil {
 		return nil, err
 	}
@@ -36,11 +35,10 @@ func buildMCPAuxiliaryToolSpecs(ctx context.Context, cfg *config.Config, mcpMana
 }
 
 // buildMCPToolSpec constructs a core.ToolSpec for a single discovered MCP tool,
-// applying namespacing, description augmentation, the integration category,
-// and the provider's resolved parallel policy. Used by the MCPToolSpecBuilder
-// closure handed to mcp.Manager so the unified ToolRegistry receives the spec
-// at provider-connect time.
-func buildMCPToolSpec(ctx context.Context, cfg *config.Config, providerName string, tool einotool.BaseTool) (core.ToolSpec, error) {
+// applying namespacing, description augmentation and the integration category.
+// mcp.Manager calls it at provider-connect time so the unified ToolRegistry
+// receives the spec.
+func buildMCPToolSpec(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error) {
 	info, err := tool.Info(ctx)
 	if err != nil {
 		return core.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", providerName, err)
@@ -49,16 +47,7 @@ func buildMCPToolSpec(ctx context.Context, cfg *config.Config, providerName stri
 	if err != nil {
 		return core.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, providerName, err)
 	}
-	return RuntimeToolSpec(ctx, cfg, providerName, core.ToolKindMCP, namespaced)
-}
-
-// mcpToolSpecBuilder returns a mcp.ToolSpecBuilder that builds a unified
-// registry spec for a discovered MCP tool. It closes over the run config so
-// the manager can register tools without a direct config/runtime dependency.
-func mcpToolSpecBuilder(cfg *config.Config) mcpprovider.ToolSpecBuilder {
-	return func(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error) {
-		return buildMCPToolSpec(ctx, cfg, providerName, tool)
-	}
+	return RuntimeToolSpec(ctx, providerName, core.ToolKindMCP, namespaced)
 }
 
 func hasEnabledProviders(cfgs []core.ProviderConfig) bool {
@@ -109,7 +98,7 @@ func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCa
 	opts := []mcpprovider.ManagerOption{
 		mcpprovider.WithTokenStore(deps.Store),
 		mcpprovider.WithStore(pendingActionStore),
-		mcpprovider.WithToolRegistry(deps.ToolRegistry, mcpToolSpecBuilder(deps.Config)),
+		mcpprovider.WithToolRegistry(deps.ToolRegistry, buildMCPToolSpec),
 	}
 	mgr, err := mcpprovider.NewManager(ctx, providerConfigs, opts...)
 	if err != nil {
