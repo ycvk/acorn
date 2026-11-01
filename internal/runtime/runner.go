@@ -110,6 +110,12 @@ func validateRuntimeDeps(deps RuntimeDeps) error {
 	if deps.Settings == nil {
 		return errors.New("settings are required")
 	}
+	if deps.ArtifactService == nil {
+		return errors.New("artifact service is required")
+	}
+	if deps.Memory == nil {
+		return errors.New("runtime memory service is required")
+	}
 	return nil
 }
 

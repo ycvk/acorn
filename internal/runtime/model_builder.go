@@ -18,9 +18,6 @@ import (
 
 // newChatModel builds a chat model from the configured primary provider.
 func newChatModel(ctx context.Context, cfg *config.Config) (einomodel.AgenticModel, error) {
-	if cfg == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
 	provider, err := cfg.EnabledProvider()
 	if err != nil {
 		return nil, err

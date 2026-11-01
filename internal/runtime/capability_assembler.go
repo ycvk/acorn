@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -35,9 +34,6 @@ func NewContextBridge() core.ToolCallContextBridge {
 }
 
 func buildToolset(ctx context.Context, deps RuntimeDeps) (*tools.Catalog, error) {
-	if err := validateToolsetDeps(deps); err != nil {
-		return nil, err
-	}
 	specs, err := buildLocalToolSpecs(deps)
 	if err != nil {
 		return nil, err
@@ -47,16 +43,6 @@ func buildToolset(ctx context.Context, deps RuntimeDeps) (*tools.Catalog, error)
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
 	return catalog, nil
-}
-
-func validateToolsetDeps(deps RuntimeDeps) error {
-	if deps.Config == nil {
-		return errors.New("runner factory is not initialized")
-	}
-	if deps.ArtifactService == nil {
-		return errors.New("artifact service is not initialized")
-	}
-	return nil
 }
 
 // buildLocalToolSpecs builds the run-scoped web and workstation tool specs from

@@ -247,7 +247,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, err
 	}
 	executeRun := func(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*runtime.Result, error) {
-		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
+		exec, err := runtime.NewExecutorWithRunRuntimeAndController(db, runnerFactory, runController)
 		if err != nil {
 			return nil, err
 		}
@@ -256,7 +256,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return result, err
 	}
 	resumeRun := func(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*runtime.Result, error) {
-		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
+		exec, err := runtime.NewExecutorWithRunRuntimeAndController(db, runnerFactory, runController)
 		if err != nil {
 			return nil, err
 		}

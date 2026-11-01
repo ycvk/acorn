@@ -8,7 +8,6 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -26,10 +25,7 @@ type Executor struct {
 	controller *RunController
 }
 
-func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
+func NewExecutorWithRunRuntimeAndController(store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
 	if store == nil {
 		return nil, errors.New("store is required")
 	}
@@ -37,9 +33,9 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		return nil, errors.New("run runtime is required")
 	}
 	if controller == nil {
-		controller = NewRunController()
+		return nil, errors.New("run controller is required")
 	}
-	if err := cfg.ValidateExecutionReady(); err != nil {
+	if err := runRuntime.deps.Config.ValidateExecutionReady(); err != nil {
 		return nil, fmt.Errorf("%w: %w", core.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
@@ -322,9 +318,6 @@ func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink core.St
 }
 
 func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink core.StreamSink) error {
-	if strings.TrimSpace(runID) == "" || setupErr == nil {
-		return setupErr
-	}
 	durableCtx := context.WithoutCancel(ctx)
 	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
 		return err

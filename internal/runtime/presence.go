@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -43,8 +44,8 @@ type presenceMiddleware struct {
 }
 
 func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string, location *time.Location) (*presenceMiddleware, error) {
-	if deps.PhoneNotifications == nil || deps.Activity == nil || deps.MemoryStore == nil || deps.Commitments == nil || deps.Clock == nil || location == nil {
-		return nil, fmt.Errorf("presence middleware requires PhoneNotifications, Presence, Clock and Location")
+	if location == nil {
+		return nil, errors.New("presence middleware requires a location")
 	}
 	inputBudget, err := deps.Config.InputTokenBudget()
 	if err != nil {

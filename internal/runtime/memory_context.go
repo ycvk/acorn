@@ -49,9 +49,6 @@ type runMemory struct {
 }
 
 func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest, instruction string, catalogTokens int, owner ownerFiles) (*runMemory, error) {
-	if deps.Memory == nil {
-		return nil, errors.New("runtime memory service is required")
-	}
 	counter, err := NewTokenCounter()
 	if err != nil {
 		return nil, err

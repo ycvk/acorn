@@ -405,7 +405,7 @@ func (c *Container) RunOnce(ctx context.Context, input string) (*RunOnceResult, 
 	if trimmed == "" {
 		return nil, errors.New("run input is required")
 	}
-	exec, err := runtime.NewExecutorWithRunRuntimeAndController(c.cfg, c.store, c.runnerFactory, c.runController)
+	exec, err := runtime.NewExecutorWithRunRuntimeAndController(c.store, c.runnerFactory, c.runController)
 	if err != nil {
 		return nil, err
 	}
