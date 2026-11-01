@@ -89,34 +89,23 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	}
 	switch name {
 	case "artifact_read", "artifact_list":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
 	case "artifact_write", "knowledge_write", "knowledge_edit", "skill_write", "skill_retire", "skill_import", "watch_create", "watch_update", "news_sections", "news_source":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
 	case "ask_operator", "notify_owner", "send_file":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 	case "keep", "think", "schedule_wake", "settle", "memory_correct", "memory_forget", "concern":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryMemory
 	case "recall", "memory_read", "knowledge_read", "knowledge_search", "knowledge_list", "skill_inspect", "watch_list", "news_search", "feed_discover":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
 	case "web_fetch", "web_search":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
 	case "shell", "files":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("workstation")
 	case "show_view", "update_view":
-		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("views")
-	default:
-		spec.Kind = core.ToolKindNative
-		spec.Category = core.ToolCategoryInspect
 	}
 	spec.Health = core.ToolHealth{State: core.HealthStateHealthy}
 	return spec
