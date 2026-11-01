@@ -9,8 +9,8 @@ import (
 )
 
 // clientProjectionBoundaryFiles are the /v1 client-facing projection and DTO
-// files in internal/api. They must not import internal/runtime — runtime-owned types must not leak into
-// the client wire contract.
+// files in internal/api. They must not import internal/runtime —
+// runtime-owned types must not leak into the client wire contract.
 var clientProjectionBoundaryFiles = []string{
 	"internal/api/projection.go",
 	"internal/api/run_events.go",
