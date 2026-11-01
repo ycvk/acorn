@@ -538,7 +538,7 @@ The database records its schema version. A newer Acorn upgrades an older databas
 
 The agent has its own Linux computer: a Podman container run by `acorn-workstation.service`. It runs Debian with common command-line tools, Python and internet access; the agent works there as user `agent` with sudo. The agent uses it through two tools, loaded with `tool_search`: `shell` runs a bash command and `files` reads or writes a text file. `send_file` hands you a file from it, and files you send the agent are copied there under `~/uploads/`.
 
-The installer installs Podman, builds the image from the release's `workstation/Containerfile`, adds `ACORN_WORKSTATION_TOKEN` to `acorn.env` and starts the service. The Acorn binary is mounted read-only into the container and serves the workstation API on `127.0.0.1:7810`; every request carries the token. The container cannot see Acorn's config, env, data or model keys.
+The installer installs Podman, builds the image from the release's `workstation/Containerfile`, adds `ACORN_WORKSTATION_TOKEN` to `acorn.env` and starts the service. The Acorn binary is mounted read-only into the container and serves the workstation API on `127.0.0.1:7810`; every request carries the token. The API refuses requests from inside the container, so commands, skill packages and triggers running there cannot use it to skip approval. The container cannot see Acorn's config, env, data or model keys.
 
 ```yaml
 workstation:
