@@ -27,6 +27,8 @@ import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * SSE client for `GET /v1/runs/{runId}/events?follow=true&after_seq=N`.
@@ -38,7 +40,8 @@ import java.util.concurrent.ConcurrentHashMap
  * [EventSourceListener.onEvent]) to select the matching concrete [Client*Event]
  * Moshi adapter.
  */
-class RunEventStreamClient(client: OkHttpClient) {
+@Singleton
+class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
     // Reuse the generated client's Moshi (date/UUID adapters + KotlinJsonAdapterFactory)
     // so envelope fields (OffsetDateTime ts, Long seq) decode the same way as REST calls.
     private val moshi = Serializer.moshi
