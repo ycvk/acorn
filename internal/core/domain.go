@@ -3,8 +3,6 @@ package core
 import (
 	"errors"
 	"time"
-
-	"github.com/cloudwego/eino/adk"
 )
 
 // --- Sentinel errors ---
@@ -164,6 +162,5 @@ type ExecuteRequest struct {
 	BoundMessageID int64
 	SkillID        string
 	// Wake says what woke this run; empty means an owner message.
-	Wake     string
-	Messages []adk.AgenticMessage
+	Wake string
 }

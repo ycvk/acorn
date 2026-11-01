@@ -68,9 +68,6 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRe
 		return req, err
 	}
 	req.TurnIndex = turnIndex
-	if len(req.Messages) == 0 && strings.TrimSpace(req.Input) != "" {
-		req.Messages = []adk.AgenticMessage{schema.UserAgenticMessage(req.Input)}
-	}
 	return req, nil
 }
 
@@ -102,7 +99,12 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		return nil, err
 	}
 	runCtxBase = memoryScope(runCtxBase, runID, req.Autonomous)
-	active, err := e.buildExecuteRunner(runCtxBase, req, runID, sink)
+	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
+		SessionID:  req.SessionID,
+		RunID:      runID,
+		Wake:       req.Wake,
+		Standalone: req.Standalone,
+	})
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
@@ -127,18 +129,6 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.Ex
 		return e.store.BindUserMessageRunIDByID(ctx, req.BoundMessageID, runID)
 	}
 	return e.store.BindLatestUserMessageRunID(ctx, req.SessionID, req.TurnIndex, runID)
-}
-
-func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.ExecuteRequest, runID string, sink core.StreamSink) (*ActiveRunner, error) {
-	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID:  req.SessionID,
-		RunID:      runID,
-		Input:      req.Input,
-		SkillID:    req.SkillID,
-		Wake:       req.Wake,
-		Standalone: req.Standalone,
-		Sink:       sink,
-	})
 }
 
 func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func(), error) {
