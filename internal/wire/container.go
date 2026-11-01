@@ -314,14 +314,14 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Backups:            backupStatus(cfg),
 		Interval:           wakeInterval,
 	})
-	if err == nil && deps.notifier != nil {
-		container.wake = container.wake.WithNotifications(deps.notifier)
-	}
-	if err == nil && deps.triggers != nil {
-		container.wake = container.wake.WithTriggers(deps.triggers, deps.panels)
-	}
 	if err != nil {
 		return nil, err
+	}
+	if deps.notifier != nil {
+		container.wake = container.wake.WithNotifications(deps.notifier)
+	}
+	if deps.triggers != nil {
+		container.wake = container.wake.WithTriggers(deps.triggers, deps.panels)
 	}
 
 	return container, nil
