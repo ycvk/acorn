@@ -118,12 +118,12 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 // buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
 // and resolves a stable skill snapshot for capability eligibility. The tools
 // of the skills' own MCP servers join the catalog once the servers serve.
-func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
+func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
 	toolset, err := buildToolset(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := assembleRunCapabilitiesCatalog(ctx, deps, toolset, sessionID, runID, mcpManager)
+	catalog, err := assembleRunCapabilitiesCatalog(ctx, deps, toolset, mcpManager)
 	if err != nil {
 		return nil, err
 	}
@@ -156,8 +156,8 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 //
 // There is no overlap between registry and toolset specs: the registry owns
 // static natives, the toolset owns run-scoped natives.
-func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *tools.Catalog, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
-	registrySpecs, err := deps.ToolRegistry.ResolveEnabledSpecs(ctx, core.RunContext{RunID: runID, SessionID: sessionID})
+func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *tools.Catalog, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
+	registrySpecs, err := deps.ToolRegistry.ResolveEnabledSpecs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve registry tools: %w", err)
 	}

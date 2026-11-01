@@ -135,7 +135,7 @@ func TestToolRegistryResolveFactory(t *testing.T) {
 
 	// Factory returns the pre-built tool; callCount verifies it was invoked.
 	callCount := 0
-	factory := func(ctx context.Context, runCtx core.RunContext) (einotool.BaseTool, error) {
+	factory := func(ctx context.Context) (einotool.BaseTool, error) {
 		callCount++
 		return tool, nil
 	}
@@ -147,8 +147,7 @@ func TestToolRegistryResolveFactory(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	runCtx := core.RunContext{RunID: "r1", SessionID: "s1", TurnIndex: 0}
-	got, err := reg.Resolve(context.Background(), runCtx, []string{"local_echo"})
+	got, err := reg.Resolve(context.Background(), []string{"local_echo"})
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -165,7 +164,7 @@ func TestToolRegistryResolveUnknownSkipped(t *testing.T) {
 	tool := mustInferCoreTool(t, "local_echo")
 	spec := core.ToolSpec{
 		ToolContract: coreToolContract("local_echo"),
-		Factory: func(ctx context.Context, runCtx core.RunContext) (einotool.BaseTool, error) {
+		Factory: func(ctx context.Context) (einotool.BaseTool, error) {
 			return tool, nil
 		},
 	}
@@ -174,7 +173,7 @@ func TestToolRegistryResolveUnknownSkipped(t *testing.T) {
 	}
 
 	// Unknown names are skipped, not errors.
-	got, err := reg.Resolve(context.Background(), core.RunContext{}, []string{"local_echo", "does_not_exist"})
+	got, err := reg.Resolve(context.Background(), []string{"local_echo", "does_not_exist"})
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -188,14 +187,14 @@ func TestToolRegistryResolveFactoryError(t *testing.T) {
 	boom := errors.New("boom")
 	spec := core.ToolSpec{
 		ToolContract: coreToolContract("local_echo"),
-		Factory: func(ctx context.Context, runCtx core.RunContext) (einotool.BaseTool, error) {
+		Factory: func(ctx context.Context) (einotool.BaseTool, error) {
 			return nil, boom
 		},
 	}
 	if err := reg.Register(spec); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	if _, err := reg.Resolve(context.Background(), core.RunContext{}, []string{"local_echo"}); err == nil {
+	if _, err := reg.Resolve(context.Background(), []string{"local_echo"}); err == nil {
 		t.Fatalf("Resolve with failing factory: expected error, got nil")
 	}
 }

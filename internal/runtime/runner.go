@@ -38,7 +38,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	if err != nil {
 		return nil, err
 	}
-	capabilities, err := buildRunCapabilities(ctx, f.deps, req.SessionID, req.RunID, mcpManager)
+	capabilities, err := buildRunCapabilities(ctx, f.deps, mcpManager)
 	if err != nil {
 		return nil, err
 	}

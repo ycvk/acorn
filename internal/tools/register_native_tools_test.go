@@ -91,7 +91,7 @@ func TestRegisterNativeToolsResolveProducesTools(t *testing.T) {
 	if err := RegisterNativeTools(reg, testNativeToolDeps(t)); err != nil {
 		t.Fatalf("RegisterNativeTools: %v", err)
 	}
-	resolved, err := reg.Resolve(context.Background(), core.RunContext{RunID: "r1"}, eagerNativeToolNames)
+	resolved, err := reg.Resolve(context.Background(), eagerNativeToolNames)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -145,15 +145,15 @@ func TestRegisterNativeToolsNilRegistry(t *testing.T) {
 func TestRegistryResolveFailsWhenFactoryReturnsNoTool(t *testing.T) {
 	reg := NewToolRegistry()
 	spec := configuredLocalSpec("recall")
-	spec.Factory = func(context.Context, core.RunContext) (einotool.BaseTool, error) { return nil, nil }
+	spec.Factory = func(context.Context) (einotool.BaseTool, error) { return nil, nil }
 	if err := reg.Register(spec); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	ctx := context.Background()
-	if _, err := reg.Resolve(ctx, core.RunContext{}, []string{"recall"}); err == nil || !strings.Contains(err.Error(), "returned no tool") {
+	if _, err := reg.Resolve(ctx, []string{"recall"}); err == nil || !strings.Contains(err.Error(), "returned no tool") {
 		t.Fatalf("Resolve error = %v, want returned no tool", err)
 	}
-	if _, err := reg.ResolveEnabledSpecs(ctx, core.RunContext{}); err == nil || !strings.Contains(err.Error(), "returned no tool") {
+	if _, err := reg.ResolveEnabledSpecs(ctx); err == nil || !strings.Contains(err.Error(), "returned no tool") {
 		t.Fatalf("ResolveEnabledSpecs error = %v, want returned no tool", err)
 	}
 }

@@ -193,7 +193,7 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 			return nil, fmt.Errorf("native tool %q requires NativeToolDeps.%s", name, dep.field)
 		}
 	}
-	return func(context.Context, core.RunContext) (einotool.BaseTool, error) {
+	return func(context.Context) (einotool.BaseTool, error) {
 		return build()
 	}, nil
 }
