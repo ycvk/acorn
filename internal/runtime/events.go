@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/adk"
-	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -19,7 +18,6 @@ type agentEventProjector struct {
 	// messagePrefix is unique per projector so a resumed run's assistant
 	// messages never reuse the ids of the messages before the interrupt.
 	messagePrefix  string
-	provider       string
 	failedCalls    *failedToolCalls
 	assistantCount int
 	// streamErr is the first assistant stream read failure. Eino follows a
@@ -28,10 +26,9 @@ type agentEventProjector struct {
 	usageWarned bool
 }
 
-func newAgentEventProjector(runID string, chatModel einomodel.AgenticModel, failedCalls *failedToolCalls) *agentEventProjector {
+func newAgentEventProjector(runID string, failedCalls *failedToolCalls) *agentEventProjector {
 	return &agentEventProjector{
 		messagePrefix: fmt.Sprintf("%s:assistant:%d", runID, time.Now().UnixNano()),
-		provider:      activeProviderName(chatModel),
 		failedCalls:   failedCalls,
 	}
 }
@@ -130,7 +127,7 @@ func (p *agentEventProjector) projectAssistant(mo *adk.TypedMessageVariant[*sche
 		return errors.New("assistant event carried no message")
 	}
 	if err := emit(core.StreamItem{Kind: core.StreamKindAssistantMessage, Payload: map[string]any{
-		"message": StreamMessageFromSchema(final, p.provider),
+		"message": StreamMessageFromSchema(final),
 	}}); err != nil {
 		return err
 	}
@@ -173,7 +170,7 @@ func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader
 			return nil, &streamReadError{err: err}
 		}
 		frames = append(frames, frame)
-		public := StreamMessageFromSchema(frame, p.provider)
+		public := StreamMessageFromSchema(frame)
 		if public.Content == "" && public.Reasoning == "" && len(public.ToolCalls) == 0 {
 			continue
 		}
@@ -200,13 +197,6 @@ func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader
 		return nil, fmt.Errorf("concat assistant stream: %w", err)
 	}
 	return concat, nil
-}
-
-func activeProviderName(chatModel einomodel.AgenticModel) string {
-	if ap, ok := chatModel.(interface{ ActiveProvider() string }); ok {
-		return ap.ActiveProvider()
-	}
-	return ""
 }
 
 func streamInterruptFromInfo(info *adk.InterruptInfo) *core.StreamInterrupt {

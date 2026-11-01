@@ -244,7 +244,7 @@ func (e *Executor) consume(ctx, runCtx context.Context, runID string, iter *adk.
 
 func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
 	state := RunState{}
-	projector := newAgentEventProjector(runID, active.ChatModel, active.FailedCalls)
+	projector := newAgentEventProjector(runID, active.FailedCalls)
 	emit := func(item core.StreamItem) error {
 		item.RunID = runID
 		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {

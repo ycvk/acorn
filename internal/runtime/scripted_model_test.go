@@ -66,7 +66,7 @@ func toolResultMessage(text, id, name string) *schema.AgenticMessage {
 }
 
 func messageText(msg *schema.AgenticMessage) string {
-	text := StreamMessageFromSchema(msg, "").Content
+	text := StreamMessageFromSchema(msg).Content
 	for _, block := range msg.ContentBlocks {
 		if block.FunctionToolResult != nil {
 			for _, part := range block.FunctionToolResult.Content {

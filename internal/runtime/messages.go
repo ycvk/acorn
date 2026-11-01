@@ -9,7 +9,7 @@ import (
 
 // StreamMessageFromSchema projects public content only. Provider signatures and
 // opaque reasoning remain in Eino state and never enter the client event stream.
-func StreamMessageFromSchema(message *schema.AgenticMessage, activeProvider string) *core.StreamMessage {
+func StreamMessageFromSchema(message *schema.AgenticMessage) *core.StreamMessage {
 	if message == nil {
 		return nil
 	}
@@ -30,9 +30,6 @@ func StreamMessageFromSchema(message *schema.AgenticMessage, activeProvider stri
 	}
 	stream.Content = content.String()
 	stream.Reasoning = reasoning.String()
-	if activeProvider != "" {
-		stream.Meta = map[string]any{"active_provider": activeProvider}
-	}
 	return stream
 }
 
