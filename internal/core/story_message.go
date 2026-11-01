@@ -47,11 +47,7 @@ type StorySnapshotItem struct {
 func SnapshotOf(story NewsStory) StorySnapshot {
 	out := StorySnapshot{ID: story.ID, Section: story.Section, Title: story.Title, Summary: story.Summary, Development: story.Development, Items: []StorySnapshotItem{}}
 	for _, item := range story.Items {
-		at := item.PublishedAt
-		if at.IsZero() {
-			at = item.SeenAt
-		}
-		out.Items = append(out.Items, StorySnapshotItem{Source: item.Source, Title: item.Title, URL: item.URL, At: at.UTC()})
+		out.Items = append(out.Items, StorySnapshotItem{Source: item.Source, Title: item.Title, URL: item.URL, At: item.When().UTC()})
 	}
 	return out
 }
