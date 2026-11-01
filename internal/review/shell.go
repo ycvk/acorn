@@ -8,9 +8,6 @@ import (
 
 // Shell is a shell command split into the parts review cares about.
 type Shell struct {
-	// Opaque is set when the command hides what it runs, through command or
-	// process substitution, or quoting that does not close.
-	Opaque bool
 	// ReadOnly is set when every simple command is known to only read or to
 	// stay on the workstation and no redirection can reach the network, so
 	// the command needs no review.
@@ -77,7 +74,7 @@ var bskActions = map[string]bool{"click": true, "fill": true, "press": true, "se
 func ParseShell(command string) Shell {
 	words, targets, ok := splitWords(command)
 	if !ok {
-		return Shell{Opaque: true, Other: true}
+		return Shell{Other: true}
 	}
 	shell := Shell{ReadOnly: !slices.ContainsFunc(targets, networkTarget)}
 	shell.Other = !shell.ReadOnly
