@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -43,9 +42,6 @@ func NewEventService(store core.SessionStore, artifacts core.ArtifactService) *E
 }
 
 func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*RunEventBatch, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}
@@ -68,9 +64,6 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 }
 
 func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string) (*RunEventDetail, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}
@@ -104,9 +97,6 @@ func projectLiveEvents(records []core.EventRecord) ([]RunEvent, error) {
 }
 
 func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]ArtifactSummary, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}

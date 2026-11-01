@@ -80,9 +80,6 @@ func (s *RunService) WithResumer(resumer runResumer) *RunService {
 }
 
 func (s *RunService) GetRun(ctx context.Context, runID string) (*Run, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	record, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -98,9 +95,6 @@ func (s *RunService) GetRun(ctx context.Context, runID string) (*Run, error) {
 // interrupted run is waiting for the owner's decision and the server resumes
 // it afterwards, so it is not terminal.
 func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, error) {
-	if s == nil || s.store == nil {
-		return false, errors.New("client store is nil")
-	}
 	record, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return false, err
@@ -116,9 +110,6 @@ func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, err
 }
 
 func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
-	if s == nil || s.controller == nil {
-		return errors.New("run controller is nil")
-	}
 	return s.controller.Interrupt(runID)
 }
 
@@ -153,9 +144,6 @@ func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input strin
 // unbound message) and starts the run. wake, when set, tells the agent what
 // woke it.
 func (s *RunService) createRun(ctx context.Context, threadID, skillID, input string, fileIDs []string, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
-	if s == nil || s.store == nil || s.executeRun == nil || s.threads == nil {
-		return nil, errors.New("client service is not initialized")
-	}
 	threadID = strings.TrimSpace(threadID)
 	skillID = strings.TrimSpace(skillID)
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
@@ -201,9 +189,6 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input str
 // thread as their message and starts a run on it. The action is resolved
 // against the stored view, and each action of a view is sent once.
 func (s *RunService) SendViewAction(ctx context.Context, threadID, viewID string, req views.ActionRequest) (*ViewActionResult, error) {
-	if s == nil || s.threads == nil {
-		return nil, errors.New("client service is not initialized")
-	}
 	view, err := s.threads.views.ThreadView(ctx, threadID, viewID)
 	if err != nil {
 		return nil, err
@@ -249,9 +234,6 @@ type ViewActionResult struct {
 // newest briefing gave the story, as the owner saw it on the card, else the
 // story's own. The model sees the story as it stands now beside the message.
 func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent core.StoryIntent) (*StoryMessageResult, error) {
-	if s == nil || s.threads == nil {
-		return nil, errors.New("client service is not initialized")
-	}
 	story, err := s.threads.stories.NewsStory(ctx, storyID)
 	if err != nil {
 		return nil, err
@@ -424,9 +406,6 @@ func (s *RunService) reportBackgroundRunFailure(ctx context.Context, runID strin
 }
 
 func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {
-	if s == nil || s.store == nil {
-		return errors.New("client store is nil")
-	}
 	if strings.TrimSpace(runID) == "" || cause == nil {
 		return nil
 	}

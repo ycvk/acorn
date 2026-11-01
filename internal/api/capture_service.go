@@ -68,9 +68,6 @@ type CaptureAccepted struct {
 // Capture stores an image in the knowledge base, opens a thread and starts
 // the run that files the capture.
 func (s *CaptureService) Capture(ctx context.Context, in CaptureInput) (CaptureAccepted, error) {
-	if s == nil || s.vault == nil || s.threads == nil || s.runs == nil {
-		return CaptureAccepted{}, errors.New("capture service is not initialized")
-	}
 	text, subject := strings.TrimSpace(in.Text), strings.TrimSpace(in.Subject)
 	if text == "" && len(in.Image) == 0 {
 		return CaptureAccepted{}, fmt.Errorf("%w: text or image is required", ErrInvalidCapture)

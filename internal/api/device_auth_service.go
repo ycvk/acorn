@@ -88,9 +88,6 @@ func NewDeviceAuthService(store core.IdentityStore) *DeviceAuthService {
 }
 
 func (s *DeviceAuthService) CreatePairingCode(ctx context.Context, ttl time.Duration) (*PairingCodeView, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("device auth store is nil")
-	}
 	if ttl <= 0 {
 		return nil, errors.New("pairing code ttl must be positive")
 	}
@@ -111,9 +108,6 @@ func (s *DeviceAuthService) CreatePairingCode(ctx context.Context, ttl time.Dura
 }
 
 func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInput) (*PairDeviceResult, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("device auth store is nil")
-	}
 	code := normalizePairingCode(input.PairingCode)
 	if code == "" {
 		return nil, ErrInvalidPairingCode
@@ -159,9 +153,6 @@ func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInpu
 }
 
 func (s *DeviceAuthService) Authenticate(ctx context.Context, rawToken string) (*DeviceAuthContext, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("device auth store is nil")
-	}
 	token := strings.TrimSpace(rawToken)
 	if token == "" {
 		return nil, ErrUnauthenticated
@@ -185,9 +176,6 @@ func (s *DeviceAuthService) Authenticate(ctx context.Context, rawToken string) (
 }
 
 func (s *DeviceAuthService) ListDevices(ctx context.Context) ([]DeviceView, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("device auth store is nil")
-	}
 	records, err := s.store.ListDevices(ctx)
 	if err != nil {
 		return nil, err
@@ -200,9 +188,6 @@ func (s *DeviceAuthService) ListDevices(ctx context.Context) ([]DeviceView, erro
 }
 
 func (s *DeviceAuthService) RevokeDevice(ctx context.Context, deviceID string) error {
-	if s == nil || s.store == nil {
-		return errors.New("device auth store is nil")
-	}
 	trimmed := strings.TrimSpace(deviceID)
 	if trimmed == "" {
 		return ErrDeviceNotFound

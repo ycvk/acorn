@@ -35,9 +35,6 @@ func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, ma
 }
 
 func (s *RunResumeService) Resume(ctx context.Context, runID string) (*runtime.Result, error) {
-	if s == nil || s.resumeRun == nil {
-		return nil, errors.New("resume runner is nil")
-	}
 	targets, err := s.InferResumeTargets(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -251,9 +248,6 @@ func interruptInfoField(raw any, key string) string {
 }
 
 func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*core.RunRecord, []core.EventRecord, error) {
-	if s == nil || s.store == nil {
-		return nil, nil, fmt.Errorf("run resume store is nil")
-	}
 	run, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, nil, err

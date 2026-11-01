@@ -68,9 +68,6 @@ func NewThreadService(store core.SessionStore, files core.ThreadFiles, views thr
 const generatedThreadTitleMaxRunes = 64
 
 func (s *ThreadService) ListThreads(ctx context.Context, limit int) ([]Thread, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	sessions, err := s.store.ListSessions(ctx, limit)
 	if err != nil {
 		return nil, err
@@ -110,9 +107,6 @@ func (s *ThreadService) ListThreads(ctx context.Context, limit int) ([]Thread, e
 }
 
 func (s *ThreadService) CreateThread(ctx context.Context, title string) (*Thread, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client service is not initialized")
-	}
 	session, err := s.store.CreateSession(ctx, core.NewSessionID(), strings.TrimSpace(title))
 	if err != nil {
 		return nil, err
@@ -125,9 +119,6 @@ func (s *ThreadService) CreateThread(ctx context.Context, title string) (*Thread
 }
 
 func (s *ThreadService) GetThread(ctx context.Context, threadID string) (*Thread, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	session, err := s.store.LoadSession(ctx, threadID)
 	if err != nil {
 		return nil, err
@@ -151,9 +142,6 @@ func (s *ThreadService) GetThread(ctx context.Context, threadID string) (*Thread
 }
 
 func (s *ThreadService) UpdateThread(ctx context.Context, threadID, title string) (*Thread, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if err := s.store.UpdateSessionTitle(ctx, threadID, title); err != nil {
 		return nil, err
 	}
@@ -235,9 +223,6 @@ func (s *ThreadService) projectThread(record core.SessionRecord, latestRun *core
 }
 
 func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit int) ([]Message, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
 		return nil, err
 	}
@@ -442,9 +427,6 @@ func (s *ThreadService) CreateMessage(ctx context.Context, threadID, content str
 // user), a commitment wake (role wake) or a capture (role capture), and returns the stored record
 // (including its id and turn index) so the run can bind to that exact id.
 func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, content string) (*core.SessionMessageRecord, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
 		return nil, err
 	}

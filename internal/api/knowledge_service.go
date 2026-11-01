@@ -72,9 +72,6 @@ type KnowledgeNoteDTO struct {
 
 // ListNotes searches with query, or lists notes under prefix by update time.
 func (s *KnowledgeService) ListNotes(ctx context.Context, query, prefix string, limit int) (KnowledgeNoteListResponse, error) {
-	if s == nil || s.vault == nil {
-		return KnowledgeNoteListResponse{}, errors.New("knowledge service is not initialized")
-	}
 	var (
 		hits []core.KnowledgeHit
 		err  error
@@ -102,9 +99,6 @@ func (s *KnowledgeService) ListNotes(ctx context.Context, query, prefix string, 
 
 // GetNote reads one note.
 func (s *KnowledgeService) GetNote(ctx context.Context, path string) (KnowledgeNoteDTO, error) {
-	if s == nil || s.vault == nil {
-		return KnowledgeNoteDTO{}, errors.New("knowledge service is not initialized")
-	}
 	note, err := s.vault.Read(ctx, path)
 	if err != nil {
 		return KnowledgeNoteDTO{}, err
@@ -142,9 +136,6 @@ func (s *KnowledgeService) DeleteNote(ctx context.Context, path string) error {
 
 // GetAttachment reads one image a capture stored.
 func (s *KnowledgeService) GetAttachment(ctx context.Context, path string) (core.Attachment, error) {
-	if s == nil || s.vault == nil {
-		return core.Attachment{}, errors.New("knowledge service is not initialized")
-	}
 	return s.vault.ReadAttachment(ctx, path)
 }
 

@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -74,9 +73,6 @@ type PendingActionOption struct {
 }
 
 func (s *InboxService) Load(ctx context.Context) (*MobileInbox, error) {
-	if s == nil || s.store == nil || s.capabilities == nil {
-		return nil, errors.New("inbox service is not initialized")
-	}
 	pendingActions, err := listPendingActionSummaries(ctx, s.store, defaultInboxPendingActionLimit)
 	if err != nil {
 		return nil, err
