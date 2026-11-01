@@ -6,11 +6,10 @@ import android.security.keystore.KeyProperties
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import io.ycvk.acorn.core.io.writeAtomically
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.security.KeyStore
 import java.security.KeyStoreException
 import javax.crypto.Cipher
@@ -84,16 +83,9 @@ class ConnectionFile(private val file: File, private val key: ConnectionKey) {
         cipher.init(Cipher.ENCRYPT_MODE, key.getOrCreate())
         cipher.updateAAD(file.name.toByteArray(Charsets.UTF_8))
         val sealed = cipher.doFinal(adapter.toJson(profile).toByteArray(Charsets.UTF_8))
-        val temporary = File(file.parentFile, "${file.name}.new")
-        try {
-            FileOutputStream(temporary).use { stream ->
-                stream.write(cipher.iv)
-                stream.write(sealed)
-                stream.fd.sync()
-            }
-            Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-        } finally {
-            Files.deleteIfExists(temporary.toPath())
+        writeAtomically(file) { stream ->
+            stream.write(cipher.iv)
+            stream.write(sealed)
         }
     }
 

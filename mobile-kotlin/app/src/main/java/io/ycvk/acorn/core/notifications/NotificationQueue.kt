@@ -3,11 +3,9 @@ package io.ycvk.acorn.core.notifications
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.io.writeAtomically
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 data class CapturedNotification(
@@ -81,17 +79,8 @@ class NotificationQueue(private val file: File) {
     }
 
     private fun save(state: NotificationQueueState) {
-        val temporary = File(file.parentFile, "${file.name}.new")
-        try {
-            FileOutputStream(temporary).use { stream ->
-                stream.write(adapter.toJson(state).toByteArray(Charsets.UTF_8))
-                stream.fd.sync()
-            }
-            Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-            loaded = state
-        } finally {
-            Files.deleteIfExists(temporary.toPath())
-        }
+        writeAtomically(file) { it.write(adapter.toJson(state).toByteArray(Charsets.UTF_8)) }
+        loaded = state
     }
 
     companion object { const val MAX_ITEMS = 500 }
