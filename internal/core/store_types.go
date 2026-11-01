@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strconv"
 	"time"
 )
 
@@ -44,6 +45,11 @@ type SessionMessageRecord struct {
 	Content   string    `json:"content"`
 	RunID     string    `json:"run_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// MessageSourceID names the memory source of a conversation message.
+func MessageSourceID(messageID int64) string {
+	return "message:" + strconv.FormatInt(messageID, 10)
 }
 
 // --- Pairing / devices / OAuth ---
