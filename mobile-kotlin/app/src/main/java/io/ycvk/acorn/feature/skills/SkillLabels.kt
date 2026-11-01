@@ -6,6 +6,7 @@ import io.ycvk.acorn.api.models.SkillPackageServer
 import io.ycvk.acorn.api.models.SkillPackageTrigger
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.clockTime
+import io.ycvk.acorn.core.ui.dayLabel
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.util.Locale
@@ -91,12 +92,7 @@ fun triggerStateLabel(trigger: SkillPackageTrigger, now: OffsetDateTime, zone: Z
 fun nextTime(at: OffsetDateTime, now: OffsetDateTime, zone: ZoneId = ZoneId.systemDefault()): String {
     val day = at.atZoneSameInstant(zone).toLocalDate()
     val today = now.atZoneSameInstant(zone).toLocalDate()
-    val prefix = when (day) {
-        today -> "今天"
-        today.plusDays(1) -> "明天"
-        else -> "${day.monthValue}月${day.dayOfMonth}日"
-    }
-    return "$prefix ${clockTime(at, zone)}"
+    return "${dayLabel(day, today)} ${clockTime(at, zone)}"
 }
 
 fun fileSize(bytes: Long): String = when {
