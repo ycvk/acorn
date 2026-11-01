@@ -1,13 +1,13 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.apis.SettingsApi
 import io.ycvk.acorn.api.models.OwnerSettingName
 import io.ycvk.acorn.api.models.OwnerSettings
 import io.ycvk.acorn.api.models.OwnerSettingsChanges
 import io.ycvk.acorn.api.models.UpdateOwnerSettingsRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import javax.inject.Inject
 import javax.inject.Singleton
 

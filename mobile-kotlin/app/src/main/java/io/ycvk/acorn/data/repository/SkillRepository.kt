@@ -1,7 +1,6 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.ClientApi
-import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.apis.SkillsApi
 import io.ycvk.acorn.api.models.RollbackSkillRequest
 import io.ycvk.acorn.api.models.SetSkillSecretRequest
@@ -13,6 +12,7 @@ import io.ycvk.acorn.api.models.SkillRevisionSummary
 import io.ycvk.acorn.api.models.SkillSecret
 import io.ycvk.acorn.api.models.SkillSummary
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import javax.inject.Inject
 import javax.inject.Singleton
 

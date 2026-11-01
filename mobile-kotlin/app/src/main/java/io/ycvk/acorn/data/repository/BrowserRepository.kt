@@ -1,12 +1,12 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.BrowserApi
-import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.infrastructure.Serializer
 import io.ycvk.acorn.api.models.BrowserFrame
 import io.ycvk.acorn.api.models.BrowserInputRequest
 import io.ycvk.acorn.api.models.BrowserTab
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.sse.SseHttp
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient

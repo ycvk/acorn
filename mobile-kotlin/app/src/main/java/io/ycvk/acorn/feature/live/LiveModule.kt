@@ -1,11 +1,11 @@
 package io.ycvk.acorn.feature.live
 
 import dagger.Module
-import io.ycvk.acorn.core.auth.authorized
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.ycvk.acorn.api.apis.ClientApi
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.sse.RunEventProjection
 import io.ycvk.acorn.core.sse.RunEventStreamClient
 import kotlinx.coroutines.CoroutineScope

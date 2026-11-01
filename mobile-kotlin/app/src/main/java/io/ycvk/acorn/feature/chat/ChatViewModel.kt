@@ -1,7 +1,7 @@
 package io.ycvk.acorn.feature.chat
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
-import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
@@ -14,6 +14,7 @@ import io.ycvk.acorn.api.models.SendViewActionRequest
 import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunStatus
@@ -34,7 +35,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.net.Uri
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject

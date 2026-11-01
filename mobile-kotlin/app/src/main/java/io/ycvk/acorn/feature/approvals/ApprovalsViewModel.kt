@@ -1,7 +1,6 @@
 package io.ycvk.acorn.feature.approvals
 
 import androidx.lifecycle.ViewModel
-import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
@@ -10,6 +9,7 @@ import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.feature.live.RunFollower
 import kotlinx.coroutines.Dispatchers

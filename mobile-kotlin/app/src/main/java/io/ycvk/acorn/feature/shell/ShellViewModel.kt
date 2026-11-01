@@ -1,20 +1,18 @@
 package io.ycvk.acorn.feature.shell
 
 import androidx.lifecycle.ViewModel
-import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.push.DeepLinks
 import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.OwnerRepository
-import javax.inject.Inject
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 enum class Tab { Today, Threads, Knowledge }
 

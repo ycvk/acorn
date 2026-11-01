@@ -1,7 +1,6 @@
 package io.ycvk.acorn.core.push
 
 import android.Manifest
-import io.ycvk.acorn.core.auth.authorized
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -22,6 +21,7 @@ import io.ycvk.acorn.api.apis.DevicesApi
 import io.ycvk.acorn.api.models.PushInstallationRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.SecureStore
+import io.ycvk.acorn.core.auth.authorized
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

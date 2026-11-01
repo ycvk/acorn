@@ -1,7 +1,6 @@
 package io.ycvk.acorn.feature.approvals
 
 import android.Manifest
-import io.ycvk.acorn.core.auth.authorized
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -22,6 +21,7 @@ import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.SecureStore
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
 import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
 import io.ycvk.acorn.core.ui.userMessage
