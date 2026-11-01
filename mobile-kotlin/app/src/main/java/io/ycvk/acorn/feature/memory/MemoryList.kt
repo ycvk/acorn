@@ -37,11 +37,11 @@ import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.ListRow
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.SearchField
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
-import io.ycvk.acorn.feature.threads.SearchField
 import java.time.LocalDate
 import java.time.ZoneId
 

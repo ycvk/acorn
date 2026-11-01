@@ -42,7 +42,7 @@ import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.ScreenPadding
-import io.ycvk.acorn.feature.threads.SearchField
+import io.ycvk.acorn.core.ui.SearchField
 
 @Composable
 fun NotificationAccessSection(viewModel: NotificationAccessViewModel = hiltViewModel()) {
