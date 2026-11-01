@@ -60,17 +60,29 @@ type ArtifactListOutput struct {
 	Items     []ArtifactSummary `json:"items"`
 }
 
+// toolTimeLayout is how tool results write times.
+const toolTimeLayout = "2006-01-02T15:04:05.000000000Z07:00"
+
+// toolResultRef names the result of the tool call ctx carries, the source of
+// what the call stores.
+func toolResultRef(ctx context.Context, bridge core.ToolCallContextBridge, tool string) (runID, ref string, err error) {
+	runID = strings.TrimSpace(bridge.CurrentRunID(ctx))
+	if runID == "" {
+		return "", "", fmt.Errorf("%s requires current run context", tool)
+	}
+	callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
+	if callID == "" {
+		return "", "", fmt.Errorf("%s requires current tool call context", tool)
+	}
+	return runID, "tool_result:" + runID + ":" + callID, nil
+}
+
 func buildArtifactWriteTool(service core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	tool, err := inferLocalTool("artifact_write", "Persist run-scoped artifact content and return an opaque artifact id.", func(ctx context.Context, input ArtifactWriteInput) (ArtifactWriteOutput, error) {
-		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
-		if runID == "" {
-			return ArtifactWriteOutput{}, errors.New("artifact_write requires current run context")
+		runID, sourceRef, err := toolResultRef(ctx, bridge, "artifact_write")
+		if err != nil {
+			return ArtifactWriteOutput{}, err
 		}
-		callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
-		if callID == "" {
-			return ArtifactWriteOutput{}, errors.New("artifact_write requires current tool call context")
-		}
-		sourceRef := "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID)
 		record, err := service.WriteArtifact(ctx, core.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
@@ -165,6 +177,6 @@ func artifactSummaryFromRecord(record core.ArtifactRecord) ArtifactSummary {
 		MIMEType:            record.MIMEType,
 		SizeBytes:           record.SizeBytes,
 		SHA256:              record.SHA256,
-		CreatedAt:           record.CreatedAt.Format("2006-01-02T15:04:05.000000000Z07:00"),
+		CreatedAt:           record.CreatedAt.Format(toolTimeLayout),
 	}
 }

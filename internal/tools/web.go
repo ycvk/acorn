@@ -39,15 +39,10 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 		return nil, errors.New("artifact context bridge is required for web_search")
 	}
 	tool, err := inferLocalTool("web_search", "Search public web sources through the configured provider and persist the raw provider response.", func(ctx context.Context, input WebSearchInput) (WebSearchOutput, error) {
-		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
-		if runID == "" {
-			return WebSearchOutput{}, errors.New("web_search requires current run context")
+		runID, sourceRef, err := toolResultRef(ctx, bridge, "web_search")
+		if err != nil {
+			return WebSearchOutput{}, err
 		}
-		callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
-		if callID == "" {
-			return WebSearchOutput{}, errors.New("web_search requires current tool call context")
-		}
-		sourceRef := "tool_result:" + runID + ":" + callID
 		result, err := search.Search(ctx, webaccess.SearchRequest{
 			Query:       input.Query,
 			MaxResults:  input.MaxResults,
@@ -72,7 +67,7 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 		return WebSearchOutput{
 			Query:           result.Query,
 			Provider:        result.Provider,
-			SearchedAt:      result.SearchedAt.Format("2006-01-02T15:04:05.000000000Z07:00"),
+			SearchedAt:      result.SearchedAt.Format(toolTimeLayout),
 			Results:         append([]webaccess.SearchResultItem(nil), result.Results...),
 			FilteredResults: append([]webaccess.FilteredSearchResult(nil), result.FilteredResults...),
 			RawArtifactID:   rawRecord.ArtifactID,
@@ -126,15 +121,10 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 		return nil, errors.New("artifact context bridge is required for web_fetch")
 	}
 	tool, err := inferLocalTool("web_fetch", "Fetch a public HTTP(S) URL (HTML, plain text, XML or JSON), extract Markdown, and persist raw/Markdown artifacts. An RSS, Atom or JSON feed comes back as its entries with title, link, date and summary.", func(ctx context.Context, input WebFetchInput) (WebFetchOutput, error) {
-		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
-		if runID == "" {
-			return WebFetchOutput{}, errors.New("web_fetch requires current run context")
+		runID, sourceRef, err := toolResultRef(ctx, bridge, "web_fetch")
+		if err != nil {
+			return WebFetchOutput{}, err
 		}
-		callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
-		if callID == "" {
-			return WebFetchOutput{}, errors.New("web_fetch requires current tool call context")
-		}
-		sourceRef := "tool_result:" + runID + ":" + callID
 		result, err := fetcher.Fetch(ctx, webaccess.FetchRequest{
 			URL:         input.URL,
 			ExtractMode: webaccess.ExtractionMode(strings.TrimSpace(input.ExtractMode)),
@@ -174,7 +164,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 			Status:             result.Status,
 			ContentType:        result.ContentType,
 			ContentLength:      result.ContentLength,
-			FetchedAt:          result.FetchedAt.Format("2006-01-02T15:04:05.000000000Z07:00"),
+			FetchedAt:          result.FetchedAt.Format(toolTimeLayout),
 			Redirects:          append([]string(nil), result.Redirects...),
 			Title:              result.Extracted.Title,
 			SiteName:           result.Extracted.SiteName,
