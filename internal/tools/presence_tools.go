@@ -41,9 +41,9 @@ type ScheduleWakeOutput struct {
 }
 
 func buildScheduleWakeTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("schedule_wake",
+	return inferLocalTool("schedule_wake",
 		"Make an appointment with yourself: at the given time you wake up in this conversation with the task as your input. Use it for reminders, follow-ups and anything to do later.",
-		func(ctx context.Context, input ScheduleWakeInput, _ ToolProgressEmitter) (ScheduleWakeOutput, error) {
+		func(ctx context.Context, input ScheduleWakeInput) (ScheduleWakeOutput, error) {
 			task := strings.TrimSpace(input.Task)
 			if task == "" {
 				return ScheduleWakeOutput{}, errors.New("schedule_wake: task is required")
@@ -161,7 +161,7 @@ type SettleOutput struct {
 }
 
 func buildSettleTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("settle", "Complete one due appointment with outcome evidence, or cancel a commitment and its future occurrences.", func(ctx context.Context, in SettleInput, _ ToolProgressEmitter) (SettleOutput, error) {
+	return inferLocalTool("settle", "Complete one due appointment with outcome evidence, or cancel a commitment and its future occurrences.", func(ctx context.Context, in SettleInput) (SettleOutput, error) {
 		err := deps.Store.SettleCommitment(ctx, core.CommitmentSettlement{CommitmentID: in.ID, OccurrenceID: in.OccurrenceID, Action: in.Action, SourceID: in.SourceID, RunID: deps.Context.CurrentRunID(ctx), Now: deps.Clock()})
 		if err != nil {
 			return SettleOutput{}, err

@@ -38,7 +38,7 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required for web_search")
 	}
-	tool, err := inferProgressTool("web_search", "Search public web sources through the configured provider and persist the raw provider response.", func(ctx context.Context, input WebSearchInput, emit ToolProgressEmitter) (WebSearchOutput, error) {
+	tool, err := inferLocalTool("web_search", "Search public web sources through the configured provider and persist the raw provider response.", func(ctx context.Context, input WebSearchInput) (WebSearchOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
 			return WebSearchOutput{}, errors.New("web_search requires current run context")
@@ -67,9 +67,6 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 			Content:             result.Raw,
 		})
 		if err != nil {
-			return WebSearchOutput{}, err
-		}
-		if err := emitToolProgress(ctx, emit, fmt.Sprintf("searched web with %s: %d result(s), %d filter group(s)", result.Provider, len(result.Results), len(result.FilteredResults))); err != nil {
 			return WebSearchOutput{}, err
 		}
 		return WebSearchOutput{
@@ -128,7 +125,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required for web_fetch")
 	}
-	tool, err := inferProgressTool("web_fetch", "Fetch a public HTTP(S) URL (HTML, plain text, XML or JSON), extract Markdown, and persist raw/Markdown artifacts. An RSS, Atom or JSON feed comes back as its entries with title, link, date and summary.", func(ctx context.Context, input WebFetchInput, emit ToolProgressEmitter) (WebFetchOutput, error) {
+	tool, err := inferLocalTool("web_fetch", "Fetch a public HTTP(S) URL (HTML, plain text, XML or JSON), extract Markdown, and persist raw/Markdown artifacts. An RSS, Atom or JSON feed comes back as its entries with title, link, date and summary.", func(ctx context.Context, input WebFetchInput) (WebFetchOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
 			return WebFetchOutput{}, errors.New("web_fetch requires current run context")
@@ -171,9 +168,6 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 			return WebFetchOutput{}, err
 		}
 		preview, truncated := previewBytes([]byte(result.Extracted.Markdown), defaultWebFetchPreviewBytes)
-		if err := emitToolProgress(ctx, emit, fmt.Sprintf("fetched %s (%d bytes, %s)", result.FinalURL, result.ContentLength, result.Extracted.Method)); err != nil {
-			return WebFetchOutput{}, err
-		}
 		return WebFetchOutput{
 			URL:                result.URL,
 			FinalURL:           result.FinalURL,

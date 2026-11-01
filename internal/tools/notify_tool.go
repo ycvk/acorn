@@ -40,9 +40,9 @@ type NotifyOwnerOutput struct {
 }
 
 func buildNotifyOwnerTool(deps NotifyToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("notify_owner",
+	return inferLocalTool("notify_owner",
 		"Send a push notification to the owner's phone. Inside quiet hours it waits until they end. Tapping it opens this conversation, or a page in your browser over it with browser_url.",
-		func(ctx context.Context, input NotifyOwnerInput, _ ToolProgressEmitter) (NotifyOwnerOutput, error) {
+		func(ctx context.Context, input NotifyOwnerInput) (NotifyOwnerOutput, error) {
 			title, body := strings.TrimSpace(input.Title), strings.TrimSpace(input.Body)
 			if title == "" || body == "" {
 				return NotifyOwnerOutput{}, errors.New("notify_owner: title and body are required")

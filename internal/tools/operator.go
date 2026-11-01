@@ -13,42 +13,35 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-type progressToolFunc[I, O any] func(ctx context.Context, input I, emit ToolProgressEmitter) (O, error)
-
-type localProgressTool[I, O any] struct {
+// localTool decodes its arguments and encodes its result with encoding/json.
+type localTool[I, O any] struct {
 	infoSource einotool.BaseTool
 	name       string
-	fn         progressToolFunc[I, O]
+	fn         func(ctx context.Context, input I) (O, error)
 }
 
-func inferProgressTool[I, O any](name string, desc string, fn progressToolFunc[I, O]) (einotool.BaseTool, error) {
-	infoSource, err := toolutils.InferTool(name, desc, func(ctx context.Context, input I) (O, error) {
-		return fn(ctx, input, nil)
-	})
+func inferLocalTool[I, O any](name string, desc string, fn func(ctx context.Context, input I) (O, error)) (einotool.BaseTool, error) {
+	infoSource, err := toolutils.InferTool(name, desc, fn)
 	if err != nil {
 		return nil, err
 	}
-	return &localProgressTool[I, O]{
+	return &localTool[I, O]{
 		infoSource: infoSource,
 		name:       name,
 		fn:         fn,
 	}, nil
 }
 
-func (t *localProgressTool[I, O]) Info(ctx context.Context) (*schema.ToolInfo, error) {
+func (t *localTool[I, O]) Info(ctx context.Context) (*schema.ToolInfo, error) {
 	return t.infoSource.Info(ctx)
 }
 
-func (t *localProgressTool[I, O]) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
-	return t.InvokableRunWithProgress(ctx, argumentsInJSON, nil, opts...)
-}
-
-func (t *localProgressTool[I, O]) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit ToolProgressEmitter, _ ...einotool.Option) (string, error) {
+func (t *localTool[I, O]) InvokableRun(ctx context.Context, argumentsInJSON string, _ ...einotool.Option) (string, error) {
 	var input I
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse %s arguments: %w", t.name, err)
 	}
-	output, err := t.fn(ctx, input, emit)
+	output, err := t.fn(ctx, input)
 	if err != nil {
 		return "", err
 	}
@@ -57,13 +50,6 @@ func (t *localProgressTool[I, O]) InvokableRunWithProgress(ctx context.Context, 
 		return "", fmt.Errorf("marshal %s output: %w", t.name, err)
 	}
 	return string(body), nil
-}
-
-func emitToolProgress(ctx context.Context, emit ToolProgressEmitter, delta string) error {
-	if emit == nil || delta == "" {
-		return nil
-	}
-	return emit(ctx, ToolProgressEvent{Delta: delta})
 }
 
 type OperatorQuestionStore interface {
@@ -104,12 +90,12 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge core.ToolCallConte
 	if bridge == nil {
 		return nil, errors.New("operator question context bridge is required")
 	}
-	tool, err := inferProgressTool("ask_operator", "Ask the human operator a blocking question and resume with a structured answer.", func(ctx context.Context, input AskOperatorInput, emit ToolProgressEmitter) (AskOperatorOutput, error) {
+	tool, err := inferLocalTool("ask_operator", "Ask the human operator a blocking question and resume with a structured answer.", func(ctx context.Context, input AskOperatorInput) (AskOperatorOutput, error) {
 		wasInterrupted, hasState, state := einotool.GetInterruptState[AskOperatorState](ctx)
 		if wasInterrupted {
 			return resumeAskOperator(ctx, state, hasState)
 		}
-		return interruptAskOperator(ctx, store, bridge, input, emit)
+		return interruptAskOperator(ctx, store, bridge, input)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build ask_operator tool: %w", err)
@@ -117,7 +103,7 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge core.ToolCallConte
 	return tool, nil
 }
 
-func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge core.ToolCallContextBridge, input AskOperatorInput, emit ToolProgressEmitter) (AskOperatorOutput, error) {
+func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge core.ToolCallContextBridge, input AskOperatorInput) (AskOperatorOutput, error) {
 	payload, err := normalizeAskOperatorInput(input)
 	if err != nil {
 		return AskOperatorOutput{}, err
@@ -150,9 +136,6 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 	}
 	if _, err := store.AppendEvent(ctx, runID, "operator_question.pending", eventPayload); err != nil {
 		return AskOperatorOutput{}, fmt.Errorf("append operator_question.pending event: %w", err)
-	}
-	if err := emitToolProgress(ctx, emit, fmt.Sprintf("waiting for operator answer %s", record.ActionID)); err != nil {
-		return AskOperatorOutput{}, err
 	}
 	info := map[string]any{
 		"kind":      "operator_question",

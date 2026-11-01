@@ -64,7 +64,7 @@ type UpdateViewOutput struct {
 
 func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 	description := "Show the owner a view under your reply: tables, lists, charts, cards, links and images drawn by the app from the catalog in the views skill. Load the views skill before the first view. A view that fails its checks is not shown, and the result lists what to fix."
-	return inferProgressTool("show_view", description, func(ctx context.Context, input ShowViewInput, _ ToolProgressEmitter) (ShowViewOutput, error) {
+	return inferLocalTool("show_view", description, func(ctx context.Context, input ShowViewInput) (ShowViewOutput, error) {
 		sessionID, runID := strings.TrimSpace(deps.Context.CurrentSessionID(ctx)), strings.TrimSpace(deps.Context.CurrentRunID(ctx))
 		if sessionID == "" || runID == "" {
 			return ShowViewOutput{}, errors.New("show_view needs the current conversation and run")
@@ -104,7 +104,7 @@ func buildShowViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 
 func buildUpdateViewTool(deps ViewToolDeps) (einotool.BaseTool, error) {
 	description := "Replace the title, components or data of a view shown earlier in this conversation, such as newer numbers in its table; what you leave out stays. The whole view is checked again, and the buttons and choices the owner already sent stay sent."
-	return inferProgressTool("update_view", description, func(ctx context.Context, input UpdateViewInput, _ ToolProgressEmitter) (UpdateViewOutput, error) {
+	return inferLocalTool("update_view", description, func(ctx context.Context, input UpdateViewInput) (UpdateViewOutput, error) {
 		sessionID, runID := strings.TrimSpace(deps.Context.CurrentSessionID(ctx)), strings.TrimSpace(deps.Context.CurrentRunID(ctx))
 		if sessionID == "" || runID == "" {
 			return UpdateViewOutput{}, errors.New("update_view needs the current conversation and run")

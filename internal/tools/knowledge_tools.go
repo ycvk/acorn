@@ -101,9 +101,9 @@ type KnowledgeHitsOutput struct {
 }
 
 func buildKnowledgeWriteTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("knowledge_write",
+	return inferLocalTool("knowledge_write",
 		"Create a note in the knowledge base, or replace a note's whole body. Every write is kept as a new revision.",
-		func(ctx context.Context, input KnowledgeWriteInput, _ ToolProgressEmitter) (KnowledgeWriteOutput, error) {
+		func(ctx context.Context, input KnowledgeWriteInput) (KnowledgeWriteOutput, error) {
 			note, err := deps.Vault.Write(ctx, knowledge.WriteNote{
 				Path:   input.Path,
 				Title:  input.Title,
@@ -124,9 +124,9 @@ func buildKnowledgeWriteTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) 
 }
 
 func buildKnowledgeEditTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("knowledge_edit",
+	return inferLocalTool("knowledge_edit",
 		"Change part of an existing note by replacing one exact piece of its body. Use it to add to or correct a note without rewriting it.",
-		func(ctx context.Context, input KnowledgeEditInput, _ ToolProgressEmitter) (KnowledgeWriteOutput, error) {
+		func(ctx context.Context, input KnowledgeEditInput) (KnowledgeWriteOutput, error) {
 			note, err := deps.Vault.Edit(ctx, input.Path, input.Old, input.New, deps.Context.CurrentRunID(ctx))
 			if err != nil {
 				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_edit: %w", err)
@@ -140,8 +140,8 @@ func buildKnowledgeEditTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildKnowledgeReadTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("knowledge_read", "Read one note from the knowledge base.",
-		func(ctx context.Context, input KnowledgeReadInput, _ ToolProgressEmitter) (KnowledgeReadOutput, error) {
+	return inferLocalTool("knowledge_read", "Read one note from the knowledge base.",
+		func(ctx context.Context, input KnowledgeReadInput) (KnowledgeReadOutput, error) {
 			note, err := deps.Vault.Read(ctx, input.Path)
 			if err != nil {
 				return KnowledgeReadOutput{}, fmt.Errorf("knowledge_read: %w", err)
@@ -163,9 +163,9 @@ func buildKnowledgeReadTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildKnowledgeSearchTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("knowledge_search",
+	return inferLocalTool("knowledge_search",
 		"Search the knowledge base. Search before writing a new note so related notes get extended instead of duplicated.",
-		func(ctx context.Context, input KnowledgeSearchInput, _ ToolProgressEmitter) (KnowledgeHitsOutput, error) {
+		func(ctx context.Context, input KnowledgeSearchInput) (KnowledgeHitsOutput, error) {
 			query := strings.TrimSpace(input.Query)
 			if query == "" {
 				return KnowledgeHitsOutput{}, errors.New("knowledge_search: query is required")
@@ -187,9 +187,9 @@ func buildKnowledgeSearchTool(deps KnowledgeToolDeps) (einotool.BaseTool, error)
 }
 
 func buildKnowledgeListTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("knowledge_list",
+	return inferLocalTool("knowledge_list",
 		"List notes in the knowledge base, most recently updated first, to see how it is organized.",
-		func(ctx context.Context, input KnowledgeListInput, _ ToolProgressEmitter) (KnowledgeHitsOutput, error) {
+		func(ctx context.Context, input KnowledgeListInput) (KnowledgeHitsOutput, error) {
 			limit, err := knowledgeLimit(input.Limit)
 			if err != nil {
 				return KnowledgeHitsOutput{}, fmt.Errorf("knowledge_list: %w", err)

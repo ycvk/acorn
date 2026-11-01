@@ -98,9 +98,9 @@ type WatchListOutput struct {
 }
 
 func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("watch_create",
+	return inferLocalTool("watch_create",
 		"Follow a source for the owner: a feed, a GitHub repository, or part of a web page. The first check runs now and becomes the baseline; later checks report only what is new.",
-		func(ctx context.Context, input WatchCreateInput, _ ToolProgressEmitter) (WatchCreateOutput, error) {
+		func(ctx context.Context, input WatchCreateInput) (WatchCreateOutput, error) {
 			name, target := strings.TrimSpace(input.Name), strings.TrimSpace(input.Target)
 			if name == "" || target == "" {
 				return WatchCreateOutput{}, errors.New("watch_create: name and target are required")
@@ -189,9 +189,9 @@ func trialNote(w core.Watch) string {
 }
 
 func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("watch_update",
+	return inferLocalTool("watch_update",
 		"Change a watch: rename it, change what part of the page it follows, switch between digest, immediate and news, move a news source to another section, change how often it is checked, or pause and resume it. A news source the briefing takes is stopped only with news_source; a watch switched to news starts on trial.",
-		func(ctx context.Context, input WatchUpdateInput, _ ToolProgressEmitter) (WatchOutput, error) {
+		func(ctx context.Context, input WatchUpdateInput) (WatchOutput, error) {
 			loaded, err := deps.Store.LoadWatch(ctx, input.ID)
 			if err != nil {
 				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
@@ -291,8 +291,8 @@ func rebaseline(ctx context.Context, deps WatchToolDeps, w core.Watch) (WatchOut
 }
 
 func buildWatchListTool(deps WatchToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("watch_list", "List the watches with their state, schedule, last error and how many items wait for the morning briefing.",
-		func(ctx context.Context, _ struct{}, _ ToolProgressEmitter) (WatchListOutput, error) {
+	return inferLocalTool("watch_list", "List the watches with their state, schedule, last error and how many items wait for the morning briefing.",
+		func(ctx context.Context, _ struct{}) (WatchListOutput, error) {
 			watches, err := deps.Store.ListWatches(ctx)
 			if err != nil {
 				return WatchListOutput{}, fmt.Errorf("watch_list: %w", err)

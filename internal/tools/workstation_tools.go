@@ -104,7 +104,7 @@ func BuildWorkstationToolSpecs(cfg WorkstationToolsConfig) ([]core.ToolSpec, err
 
 func buildShellTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
 	description := fmt.Sprintf("Run a bash command on your own Linux workstation (Debian, user agent with passwordless sudo, internet access). Files under the home directory persist; system packages installed with apt are lost when the workstation is rebuilt. Commands time out after %d seconds at most. stdout and stderr each keep their beginning and end when long.", cfg.CommandTimeoutSeconds)
-	return inferProgressTool("shell", description, func(ctx context.Context, input ShellInput, _ ToolProgressEmitter) (workstation.ExecResult, error) {
+	return inferLocalTool("shell", description, func(ctx context.Context, input ShellInput) (workstation.ExecResult, error) {
 		if strings.TrimSpace(input.Command) == "" {
 			return workstation.ExecResult{}, errors.New("shell: command is required")
 		}
@@ -123,7 +123,7 @@ func buildShellTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
 
 func buildFilesTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
 	description := fmt.Sprintf("Read or write a UTF-8 text file on your workstation. read returns at most %d bytes and says when the file is longer; use shell for other files and listings.", cfg.MaxOutputBytes)
-	return inferProgressTool("files", description, func(ctx context.Context, input FilesInput, _ ToolProgressEmitter) (FilesOutput, error) {
+	return inferLocalTool("files", description, func(ctx context.Context, input FilesInput) (FilesOutput, error) {
 		switch input.Action {
 		case "read":
 			got, err := cfg.Service.ReadFile(ctx, workstation.ReadRequest{Path: input.Path, MaxBytes: cfg.MaxOutputBytes})
@@ -145,7 +145,7 @@ func buildFilesTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
 
 func buildSendFileTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
 	description := fmt.Sprintf("Send the owner a file from your workstation, such as a book or document you downloaded or a file you made. It appears under your reply in this conversation, where the owner can open it or save it to their phone; images show inline. Files are at most %d MiB. Say in your reply what you sent.", cfg.MaxSendBytes>>20)
-	return inferProgressTool("send_file", description, func(ctx context.Context, input SendFileInput, _ ToolProgressEmitter) (SendFileOutput, error) {
+	return inferLocalTool("send_file", description, func(ctx context.Context, input SendFileInput) (SendFileOutput, error) {
 		if strings.TrimSpace(input.Path) == "" {
 			return SendFileOutput{}, errors.New("send_file: path is required")
 		}
