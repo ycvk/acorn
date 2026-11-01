@@ -1,15 +1,11 @@
 package io.ycvk.acorn.core.push
 
-import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
@@ -80,7 +76,7 @@ class PushManager @Inject constructor(
      */
     fun register() {
         if (settings.missing().isNotEmpty()) return
-        if (!hasPermission()) {
+        if (!canPostNotifications(context)) {
             _status.value = PushStatus.PermissionDenied
             return
         }
@@ -112,7 +108,7 @@ class PushManager @Inject constructor(
 
     /** Shows a notification received while the app is in the foreground. */
     fun show(title: String, body: String, threadId: String?, browserUrl: String?) {
-        if (!hasPermission()) return
+        if (!canPostNotifications(context)) return
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             threadId?.let { putExtra(EXTRA_THREAD_ID, it) }
@@ -141,10 +137,6 @@ class PushManager @Inject constructor(
         DevicesApi(basePath = profile.serverUrl).authorized(profile).clientSetPushInstallation(PushInstallationRequest(fid = fid))
     }
 
-    private fun hasPermission(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
 
     companion object {
         const val CHANNEL_ID = "acorn_default"

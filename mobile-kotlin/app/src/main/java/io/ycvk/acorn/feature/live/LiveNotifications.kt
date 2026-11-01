@@ -1,14 +1,11 @@
 package io.ycvk.acorn.feature.live
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -16,6 +13,7 @@ import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.R
 import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
 import io.ycvk.acorn.core.push.PushManager
+import io.ycvk.acorn.core.push.canPostNotifications
 import io.ycvk.acorn.core.sse.RunStatus
 import io.ycvk.acorn.core.ui.plainSnippet
 import javax.inject.Inject
@@ -90,7 +88,7 @@ class LiveNotifications @Inject constructor(
 
     /** Leaves the reply's opening, or why the run failed, unless the owner is looking at the app. */
     override fun ended(run: FollowedRun) {
-        if (visibility.inFront || !hasPermission()) return
+        if (visibility.inFront || !canPostNotifications(context)) return
         val ending = ending(run) ?: return
         val notification = NotificationCompat.Builder(context, PushManager.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_acorn)
@@ -106,7 +104,7 @@ class LiveNotifications @Inject constructor(
 
     /** Says that a stop asked from the notification did not reach the server. */
     fun stopFailed(title: String, reason: String) {
-        if (!hasPermission()) return
+        if (!canPostNotifications(context)) return
         val notification = NotificationCompat.Builder(context, PushManager.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_acorn)
             .setContentTitle("没能停下：$title")
@@ -132,9 +130,6 @@ class LiveNotifications @Inject constructor(
         return PendingIntent.getService(context, "stop:$runId".hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
-    private fun hasPermission(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     companion object {
         const val CHANNEL_ID = "acorn_live"
