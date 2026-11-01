@@ -20,7 +20,7 @@ type memoryModel struct {
 	mu    sync.Mutex
 }
 
-func NewMemoryModel(ctx context.Context, cfg *config.Config) (memory.Model, error) {
+func NewMemoryModel(cfg *config.Config) (memory.Model, error) {
 	if cfg == nil {
 		return nil, errors.New("memory model requires config")
 	}

@@ -51,7 +51,7 @@ func TestMemoryLiveExtractionLeavesTasksToTheirConversation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	model, err := runtime.NewMemoryModel(ctx, cfg)
+	model, err := runtime.NewMemoryModel(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

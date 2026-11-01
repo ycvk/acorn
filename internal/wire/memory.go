@@ -14,7 +14,7 @@ import (
 )
 
 func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, owner core.SettingsReader, clock func() time.Time, rebuild bool) (*memory.Engine, error) {
-	model, err := runtime.NewMemoryModel(ctx, cfg)
+	model, err := runtime.NewMemoryModel(cfg)
 	if err != nil {
 		return nil, err
 	}

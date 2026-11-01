@@ -17,7 +17,7 @@ import (
 // the model background memory work uses and the pages of issues read under
 // the outbound policy.
 func buildNews(ctx context.Context, cfg *config.Config, db *store.Store, owner core.SettingsReader, fetcher *webaccess.FetchService, clock func() time.Time) (*news.Processor, error) {
-	model, err := runtime.NewMemoryModel(ctx, cfg)
+	model, err := runtime.NewMemoryModel(cfg)
 	if err != nil {
 		return nil, err
 	}
