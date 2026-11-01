@@ -109,15 +109,15 @@ class RunEventStreamClient(client: OkHttpClient) {
      * Parses an SSE `data` payload into a [RunEventPacket] by dispatching on the
      * `type` discriminator (the SSE `event:` line).
      *
-     * If the type is unknown the raw data is preserved in [RunEventPacket.Unknown].
+     * An event of an unknown type is [RunEventPacket.Unknown].
      */
     private fun parseRunEvent(type: String?, data: String): RunEventPacket {
         if (type == null) {
-            return RunEventPacket.Unknown(rawType = "(null)", rawData = data)
+            return RunEventPacket.Unknown
         }
 
         val eventType = eventTypes[type]
-            ?: return RunEventPacket.Unknown(rawType = type, rawData = data)
+            ?: return RunEventPacket.Unknown
         val adapter = eventAdapters.computeIfAbsent(type) { moshi.adapter(eventType) }
 
         val parsed = adapter.fromJson(data)
@@ -141,7 +141,7 @@ class RunEventStreamClient(client: OkHttpClient) {
             "tool.call.failed" -> RunEventPacket.ToolCallFailed(parsed as ClientToolCallFailedEvent)
             "view.shown" -> RunEventPacket.ViewShown(parsed as ClientViewShownEvent)
             "view.updated" -> RunEventPacket.ViewUpdated(parsed as ClientViewUpdatedEvent)
-            else -> RunEventPacket.Unknown(rawType = type, rawData = data)
+            else -> RunEventPacket.Unknown
         }
     }
 }
@@ -172,5 +172,5 @@ sealed class RunEventPacket(val eventId: String, val seq: Long) {
     data class ViewShown(val event: ClientViewShownEvent) : RunEventPacket(event.eventId, event.seq)
     data class ViewUpdated(val event: ClientViewUpdatedEvent) : RunEventPacket(event.eventId, event.seq)
 
-    data class Unknown(val rawType: String, val rawData: String) : RunEventPacket("", 0L)
+    data object Unknown : RunEventPacket("", 0L)
 }

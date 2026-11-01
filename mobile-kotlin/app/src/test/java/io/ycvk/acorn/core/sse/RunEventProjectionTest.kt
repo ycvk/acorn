@@ -289,7 +289,7 @@ class RunEventProjectionTest {
     @Test
     fun `Unknown packet leaves state unchanged`() {
         val state = ChatState(assistantText = "hello", isStreaming = true, runStatus = RunStatus.Running)
-        val result = projection.apply(state, RunEventPacket.Unknown("unknown_type", "{}"))
+        val result = projection.apply(state, RunEventPacket.Unknown)
         assertEquals(state, result)
     }
 
