@@ -143,7 +143,7 @@ func captureRunInput(subject string, links []string, text, image string) string 
 func textWithoutLinks(text string) string {
 	lines := strings.Split(captureLink.ReplaceAllString(text, ""), "\n")
 	for i, line := range lines {
-		lines[i] = strings.Join(strings.Fields(line), " ")
+		lines[i] = compactWhitespace(line)
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }

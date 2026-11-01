@@ -328,7 +328,7 @@ func previewText(value string) string {
 }
 
 func compactWhitespace(value string) string {
-	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func truncateRunes(value string, maxRunes int) string {

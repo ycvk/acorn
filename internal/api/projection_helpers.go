@@ -81,7 +81,7 @@ func toolCallSummary(arguments string) string {
 	}
 	for _, key := range toolCallSummaryKeys {
 		if value := topLevelString(args, key); value != "" {
-			return clip(strings.Join(strings.Fields(value), " "), toolCallSummaryRunes)
+			return clip(compactWhitespace(value), toolCallSummaryRunes)
 		}
 	}
 	return ""

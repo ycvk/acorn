@@ -203,7 +203,7 @@ func (s *ThreadService) threadTitleFromRecentUserMessage(ctx context.Context, th
 }
 
 func generatedThreadTitle(content string) string {
-	compact := strings.Join(strings.Fields(content), " ")
+	compact := compactWhitespace(content)
 	if compact == "" {
 		return ""
 	}
@@ -385,7 +385,7 @@ const threadPreviewRunes = 120
 
 // threadPreview is the latest reply flattened to one short line.
 func threadPreview(content string) string {
-	return clip(strings.Join(strings.Fields(content), " "), threadPreviewRunes)
+	return clip(compactWhitespace(content), threadPreviewRunes)
 }
 
 // toolSteps folds a run's tool.call.* events into the calls it made, in the
