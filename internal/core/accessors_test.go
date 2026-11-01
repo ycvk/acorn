@@ -125,7 +125,7 @@ func TestRunIDContextRoundtrip(t *testing.T) {
 
 func TestSessionIDContextRoundtrip(t *testing.T) {
 	ctx := WithSessionID(context.Background(), "sess_456")
-	if got := GetSessionID(ctx); got != "sess_456" {
+	if got := CurrentSessionID(ctx); got != "sess_456" {
 		t.Fatalf("got %q", got)
 	}
 }

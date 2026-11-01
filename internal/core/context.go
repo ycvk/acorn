@@ -12,9 +12,6 @@ func WithRunID(ctx context.Context, runID string) context.Context {
 
 // CurrentRunID returns the run ID stored in the context, or empty string.
 func CurrentRunID(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
 	v, ok := ctx.Value(runIDContextKey{}).(string)
 	if !ok {
 		return ""
@@ -29,11 +26,8 @@ func WithWake(ctx context.Context, wake string) context.Context {
 	return context.WithValue(ctx, wakeContextKey{}, wake)
 }
 
-// GetWake returns what woke the current run, or "" when not set.
-func GetWake(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
+// CurrentWake returns what woke the current run, or "" when not set.
+func CurrentWake(ctx context.Context) string {
 	v, ok := ctx.Value(wakeContextKey{}).(string)
 	if !ok {
 		return ""
@@ -47,10 +41,7 @@ func WithSessionID(ctx context.Context, sessionID string) context.Context {
 	return context.WithValue(ctx, sessionIDContextKey{}, sessionID)
 }
 
-func GetSessionID(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
+func CurrentSessionID(ctx context.Context) string {
 	v, ok := ctx.Value(sessionIDContextKey{}).(string)
 	if !ok {
 		return ""

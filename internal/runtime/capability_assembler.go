@@ -19,7 +19,7 @@ func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
-	return core.GetSessionID(ctx)
+	return core.CurrentSessionID(ctx)
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {

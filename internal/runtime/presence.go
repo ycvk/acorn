@@ -186,7 +186,7 @@ func (m *presenceMiddleware) recordSnapshot(ctx context.Context, rendered string
 }
 
 func wakeOrDefault(ctx context.Context) string {
-	if wake := core.GetWake(ctx); wake != "" {
+	if wake := core.CurrentWake(ctx); wake != "" {
 		return wake
 	}
 	return "owner message"
