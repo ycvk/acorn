@@ -313,10 +313,6 @@ func runSummaryPreview(record core.RunRecord) string {
 		if preview := previewText(record.Output); preview != "" {
 			return preview
 		}
-	case core.RunStatusInterrupted, core.RunStatusRunning:
-		if preview := previewText(record.Input); preview != "" {
-			return preview
-		}
 	}
 	if preview := previewText(record.Input); preview != "" {
 		return preview
