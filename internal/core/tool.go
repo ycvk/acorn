@@ -27,10 +27,8 @@ type ToolLoadingPolicy struct {
 type ToolKind string
 
 const (
-	ToolKindNative   ToolKind = "native"
-	ToolKindMCP      ToolKind = "mcp"
-	ToolKindMemory   ToolKind = "memory"
-	ToolKindWorkflow ToolKind = "workflow"
+	ToolKindNative ToolKind = "native"
+	ToolKindMCP    ToolKind = "mcp"
 )
 
 type ToolCategory string
@@ -40,10 +38,8 @@ const (
 	ToolCategoryWrite       ToolCategory = "write"
 	ToolCategoryExecute     ToolCategory = "execute"
 	ToolCategoryInspect     ToolCategory = "inspect"
-	ToolCategoryMutation    ToolCategory = "mutation"
 	ToolCategoryMemory      ToolCategory = "memory"
 	ToolCategoryIntegration ToolCategory = "integration"
-	ToolCategoryWorkflow    ToolCategory = "workflow"
 )
 
 // --- Tool health ---

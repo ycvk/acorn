@@ -70,8 +70,6 @@ type SessionRecord struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type EventKind string
-
 // --- Pending actions ---
 
 type PendingActionKind string
