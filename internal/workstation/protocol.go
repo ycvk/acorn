@@ -4,11 +4,25 @@
 // loopback HTTP with a bearer token.
 package workstation
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"os"
+)
 
 // TokenEnv names the environment variable that carries the shared bearer
 // token on both sides.
 const TokenEnv = "ACORN_WORKSTATION_TOKEN"
+
+// TakeToken reads the token from TokenEnv and removes it from the process
+// environment, so no command the workstation starts inherits it.
+func TakeToken() (string, error) {
+	token := os.Getenv(TokenEnv)
+	if err := os.Unsetenv(TokenEnv); err != nil {
+		return "", fmt.Errorf("remove %s from the environment: %w", TokenEnv, err)
+	}
+	return token, nil
+}
 
 // MinTokenLength rejects tokens too short to resist guessing.
 const MinTokenLength = 32

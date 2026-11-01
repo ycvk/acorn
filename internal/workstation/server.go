@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -27,22 +28,29 @@ import (
 // Server executes requests inside the workstation. Every request needs the
 // bearer token; relative paths resolve against home.
 type Server struct {
-	home     string
-	token    string
-	chromium string
-	view     *View
-	mcp      *mcpHost
+	home        string
+	token       string
+	refuseLocal bool
+	chromium    string
+	view        *View
+	mcp         *mcpHost
 }
 
 // ServerConfig sets up a Server. Chromium is the browser that renders pages
 // and View the owner's view of the agent's browser; each is off when unset.
 // Supervisor keeps the skill packages' MCP servers running.
+//
+// RefuseLocal refuses requests from the workstation's own addresses. The
+// commands, packages and triggers it runs share its network and can read the
+// token from its processes, so only the backend, outside the workstation,
+// may call it. It stays off when the backend runs on the same machine.
 type ServerConfig struct {
-	Home       string
-	Token      string
-	Chromium   string
-	View       *View
-	Supervisor *Supervisor
+	Home        string
+	Token       string
+	RefuseLocal bool
+	Chromium    string
+	View        *View
+	Supervisor  *Supervisor
 }
 
 func NewServer(cfg ServerConfig) (*Server, error) {
@@ -64,7 +72,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		return nil, errors.New("workstation supervisor is required")
 	}
 	home = filepath.Clean(home)
-	return &Server{home: home, token: token, chromium: cfg.Chromium, view: cfg.View, mcp: newMCPHost(home, cfg.Supervisor)}, nil
+	return &Server{home: home, token: token, refuseLocal: cfg.RefuseLocal, chromium: cfg.Chromium, view: cfg.View, mcp: newMCPHost(home, cfg.Supervisor)}, nil
 }
 
 // Close stops the skill packages' MCP servers and waits for them to exit.
@@ -101,6 +109,17 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) authorized(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s.refuseLocal {
+			local, err := localPeer(r.RemoteAddr)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			if local {
+				writeError(w, http.StatusForbidden, errors.New("the workstation API takes no requests from inside the workstation"))
+				return
+			}
+		}
 		got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 {
 			writeError(w, http.StatusUnauthorized, errors.New("invalid workstation token"))
@@ -108,6 +127,32 @@ func (s *Server) authorized(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+// localPeer reports whether a request comes from one of this machine's own
+// addresses.
+func localPeer(remoteAddr string) (bool, error) {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return false, fmt.Errorf("peer address %q: %w", remoteAddr, err)
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false, fmt.Errorf("peer address %q is not an IP address", remoteAddr)
+	}
+	if ip.IsLoopback() {
+		return true, nil
+	}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false, fmt.Errorf("read the workstation's addresses: %w", err)
+	}
+	for _, addr := range addrs {
+		if n, ok := addr.(*net.IPNet); ok && n.IP.Equal(ip) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Server) status(w http.ResponseWriter, _ *http.Request) {

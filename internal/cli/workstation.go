@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -45,8 +46,18 @@ func runWorkstation(ctx context.Context, args []string) error {
 			return err
 		}
 	}
+	host, _, err := net.SplitHostPort(*listen)
+	if err != nil {
+		return fmt.Errorf("listen address %q: %w", *listen, err)
+	}
+	listenIP := net.ParseIP(host)
+	loopback := host == "localhost" || (listenIP != nil && listenIP.IsLoopback())
+	token, err := workstation.TakeToken()
+	if err != nil {
+		return err
+	}
 	supervisor := workstation.NewSupervisor(os.Stdout)
-	server, err := workstation.NewServer(workstation.ServerConfig{Home: *home, Token: os.Getenv(workstation.TokenEnv), Chromium: *chromium, View: view, Supervisor: supervisor})
+	server, err := workstation.NewServer(workstation.ServerConfig{Home: *home, Token: token, RefuseLocal: !loopback, Chromium: *chromium, View: view, Supervisor: supervisor})
 	if err != nil {
 		return err
 	}
