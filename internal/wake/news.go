@@ -169,7 +169,7 @@ func (s *Scheduler) newsStories(sections []core.NewsSection, stories []core.News
 				b.WriteString("  " + summary + "\n")
 			}
 			for _, item := range story.Items {
-				line := fmt.Sprintf("  · %s %s %s", item.Source, s.itemTime(item.WatchItem, loc), item.Title)
+				line := fmt.Sprintf("  · %s %s %s", item.Source, item.When().In(loc).Format("01-02 15:04"), item.Title)
 				if item.URL != "" {
 					line += " — " + item.URL
 				}
@@ -197,12 +197,6 @@ func reactionLabel(r core.NewsReaction) string {
 		return "more of this kind"
 	}
 	return "less of this kind"
-}
-
-// itemTime is when an item was published, or first seen when its source
-// gives no date.
-func (s *Scheduler) itemTime(item core.WatchItem, loc *time.Location) string {
-	return item.When().In(loc).Format("01-02 15:04")
 }
 
 // previousBriefing carries the news sections and today's focus of the last
