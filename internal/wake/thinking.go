@@ -225,9 +225,9 @@ func (s *Scheduler) followedStory(ctx context.Context, threadID string) (story c
 	if err != nil {
 		return core.StorySnapshot{}, false, err
 	}
-	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Intent == core.StoryFollow {
-			return messages[i].Story, true, nil
+	for _, message := range slices.Backward(messages) {
+		if message.Intent == core.StoryFollow {
+			return message.Story, true, nil
 		}
 	}
 	return core.StorySnapshot{}, false, nil
