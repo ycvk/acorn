@@ -212,7 +212,7 @@ func (s *Service) values(ctx context.Context) (Values, []string, error) {
 
 func (s *Service) usageToday(ctx context.Context, loc *time.Location) (Usage, error) {
 	local := s.clock().In(loc)
-	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	midnight := core.Midnight(local, loc)
 	usage := Usage{Day: local.Format(time.DateOnly)}
 	var err error
 	if usage.Wakes, err = s.usage.CountWakesSince(ctx, midnight); err != nil {

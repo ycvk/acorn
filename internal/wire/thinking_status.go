@@ -22,8 +22,7 @@ func (c *Container) ThinkingStatus(ctx context.Context) (ThinkingStatus, error) 
 	}
 	loc := current.Location
 	now := c.clock()
-	local := now.In(loc)
-	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	midnight := core.Midnight(now, loc)
 	status.Usage, err = c.store.UsageReport(ctx, midnight)
 	if err != nil {
 		return status, err

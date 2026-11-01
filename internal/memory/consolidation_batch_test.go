@@ -103,7 +103,7 @@ func TestConsolidationBatchDefersTogetherOnBudget(t *testing.T) {
 	if err != nil || status.Failed != 0 {
 		t.Fatalf("status=%+v %v", status, err)
 	}
-	tomorrow := midnight(now, time.UTC).AddDate(0, 0, 1)
+	tomorrow := core.Midnight(now, time.UTC).AddDate(0, 0, 1)
 	if ready, err := db.ReadyMemoryJobs(ctx, tomorrow.Add(-time.Second), "consolidate", 10); err != nil || len(ready) != 0 {
 		t.Fatalf("deferred jobs ready before the next local day: %+v err=%v", ready, err)
 	}

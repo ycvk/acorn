@@ -28,7 +28,7 @@ func quietEnd(q core.QuietHours, t time.Time) (time.Time, bool) {
 	if q.Start == q.End {
 		return time.Time{}, false
 	}
-	midnight := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	midnight := core.Midnight(t, t.Location())
 	offset := t.Sub(midnight)
 	switch {
 	case q.Start < q.End && offset >= q.Start && offset < q.End:

@@ -176,8 +176,7 @@ func (s *Scheduler) briefingMemory(ctx context.Context, m *briefingMaterial, sin
 	if len(lines) > 0 {
 		m.add("Remembered since the last briefing:\n"+strings.Join(lines, "\n")+"\n", true)
 	}
-	local := now.In(loc)
-	todayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	todayStart := core.Midnight(now, loc)
 	tomorrow := todayStart.Add(24 * time.Hour)
 	upcoming, err := s.cfg.Memory.ListMemoryRecords(ctx, core.MemoryQuery{Mode: "current", Kind: "fact", From: todayStart, To: now.Add(briefingHorizon), Limit: maxBriefingRecords})
 	if err != nil {

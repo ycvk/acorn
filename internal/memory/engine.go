@@ -65,11 +65,6 @@ func New(cfg Config) (*Engine, error) {
 	return &Engine{cfg: cfg}, nil
 }
 
-func midnight(now time.Time, loc *time.Location) time.Time {
-	local := now.In(loc)
-	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
-}
-
 type callScope struct {
 	runID, budget string
 	jobID         int64

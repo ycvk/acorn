@@ -307,7 +307,7 @@ func (s *Scheduler) linkedConcern(ctx context.Context, id string) (*core.MemoryC
 // once a day per subject when it does not.
 func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.Time, settings core.Settings) (bool, error) {
 	local := now.In(settings.Location)
-	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, settings.Location)
+	midnight := core.Midnight(local, settings.Location)
 	count, err := s.cfg.Store.CountWakesSince(ctx, midnight)
 	if err != nil {
 		return false, err

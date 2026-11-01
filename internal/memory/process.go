@@ -96,7 +96,7 @@ func (e *Engine) recoverMemoryJobs(ctx context.Context, jobs []core.MemoryJob, c
 		if err != nil {
 			return err
 		}
-		tomorrow = midnight(now, settings.Location).AddDate(0, 0, 1)
+		tomorrow = core.Midnight(now, settings.Location).AddDate(0, 0, 1)
 	}
 	var errs []error
 	for _, job := range jobs {
