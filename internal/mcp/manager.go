@@ -81,9 +81,8 @@ func WithStore(store core.SessionStore) ManagerOption {
 
 // ToolSpecBuilder translates a discovered MCP tool (provider + tool) into a
 // core.ToolSpec for registration in the unified ToolRegistry. It is supplied by
-// the runtime — which owns MCP namespacing, parallel-policy resolution, and
-// description augmentation — so the manager can register tools without taking
-// a config/runtime dependency. The namespaced tool name returned in the spec
+// the runtime — which owns MCP namespacing and description augmentation — so
+// the manager can register tools without taking a runtime dependency. The namespaced tool name returned in the spec
 // MUST match what the capability catalog expects (see runtime.mcpToolName).
 type ToolSpecBuilder func(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error)
 

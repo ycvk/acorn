@@ -9,8 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// Catalog holds normalized
-// tool specs indexed by name for fast lookup.
+// Catalog holds normalized tool specs with unique names, sorted by name.
 type Catalog struct {
 	specs []core.ToolSpec
 }

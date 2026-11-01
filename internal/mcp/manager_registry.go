@@ -104,8 +104,7 @@ func (m *Manager) refreshProviderToolRegistrations(ctx context.Context, provider
 }
 
 // tools returns the provider's discovered tools, or nil when the slot has no
-// live provider. Held by providerSlot so the registry helper can read tools
-// without importing the provider type's private layout.
+// live provider.
 func (s *providerSlot) tools() []einotool.BaseTool {
 	if s == nil || s.p == nil {
 		return nil

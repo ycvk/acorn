@@ -200,10 +200,9 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 
 // RegisterNativeTools registers every static local tool declared by
 // localToolNames/configuredLocalSpec into the core.ToolRegistry. Run-scoped
-// tools (web_fetch, web_search, shell, files) are excluded: they depend on
-// per-run services (web access, workstation) constructed at buildRun time, so they cannot
-// be resolved at wire time. They are contributed by the runtime toolset
-// catalog instead (see BuildWebToolSpecs).
+// tools (runScopedTool) are excluded: they depend on services (web access,
+// workstation) built for each run, so they cannot be resolved at wire time.
+// The runtime toolset catalog contributes them instead (see BuildWebToolSpecs).
 func RegisterNativeTools(registry core.ToolRegistry, deps NativeToolDeps) error {
 	if registry == nil {
 		return fmt.Errorf("RegisterNativeTools: registry is nil")
