@@ -12,7 +12,8 @@ type Shell struct {
 	// process substitution, or quoting that does not close.
 	Opaque bool
 	// ReadOnly is set when every simple command is known to only read or to
-	// stay on the workstation, so the command needs no review.
+	// stay on the workstation and no redirection can reach the network, so
+	// the command needs no review.
 	ReadOnly bool
 	// Other is set when a part that is neither read-only nor a bsk page
 	// action needs review as a whole command.
@@ -74,11 +75,12 @@ var bskActions = map[string]bool{"click": true, "fill": true, "press": true, "se
 // ParseShell splits a command into simple commands and classifies them. It
 // errs toward review: anything it cannot read is not ReadOnly.
 func ParseShell(command string) Shell {
-	words, ok := splitWords(command)
+	words, targets, ok := splitWords(command)
 	if !ok {
 		return Shell{Opaque: true, Other: true}
 	}
-	shell := Shell{ReadOnly: true}
+	shell := Shell{ReadOnly: !slices.ContainsFunc(targets, networkTarget)}
+	shell.Other = !shell.ReadOnly
 	for _, simple := range words {
 		readOnly, call := classify(simple)
 		if call != nil {
@@ -92,6 +94,14 @@ func ParseShell(command string) Shell {
 		}
 	}
 	return shell
+}
+
+// networkTarget reports whether a redirection target may be one of bash's
+// network paths, /dev/tcp/host/port and /dev/udp/host/port, which open a
+// connection; a target built from a variable may be one too.
+func networkTarget(target string) bool {
+	clean := path.Clean(target)
+	return strings.HasPrefix(clean, "/dev/tcp/") || strings.HasPrefix(clean, "/dev/udp/") || strings.Contains(target, "$")
 }
 
 func classify(words []string) (bool, *BrowserCall) {
@@ -185,23 +195,30 @@ func isNameRune(i int, r rune) bool {
 
 // splitWords tokenizes like a POSIX shell, enough to find simple commands:
 // quotes and escapes join words, control operators end a command, and
-// redirections drop their target. It reports false on substitutions and
-// unbalanced quotes.
-func splitWords(command string) ([][]string, bool) {
+// redirection targets are returned apart from the command words; the
+// delimiter of a here-document and the word of a here-string are neither.
+// It reports false on substitutions and unbalanced quotes.
+func splitWords(command string) ([][]string, []string, bool) {
 	var (
-		commands [][]string
-		current  []string
-		word     strings.Builder
-		inWord   bool
-		skipNext bool
+		commands   [][]string
+		targets    []string
+		current    []string
+		word       strings.Builder
+		inWord     bool
+		skipNext   bool
+		targetNext bool
 	)
 	endWord := func() {
 		if !inWord {
 			return
 		}
-		if skipNext {
+		switch {
+		case skipNext && targetNext:
+			targets = append(targets, word.String())
+			skipNext, targetNext = false, false
+		case skipNext:
 			skipNext = false
-		} else {
+		default:
 			current = append(current, word.String())
 		}
 		word.Reset()
@@ -227,7 +244,7 @@ func splitWords(command string) ([][]string, bool) {
 		case r == '\'':
 			end := indexRune(runes, i+1, '\'')
 			if end < 0 {
-				return nil, false
+				return nil, nil, false
 			}
 			word.WriteString(string(runes[i+1 : end]))
 			inWord = true
@@ -241,19 +258,19 @@ func splitWords(command string) ([][]string, bool) {
 					continue
 				}
 				if runes[j] == '`' || runes[j] == '$' && j+1 < len(runes) && runes[j+1] == '(' {
-					return nil, false
+					return nil, nil, false
 				}
 				word.WriteRune(runes[j])
 			}
 			if j >= len(runes) {
-				return nil, false
+				return nil, nil, false
 			}
 			inWord = true
 			i = j
 		case r == '`', r == '$' && i+1 < len(runes) && runes[i+1] == '(':
-			return nil, false
+			return nil, nil, false
 		case (r == '<' || r == '>') && i+1 < len(runes) && runes[i+1] == '(':
-			return nil, false
+			return nil, nil, false
 		case r == '|' || r == ';' || r == '&' || r == '\n':
 			if r == '&' && i > 0 && runes[i-1] == '>' {
 				// The "&" of ">&2" belongs to the redirection.
@@ -269,7 +286,8 @@ func splitWords(command string) ([][]string, bool) {
 			} else {
 				endWord()
 			}
-			for i+1 < len(runes) && (runes[i+1] == '>' || runes[i+1] == '&') {
+			heredoc := r == '<' && i+1 < len(runes) && runes[i+1] == '<'
+			for i+1 < len(runes) && (runes[i+1] == '>' || runes[i+1] == '<' || runes[i+1] == '&' || runes[i+1] == '|') {
 				i++
 			}
 			if i+1 < len(runes) && runes[i+1] >= '0' && runes[i+1] <= '9' {
@@ -278,7 +296,7 @@ func splitWords(command string) ([][]string, bool) {
 				}
 				continue
 			}
-			skipNext = true
+			skipNext, targetNext = true, !heredoc
 		case r == ' ' || r == '\t':
 			endWord()
 		default:
@@ -287,7 +305,7 @@ func splitWords(command string) ([][]string, bool) {
 		}
 	}
 	endCommand()
-	return commands, true
+	return commands, targets, true
 }
 
 func indexRune(runes []rune, from int, target rune) int {
