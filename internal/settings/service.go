@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"time"
@@ -100,7 +101,7 @@ func (s *Service) Save(ctx context.Context, change Change, deviceID string) (Cur
 	next := old
 	stored := core.SettingsChange{At: now}
 	var errs []error
-	for _, key := range sortedKeys(change.Set) {
+	for _, key := range slices.Sorted(maps.Keys(change.Set)) {
 		f, err := fieldFor(key)
 		if err != nil {
 			errs = append(errs, err)
@@ -227,13 +228,4 @@ func (s *Service) usageToday(ctx context.Context, loc *time.Location) (Usage, er
 		return Usage{}, err
 	}
 	return usage, nil
-}
-
-func sortedKeys(m map[string]json.RawMessage) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-	return keys
 }
