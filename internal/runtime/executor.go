@@ -62,7 +62,7 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRe
 		return req, nil
 	}
 	req.SessionID = core.NewSessionID()
-	title, _ := compactText(req.Input, 48)
+	title := compactText(req.Input, 48)
 	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, req.SessionID, title, req.Input)
 	if err != nil {
 		return req, err
