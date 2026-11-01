@@ -9,9 +9,9 @@ import io.ycvk.acorn.api.models.PersonaRevisionSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Save
+import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.PersonaRepository
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -65,16 +65,10 @@ class PersonaViewModel @Inject constructor(
         if (_persona.value !is Load.Loaded) _persona.value = Load.Loading
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            _persona.value = try {
-                withContext(Dispatchers.IO) {
-                    val current = async { repository.current(profile) }
-                    val revisions = async { repository.revisions(profile) }
-                    Load.Loaded(PersonaHistory(current.await(), revisions.await()))
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
+            _persona.value = loadOf {
+                val current = async { repository.current(profile) }
+                val revisions = async { repository.revisions(profile) }
+                PersonaHistory(current.await(), revisions.await())
             }
         }
     }
@@ -88,13 +82,7 @@ class PersonaViewModel @Inject constructor(
         _save.value = Save.Idle
         revisionJob?.cancel()
         revisionJob = viewModelScope.launch {
-            _revision.value = try {
-                Load.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, revision) })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _revision.value = loadOf { repository.revision(profile, revision) }
         }
     }
 

@@ -10,6 +10,7 @@ import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Save
+import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.MemoryRepository
 import kotlinx.coroutines.CancellationException
@@ -179,14 +180,7 @@ class MemoryViewModel @Inject constructor(
         val limit = _limit.value
         listJob?.cancel()
         listJob = viewModelScope.launch {
-            _list.value = try {
-                val page = withContext(Dispatchers.IO) { repository.list(profile, kind, query, limit) }
-                Load.Loaded(page)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _list.value = loadOf { repository.list(profile, kind, query, limit) }
         }
     }
 

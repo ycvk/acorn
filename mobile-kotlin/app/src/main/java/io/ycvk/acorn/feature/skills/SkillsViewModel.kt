@@ -13,9 +13,9 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Save
+import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.SkillRepository
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -64,13 +64,7 @@ class SkillsViewModel @Inject constructor(
         if (_list.value !is Load.Loaded) _list.value = Load.Loading
         listJob?.cancel()
         listJob = viewModelScope.launch {
-            _list.value = try {
-                Load.Loaded(withContext(Dispatchers.IO) { repository.list(profile) })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _list.value = loadOf { repository.list(profile) }
         }
     }
 
@@ -87,16 +81,10 @@ class SkillsViewModel @Inject constructor(
         }
         skillJob?.cancel()
         skillJob = viewModelScope.launch {
-            _skill.value = try {
-                withContext(Dispatchers.IO) {
-                    val detail = async { repository.detail(profile, name) }
-                    val revisions = async { repository.revisions(profile, name) }
-                    Load.Loaded(SkillHistory(detail.await(), revisions.await()))
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
+            _skill.value = loadOf {
+                val detail = async { repository.detail(profile, name) }
+                val revisions = async { repository.revisions(profile, name) }
+                SkillHistory(detail.await(), revisions.await())
             }
         }
     }
@@ -110,13 +98,7 @@ class SkillsViewModel @Inject constructor(
         _change.value = Save.Idle
         revisionJob?.cancel()
         revisionJob = viewModelScope.launch {
-            _revision.value = try {
-                Load.Loaded(withContext(Dispatchers.IO) { repository.revision(profile, name, revision) })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _revision.value = loadOf { repository.revision(profile, name, revision) }
         }
     }
 
@@ -131,13 +113,7 @@ class SkillsViewModel @Inject constructor(
         _diff.value = Load.Loading
         diffJob?.cancel()
         diffJob = viewModelScope.launch {
-            _diff.value = try {
-                Load.Loaded(withContext(Dispatchers.IO) { repository.diff(profile, name, from, to) })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _diff.value = loadOf { repository.diff(profile, name, from, to) }
         }
     }
 

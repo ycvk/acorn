@@ -13,6 +13,7 @@ import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.clockTime
 import io.ycvk.acorn.core.ui.dayLabel
+import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.NowRepository
 import io.ycvk.acorn.feature.live.RunFollower
@@ -155,14 +156,8 @@ class NowViewModel @Inject constructor(
     private suspend fun reload(profile: ConnectionProfile) {
         _refreshing.value = true
         if (_load.value !is Load.Loaded) _load.value = Load.Loading
-        _load.value = try {
-            withContext(Dispatchers.IO) {
-                Load.Loaded(repository.now(profile))
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Load.Failed(userMessage(e))
+        try {
+            _load.value = loadOf { repository.now(profile) }
         } finally {
             _refreshing.value = false
         }
