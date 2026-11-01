@@ -40,16 +40,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import coil3.compose.SubcomposeAsyncImage
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.authorizedImage
 import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.data.repository.PendingAttachment
+import io.ycvk.acorn.data.repository.threadFileUrl
 import java.io.File
 import java.util.Locale
 
@@ -102,7 +100,7 @@ fun MessageFiles(
     Column(modifier = modifier, horizontalAlignment = alignment, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         files.forEach { file ->
             if (file.isImage && file.id != null && threadId != null && profile != null) {
-                ThreadImage(threadId, file, profile, onOpen = { onOpen(file) })
+                ThreadImage(threadId, file.id, file, profile, onOpen = { onOpen(file) })
             } else {
                 FileCard(file, loading = file.id in busy, onOpen = { onOpen(file) }, onSave = { onSave(file) })
             }
@@ -111,14 +109,10 @@ fun MessageFiles(
 }
 
 @Composable
-private fun ThreadImage(threadId: String, file: FileView, profile: ConnectionProfile, onOpen: () -> Unit) {
+private fun ThreadImage(threadId: String, fileId: String, file: FileView, profile: ConnectionProfile, onOpen: () -> Unit) {
     val context = LocalContext.current
-    val request = remember(threadId, file.id, profile) {
-        ImageRequest.Builder(context)
-            .data("${profile.serverUrl.trimEnd('/')}/v1/threads/$threadId/files/${file.id}")
-            .httpHeaders(NetworkHeaders.Builder().set("Authorization", "Bearer ${profile.accessToken}").build())
-            .crossfade(true)
-            .build()
+    val request = remember(threadId, fileId, profile) {
+        authorizedImage(context, threadFileUrl(profile.serverUrl, threadId, fileId), profile)
     }
     SubcomposeAsyncImage(
         model = request,
