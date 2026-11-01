@@ -23,7 +23,6 @@ type URLPolicy struct {
 }
 
 type ValidatedURL struct {
-	Raw        string
 	Normalized string
 	Scheme     string
 	Host       string
@@ -56,7 +55,7 @@ func (p URLPolicy) Validate(ctx context.Context, raw string) (ValidatedURL, erro
 		return ValidatedURL{}, err
 	}
 	if trusted {
-		return ValidatedURL{Raw: trimmed, Normalized: parsed.String(), Scheme: strings.ToLower(parsed.Scheme), Host: host}, nil
+		return ValidatedURL{Normalized: parsed.String(), Scheme: strings.ToLower(parsed.Scheme), Host: host}, nil
 	}
 	if isLocalhostName(host) {
 		return ValidatedURL{}, fmt.Errorf("blocked localhost host %q", host)
@@ -71,7 +70,6 @@ func (p URLPolicy) Validate(ctx context.Context, raw string) (ValidatedURL, erro
 		out = append(out, ip.String())
 	}
 	return ValidatedURL{
-		Raw:        trimmed,
 		Normalized: parsed.String(),
 		Scheme:     strings.ToLower(parsed.Scheme),
 		Host:       host,

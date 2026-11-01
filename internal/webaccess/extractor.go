@@ -35,18 +35,14 @@ type ExtractRequest struct {
 }
 
 type ExtractResult struct {
-	URL             string
-	Title           string
-	Markdown        string
-	Excerpt         string
-	Byline          string
-	SiteName        string
-	PublishedTime   string
-	Method          string
-	Warning         string
-	Links           []PageLink
-	MarkdownBytes   int
-	MarkdownPreview string
+	URL           string
+	Title         string
+	Markdown      string
+	SiteName      string
+	PublishedTime string
+	Method        string
+	Warning       string
+	Links         []PageLink
 }
 
 func ExtractHTML(req ExtractRequest) (ExtractResult, error) {
@@ -128,8 +124,6 @@ func extractReadability(raw []byte, pageURL *url.URL) (ExtractResult, error) {
 		URL:      pageURL.String(),
 		Title:    strings.TrimSpace(article.Title()),
 		Markdown: trimmed,
-		Excerpt:  strings.TrimSpace(article.Excerpt()),
-		Byline:   strings.TrimSpace(article.Byline()),
 		SiteName: strings.TrimSpace(article.SiteName()),
 		Method:   "readability_markdown",
 	}
@@ -181,7 +175,6 @@ func withCommonPageMetadata(result ExtractResult, raw []byte, pageURL *url.URL) 
 	}
 	result.URL = pageURL.String()
 	result.Links = extractHTMLLinks(raw, pageURL, 100)
-	result.MarkdownBytes = len([]byte(result.Markdown))
 	return result
 }
 
