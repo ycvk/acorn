@@ -101,7 +101,7 @@ func packageOf(entries []core.SkillFile) (Package, error) {
 	if err != nil {
 		return Package{}, err
 	}
-	m, _, err := ManifestOf(files)
+	m, err := ManifestOf(files)
 	if err != nil {
 		return Package{}, err
 	}
@@ -110,7 +110,7 @@ func packageOf(entries []core.SkillFile) (Package, error) {
 
 // mcpOf is the MCP server a package's manifest declares, nil without one.
 func mcpOf(files []core.SkillFile) (*MCPServer, error) {
-	m, _, err := ManifestOf(files)
+	m, err := ManifestOf(files)
 	return m.MCP, err
 }
 
