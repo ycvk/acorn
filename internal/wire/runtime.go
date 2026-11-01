@@ -122,7 +122,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	newsProcessor, err := buildNews(ctx, cfg, db, ownerSettings, webFetcher, options.clock)
+	newsProcessor, err := buildNews(cfg, db, ownerSettings, webFetcher, options.clock)
 	if err != nil {
 		return nil, fmt.Errorf("news: %w", err)
 	}

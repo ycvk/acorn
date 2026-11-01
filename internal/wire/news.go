@@ -16,7 +16,7 @@ import (
 // buildNews builds the processor that sorts news items into stories, with
 // the model background memory work uses and the pages of issues read under
 // the outbound policy.
-func buildNews(ctx context.Context, cfg *config.Config, db *store.Store, owner core.SettingsReader, fetcher *webaccess.FetchService, clock func() time.Time) (*news.Processor, error) {
+func buildNews(cfg *config.Config, db *store.Store, owner core.SettingsReader, fetcher *webaccess.FetchService, clock func() time.Time) (*news.Processor, error) {
 	model, err := runtime.NewMemoryModel(cfg)
 	if err != nil {
 		return nil, err
