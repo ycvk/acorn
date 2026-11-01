@@ -91,13 +91,9 @@ func getOrCreateMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpMana
 }
 
 func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig) (*mcpprovider.Manager, error) {
-	pendingActionStore := core.SessionStore(deps.Store)
-	if deps.MCPPendingActions != nil {
-		pendingActionStore = deps.MCPPendingActions
-	}
 	opts := []mcpprovider.ManagerOption{
 		mcpprovider.WithTokenStore(deps.Store),
-		mcpprovider.WithStore(pendingActionStore),
+		mcpprovider.WithStore(deps.Store),
 		mcpprovider.WithToolRegistry(deps.ToolRegistry, buildMCPToolSpec),
 	}
 	mgr, err := mcpprovider.NewManager(ctx, providerConfigs, opts...)

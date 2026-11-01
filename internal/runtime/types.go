@@ -73,7 +73,6 @@ type RuntimeDeps struct {
 	Skills             SkillLibrary
 	SkillPackages      skills.PackageHost
 	SkillServers       SkillServerHost
-	MCPPendingActions  core.SessionStore
 	ArtifactService    core.ArtifactService
 	ToolRegistry       core.ToolRegistry
 	PhoneNotifications core.PhoneNotificationStore

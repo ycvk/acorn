@@ -27,15 +27,13 @@ import (
 )
 
 type containerRuntimeDeps struct {
-	memory                *memory.Engine
-	skills                *skills.Library
-	mcpPendingActionStore core.SessionStore
-	toolRegistry          core.ToolRegistry
-	runnerFactory         *runtime.RunnerFactory
-	runController         *runtime.RunController
-	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
-	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
-	settings              *settings.Service
+	memory        *memory.Engine
+	skills        *skills.Library
+	runnerFactory *runtime.RunnerFactory
+	runController *runtime.RunController
+	executeRun    func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
+	resumeRun     func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	settings      *settings.Service
 	// notifier is nil when push notifications are not configured.
 	notifier     *notify.Sender
 	vault        *knowledge.Vault
@@ -91,8 +89,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	runController := runtime.NewRunController()
-
-	var mcpPendingActionStore core.SessionStore = db
 
 	artifactSvc, err := store.NewArtifactService(
 		filepath.Join(cfg.Runtime.StorageDir, "artifacts"),
@@ -164,7 +160,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
 		ArtifactService: artifactSvc,
 		ArtifactContext: ctxBridge,
-		OperatorStore:   mcpPendingActionStore,
+		OperatorStore:   db,
 		OperatorContext: ctxBridge,
 		Presence: tools.PresenceToolDeps{
 			Store:         db,
@@ -230,7 +226,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Skills:             skillLibrary,
 		SkillPackages:      skillPackages,
 		SkillServers:       skillServers,
-		MCPPendingActions:  mcpPendingActionStore,
 		ArtifactService:    artifactSvc,
 		ToolRegistry:       toolRegistry,
 		Activity:           db,
@@ -271,23 +266,21 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	return &containerRuntimeDeps{
-		skills:                skillLibrary,
-		settings:              ownerSettings,
-		memory:                memoryEngine,
-		mcpPendingActionStore: mcpPendingActionStore,
-		toolRegistry:          toolRegistry,
-		runnerFactory:         runnerFactory,
-		runController:         runController,
-		executeRun:            executeRun,
-		resumeRun:             resumeRun,
-		notifier:              notifier,
-		vault:                 vault,
-		watchChecker:          watchChecker,
-		news:                  newsProcessor,
-		triggers:              triggers,
-		workstation:           workstationClient,
-		panels:                panels,
-		packageStatus:         packageStatus,
+		skills:        skillLibrary,
+		settings:      ownerSettings,
+		memory:        memoryEngine,
+		runnerFactory: runnerFactory,
+		runController: runController,
+		executeRun:    executeRun,
+		resumeRun:     resumeRun,
+		notifier:      notifier,
+		vault:         vault,
+		watchChecker:  watchChecker,
+		news:          newsProcessor,
+		triggers:      triggers,
+		workstation:   workstationClient,
+		panels:        panels,
+		packageStatus: packageStatus,
 	}, nil
 }
 
