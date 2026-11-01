@@ -45,6 +45,7 @@ import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Load
+import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.TopBar
@@ -93,7 +94,7 @@ fun MemoryScreen(
                         .padding(horizontal = ScreenPadding, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    (change as? MemoryChange.Failed)?.let {
+                    (change as? Save.Failed)?.let {
                         InlineError(it.message, action = "知道了", onAction = viewModel::dismissChangeError)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -103,7 +104,7 @@ fun MemoryScreen(
                                 { editing = detail.memory.content },
                                 modifier = Modifier.weight(1f),
                                 kind = ButtonKind.Secondary,
-                                enabled = change != MemoryChange.Saving,
+                                enabled = change != Save.Saving,
                             )
                         }
                         AcornButton(
@@ -111,7 +112,7 @@ fun MemoryScreen(
                             { confirmForget = true },
                             modifier = Modifier.weight(1f),
                             kind = ButtonKind.Danger,
-                            loading = change == MemoryChange.Saving && editing == null,
+                            loading = change == Save.Saving && editing == null,
                         )
                     }
                 }
@@ -135,7 +136,7 @@ fun MemoryScreen(
 
     val draft = editing
     if (draft != null && detail != null) {
-        val saving = change == MemoryChange.Saving
+        val saving = change == Save.Saving
         AcornDialog(
             title = "修改这条事实",
             body = "用你自己的话写下正确的说法，Acorn 会以此为准，原来的说法留在历史里。",

@@ -40,6 +40,7 @@ import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Panel
+import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.SkeletonRows
@@ -155,7 +156,7 @@ fun SkillRevisionScreen(
                             .padding(horizontal = ScreenPadding, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        (change as? SkillChange.Failed)?.let {
+                        (change as? Save.Failed)?.let {
                             InlineError(it.message, action = "知道了", onAction = viewModel::dismissChangeError)
                         }
                         AcornButton(
@@ -163,11 +164,11 @@ fun SkillRevisionScreen(
                             { confirmRollback = true },
                             modifier = Modifier.fillMaxWidth(),
                             kind = ButtonKind.Secondary,
-                            loading = change == SkillChange.Saving,
+                            loading = change == Save.Saving,
                         )
                     }
                 } else {
-                    (change as? SkillChange.Failed)?.let {
+                    (change as? Save.Failed)?.let {
                         InlineError(it.message, modifier = Modifier.navigationBarsPadding().padding(horizontal = ScreenPadding, vertical = 12.dp), action = "知道了", onAction = viewModel::dismissChangeError)
                     }
                 }

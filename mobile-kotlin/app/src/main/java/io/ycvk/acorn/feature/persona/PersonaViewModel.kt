@@ -8,6 +8,7 @@ import io.ycvk.acorn.api.models.Persona
 import io.ycvk.acorn.api.models.PersonaRevisionSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.Load
+import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.PersonaRepository
 import kotlinx.coroutines.CancellationException
@@ -31,12 +32,6 @@ data class PersonaHistory(val current: Persona, val revisions: List<PersonaRevis
  */
 data class PersonaDraft(val text: String, val baseRevision: Long, val mine: String? = null)
 
-sealed interface PersonaSave {
-    data object Idle : PersonaSave
-    data object Saving : PersonaSave
-    data class Failed(val message: String) : PersonaSave
-}
-
 /** Backs the persona page and its revisions. */
 @HiltViewModel
 class PersonaViewModel @Inject constructor(
@@ -53,8 +48,8 @@ class PersonaViewModel @Inject constructor(
     private val _draft = MutableStateFlow<PersonaDraft?>(null)
     val draft: StateFlow<PersonaDraft?> = _draft.asStateFlow()
 
-    private val _save = MutableStateFlow<PersonaSave>(PersonaSave.Idle)
-    val save: StateFlow<PersonaSave> = _save.asStateFlow()
+    private val _save = MutableStateFlow<Save>(Save.Idle)
+    val save: StateFlow<Save> = _save.asStateFlow()
 
     private var loadJob: Job? = null
     private var revisionJob: Job? = null
@@ -90,7 +85,7 @@ class PersonaViewModel @Inject constructor(
             return
         }
         _revision.value = Load.Loading
-        _save.value = PersonaSave.Idle
+        _save.value = Save.Idle
         revisionJob?.cancel()
         revisionJob = viewModelScope.launch {
             _revision.value = try {
@@ -105,7 +100,7 @@ class PersonaViewModel @Inject constructor(
 
     fun startEditing() {
         val current = (_persona.value as? Load.Loaded<PersonaHistory>)?.value?.current ?: return
-        _save.value = PersonaSave.Idle
+        _save.value = Save.Idle
         _draft.value = PersonaDraft(current.content, current.revision)
     }
 
@@ -117,19 +112,19 @@ class PersonaViewModel @Inject constructor(
     fun useMine() {
         val draft = _draft.value ?: return
         _draft.value = draft.copy(text = draft.mine ?: return, mine = null)
-        _save.value = PersonaSave.Idle
+        _save.value = Save.Idle
     }
 
     fun cancelEditing() {
         _draft.value = null
-        _save.value = PersonaSave.Idle
+        _save.value = Save.Idle
     }
 
     fun saveDraft() {
         val draft = _draft.value ?: return
         submit(draft.text, draft.baseRevision, onSaved = { _draft.value = null }, onChanged = { latest ->
             _draft.value = PersonaDraft(latest.content, latest.revision, mine = draft.text)
-            _save.value = PersonaSave.Failed("人格刚在别处改过。上面已换成最新的版本，你写的内容在下面，可以在新版本上重新改")
+            _save.value = Save.Failed("人格刚在别处改过。上面已换成最新的版本，你写的内容在下面，可以在新版本上重新改")
         })
     }
 
@@ -137,21 +132,21 @@ class PersonaViewModel @Inject constructor(
     fun restore(revision: Persona, onRestored: () -> Unit) {
         val current = (_persona.value as? Load.Loaded<PersonaHistory>)?.value?.current ?: return
         submit(revision.content, current.revision, onSaved = { onRestored() }, onChanged = {
-            _save.value = PersonaSave.Failed("人格刚在别处改过，已载入最新的版本，确认后再恢复一次")
+            _save.value = Save.Failed("人格刚在别处改过，已载入最新的版本，确认后再恢复一次")
         })
     }
 
     fun dismissSaveError() {
-        _save.value = PersonaSave.Idle
+        _save.value = Save.Idle
     }
 
     private fun submit(content: String, base: Long, onSaved: () -> Unit, onChanged: (Persona) -> Unit) {
         val profile = profile() ?: return
-        _save.value = PersonaSave.Saving
+        _save.value = Save.Saving
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { repository.save(profile, content.trim(), base) }
-                _save.value = PersonaSave.Idle
+                _save.value = Save.Idle
                 onSaved()
                 load()
             } catch (e: Exception) {
@@ -161,10 +156,10 @@ class PersonaViewModel @Inject constructor(
                         onChanged(latest)
                         load()
                     } catch (reload: Exception) {
-                        _save.value = PersonaSave.Failed("人格刚在别处改过，没能载入最新的版本：${userMessage(reload)}")
+                        _save.value = Save.Failed("人格刚在别处改过，没能载入最新的版本：${userMessage(reload)}")
                     }
                 } else {
-                    _save.value = PersonaSave.Failed("没能保存：${userMessage(e)}")
+                    _save.value = Save.Failed("没能保存：${userMessage(e)}")
                 }
             }
         }

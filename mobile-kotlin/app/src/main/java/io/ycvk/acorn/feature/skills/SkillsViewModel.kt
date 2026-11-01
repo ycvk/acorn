@@ -12,6 +12,7 @@ import io.ycvk.acorn.api.models.SkillSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.Load
+import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.SkillRepository
 import kotlinx.coroutines.CancellationException
@@ -27,12 +28,6 @@ import javax.inject.Inject
 
 /** A skill's page: its detail and its revisions. */
 data class SkillHistory(val detail: SkillDetail, val revisions: List<SkillRevisionSummary>)
-
-sealed interface SkillChange {
-    data object Idle : SkillChange
-    data object Saving : SkillChange
-    data class Failed(val message: String) : SkillChange
-}
 
 /** Backs the skill list, a skill's page and its revisions. */
 @HiltViewModel
@@ -53,8 +48,8 @@ class SkillsViewModel @Inject constructor(
     private val _diff = MutableStateFlow<Load<SkillDiff>>(Load.Loading)
     val diff: StateFlow<Load<SkillDiff>> = _diff.asStateFlow()
 
-    private val _change = MutableStateFlow<SkillChange>(SkillChange.Idle)
-    val change: StateFlow<SkillChange> = _change.asStateFlow()
+    private val _change = MutableStateFlow<Save>(Save.Idle)
+    val change: StateFlow<Save> = _change.asStateFlow()
 
     private var listJob: Job? = null
     private var skillJob: Job? = null
@@ -88,7 +83,7 @@ class SkillsViewModel @Inject constructor(
         val shown = (_skill.value as? Load.Loaded<SkillHistory>)?.value?.detail?.name
         if (shown != name) {
             _skill.value = Load.Loading
-            _change.value = SkillChange.Idle
+            _change.value = Save.Idle
         }
         skillJob?.cancel()
         skillJob = viewModelScope.launch {
@@ -112,7 +107,7 @@ class SkillsViewModel @Inject constructor(
             return
         }
         _revision.value = Load.Loading
-        _change.value = SkillChange.Idle
+        _change.value = Save.Idle
         revisionJob?.cancel()
         revisionJob = viewModelScope.launch {
             _revision.value = try {
@@ -180,7 +175,7 @@ class SkillsViewModel @Inject constructor(
             try {
                 onThread(withContext(Dispatchers.IO) { repository.threadOfRun(profile, runId) })
             } catch (e: Exception) {
-                _change.value = SkillChange.Failed(
+                _change.value = Save.Failed(
                     if (e is ClientException && e.statusCode == 404) "写下这一版的对话已经删除了" else "没能打开那次对话：${userMessage(e)}",
                 )
             }
@@ -188,19 +183,19 @@ class SkillsViewModel @Inject constructor(
     }
 
     fun dismissChangeError() {
-        _change.value = SkillChange.Idle
+        _change.value = Save.Idle
     }
 
     private fun submit(name: String, action: String, onDone: () -> Unit, write: (ConnectionProfile) -> Unit) {
         val profile = profile() ?: return
-        _change.value = SkillChange.Saving
+        _change.value = Save.Saving
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { write(profile) }
-                _change.value = SkillChange.Idle
+                _change.value = Save.Idle
                 onDone()
             } catch (e: Exception) {
-                _change.value = SkillChange.Failed(
+                _change.value = Save.Failed(
                     if (e is ClientException && e.statusCode == 409) {
                         "技能刚被改过，已载入最新的版本，确认后再${action}一次"
                     } else {
