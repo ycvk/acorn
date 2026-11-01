@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
@@ -90,14 +89,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 
 	runController := runtime.NewRunController()
 
-	artifactSvc, err := store.NewArtifactService(
-		filepath.Join(cfg.Runtime.StorageDir, "artifacts"),
-		db,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("artifact service: %w", err)
-	}
-
 	ctxBridge := runtime.NewContextBridge()
 	ownerSettings, err := settings.NewService(db, db, options.clock)
 	if err != nil {
@@ -158,7 +149,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
-		ArtifactService: artifactSvc,
+		ArtifactService: db,
 		ArtifactContext: ctxBridge,
 		OperatorStore:   db,
 		OperatorContext: ctxBridge,
@@ -226,7 +217,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Skills:             skillLibrary,
 		SkillPackages:      skillPackages,
 		SkillServers:       skillServers,
-		ArtifactService:    artifactSvc,
+		ArtifactService:    db,
 		ToolRegistry:       toolRegistry,
 		Activity:           db,
 		MemoryStore:        db,
