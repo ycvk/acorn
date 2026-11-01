@@ -11,9 +11,8 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// CreateRun implements core.RunRepo. It creates a run record with status
-// "running", executed by this store's process, and an empty finished_at
-// (filled on completion). Binding of user messages is handled separately via
+// CreateRun creates a run record with status "running", executed by this
+// store's process, and an empty finished_at (filled on completion). Binding of user messages is handled separately via
 // BindLatestUserMessageRunID / BindUserMessageRunIDByID.
 func (s *Store) CreateRun(ctx context.Context, params core.RunCreateParams) error {
 	now := formatTimestamp(time.Now())
@@ -38,7 +37,6 @@ func (s *Store) CreateRun(ctx context.Context, params core.RunCreateParams) erro
 	return nil
 }
 
-// AppendEvent implements core.EventRepo.
 func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -62,7 +60,6 @@ func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any
 	return core.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: payload, CreatedAt: now}, nil
 }
 
-// FinishRun implements core.RunRepo.
 func (s *Store) FinishRun(ctx context.Context, runID string, status core.RunStatus, output, errText string) error {
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx,
@@ -89,7 +86,6 @@ func stopRunProcess(ctx context.Context, tx *sql.Tx, runID string) error {
 	return err
 }
 
-// UpdateRunOutput implements core.RunRepo.
 func (s *Store) UpdateRunOutput(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET output_text = ? WHERE run_id = ?`,
@@ -102,7 +98,6 @@ func (s *Store) UpdateRunOutput(ctx context.Context, runID, output string) error
 	return nil
 }
 
-// MarkInterrupted implements core.RunRepo.
 func (s *Store) MarkInterrupted(ctx context.Context, runID, output string) error {
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx,

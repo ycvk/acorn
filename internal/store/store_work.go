@@ -152,14 +152,13 @@ func scanArtifact(scanner interface{ Scan(dest ...any) error }) (core.ArtifactRe
 	return NormalizeArtifactRecord(record)
 }
 
-// WriteArtifact implements core.ArtifactRepo. It writes the artifact content
-// to the filesystem and persists the metadata record in the artifacts table.
+// WriteArtifact writes the artifact content to the filesystem and persists the metadata record in the artifacts table.
 func (s *Store) WriteArtifact(ctx context.Context, req core.ArtifactWriteRequest) (core.ArtifactRecord, error) {
 	return s.artifactSvc.WriteArtifact(ctx, req)
 }
 
-// ReadArtifactRange implements core.ArtifactRepo. It reads a byte range from
-// the artifact content file on the filesystem.
+// ReadArtifactRange reads a byte range from the artifact content file on the
+// filesystem.
 func (s *Store) ReadArtifactRange(ctx context.Context, req core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error) {
 	return s.artifactSvc.ReadArtifactRange(ctx, req)
 }
