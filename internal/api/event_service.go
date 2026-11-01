@@ -53,20 +53,13 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 	if err != nil {
 		return nil, fmt.Errorf("load run %s events: %w", runID, err)
 	}
-	events := make([]RunEvent, 0, len(records))
+	events, err := projectLiveEvents(records)
+	if err != nil {
+		return nil, err
+	}
 	cursorSeq := afterSeq
 	for _, record := range records {
-		if record.Sequence > cursorSeq {
-			cursorSeq = record.Sequence
-		}
-		if !IsLiveRunEventKind(record.Kind) {
-			continue
-		}
-		event, err := ProjectRunEvent(record)
-		if err != nil {
-			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
-		}
-		events = append(events, event)
+		cursorSeq = max(cursorSeq, record.Sequence)
 	}
 	return &RunEventBatch{
 		Events:    events,
@@ -85,6 +78,17 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 	if err != nil {
 		return nil, fmt.Errorf("load run %s events: %w", runID, err)
 	}
+	events, err := projectLiveEvents(records)
+	if err != nil {
+		return nil, err
+	}
+	return &RunEventDetail{
+		Events: events,
+	}, nil
+}
+
+// projectLiveEvents projects the records of the kinds clients are shown.
+func projectLiveEvents(records []core.EventRecord) ([]RunEvent, error) {
 	events := make([]RunEvent, 0, len(records))
 	for _, record := range records {
 		if !IsLiveRunEventKind(record.Kind) {
@@ -96,9 +100,7 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 		}
 		events = append(events, event)
 	}
-	return &RunEventDetail{
-		Events: events,
-	}, nil
+	return events, nil
 }
 
 func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]ArtifactSummary, error) {

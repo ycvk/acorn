@@ -78,14 +78,8 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 	case "run.resume_requested":
 		value, _ := objectField(payload, "targets")
 		return RunResumeRequestedData{Targets: value}, nil
-	case "elicitation.pending":
-		return ElicitationPendingData{
-			ActionID:        topLevelString(payload, "action_id"),
-			Message:         topLevelString(payload, "message"),
-			RequestedSchema: payload["requested_schema"],
-		}, nil
-	case "elicitation.decided":
-		return ElicitationDecidedData{
+	case "elicitation.pending", "elicitation.decided":
+		return ElicitationData{
 			ActionID:        topLevelString(payload, "action_id"),
 			Message:         topLevelString(payload, "message"),
 			RequestedSchema: payload["requested_schema"],
