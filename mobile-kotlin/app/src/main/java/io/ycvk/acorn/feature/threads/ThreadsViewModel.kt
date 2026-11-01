@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
@@ -43,7 +42,7 @@ class ThreadsViewModel @Inject constructor(
     val error: StateFlow<String?> = _error.asStateFlow()
 
     fun loadThreads() {
-        val profile = getConnectionProfile()
+        val profile = profile()
         if (profile == null) {
             _load.value = Load.Failed("还没有连接服务器")
             return
@@ -71,7 +70,7 @@ class ThreadsViewModel @Inject constructor(
     }
 
     fun deleteThread(threadId: String) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -84,8 +83,7 @@ class ThreadsViewModel @Inject constructor(
         }
     }
 
-    private fun getConnectionProfile(): ConnectionProfile? =
-        authController.profile
+    private fun profile() = authController.profile
 }
 
 /** What the thread list area shows. */

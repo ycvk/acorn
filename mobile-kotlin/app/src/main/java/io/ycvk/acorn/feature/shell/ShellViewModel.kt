@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
-import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.push.DeepLinks
@@ -150,7 +149,7 @@ class ShellViewModel @Inject constructor(
     private fun pollPendingCount() {
         viewModelScope.launch {
             while (true) {
-                val profile = getConnectionProfile() ?: break
+                val profile = profile() ?: break
                 try {
                     val resp = withContext(Dispatchers.IO) {
                         ClientApi(profile.serverUrl).authorized(profile).clientGetInbox()
@@ -166,15 +165,14 @@ class ShellViewModel @Inject constructor(
         }
     }
 
-    private fun getConnectionProfile(): ConnectionProfile? =
-        authController.profile
+    private fun profile() = authController.profile
 
     /**
      * Reads what Acorn calls the owner, unless that is already known. Call it
      * once the server can be reached, after the nearby devices prompt.
      */
     fun checkOwner() {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         val gate = _ownerGate.value
         if (gate == OwnerGate.Named || gate == OwnerGate.Unnamed || ownerCheck?.isActive == true) return
         _ownerGate.value = OwnerGate.Checking
@@ -191,7 +189,7 @@ class ShellViewModel @Inject constructor(
     }
 
     fun saveOwnerName(name: String) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         _savingName.value = true
         _nameError.value = null
         viewModelScope.launch {
@@ -214,11 +212,11 @@ class ShellViewModel @Inject constructor(
     }
 
     /** Whether the paired server is on the LAN and the owner has not allowed nearby devices. */
-    suspend fun needsLocalNetwork(): Boolean = getConnectionProfile()?.let { localNetwork.needsPermission(it.serverUrl) } ?: false
+    suspend fun needsLocalNetwork(): Boolean = profile()?.let { localNetwork.needsPermission(it.serverUrl) } ?: false
 
     /** Registers this device for push; call after the notification permission prompt. */
     fun registerPush() {
-        if (getConnectionProfile() != null) pushManager.register()
+        if (profile() != null) pushManager.register()
     }
 
     fun open(page: Page) {

@@ -8,7 +8,6 @@ import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ago
@@ -168,7 +167,7 @@ class NowViewModel @Inject constructor(
         }
     }
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }
 
 private val timeOfDay = DateTimeFormatter.ofPattern("HH:mm")

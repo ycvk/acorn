@@ -8,7 +8,6 @@ import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.feature.live.RunFollower
@@ -48,7 +47,7 @@ class ApprovalsViewModel @Inject constructor(
     val deciding: StateFlow<String?> = _deciding.asStateFlow()
 
     fun loadPendingActions() {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         viewModelScope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
@@ -63,7 +62,7 @@ class ApprovalsViewModel @Inject constructor(
     }
 
     fun loadActionDetail(actionId: String) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         viewModelScope.launch {
             try {
                 val detail = withContext(Dispatchers.IO) {
@@ -83,7 +82,7 @@ class ApprovalsViewModel @Inject constructor(
      * Update until it ends or waits again.
      */
     fun decideAction(actionId: String, request: DecidePendingActionRequest) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         val run = _pendingActions.value.firstOrNull { it.actionId == actionId }?.let { it.runId to it.threadId }
             ?: _selectedAction.value?.takeIf { it.actionId == actionId }?.let { it.runId to it.threadId }
         _deciding.value = actionId
@@ -113,6 +112,5 @@ class ApprovalsViewModel @Inject constructor(
         _selectedAction.value = null
     }
 
-    private fun getConnectionProfile(): ConnectionProfile? =
-        authController.profile
+    private fun profile() = authController.profile
 }
