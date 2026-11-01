@@ -43,7 +43,7 @@ func (s *approvalTestStore) CreatePendingAction(_ context.Context, input core.Pe
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.actions = append(s.actions, input)
-	return &core.PendingActionRecord{ActionID: input.ActionID, RunID: input.RunID, Kind: input.Kind, Status: input.Status}, nil
+	return &core.PendingActionRecord{ActionID: input.ActionID, RunID: input.RunID, Kind: input.Kind, Status: core.PendingActionStatusPending}, nil
 }
 
 func (s *approvalTestStore) AppendEvent(_ context.Context, runID, kind string, payload any) (core.EventRecord, error) {

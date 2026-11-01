@@ -78,7 +78,6 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		Kind:        core.PendingActionKindElicitation,
 		Subject:     "elicitation",
 		PayloadJSON: string(paramsJSON),
-		Status:      core.PendingActionStatusPending,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create elicitation pending action: %w", err)

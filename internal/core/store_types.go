@@ -21,7 +21,6 @@ type PendingActionInput struct {
 	Kind        PendingActionKind
 	Subject     string
 	PayloadJSON string
-	Status      PendingActionStatus
 	Reason      string
 }
 

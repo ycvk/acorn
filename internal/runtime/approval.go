@@ -449,7 +449,6 @@ func (m *approvalMiddleware) requestApproval(ctx context.Context, tCtx *adk.Tool
 		Kind:        core.PendingActionKindToolApproval,
 		Subject:     "Approve " + tCtx.Name,
 		PayloadJSON: string(payloadJSON),
-		Status:      core.PendingActionStatusPending,
 		Reason:      request.reason,
 	}); err != nil {
 		return err

@@ -41,7 +41,6 @@ func TestCreatePendingAction(t *testing.T) {
 		Kind:        core.PendingActionKindElicitation,
 		Subject:     "test elicitation",
 		PayloadJSON: `{"question":"what is 2+2?"}`,
-		Status:      core.PendingActionStatusPending,
 		Reason:      "model needs user input",
 	})
 	if err != nil {
@@ -126,7 +125,6 @@ func TestCreatePendingActionDefaultStatus(t *testing.T) {
 		RunID:    runID,
 		Kind:     core.PendingActionKindElicitation,
 		Subject:  "test",
-		Status:   "",
 	})
 	if err != nil {
 		t.Fatalf("create with empty status: %v", err)
@@ -453,37 +451,6 @@ func TestNormalizePendingActionKind(t *testing.T) {
 		}
 		if got != tc.want {
 			t.Errorf("normalizePendingActionKind(%q) = %q, want %q", tc.input, got, tc.want)
-		}
-	}
-}
-
-func TestNormalizePendingActionStatus(t *testing.T) {
-	tests := []struct {
-		input core.PendingActionStatus
-		want  core.PendingActionStatus
-		err   bool
-	}{
-		{"", core.PendingActionStatusPending, false},
-		{core.PendingActionStatusPending, core.PendingActionStatusPending, false},
-		{core.PendingActionStatusApproved, core.PendingActionStatusApproved, false},
-		{core.PendingActionStatusRejected, core.PendingActionStatusRejected, false},
-		{core.PendingActionStatusResolved, core.PendingActionStatusResolved, false},
-		{"  approved  ", core.PendingActionStatusApproved, false},
-		{"invalid", "", true},
-	}
-	for _, tc := range tests {
-		got, err := normalizePendingActionStatus(tc.input)
-		if tc.err {
-			if err == nil {
-				t.Errorf("normalizePendingActionStatus(%q) expected error, got nil", tc.input)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("normalizePendingActionStatus(%q) error: %v", tc.input, err)
-		}
-		if got != tc.want {
-			t.Errorf("normalizePendingActionStatus(%q) = %q, want %q", tc.input, got, tc.want)
 		}
 	}
 }
