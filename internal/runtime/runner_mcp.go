@@ -116,15 +116,6 @@ func closeMCPCache(cache *mcpManagerCache) error {
 	return closeErr
 }
 
-const (
-	mcpNamespacePrefix = "mcp__"
-	mcpNamespaceSep    = "__"
-)
-
-func mcpToolName(provider, toolName string) string {
-	return mcpNamespacePrefix + mcpprovider.ToolNamespace(provider) + mcpNamespaceSep + toolName
-}
-
 func augmentDescription(desc, provider string) string {
 	if strings.TrimSpace(desc) == "" {
 		return fmt.Sprintf("Provided by MCP server: %s", provider)
@@ -148,7 +139,7 @@ func NewMCPNamespacedTool(ctx context.Context, inner einotool.BaseTool, provider
 	if err != nil {
 		return nil, fmt.Errorf("read tool info for MCP namespacing: %w", err)
 	}
-	prefixed := mcpToolName(provider, originalToolName)
+	prefixed := mcpprovider.ToolName(provider, originalToolName)
 	augDesc := augmentDescription(info.Desc, provider)
 	return &mcpNamespacedTool{
 		inner:         inner,

@@ -245,3 +245,8 @@ func ToolNamespace(provider string) string {
 	}
 	return result
 }
+
+// ToolName is the name the model sees for a provider's tool.
+func ToolName(provider, tool string) string {
+	return "mcp__" + ToolNamespace(provider) + "__" + tool
+}
