@@ -128,6 +128,14 @@ func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
+			// The status is read before the events: a run records its last
+			// event before it finishes, so a run seen finished has nothing
+			// left once a batch after that comes back empty.
+			terminal, err := s.runs.RunIsTerminal(r.Context(), runID)
+			if err != nil {
+				s.logInternalError(r, "client_sse_follow_status_failed", err)
+				return
+			}
 			batch, err := s.events.LoadRunEventsAfter(r.Context(), runID, lastSeq)
 			if err != nil {
 				s.logInternalError(r, "client_sse_follow_load_failed", err)
@@ -139,11 +147,6 @@ func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID
 					s.logInternalError(r, "client_sse_follow_write_failed", err)
 					return
 				}
-			}
-			terminal, err := s.runs.RunIsTerminal(r.Context(), runID)
-			if err != nil {
-				s.logInternalError(r, "client_sse_follow_status_failed", err)
-				return
 			}
 			if terminal && len(batch.Events) == 0 {
 				return
