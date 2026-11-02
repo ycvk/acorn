@@ -529,3 +529,27 @@ func TestNewsSectionsApprovalShowsTheChange(t *testing.T) {
 		t.Fatal("unreadable arguments were described")
 	}
 }
+
+// A source news_source stopped comes back through watch_update only on
+// trial; it re-enters the briefing through news_source promote.
+func TestResumingAStoppedNewsSourceRestartsItsTrial(t *testing.T) {
+	store, _, tools := newWatchToolsForTest(t)
+	store.sections = []core.NewsSection{{Name: "国际"}}
+	run := func(tool, input string) (string, error) { return runPresenceTool(t, tools[tool], input) }
+	for _, call := range [][2]string{
+		{"watch_create", `{"name":"BBC","kind":"rss","target":"https://bbc.test/feed","mode":"news","section":"国际"}`},
+		{"news_source", `{"action":"promote","id":1,"reason":"一周 40 条"}`},
+		{"news_source", `{"action":"stop","id":1,"reason":"一周只被引用一次"}`},
+	} {
+		if _, err := run(call[0], call[1]); err != nil {
+			t.Fatalf("%s %s: %v", call[0], call[1], err)
+		}
+	}
+	out, err := run("watch_update", `{"id":1,"status":"active"}`)
+	if err != nil || !strings.Contains(out, `"status":"active"`) || !strings.Contains(out, `"trial":true`) {
+		t.Fatalf("resume = %s, %v; want an active source on trial", out, err)
+	}
+	if out, err := run("news_source", `{"action":"promote","id":1,"reason":"又有独家了"}`); err != nil || strings.Contains(out, `"trial"`) {
+		t.Fatalf("promote after resume = %s, %v", out, err)
+	}
+}
