@@ -129,3 +129,32 @@ func TestRestoreRefusesARunningAcornAndForeignDirectories(t *testing.T) {
 		t.Fatalf("restore from a foreign directory = %v", err)
 	}
 }
+
+// A backup that fails leaves no partial snapshot behind; nothing would ever
+// remove it, since pruning keeps to finished snapshots.
+func TestFailedBackupRemovesItsPartialSnapshot(t *testing.T) {
+	ctx := context.Background()
+	source := backupTestConfig(t)
+	running, err := store.Open(source.Runtime.StorageDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer running.Close()
+	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, "attachments", "a.png"), "png bytes")
+	dir := t.TempDir()
+	source.Backup.Dir, source.Backup.Keep = dir, 3
+	// A file where the attachments mirror belongs makes mirroring fail after
+	// the database snapshot is written.
+	writeTestFile(t, filepath.Join(dir, "attachments"), "in the way")
+
+	if _, err := Backup(ctx, source, time.Date(2026, 10, 11, 4, 30, 0, 0, time.UTC)); err == nil {
+		t.Fatal("backup succeeded with its attachments mirror blocked")
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "snapshots"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		t.Errorf("left behind: %s", e.Name())
+	}
+}
