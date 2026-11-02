@@ -6,7 +6,7 @@ import (
 )
 
 // ReviewConfig sets up the review of calls the approval rules leave open:
-// TypeSafe's Jev judges whether a call has consequences outside the
+// a SubQ decision model judges whether a call has consequences outside the
 // workstation, and those pause for the owner's approval. An empty APIKey
 // turns review off; environment variables expand.
 type ReviewConfig struct {

@@ -301,7 +301,7 @@ func TestNewManagerAppliesPerProviderTimeout(t *testing.T) {
 func TestStdioServerDoesNotInheritAcornSecrets(t *testing.T) {
 	t.Setenv("ACORN_WORKSTATION_TOKEN", "workstation-token")
 	t.Setenv("OPENAI_API_KEY", "sk-secret")
-	t.Setenv("TYPESAFE_API_KEY", "typesafe-secret")
+	t.Setenv("SUBQ_API_KEY", "subq-secret")
 	t.Setenv("HOME", "/home/acorn")
 	t.Setenv("LC_ALL", "C.UTF-8")
 	t.Setenv("HTTPS_PROXY", "http://proxy.lan:3128")
@@ -321,7 +321,7 @@ func TestStdioServerDoesNotInheritAcornSecrets(t *testing.T) {
 		name, value, _ := strings.Cut(item, "=")
 		got[name] = value
 	}
-	for _, name := range []string{"ACORN_WORKSTATION_TOKEN", "OPENAI_API_KEY", "TYPESAFE_API_KEY"} {
+	for _, name := range []string{"ACORN_WORKSTATION_TOKEN", "OPENAI_API_KEY", "SUBQ_API_KEY"} {
 		if _, ok := got[name]; ok {
 			t.Errorf("stdio server inherits %s", name)
 		}

@@ -31,15 +31,15 @@ func TestReviewTurnsOnWithAnExpandedKey(t *testing.T) {
 	if err := os.WriteFile(path, []byte("review:\n  timeout_seconds: 20\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("TYPESAFE_API_KEY", "")
+	t.Setenv("SUBQ_API_KEY", "")
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ReviewEnabled() || cfg.Review.Model != "jev-preview" || cfg.Review.TimeoutSeconds != 20 {
+	if cfg.ReviewEnabled() || cfg.Review.Model != "subq-snap-1.1" || cfg.Review.TimeoutSeconds != 20 {
 		t.Fatalf("review = %+v", cfg.Review)
 	}
-	t.Setenv("TYPESAFE_API_KEY", "apikey_test")
+	t.Setenv("SUBQ_API_KEY", "apikey_test")
 	cfg, err = Load(path)
 	if err != nil {
 		t.Fatal(err)

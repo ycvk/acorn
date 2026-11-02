@@ -11,16 +11,16 @@ import (
 )
 
 // buildReviewer returns nil when review is off.
-func buildReviewer(cfg *config.Config) (*review.Jev, error) {
+func buildReviewer(cfg *config.Config) (*review.SubQ, error) {
 	if !cfg.ReviewEnabled() {
 		return nil, nil
 	}
-	jev, err := review.NewJev(review.DefaultBaseURL, cfg.Review.APIKey, cfg.Review.Model,
+	subq, err := review.NewSubQ(review.DefaultBaseURL, cfg.Review.APIKey, cfg.Review.Model,
 		&http.Client{Timeout: time.Duration(cfg.Review.TimeoutSeconds) * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("review: %w", err)
 	}
-	return jev, nil
+	return subq, nil
 }
 
 // ReviewStatus is what acorn doctor reports about action review.
@@ -32,16 +32,16 @@ type ReviewStatus struct {
 
 // ReviewStatus checks the configured reviewer with a minimal request.
 func (c *Container) ReviewStatus(ctx context.Context) ReviewStatus {
-	jev, err := buildReviewer(c.cfg)
+	subq, err := buildReviewer(c.cfg)
 	if err != nil {
 		return ReviewStatus{State: "error", Error: err.Error()}
 	}
-	if jev == nil {
+	if subq == nil {
 		return ReviewStatus{State: "off"}
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	model, err := jev.Check(ctx)
+	model, err := subq.Check(ctx)
 	if err != nil {
 		return ReviewStatus{State: "error", Model: c.cfg.Review.Model, Error: err.Error()}
 	}

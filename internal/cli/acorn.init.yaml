@@ -28,12 +28,12 @@ providers:
     enabled: true
 
 review:
-  # TypeSafe's Jev judges shell commands, browser actions and MCP calls no
-  # approval rule settles; those with consequences outside the workstation
-  # (paying, sending, deleting, changing settings) pause for your approval.
-  # Empty turns it off.
-  api_key: ${TYPESAFE_API_KEY}
-  model: jev-preview
+  # A SubQ decision model judges shell commands, browser actions and MCP
+  # calls no approval rule settles; those with consequences outside the
+  # workstation (paying, sending, deleting, changing settings) pause for your
+  # approval. Empty turns it off.
+  api_key: ${SUBQ_API_KEY}
+  model: subq-snap-1.1
   timeout_seconds: 20
 
 memory:

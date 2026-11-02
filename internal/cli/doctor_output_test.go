@@ -178,9 +178,9 @@ func TestRenderDoctorWatches(t *testing.T) {
 
 func TestRenderDoctorReview(t *testing.T) {
 	for status, want := range map[wire.ReviewStatus]string{
-		{State: "off"}:                     "Action review: off (review.api_key is not configured; only approval rules gate calls)",
-		{State: "on", Model: "jev-1.13.0"}: "Action review: on jev-1.13.0",
-		{State: "error", Model: "jev-1.13.0", Error: "review: HTTP 401"}: "Action review: error jev-1.13.0: review: HTTP 401",
+		{State: "off"}:                        "Action review: off (review.api_key is not configured; only approval rules gate calls)",
+		{State: "on", Model: "subq-snap-1.1"}: "Action review: on subq-snap-1.1",
+		{State: "error", Model: "subq-snap-1.1", Error: "review: HTTP 401"}: "Action review: error subq-snap-1.1: review: HTTP 401",
 	} {
 		if got := renderDoctorReview(status); got != want {
 			t.Fatalf("got %q, want %q", got, want)

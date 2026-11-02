@@ -16,7 +16,7 @@ Acorn is an agent for one person. It runs as a single Go binary on your own serv
 
 - **Memory with sources.** Facts, inferences and the agent's own thoughts each trace back to the message, tool result or note they came from, with revisions over time. Correct or forget a memory from the app; deleting a conversation forgets it too.
 - **A computer of its own.** The agent works in an isolated Podman container with a shell, files and Chromium driven through [BrowserSkill](https://github.com/Tencent/BrowserSkill). When a site needs you to sign in, you open the agent's browser in the app and do it there; passwords never reach the model.
-- **Asks before it acts.** Your rules block, allow or require approval for any tool. Shell commands, browser actions and MCP calls the rules leave open are reviewed by [Jev](https://typesafe.ai); paying, sending, deleting or changing settings waits for you. Approve or decline right on the notification. Runs continue on the server, even across restarts.
+- **Asks before it acts.** Your rules block, allow or require approval for any tool. Shell commands, browser actions and MCP calls the rules leave open are reviewed by [SubQ](https://subq.ai)'s decision model; paying, sending, deleting or changing settings waits for you. Approve or decline right on the notification. Runs continue on the server, even across restarts.
 - **Keeps appointments.** "Remind me in three days" wakes the agent in the same conversation at that time. Scheduled night reflection and idle thoughts revisit open questions, within daily budgets you set.
 - **Follows things for you.** RSS and Atom feeds (RSSHub included), GitHub releases and issues, and parts of web pages such as prices. New items reach you right away or in a morning briefing.
 - **A knowledge base.** Share a link or an image from any app and the agent files it as a note. Every edit is kept as a revision; read and search notes in the app.
@@ -42,7 +42,7 @@ Each run is one [Eino](https://github.com/cloudwego/eino) `ChatModelAgent`. Befo
 - A [Voyage AI](https://www.voyageai.com) key for memory embeddings.
 - An Android phone (Android 8.0 or newer).
 
-Optional: a TypeSafe key for action review, an Exa key for web search, a Firebase project for push notifications, an RSSHub instance and a GitHub token for watches.
+Optional: a SubQ key for action review, an Exa key for web search, a Firebase project for push notifications, an RSSHub instance and a GitHub token for watches.
 
 ## Quick start
 

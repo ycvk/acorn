@@ -21,8 +21,8 @@ func defaultConfig() *Config {
 		Memory: MemoryConfig{Embedding: MemoryEmbeddingConfig{BaseURL: "https://api.voyageai.com/v1", APIKey: "${VOYAGE_API_KEY}", Model: "voyage-4", Dimensions: 1024}},
 		Backup: BackupConfig{Keep: 14},
 		Review: ReviewConfig{
-			APIKey:         "${TYPESAFE_API_KEY}",
-			Model:          "jev-preview",
+			APIKey:         "${SUBQ_API_KEY}",
+			Model:          "subq-snap-1.1",
 			TimeoutSeconds: 20,
 		},
 		Workstation: WorkstationConfig{Token: "${ACORN_WORKSTATION_TOKEN}"},
