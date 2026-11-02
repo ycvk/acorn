@@ -148,7 +148,7 @@ func TestBriefingLeavesTheNightReflectionOut(t *testing.T) {
 	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_night", Input: "[night 2026-10-05]"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.data.FinishRun(ctx, "run_night", core.RunStatusSucceeded, "夜思核对完了：没有改技能，没有未完成的约定，关切列表是空的。", ""); err != nil {
+	if _, _, err := h.data.FinishRun(ctx, core.RunEnd{RunID: "run_night", Status: core.RunStatusSucceeded, Output: "夜思核对完了：没有改技能，没有未完成的约定，关切列表是空的。", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.data.SetRoutineRun(ctx, "night", "2026-10-05", "thread_thoughts", "run_night"); err != nil {

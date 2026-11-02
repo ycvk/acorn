@@ -82,14 +82,14 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 			t.Fatal(err)
 		}
 		if status != core.RunStatusRunning {
-			if err := s.FinishRun(ctx, runID, status, "", ""); err != nil {
+			if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: runID, Status: status, Output: "", Error: "", Event: "run.completed"}); err != nil {
 				t.Fatal(err)
 			}
 		}
 		if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x"}); !errors.Is(err, core.ErrThreadBusy) {
 			t.Fatalf("a message while the latest run is %s: %v", status, err)
 		}
-		if err := s.FinishRun(ctx, runID, core.RunStatusSucceeded, "说明", ""); err != nil {
+		if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: runID, Status: core.RunStatusSucceeded, Output: "说明", Error: "", Event: "run.completed"}); err != nil {
 			t.Fatal(err)
 		}
 	}

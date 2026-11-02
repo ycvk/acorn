@@ -71,7 +71,7 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	want := []string{"memoryVisibilityMiddleware", "patchtoolcalls", "summarization", "reduction", "skill", "presenceMiddleware", "approvalMiddleware", "toolErrorMiddleware"}
+	want := []string{"memoryVisibilityMiddleware", "interjectionMiddleware", "patchtoolcalls", "summarization", "reduction", "skill", "presenceMiddleware", "approvalMiddleware", "toolErrorMiddleware"}
 	if got := handlerKinds(withoutDeferred); !slices.Equal(got, want) {
 		t.Fatalf("handlers without deferred tools = %v, want %v", got, want)
 	}
@@ -80,7 +80,7 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	want = slices.Insert(want, 4, "toolsearch")
+	want = slices.Insert(want, 5, "toolsearch")
 	if got := handlerKinds(withDeferred); !slices.Equal(got, want) {
 		t.Fatalf("handlers with deferred tools = %v, want %v", got, want)
 	}

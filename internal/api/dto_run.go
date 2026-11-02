@@ -38,9 +38,24 @@ type PendingActionSummaryDTO struct {
 }
 
 type CreateRunRequest struct {
-	SkillID string   `json:"skill_id,omitempty"`
 	Input   string   `json:"input,omitempty"`
 	FileIDs []string `json:"file_ids,omitempty"`
+}
+
+// CreateRunResponse is the run that takes the owner's message: the run
+// started on it, or the thread's run still going, which the message waits
+// for (Queued).
+type CreateRunResponse struct {
+	Run    RunDTO            `json:"run"`
+	Queued *QueuedMessageDTO `json:"queued,omitempty"`
+}
+
+// QueuedMessageDTO is an owner message that waits for the thread's run.
+type QueuedMessageDTO struct {
+	ID        string          `json:"id"`
+	Text      string          `json:"text"`
+	CreatedAt time.Time       `json:"created_at"`
+	Files     []ThreadFileDTO `json:"files,omitempty"`
 }
 
 // RunDTO represents a client-visible run summary.
@@ -168,12 +183,9 @@ type ToolStepDTO struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// MessageListResponse is the response body for listing messages.
+// MessageListResponse is the response body for listing messages: the
+// thread's messages and the owner messages that wait for its run.
 type MessageListResponse struct {
-	Items []MessageDTO `json:"items"`
-}
-
-// CreateMessageRequest is the body for creating a message.
-type CreateMessageRequest struct {
-	Content MessageContentDTO `json:"content" validate:"required"`
+	Items  []MessageDTO       `json:"items"`
+	Queued []QueuedMessageDTO `json:"queued"`
 }

@@ -57,7 +57,7 @@ func briefingRun(t *testing.T, s *Store, slot, threadID, runID string, status co
 	if _, err := s.AppendSessionMessage(ctx, threadID, 0, core.MessageRoleWake, "[briefing "+slot+"]", runID); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.FinishRun(ctx, runID, status, output, ""); err != nil {
+	if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: runID, Status: status, Output: output, Error: "", Event: "run.completed"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SetRoutineRun(ctx, "briefing", slot, threadID, runID); err != nil {

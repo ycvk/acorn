@@ -12,23 +12,16 @@ func (s *Server) handleClientListMessages(w http.ResponseWriter, r *http.Request
 		s.respondBadRequest(w, r, err.Error())
 		return
 	}
-	items, err := s.threads.ListMessages(r.Context(), chi.URLParam(r, "thread_id"), limit)
+	threadID := chi.URLParam(r, "thread_id")
+	items, err := s.threads.ListMessages(r.Context(), threadID, limit)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, MessageListResponse{Items: DefaultConverter.messageDTOsFromDomain(items)})
-}
-
-func (s *Server) handleClientCreateMessage(w http.ResponseWriter, r *http.Request) {
-	req, ok := s.decodeCreateMessageRequest(w, r)
-	if !ok {
-		return
-	}
-	item, err := s.threads.CreateMessage(r.Context(), chi.URLParam(r, "thread_id"), req.Content.Text)
+	queued, err := s.threads.QueuedMessages(r.Context(), threadID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusCreated, DefaultConverter.messageDTOFromDomain(*item))
+	s.respondJSON(w, r, http.StatusOK, MessageListResponse{Items: DefaultConverter.messageDTOsFromDomain(items), Queued: DefaultConverter.queuedMessageDTOsFromDomain(queued)})
 }

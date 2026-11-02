@@ -15,7 +15,7 @@
 
 ## 运行时与编排
 
-- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 memory visibility → patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 memory visibility → interjection → patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/events_test.go`
 - **模型使用原生协议并保留推理状态**：Responses、Chat Completions、Anthropic Messages 都经 Eino AgenticModel；推理内容块与签名参与下一轮工具结果回传和 checkpoint，公开事件投影不含签名。sampling 可省略，输出预算和上下文按模型能力验证。请求空闲超时随响应进度刷新，总请求与 run 时限可关闭。
@@ -29,9 +29,14 @@
   - `internal/runtime/events_test.go`
   - `internal/api/tool_steps_test.go`
   - `internal/store/store_thread_steps_test.go`
-- **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再发 `run.completed`/`run.failed` 并把 run 标记为结束；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
+- **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再在同一事务里记下 `run.completed`/`run.failed` 与结束状态；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
+  - `internal/store/store_runs_test.go`
+- **run 进行中 owner 发的话交给这个 run**：`POST /v1/threads/{id}/runs` 在同一事务里判断对话：有 run 在运行或等待审批时，消息存进 `queued_messages` 并返回 202 与这个 run；否则在队列里剩下的消息之后写下这条消息并建 run，返回 201。排队的消息不是对话消息，也不是记忆来源。interjection middleware 在 run 每次调用模型前把队列里的文字消息按发送顺序写进对话、绑定到这个 run（取 run 的 turn）并追加到 agent state 与 run 的历史，每条记一个 `run.input` 事件；带文件的消息与它之后的留到下一个 run。run 结束时，若对话里没有别的 run 在运行或等待审批，同一事务把剩下的消息写在回复之后、建下一个 run 并把它写进终止事件的 `next_run_id`，随后执行它。终止前没能接手的路径（setup 失败、Acorn 停止）留下的消息由 `serve` 的续跑扫描在启动时与每分钟起 run，owner 的下一条消息也会先带上它们。队列随对话删除。
+  - `internal/store/store_owner_messages_test.go`
+  - `internal/wire/interjection_e2e_test.go`
+  - `internal/runtime/agent_test.go`
 - **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批，规则未覆盖、在 Acorn 自己醒来的 run（输入是 wake 消息）里改动板块（action 不是 list）的 `news_sections` 调用审批，owner 对话里的直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读，重定向目标是 `/dev/tcp/`、`/dev/udp/`、登录 shell 会执行的文件（`.bash_profile`、`.bashrc`、`.profile` 等）或带变量与通配符时不算只读；程序必须是不带路径的名字，赋值前缀只允许小写变量名与 `BSK_*`，`sort --compress-program` 与 `printf -v` 不算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
   - `internal/runtime/approval_review_test.go`
   - `internal/runtime/approval_test.go`
@@ -224,7 +229,7 @@
   - `internal/api/handlers_skills_test.go`
   - `internal/skills/diff_test.go`
   - `internal/skills/owner_test.go`
-- **对话文件随消息往返**：`POST /v1/threads/{id}/files` 边接收边写入 `{storage_dir}/files/<file_id>`（临时文件改名后才登记），超过 `files.max_upload_mib` 以 `payload_too_large`（413）拒绝，名字只保留最后一段、去掉控制字符；媒体类型对图片、音视频与 PDF 按内容判断，其他按扩展名。`CreateRunRequest.file_ids` 只接受本对话里尚未随消息发送的 owner 文件，至多 10 个，否则整个请求按无效请求拒绝；有文件时消息可以没有正文。线程消息把 owner 文件列在它随行的 user 消息上，把 agent 文件列在其 run 的 assistant 消息上；`GET /v1/threads/{id}/files/{file_id}` 只返回该对话的文件。
+- **对话文件随消息往返**：`POST /v1/threads/{id}/files` 边接收边写入 `{storage_dir}/files/<file_id>`（临时文件改名后才登记），超过 `files.max_upload_mib` 以 `payload_too_large`（413）拒绝，名字只保留最后一段、去掉控制字符；媒体类型对图片、音视频与 PDF 按内容判断，其他按扩展名。`CreateRunRequest.file_ids` 只接受本对话里尚未随消息发送、也没有排队消息带着的 owner 文件，至多 10 个，否则整个请求按无效请求拒绝；有文件时消息可以没有正文。线程消息把 owner 文件列在它随行的 user 消息上，把 agent 文件列在其 run 的 assistant 消息上；`GET /v1/threads/{id}/files/{file_id}` 只返回该对话的文件。
   - `internal/store/thread_files_test.go`
   - `internal/core/thread_file_test.go`
   - `internal/wire/thread_files_e2e_test.go`
@@ -248,7 +253,7 @@
   - `internal/wire/view_panels_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
-- **只有这台手机发起或批准的 run 在后台跟随**：run 的事件流只由 `RunFollower` 持有，断线后从最后读到的事件接着读；为 owner 刚做的决定而跟随的 run 在这个决定的事件之前不显示，重放里更早的等待不会结束它。这类 run 运行时显示为 Live Update，结束、等 owner 或被 owner 停止时消失；App 不在前台时完成与失败留一条通知，owner 停止的不留。
+- **只有这台手机发起或批准的 run 在后台跟随**：run 的事件流只由 `RunFollower` 持有，断线后从最后读到的事件接着读；为 owner 刚做的决定而跟随的 run 在这个决定的事件之前不显示，重放里更早的等待不会结束它。这类 run 运行时显示为 Live Update，结束、等 owner 或被 owner 停止时消失；App 不在前台时完成与失败留一条通知，owner 停止的不留。终止事件带 `next_run_id` 时，`RunFollower` 以同一个对话、标题与是否 Live Update 接着跟随那个 run，这次结束不留通知。
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/RunFollowerTest.kt`
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/LiveStatusTest.kt`
 

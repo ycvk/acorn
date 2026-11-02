@@ -246,10 +246,19 @@ paths:
           $ref: '#/components/responses/ThreadNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+
+  /v1/threads/{thread_id}/runs:
     post:
       tags: [client]
-      summary: Append a user message without starting a run
-      operationId: clientCreateMessage
+      summary: Send the owner's message; it starts a run, or waits for the thread's run still going
+      description: |
+        While a run of the thread runs or waits for the owner, the message
+        waits for it (202): the run takes it before its next model call and
+        emits run.input, or, when the run ends first, a run that starts on
+        the waiting messages takes it, named by next_run_id on the run's
+        terminal event. Otherwise a run starts on the message (201), after
+        the messages still waiting in the thread.
+      operationId: clientCreateRun
       parameters:
         - $ref: '#/components/parameters/ThreadID'
       requestBody:
@@ -257,41 +266,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateMessageRequest'
-      responses:
-        '201':
-          description: Message appended
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Message'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '404':
-          $ref: '#/components/responses/ThreadNotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /v1/threads/{thread_id}/runs:
-    post:
-      tags: [client]
-      summary: Start a runtime run; with input set, record the user message and run in one step (otherwise run the latest unbound user message)
-      operationId: clientCreateRun
-      parameters:
-        - $ref: '#/components/parameters/ThreadID'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
               $ref: '#/components/schemas/CreateRunRequest'
       responses:
         '201':
-          description: Run created and execution started
+          description: A run started on the message
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Run'
+                $ref: '#/components/schemas/CreateRunResponse'
+        '202':
+          description: The message waits for the thread's run, which the response carries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRunResponse'
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '404':
@@ -3367,32 +3355,42 @@ components:
     MessageListResponse:
       type: object
       additionalProperties: false
-      required: [items]
+      required: [items, queued]
       properties:
         items:
           type: array
           items:
             $ref: '#/components/schemas/Message'
+        queued:
+          type: array
+          description: Owner messages that wait for the thread's run, in the order they were sent.
+          items:
+            $ref: '#/components/schemas/QueuedMessage'
 
-    CreateMessageRequest:
+    QueuedMessage:
       type: object
       additionalProperties: false
-      required: [content]
+      required: [id, text, created_at]
       properties:
-        content:
-          $ref: '#/components/schemas/MessageContent'
+        id:
+          type: string
+        text:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThreadFile'
 
     CreateRunRequest:
       type: object
       additionalProperties: false
+      description: The owner's message. It needs input, files or both.
       properties:
-        skill_id:
-          type: string
         input:
           type: string
-          description: >-
-            Optional run input. When set, the run records it as the pending user
-            message in one step, so a separate POST /messages is not required.
         file_ids:
           type: array
           maxItems: 10
@@ -3401,6 +3399,18 @@ components:
             the message is recorded even when input is empty.
           items:
             type: string
+
+    CreateRunResponse:
+      type: object
+      additionalProperties: false
+      required: [run]
+      properties:
+        run:
+          description: The run that takes the message, the one started on it or the thread's run still going.
+          $ref: '#/components/schemas/Run'
+        queued:
+          description: Set when the message waits for the run.
+          $ref: '#/components/schemas/QueuedMessage'
 
     Run:
       type: object
@@ -3429,6 +3439,7 @@ components:
         - $ref: '#/components/schemas/ClientRunFailedEvent'
         - $ref: '#/components/schemas/ClientRunInterruptedEvent'
         - $ref: '#/components/schemas/ClientRunResumeRequestedEvent'
+        - $ref: '#/components/schemas/ClientRunInputEvent'
         - $ref: '#/components/schemas/ClientElicitationPendingEvent'
         - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionPendingEvent'
@@ -3449,6 +3460,7 @@ components:
           run.failed: '#/components/schemas/ClientRunFailedEvent'
           run.interrupted: '#/components/schemas/ClientRunInterruptedEvent'
           run.resume_requested: '#/components/schemas/ClientRunResumeRequestedEvent'
+          run.input: '#/components/schemas/ClientRunInputEvent'
           elicitation.pending: '#/components/schemas/ClientElicitationPendingEvent'
           elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
           operator_question.pending: '#/components/schemas/ClientOperatorQuestionPendingEvent'
@@ -3544,6 +3556,17 @@ components:
               const: run.resume_requested
             data:
               $ref: '#/components/schemas/RunResumeRequestedData'
+
+    ClientRunInputEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: run.input
+            data:
+              $ref: '#/components/schemas/RunInputData'
 
     ClientElicitationPendingEvent:
       allOf:
@@ -3688,12 +3711,32 @@ components:
       properties:
         message:
           $ref: '#/components/schemas/RunEventMessage'
+        next_run_id:
+          type: string
+          description: The run that started when this one ended, on owner messages that waited for it.
 
     RunFailedData:
       type: object
       additionalProperties: false
       properties:
         error:
+          type: string
+        next_run_id:
+          type: string
+          description: The run that started when this one ended, on owner messages that waited for it.
+
+    RunInputData:
+      type: object
+      additionalProperties: false
+      description: An owner message the run took while it ran, as it now stands in the thread.
+      required: [queued_id, message_id, text]
+      properties:
+        queued_id:
+          type: string
+          description: The id the message had while it waited.
+        message_id:
+          type: string
+        text:
           type: string
 
     RunInterruptedData:

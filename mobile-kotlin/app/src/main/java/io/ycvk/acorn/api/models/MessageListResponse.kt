@@ -24,6 +24,7 @@
 package io.ycvk.acorn.api.models
 
 import io.ycvk.acorn.api.models.Message
+import io.ycvk.acorn.api.models.QueuedMessage
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -32,13 +33,18 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param items 
+ * @param queued Owner messages that wait for the thread's run, in the order they were sent.
  */
 
 
 data class MessageListResponse (
 
     @Json(name = "items")
-    val items: kotlin.collections.List<Message>
+    val items: kotlin.collections.List<Message>,
+
+    /* Owner messages that wait for the thread's run, in the order they were sent. */
+    @Json(name = "queued")
+    val queued: kotlin.collections.List<QueuedMessage>
 
 ) {
 

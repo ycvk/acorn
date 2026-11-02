@@ -264,6 +264,29 @@ func (c *ConverterImpl) providerReadinessDTOsFromSnapshot(source []ProviderReadi
 	}
 	return apiProviderReadinessDTOList
 }
+func (c *ConverterImpl) queuedMessageDTOFromDomain(source QueuedMessage) QueuedMessageDTO {
+	var apiQueuedMessageDTO QueuedMessageDTO
+	apiQueuedMessageDTO.ID = source.ID
+	apiQueuedMessageDTO.Text = source.Text
+	apiQueuedMessageDTO.CreatedAt = TimeToTime(source.CreatedAt)
+	if source.Files != nil {
+		apiQueuedMessageDTO.Files = make([]ThreadFileDTO, len(source.Files))
+		for i := 0; i < len(source.Files); i++ {
+			apiQueuedMessageDTO.Files[i] = c.threadFileDTOFromDomain(source.Files[i])
+		}
+	}
+	return apiQueuedMessageDTO
+}
+func (c *ConverterImpl) queuedMessageDTOsFromDomain(source []QueuedMessage) []QueuedMessageDTO {
+	var apiQueuedMessageDTOList []QueuedMessageDTO
+	if source != nil {
+		apiQueuedMessageDTOList = make([]QueuedMessageDTO, len(source))
+		for i := 0; i < len(source); i++ {
+			apiQueuedMessageDTOList[i] = c.queuedMessageDTOFromDomain(source[i])
+		}
+	}
+	return apiQueuedMessageDTOList
+}
 func (c *ConverterImpl) runSummaryDTOsFromDomain(source []RunSummary) []RunSummaryDTO {
 	var apiRunSummaryDTOList []RunSummaryDTO
 	if source != nil {

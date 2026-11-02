@@ -28,6 +28,8 @@ type Converter interface {
 	messageDTOFromDomain(source Message) MessageDTO
 	messageDTOsFromDomain(source []Message) []MessageDTO
 	threadFileDTOFromDomain(source ThreadFileInfo) ThreadFileDTO
+	queuedMessageDTOFromDomain(source QueuedMessage) QueuedMessageDTO
+	queuedMessageDTOsFromDomain(source []QueuedMessage) []QueuedMessageDTO
 
 	// Run
 	runSummaryDTOsFromDomain(source []RunSummary) []RunSummaryDTO

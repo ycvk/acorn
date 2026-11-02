@@ -43,6 +43,17 @@ sealed class ChatMessage {
     ) : ChatMessage()
 }
 
+/**
+ * An owner message that waits for the thread's run, which takes it before its
+ * next step. [queuedId] is the server's id for it, null while it is on its way.
+ */
+data class QueuedChat(
+    val text: String,
+    val files: List<FileView> = emptyList(),
+    val queuedId: String? = null,
+    val key: String = "queued_${UUID.randomUUID()}",
+)
+
 /** Maps a stored thread message to its chat row, keyed by the message's [id] so a reload keeps each row. */
 fun chatMessageFrom(
     role: Message.Role,

@@ -43,7 +43,7 @@ func TestWanderAdvancesEachConcernInTheConversationItCameFrom(t *testing.T) {
 			toolCallChunk("create_"+matter.key, "concern", map[string]string{"action": "create", "title": matter.title, "reason": "owner 交代持续跟进", "source_id": "__input_source__"}),
 			textReply("好的，我会持续跟进。"),
 		)
-		if _, err := c.runs.CreateRun(ctx, thread.ID, "", "帮我"+matter.title, nil); err != nil {
+		if _, err := startOwnerRun(ctx, c, thread.ID, "帮我"+matter.title); err != nil {
 			t.Fatal(err)
 		}
 		threads[matter.key], latest[matter.key] = thread.ID, waitNewRun(t, c, thread.ID, "").RunID
@@ -154,7 +154,7 @@ func TestWanderDeliversAnOutcomeThatOnlyTheOwnerResolves(t *testing.T) {
 		toolCallChunk("create", "concern", map[string]string{"action": "create", "title": "整理 X 近几个版本的变化", "outcome": outcome, "reason": "owner 交代整理成文档", "source_id": "__input_source__"}),
 		textReply("好的，我会整理好发给你。"),
 	)
-	if _, err := c.runs.CreateRun(ctx, thread.ID, "", "把 X 近几个版本的变化整理成一份 Markdown", nil); err != nil {
+	if _, err := startOwnerRun(ctx, c, thread.ID, "把 X 近几个版本的变化整理成一份 Markdown"); err != nil {
 		t.Fatal(err)
 	}
 	latest := waitNewRun(t, c, thread.ID, "").RunID
@@ -282,7 +282,7 @@ func TestWanderDeliversAnOutcomeThatOnlyTheOwnerResolves(t *testing.T) {
 		toolCallChunk("confirm", "concern", map[string]any{"action": "resolved", "id": item.ID, "revision": item.Revision, "title": item.Title, "reason": "owner 确认了文档", "source_id": "__input_source__"}),
 		textReply("好的，这件事结了。"),
 	)
-	if _, err := c.runs.CreateRun(ctx, thread.ID, "", "看过了，可以", nil); err != nil {
+	if _, err := startOwnerRun(ctx, c, thread.ID, "看过了，可以"); err != nil {
 		t.Fatal(err)
 	}
 	waitNewRun(t, c, thread.ID, advance.RunID)
@@ -330,7 +330,7 @@ func TestDeletedConversationTakesItsConcernWorkOffTheWorkstation(t *testing.T) {
 			toolCallChunk("create_"+matter.key, "concern", map[string]string{"action": "create", "title": matter.title, "outcome": "一份 Markdown", "reason": "owner 交代整理成文档", "source_id": "__input_source__"}),
 			textReply("好的，我来整理。"),
 		)
-		if _, err := c.runs.CreateRun(ctx, thread.ID, "", "帮我"+matter.title, nil); err != nil {
+		if _, err := startOwnerRun(ctx, c, thread.ID, "帮我"+matter.title); err != nil {
 			t.Fatal(err)
 		}
 		threads[matter.key], latest[matter.key] = thread.ID, waitNewRun(t, c, thread.ID, "").RunID
@@ -361,7 +361,7 @@ func TestDeletedConversationTakesItsConcernWorkOffTheWorkstation(t *testing.T) {
 
 	client.do(t, httptest.NewRequest(http.MethodDelete, "/v1/threads/"+threads["b"], nil), http.StatusNoContent, nil)
 	provider.add(textReply("在。"))
-	if _, err := c.runs.CreateRun(ctx, threads["a"], "", "在吗", nil); err != nil {
+	if _, err := startOwnerRun(ctx, c, threads["a"], "在吗"); err != nil {
 		t.Fatal(err)
 	}
 	waitNewRun(t, c, threads["a"], latest["a"])

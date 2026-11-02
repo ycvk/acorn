@@ -88,19 +88,6 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 		t.Fatalf("delete thread id = %q, want thread_1", service.deleteThreadID)
 	}
 
-	createMessage := performClientRequest(router, http.MethodPost, "/v1/threads/thread_1/messages", `{"content":{"type":"text","text":" look around "}}`)
-	if createMessage.Code != http.StatusCreated {
-		t.Fatalf("create message status = %d body=%s", createMessage.Code, createMessage.Body.String())
-	}
-	var message MessageDTO
-	decodeClientTestJSON(t, createMessage, &message)
-	if message.ID != "7" || message.ThreadID != "thread_1" || message.Content.Type != "text" || message.Content.Text != "look around" {
-		t.Fatalf("unexpected create message response: %#v", message)
-	}
-	if service.createMessageThreadID != "thread_1" || service.createMessageContent != "look around" {
-		t.Fatalf("unexpected create message call: thread=%q content=%q", service.createMessageThreadID, service.createMessageContent)
-	}
-
 	listMessages := performClientRequest(router, http.MethodGet, "/v1/threads/thread_1/messages", "")
 	if listMessages.Code != http.StatusOK {
 		t.Fatalf("list messages status = %d body=%s", listMessages.Code, listMessages.Body.String())
@@ -111,17 +98,17 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 		t.Fatalf("unexpected messages response: %#v", messages)
 	}
 
-	createRun := performClientRequest(router, http.MethodPost, "/v1/threads/thread_1/runs", `{"skill_id":" skill.inspect "}`)
+	createRun := performClientRequest(router, http.MethodPost, "/v1/threads/thread_1/runs", `{"input":" look around "}`)
 	if createRun.Code != http.StatusCreated {
 		t.Fatalf("create run status = %d body=%s", createRun.Code, createRun.Body.String())
 	}
-	var run RunDTO
-	decodeClientTestJSON(t, createRun, &run)
-	if run.ID != "run_1" || run.ThreadID != "thread_1" || run.Status != "running" {
-		t.Fatalf("unexpected create run response: %#v", run)
+	var created CreateRunResponse
+	decodeClientTestJSON(t, createRun, &created)
+	if created.Run.ID != "run_1" || created.Run.ThreadID != "thread_1" || created.Run.Status != "running" || created.Queued != nil {
+		t.Fatalf("unexpected create run response: %#v", created)
 	}
-	if service.createRunThreadID != "thread_1" || service.createRunSkillID != "skill.inspect" {
-		t.Fatalf("unexpected create run call: thread=%q skill=%q", service.createRunThreadID, service.createRunSkillID)
+	if service.createRunThreadID != "thread_1" || service.createMessageThreadID != "thread_1" || service.createMessageContent != "look around" {
+		t.Fatalf("unexpected create run call: thread=%q message thread=%q content=%q", service.createRunThreadID, service.createMessageThreadID, service.createMessageContent)
 	}
 
 	getRun := performClientRequest(router, http.MethodGet, "/v1/runs/run_1", "")

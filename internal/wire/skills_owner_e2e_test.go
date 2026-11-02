@@ -43,7 +43,7 @@ func TestOwnerRollbackReachesTheNextRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := c.runs.CreateRun(ctx, thread.ID, "", "看看订单", nil)
+	first, err := startOwnerRun(ctx, c, thread.ID, "看看订单")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestOwnerRollbackReachesTheNextRun(t *testing.T) {
 		t.Fatalf("rollback = %+v", rolled)
 	}
 
-	second, err := c.runs.CreateRun(ctx, thread.ID, "", "再看看订单", nil)
+	second, err := startOwnerRun(ctx, c, thread.ID, "再看看订单")
 	if err != nil {
 		t.Fatal(err)
 	}

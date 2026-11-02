@@ -30,6 +30,7 @@ import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionPendingEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
+import io.ycvk.acorn.api.models.ClientRunInputEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
 import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent

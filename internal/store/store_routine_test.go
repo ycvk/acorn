@@ -70,7 +70,7 @@ func TestLatestRoutineOutputSkipsRunsWithoutAReply(t *testing.T) {
 		if err := s.CreateRun(ctx, core.RunCreateParams{RunID: run.id, Input: "[briefing " + run.slot + "]"}); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.FinishRun(ctx, run.id, run.status, run.output, ""); err != nil {
+		if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: run.id, Status: run.status, Output: run.output, Error: "", Event: "run.completed"}); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.SetRoutineRun(ctx, "briefing", run.slot, "thread_briefings", run.id); err != nil {

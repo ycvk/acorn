@@ -173,7 +173,11 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	handlers := []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{&memoryVisibilityMiddleware{TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{}, memory: req.Memory}, patch, summarize, reduce}
+	handlers := []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{
+		&memoryVisibilityMiddleware{TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{}, memory: req.Memory},
+		newInterjectionMiddleware(deps.Store, req.RunID, req.Memory),
+		patch, summarize, reduce,
+	}
 	if len(deferred) > 0 {
 		search, err := toolsearch.NewTyped[*schema.AgenticMessage](ctx, &toolsearch.Config{DynamicTools: deferred})
 		if err != nil {

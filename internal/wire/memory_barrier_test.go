@@ -31,7 +31,7 @@ func TestMemoryBarrierWaitsForForeignRunTermination(t *testing.T) {
 		t.Fatalf("barrier returned while foreign execution still running: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
-	if err := db.FinishRun(ctx, "foreign-run", core.RunStatusFailed, "", "cancelled by memory exclusion"); err != nil {
+	if _, _, err := db.FinishRun(ctx, core.RunEnd{RunID: "foreign-run", Status: core.RunStatusFailed, Output: "", Error: "cancelled by memory exclusion", Event: "run.failed"}); err != nil {
 		t.Fatal(err)
 	}
 	select {

@@ -61,9 +61,6 @@ type ThreadFiles interface {
 	// ThreadFiles lists a thread's files, oldest first.
 	ThreadFiles(ctx context.Context, sessionID string) ([]ThreadFile, error)
 	OpenThreadFile(ctx context.Context, sessionID, fileID string) (ThreadFile, io.ReadCloser, error)
-	// AttachThreadFiles sends owner files not yet sent with messageID; it
-	// fails unless every id names one.
-	AttachThreadFiles(ctx context.Context, sessionID string, messageID int64, fileIDs []string) error
 	// OwnerThreadFileIDs lists the owner files of every thread.
 	OwnerThreadFileIDs(ctx context.Context) ([]string, error)
 }

@@ -23,10 +23,10 @@ func (s *Store) ThreadMemorySourceIDs(ctx context.Context, sessionID string) ([]
 }
 
 // DeleteThread removes a thread with what its runs left behind: messages,
-// files, views, runs, events, pending actions, checkpoints, notifications,
-// briefing picks, the messages sent from briefing stories, artifacts and the
-// context snapshots no other run used. The thread's memory sources stay,
-// so the exclusions that forget them keep holding.
+// queued messages, files, views, runs, events, pending actions, checkpoints,
+// notifications, briefing picks, the messages sent from briefing stories,
+// artifacts and the context snapshots no other run used. The thread's memory
+// sources stay, so the exclusions that forget them keep holding.
 func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
 	var paths, files []string
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
@@ -117,6 +117,7 @@ func purgeThread(ctx context.Context, tx *sql.Tx, sessionID string) ([]string, e
 		{`DELETE FROM thread_summaries WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM runs WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM news_story_messages WHERE session_id = ?`, []any{sessionID}},
+		{`DELETE FROM queued_messages WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM session_messages WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM sessions WHERE session_id = ?`, []any{sessionID}},
 	} {

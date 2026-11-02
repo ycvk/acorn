@@ -78,10 +78,11 @@ func (c *Container) Config() *config.Config {
 	return c.cfg
 }
 
-// ResumeReadyRuns resumes every interrupted run whose pending actions are
-// all decided.
-func (c *Container) ResumeReadyRuns(ctx context.Context) error {
-	return c.runResume.ResumeReadyRuns(ctx)
+// ContinueRuns resumes every interrupted run whose pending actions are all
+// decided, then starts a run in every thread whose owner messages wait with
+// none of its runs going.
+func (c *Container) ContinueRuns(ctx context.Context) error {
+	return errors.Join(c.runResume.ResumeReadyRuns(ctx), c.runs.StartQueuedRuns(ctx))
 }
 
 func (c *Container) Skills() *api.SkillService {
@@ -259,6 +260,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	}
 	container.threads = threads
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
+	container.runResume.WithContinue(container.runs.ContinueRun)
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithNews(db).WithResumer(container.runResume)
 

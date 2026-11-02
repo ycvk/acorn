@@ -56,7 +56,7 @@ func runServe(ctx context.Context, args []string) error {
 	workers.Go(func() { container.WakeScheduler().Run(ctx) })
 	workers.Go(func() { container.MemoryWorker().Run(ctx) })
 	workers.Go(func() { container.NewsWorker().Run(ctx) })
-	workers.Go(func() { resumeReadyRunsLoop(ctx, container.ResumeReadyRuns, resumeSweepInterval) })
+	workers.Go(func() { continueRunsLoop(ctx, container.ContinueRuns, continueSweepInterval) })
 
 	server := &http.Server{
 		Addr:              addr,
@@ -105,16 +105,18 @@ func executionReadinessBanner(readyErr error) string {
 	return "Execution: ready"
 }
 
-const resumeSweepInterval = time.Minute
+const continueSweepInterval = time.Minute
 
-// resumeReadyRunsLoop resumes decided runs at startup and then on every tick,
-// so a run whose resume was lost (process exit, a failed trigger) continues.
-func resumeReadyRunsLoop(ctx context.Context, sweep func(context.Context) error, interval time.Duration) {
+// continueRunsLoop resumes decided runs and starts runs on waiting owner
+// messages at startup and then on every tick, so a run whose resume was lost
+// (process exit, a failed trigger) continues, and messages that waited for a
+// run that never ended, or failed before it ran, get their run.
+func continueRunsLoop(ctx context.Context, sweep func(context.Context) error, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		if err := sweep(ctx); err != nil {
-			slog.Error("resume ready runs", "error", err)
+			slog.Error("continue runs", "error", err)
 		}
 		select {
 		case <-ctx.Done():

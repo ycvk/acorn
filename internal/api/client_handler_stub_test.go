@@ -25,7 +25,6 @@ type clientHandlerStub struct {
 	createMessageThreadID     string
 	createMessageContent      string
 	createRunThreadID         string
-	createRunSkillID          string
 }
 
 func (s *clientHandlerStub) ListThreads(context.Context, int) ([]Thread, error) {
@@ -72,24 +71,6 @@ func (s *clientHandlerStub) ListMessages(context.Context, string, int) ([]Messag
 		return nil, s.err
 	}
 	return []Message{s.message}, nil
-}
-
-func (s *clientHandlerStub) CreateMessage(_ context.Context, threadID, content string) (*Message, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	s.createMessageThreadID = threadID
-	s.createMessageContent = content
-	return &s.message, nil
-}
-
-func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, _ string) (*Run, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	s.createRunThreadID = threadID
-	s.createRunSkillID = skillID
-	return &s.run, nil
 }
 
 func (s *clientHandlerStub) GetRun(context.Context, string) (*Run, error) {

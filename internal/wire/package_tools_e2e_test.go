@@ -88,7 +88,7 @@ func TestPackageToolsComeWithTheirSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	first, err := c.runs.CreateRun(ctx, thread.ID, "", "用 fixture 回显你好", nil)
+	first, err := startOwnerRun(ctx, c, thread.ID, "用 fixture 回显你好")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestPackageToolsComeWithTheirSkill(t *testing.T) {
 	if len(secrets.Secrets) != 1 || secrets.Secrets[0].Name != "FIXTURE_TOKEN" || !secrets.Secrets[0].Set {
 		t.Fatalf("secrets after setting one = %+v", secrets)
 	}
-	second, err := c.runs.CreateRun(ctx, thread.ID, "", "再试一次", nil)
+	second, err := startOwnerRun(ctx, c, thread.ID, "再试一次")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestPackageToolsComeWithTheirSkill(t *testing.T) {
 	if _, err := c.skillLibrary.Retire(ctx, "fixture", skill.Revision, ""); err != nil {
 		t.Fatal(err)
 	}
-	third, err := c.runs.CreateRun(ctx, thread.ID, "", "还在吗", nil)
+	third, err := startOwnerRun(ctx, c, thread.ID, "还在吗")
 	if err != nil {
 		t.Fatal(err)
 	}

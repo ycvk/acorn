@@ -69,6 +69,9 @@ class RunEventProjection @Inject constructor() {
                 ),
             )
 
+            // A message the run took joins the thread's messages, not the reply.
+            is RunEventPacket.Input -> state
+
             // Waiting rows are keyed by action id so the decided event clears its pending row.
             is RunEventPacket.ElicitationPending -> state.copy(
                 activities = state.activities + ActivityItem(

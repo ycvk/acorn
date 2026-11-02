@@ -15,6 +15,7 @@ var liveRunEventKinds = []string{
 	"run.failed",
 	"run.interrupted",
 	"run.resume_requested",
+	"run.input",
 	"elicitation.pending",
 	"elicitation.decided",
 	"operator_question.pending",
@@ -69,15 +70,17 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 		return AssistantDeltaData{AssistantDelta: value}, nil
 	case "run.completed":
 		value, _ := objectField(payload, "message")
-		return RunCompletedData{Message: value}, nil
+		return RunCompletedData{Message: value, NextRunID: topLevelString(payload, "next_run_id")}, nil
 	case "run.failed":
-		return RunFailedData{Error: topLevelString(payload, "error")}, nil
+		return RunFailedData{Error: topLevelString(payload, "error"), NextRunID: topLevelString(payload, "next_run_id")}, nil
 	case "run.interrupted":
 		value, _ := objectField(payload, "interrupt")
 		return RunInterruptedData{Interrupt: value}, nil
 	case "run.resume_requested":
 		value, _ := objectField(payload, "targets")
 		return RunResumeRequestedData{Targets: value}, nil
+	case "run.input":
+		return RunInputData{QueuedID: topLevelString(payload, "queued_id"), MessageID: topLevelString(payload, "message_id"), Text: topLevelString(payload, "text")}, nil
 	case "elicitation.pending", "elicitation.decided":
 		return ElicitationData{
 			ActionID:        topLevelString(payload, "action_id"),

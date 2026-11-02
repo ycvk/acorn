@@ -31,13 +31,18 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param error 
+ * @param nextRunId The run that started when this one ended, on owner messages that waited for it.
  */
 
 
 data class RunFailedData (
 
     @Json(name = "error")
-    val error: kotlin.String? = null
+    val error: kotlin.String? = null,
+
+    /* The run that started when this one ended, on owner messages that waited for it. */
+    @Json(name = "next_run_id")
+    val nextRunId: kotlin.String? = null
 
 ) {
 

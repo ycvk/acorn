@@ -17,6 +17,9 @@ type Result struct {
 	Output      string         `json:"output,omitempty"`
 	Error       string         `json:"error,omitempty"`
 	Interrupted map[string]any `json:"interrupted,omitempty"`
+	// Next is the run the store started on owner messages that waited for
+	// this one to end; the caller executes it.
+	Next *core.ExecuteRequest `json:"-"`
 }
 
 type Executor struct {
@@ -68,7 +71,8 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRe
 }
 
 // ExecuteMessages registers the run before it records anything, so a run
-// refused while Acorn stops leaves no trace.
+// refused while Acorn stops leaves no trace. A run the store created keeps
+// its record running, and the next start fails it.
 func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*Result, error) {
 	runID := resolveRunID(req)
 	runCtxBase, cleanup, err := e.newManagedRunContext(ctx, runID)
@@ -76,12 +80,13 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		return nil, err
 	}
 	defer cleanup()
-	req, err = e.prepareExecuteRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	if err := e.createBoundRun(ctx, runID, req); err != nil {
-		return nil, err
+	if !req.Created {
+		if req, err = e.prepareExecuteRequest(ctx, req); err != nil {
+			return nil, err
+		}
+		if err := e.createBoundRun(ctx, runID, req); err != nil {
+			return nil, err
+		}
 	}
 	if err := e.runRuntime.deps.MemoryStore.LinkRunInputSources(ctx, runID, req.SourceIDs); err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
@@ -212,10 +217,9 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 }
 
 type RunState struct {
-	lastOutput       string
-	interrupt        map[string]any
-	failure          error
-	emittedRunFailed bool
+	lastOutput string
+	interrupt  map[string]any
+	failure    error
 }
 
 // consume records the run's events and its end. ctx carries the writes; runCtx
@@ -233,8 +237,12 @@ func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, it
 	projector := newAgentEventProjector(runID, active.FailedCalls)
 	emit := func(item core.StreamItem) error {
 		item.RunID = runID
-		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
-			return err
+		// A failure ends the run: finishFailedRun records it as the run's
+		// terminal event.
+		if item.Kind != core.StreamKindRunFailed {
+			if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
+				return err
+			}
 		}
 		state.applyStreamItem(item)
 		return nil
@@ -249,11 +257,7 @@ func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, it
 		}
 	}
 	if projector.streamErr != nil && state.failure == nil {
-		if err := emit(core.StreamItem{Kind: core.StreamKindRunFailed, Payload: map[string]any{
-			"error": projector.streamErr.Error(),
-		}}); err != nil {
-			return RunState{}, err
-		}
+		state.failure = projector.streamErr
 	}
 	return state, nil
 }
@@ -285,7 +289,6 @@ func (s *RunState) applyStreamItem(item core.StreamItem) {
 	}
 	if item.Kind == core.StreamKindRunFailed && core.ItemGetError(item) != "" {
 		s.failure = errors.New(core.ItemGetError(item))
-		s.emittedRunFailed = true
 	}
 }
 
@@ -306,23 +309,53 @@ func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, tar
 	return e.emitLifecyclePayload(ctx, runID, sink, core.StreamKindRunResumeRequested, map[string]any{"targets": targets})
 }
 
-func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink core.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, core.StreamKindRunCompleted, map[string]any{"message": &core.StreamMessage{
+// finishRun records the run's end with its terminal event; with next it
+// lets the store start the next run on owner messages that wait in the
+// conversation. The terminal event reaches sink once it is stored.
+func (e *Executor) finishRun(ctx context.Context, sink core.StreamSink, end core.RunEnd, item core.StreamItem, next bool) (*core.ExecuteRequest, error) {
+	item.RunID = end.RunID
+	kind, payload, err := ProjectStreamItemToEvent(item)
+	if err != nil {
+		return nil, err
+	}
+	end.Event = kind
+	end.Payload = payload
+	if next {
+		end.Next = core.NewRunID()
+	}
+	event, start, err := e.store.FinishRun(ctx, end)
+	if err != nil {
+		return nil, err
+	}
+	if sink != nil {
+		item.Sequence, item.CreatedAt = event.Sequence, event.CreatedAt
+		if err := sink(item); err != nil {
+			return nil, err
+		}
+	}
+	if start == nil {
+		return nil, nil
+	}
+	return &core.ExecuteRequest{RunID: start.RunID, SessionID: start.SessionID, TurnIndex: start.TurnIndex, Input: start.Input, Created: true}, nil
+}
+
+func runCompletedItem(output string) core.StreamItem {
+	return core.StreamItem{Kind: core.StreamKindRunCompleted, Payload: map[string]any{"message": &core.StreamMessage{
 		Role:    string(schema.Assistant),
 		Content: output,
-	}})
+	}}}
 }
 
-func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink core.StreamSink, message string) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, core.StreamKindRunFailed, map[string]any{"error": message})
+func runFailedItem(message string) core.StreamItem {
+	return core.StreamItem{Kind: core.StreamKindRunFailed, Payload: map[string]any{"error": message}}
 }
 
+// failRunSetup fails a run whose setup failed. Owner messages that wait for
+// it start the next run from the queue sweep.
 func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink core.StreamSink) error {
 	durableCtx := context.WithoutCancel(ctx)
-	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
-		return err
-	}
-	return e.store.FinishRun(durableCtx, runID, core.RunStatusFailed, "", setupErr.Error())
+	_, err := e.finishRun(durableCtx, sink, core.RunEnd{RunID: runID, Status: core.RunStatusFailed, Error: setupErr.Error()}, runFailedItem(setupErr.Error()), false)
+	return err
 }
 
 func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr error, sink core.StreamSink) error {
@@ -348,12 +381,9 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID string, state RunS
 	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusFailed); err != nil {
 		return nil, err
 	}
-	if !state.emittedRunFailed && state.failure != nil {
-		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
-			return nil, err
-		}
-	}
-	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
+	end := core.RunEnd{RunID: runID, Status: core.RunStatusFailed, Output: state.lastOutput, Error: state.failure.Error()}
+	next, err := e.finishRun(durableCtx, sink, end, runFailedItem(state.failure.Error()), true)
+	if err != nil {
 		return nil, err
 	}
 	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
@@ -364,6 +394,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID string, state RunS
 		Status: core.RunStatusFailed,
 		Output: state.lastOutput,
 		Error:  state.failure.Error(),
+		Next:   next,
 	}, nil
 }
 
@@ -398,10 +429,9 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID string, state R
 	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusSucceeded); err != nil {
 		return nil, err
 	}
-	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
-		return nil, err
-	}
-	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusSucceeded, state.lastOutput, ""); err != nil {
+	end := core.RunEnd{RunID: runID, Status: core.RunStatusSucceeded, Output: state.lastOutput}
+	next, err := e.finishRun(durableCtx, sink, end, runCompletedItem(state.lastOutput), true)
+	if err != nil {
 		return nil, err
 	}
 	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
@@ -411,5 +441,6 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID string, state R
 		RunID:  runID,
 		Status: core.RunStatusSucceeded,
 		Output: state.lastOutput,
+		Next:   next,
 	}, nil
 }

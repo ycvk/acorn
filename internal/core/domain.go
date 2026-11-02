@@ -141,7 +141,9 @@ type ExecuteRequest struct {
 	TurnIndex      int
 	Input          string
 	BoundMessageID int64
-	SkillID        string
+	// Created runs were created by the store with their messages bound, as
+	// when owner messages start one.
+	Created bool
 	// Wake says what woke this run; empty means an owner message.
 	Wake string
 }

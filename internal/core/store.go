@@ -26,11 +26,27 @@ type SessionStore interface {
 	NextSessionMessageTurnIndex(ctx context.Context, sessionID string) (int, error)
 	AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*SessionMessageRecord, error)
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
-	LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*SessionMessageRecord, error)
 	BindUserMessageRunIDByID(ctx context.Context, messageID int64, runID string) error
 	BindLatestUserMessageRunID(ctx context.Context, sessionID string, turnIndex int, runID string) error
 	SyncAssistantMessageForRun(ctx context.Context, runID string) error
 	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status RunStatus) error
+
+	// --- Owner messages ---
+	// SendOwnerMessage queues the message while a run of the conversation
+	// is running or waits for the owner, and otherwise starts message.RunID
+	// on it, after the messages still queued there.
+	SendOwnerMessage(ctx context.Context, message OwnerMessage) (SentOwnerMessage, error)
+	// TakeQueuedMessages moves the conversation's queued messages into it as
+	// further input of runID, while the run runs, in the order they were sent
+	// and up to the first that carries files. Each taken message gets a
+	// run.input event.
+	TakeQueuedMessages(ctx context.Context, runID string) ([]SessionMessageRecord, error)
+	// StartQueuedRun starts runID on the conversation's queued messages when
+	// none of its runs is going; it returns nil when none is started.
+	StartQueuedRun(ctx context.Context, sessionID, runID string) (*RunStart, error)
+	ListQueuedMessages(ctx context.Context, sessionID string) ([]QueuedMessage, error)
+	// ListQueuedSessions lists the conversations with queued messages.
+	ListQueuedSessions(ctx context.Context) ([]string, error)
 
 	// --- Runs ---
 	CreateRun(ctx context.Context, params RunCreateParams) error
@@ -39,7 +55,9 @@ type SessionStore interface {
 	// wake message, as for the briefing, the reflections, commitments and
 	// triggers.
 	RunWoken(ctx context.Context, runID string) (bool, error)
-	FinishRun(ctx context.Context, runID string, status RunStatus, output, errText string) error
+	// FinishRun records the run's end with its terminal event, and with
+	// end.Next set starts the next run on the conversation's queued messages.
+	FinishRun(ctx context.Context, end RunEnd) (EventRecord, *RunStart, error)
 	MarkInterrupted(ctx context.Context, runID, output string) error
 	ResumeInterruptedRun(ctx context.Context, runID string) error
 	ListInterruptedRuns(ctx context.Context) ([]RunRecord, error)

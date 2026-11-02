@@ -14,6 +14,7 @@ import io.ycvk.acorn.api.models.ClientToolCallStartedEvent
 import io.ycvk.acorn.api.models.ClientToolCallSucceededEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
+import io.ycvk.acorn.api.models.ClientRunInputEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
 import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
@@ -56,6 +57,7 @@ class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
         "run.failed" to ClientRunFailedEvent::class.java,
         "run.interrupted" to ClientRunInterruptedEvent::class.java,
         "run.resume_requested" to ClientRunResumeRequestedEvent::class.java,
+        "run.input" to ClientRunInputEvent::class.java,
         "elicitation.pending" to ClientElicitationPendingEvent::class.java,
         "elicitation.decided" to ClientElicitationDecidedEvent::class.java,
         "operator_question.pending" to ClientOperatorQuestionPendingEvent::class.java,
@@ -133,6 +135,7 @@ class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
             "run.failed" -> RunEventPacket.RunFailed(parsed as ClientRunFailedEvent)
             "run.interrupted" -> RunEventPacket.RunInterrupted(parsed as ClientRunInterruptedEvent)
             "run.resume_requested" -> RunEventPacket.RunResumeRequested(parsed as ClientRunResumeRequestedEvent)
+            "run.input" -> RunEventPacket.Input(parsed as ClientRunInputEvent)
             "elicitation.pending" -> RunEventPacket.ElicitationPending(parsed as ClientElicitationPendingEvent)
             "elicitation.decided" -> RunEventPacket.ElicitationDecided(parsed as ClientElicitationDecidedEvent)
             "operator_question.pending" -> RunEventPacket.OperatorQuestionPending(parsed as ClientOperatorQuestionPendingEvent)
@@ -163,6 +166,9 @@ sealed class RunEventPacket(val eventId: String, val seq: Long) {
     data class RunFailed(val event: ClientRunFailedEvent) : RunEventPacket(event.eventId, event.seq)
     data class RunInterrupted(val event: ClientRunInterruptedEvent) : RunEventPacket(event.eventId, event.seq)
     data class RunResumeRequested(val event: ClientRunResumeRequestedEvent) : RunEventPacket(event.eventId, event.seq)
+
+    /** The run took an owner message that waited for it. */
+    data class Input(val event: ClientRunInputEvent) : RunEventPacket(event.eventId, event.seq)
     data class ElicitationPending(val event: ClientElicitationPendingEvent) : RunEventPacket(event.eventId, event.seq)
     data class ElicitationDecided(val event: ClientElicitationDecidedEvent) : RunEventPacket(event.eventId, event.seq)
     data class OperatorQuestionPending(val event: ClientOperatorQuestionPendingEvent) : RunEventPacket(event.eventId, event.seq)

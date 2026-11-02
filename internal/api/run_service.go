@@ -16,10 +16,7 @@ import (
 	"github.com/ycvk/acorn/internal/views"
 )
 
-var (
-	ErrClientProjectionFailed = errors.New("client projection failed")
-	ErrClientNoPendingMessage = errors.New("client pending user message not found")
-)
+var ErrClientProjectionFailed = errors.New("client projection failed")
 
 // projectionError wraps a format string into ErrClientProjectionFailed.
 func projectionError(format string, args ...any) error {
@@ -50,9 +47,10 @@ type Run struct {
 	CompletedAt time.Time
 }
 
-// RunService owns run lifecycle: creating runs against a thread, probing run
-// terminality, and interrupting in-flight runs. It binds a run to its
-// originating user message via the ThreadService and drives the executor.
+// RunService owns run lifecycle: sending the owner's messages, creating runs
+// against a thread, probing run terminality, and interrupting in-flight runs.
+// It drives the executor, and executes the run the store starts on owner
+// messages that waited for a run to end.
 type RunService struct {
 	store      core.SessionStore
 	threads    *ThreadService
@@ -113,11 +111,82 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 	return s.controller.Interrupt(runID)
 }
 
-// CreateRun starts a run on the owner's message. fileIDs are files uploaded
-// to the thread that the message sends; with files, the message is recorded
-// even when input is empty.
-func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string, fileIDs []string) (*Run, error) {
-	return s.createRun(ctx, threadID, skillID, input, fileIDs, "", "user", nil)
+// SentMessage is the run that takes an owner message: the run started on it,
+// or the thread's run still going, which the message waits for (Queued).
+type SentMessage struct {
+	Run    Run
+	Queued *QueuedMessage
+}
+
+// SendMessage sends the owner's message in the thread. While a run of the
+// thread runs or waits for the owner, the message waits for it: the run takes
+// it before its next model call, or the run that starts when it ends does.
+// Otherwise a run starts on it, after the messages still waiting there.
+// fileIDs are files uploaded to the thread that the message sends.
+func (s *RunService) SendMessage(ctx context.Context, threadID, input string, fileIDs []string) (*SentMessage, error) {
+	threadID = strings.TrimSpace(threadID)
+	input = strings.TrimSpace(input)
+	if len(fileIDs) > 0 {
+		if err := s.threads.unsentFiles(ctx, threadID, fileIDs); err != nil {
+			return nil, err
+		}
+	}
+	sent, err := s.store.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: threadID, Content: input, FileIDs: fileIDs, RunID: core.NewRunID()})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.store.UpdateSessionTitleIfEmpty(ctx, threadID, generatedThreadTitle(input)); err != nil {
+		return nil, err
+	}
+	if sent.Started != nil {
+		run, err := s.launch(ctx, createdRunRequest(*sent.Started))
+		if err != nil {
+			return nil, err
+		}
+		return &SentMessage{Run: *run}, nil
+	}
+	run, err := s.GetRun(ctx, sent.RunID)
+	if err != nil {
+		return nil, err
+	}
+	files, err := s.threads.files.ThreadFiles(ctx, threadID)
+	if err != nil {
+		return nil, err
+	}
+	queued := queuedMessage(*sent.Queued, files)
+	return &SentMessage{Run: *run, Queued: &queued}, nil
+}
+
+// ContinueRun executes in the background a run the store started on owner
+// messages that waited in its thread.
+func (s *RunService) ContinueRun(ctx context.Context, req core.ExecuteRequest) {
+	go s.executeRunAsync(context.WithoutCancel(ctx), req, newRunStartSignal())
+}
+
+// StartQueuedRuns starts a run in every thread whose owner messages wait
+// with none of its runs going, as after a restart or after a run that
+// failed before it ran. serve sweeps it with the decided runs.
+func (s *RunService) StartQueuedRuns(ctx context.Context) error {
+	threads, err := s.store.ListQueuedSessions(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, threadID := range threads {
+		start, err := s.store.StartQueuedRun(ctx, threadID, core.NewRunID())
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if start != nil {
+			s.ContinueRun(ctx, createdRunRequest(*start))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func createdRunRequest(start core.RunStart) core.ExecuteRequest {
+	return core.ExecuteRequest{RunID: start.RunID, SessionID: start.SessionID, TurnIndex: start.TurnIndex, Input: start.Input, Created: true}
 }
 
 // CreateScheduledRun starts a scheduler input with explicit provenance and budget ownership.
@@ -125,7 +194,7 @@ func (s *RunService) CreateScheduledRun(ctx context.Context, threadID, input str
 	if strings.TrimSpace(wake.Reason) == "" {
 		return nil, errors.New("scheduled run requires wake reason")
 	}
-	return s.createRun(ctx, threadID, "", input, nil, wake.Reason, core.MessageRoleWake, &wake)
+	return s.createRun(ctx, threadID, input, wake.Reason, core.MessageRoleWake, &wake)
 }
 
 // captureWake describes what wakes a capture run.
@@ -137,52 +206,21 @@ func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input strin
 	if strings.TrimSpace(input) == "" {
 		return nil, errors.New("capture run requires input")
 	}
-	return s.createRun(ctx, threadID, "", input, nil, captureWake, core.MessageRoleCapture, nil)
+	return s.createRun(ctx, threadID, input, captureWake, core.MessageRoleCapture, nil)
 }
 
-// createRun records input under role (or, with empty input, binds the latest
-// unbound message) and starts the run. wake, when set, tells the agent what
-// woke it.
-func (s *RunService) createRun(ctx context.Context, threadID, skillID, input string, fileIDs []string, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
+// createRun records input under role and starts the run on it. wake tells the
+// agent what woke it.
+func (s *RunService) createRun(ctx context.Context, threadID, input, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
 	threadID = strings.TrimSpace(threadID)
-	skillID = strings.TrimSpace(skillID)
-	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
+	if strings.TrimSpace(input) == "" {
+		return nil, fmt.Errorf("%s run in %s requires input", role, threadID)
+	}
+	message, err := s.threads.createInputMessage(ctx, threadID, role, input)
+	if err != nil {
 		return nil, err
 	}
-	// Resolve the user message this run binds to, then bind by its exact id (see
-	// req.BoundMessageID below). Single-step (input set) records a fresh message
-	// and binds that id — race-free, no separate POST /messages needed. The
-	// two-step flow (empty input, message posted via POST /messages) reads the
-	// latest unbound message and binds by its id; concurrent two-step creates on
-	// one thread bind the same id and the second fails loud (RowsAffected=0 -> run
-	// rolled back), never silently mis-binding.
-	var message *core.SessionMessageRecord
-	var err error
-	if len(fileIDs) > 0 {
-		if err := s.threads.unsentFiles(ctx, threadID, fileIDs); err != nil {
-			return nil, err
-		}
-	}
-	if strings.TrimSpace(input) != "" || len(fileIDs) > 0 {
-		message, err = s.threads.createInputMessage(ctx, threadID, role, input)
-		if err != nil {
-			return nil, err
-		}
-		if len(fileIDs) > 0 {
-			if err := s.threads.files.AttachThreadFiles(ctx, threadID, message.ID, fileIDs); err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		message, err = s.store.LoadLatestUnboundUserMessage(ctx, threadID)
-		if err != nil {
-			if errors.Is(err, core.ErrSessionMessageNotFound) {
-				return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
-			}
-			return nil, err
-		}
-	}
-	return s.startRun(ctx, threadID, skillID, message, wake, scheduled)
+	return s.startRun(ctx, threadID, message, wake, scheduled)
 }
 
 // SendViewAction sends what the owner pressed or chose in a view of the
@@ -209,7 +247,7 @@ func (s *RunService) SendViewAction(ctx context.Context, threadID, viewID string
 	if err != nil {
 		return nil, err
 	}
-	run, err := s.startRun(ctx, threadID, "", &message, "", nil)
+	run, err := s.startRun(ctx, threadID, &message, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +289,7 @@ func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent
 	if err != nil {
 		return nil, err
 	}
-	run, err := s.startRun(ctx, message.SessionID, "", &message, "", nil)
+	run, err := s.startRun(ctx, message.SessionID, &message, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -276,17 +314,13 @@ func storyMessageText(intent core.StoryIntent, title string) string {
 }
 
 // startRun starts a run bound to message.
-func (s *RunService) startRun(ctx context.Context, threadID, skillID string, message *core.SessionMessageRecord, wake string, scheduled *core.ScheduledWake) (*Run, error) {
-	runID := core.NewRunID()
-	started := newRunStartSignal()
+func (s *RunService) startRun(ctx context.Context, threadID string, message *core.SessionMessageRecord, wake string, scheduled *core.ScheduledWake) (*Run, error) {
 	req := core.ExecuteRequest{
-
-		RunID:          runID,
+		RunID:          core.NewRunID(),
 		SessionID:      threadID,
 		TurnIndex:      message.TurnIndex,
 		Input:          message.Content,
 		BoundMessageID: message.ID,
-		SkillID:        skillID,
 		Wake:           wake,
 	}
 	if scheduled != nil {
@@ -295,12 +329,18 @@ func (s *RunService) startRun(ctx context.Context, threadID, skillID string, mes
 		req.Autonomous = scheduled.Autonomous
 		req.Standalone = scheduled.Standalone
 	}
-	runCtx := context.WithoutCancel(ctx)
-	go s.executeRunAsync(runCtx, req, started)
+	return s.launch(ctx, req)
+}
+
+// launch executes req in the background and returns its run once it has
+// started.
+func (s *RunService) launch(ctx context.Context, req core.ExecuteRequest) (*Run, error) {
+	started := newRunStartSignal()
+	go s.executeRunAsync(context.WithoutCancel(ctx), req, started)
 
 	select {
 	case <-started.Started():
-		return s.GetRun(ctx, runID)
+		return s.GetRun(ctx, req.RunID)
 	case err := <-started.Failed():
 		return nil, err
 	case <-ctx.Done():
@@ -368,7 +408,8 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteRequest, started *clientRunStartSignal) {
 	result, err := s.executeRun(ctx, req, runStartSignalSink(started))
 	if err != nil {
-		if started.MarkFailed(err) {
+		// A run the store created has its record whether or not it started.
+		if started.MarkFailed(err) && !req.Created {
 			return
 		}
 		if persistErr := s.recordStartedRunFailure(ctx, req.RunID, err); persistErr != nil {
@@ -376,10 +417,13 @@ func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteReques
 		}
 		return
 	}
-	if result != nil && result.Status == core.RunStatusInterrupted && s.resumer != nil {
+	if result.Status == core.RunStatusInterrupted && s.resumer != nil {
 		if err := s.resumer.ResumeIfReady(ctx, req.RunID); err != nil {
 			reportClientBackgroundError(ctx, req.RunID, err)
 		}
+	}
+	if result.Next != nil {
+		s.ContinueRun(ctx, *result.Next)
 	}
 }
 
@@ -416,11 +460,18 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 	if record.Status != core.RunStatusRunning {
 		return nil
 	}
-	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
-		return fmt.Errorf("append client run failed event after background error: %w", err)
-	}
-	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
+	_, next, err := s.store.FinishRun(ctx, failedRunEnd(runID, cause))
+	if err != nil {
 		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
+	if next != nil {
+		s.ContinueRun(ctx, createdRunRequest(*next))
+	}
 	return nil
+}
+
+// failedRunEnd fails runID with cause and starts the next run on owner
+// messages that wait in its thread.
+func failedRunEnd(runID string, cause error) core.RunEnd {
+	return core.RunEnd{RunID: runID, Status: core.RunStatusFailed, Error: cause.Error(), Event: "run.failed", Payload: map[string]any{"error": cause.Error()}, Next: core.NewRunID()}
 }

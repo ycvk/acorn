@@ -45,9 +45,9 @@ func TestViewActionsComeBackAsTheOwnersMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var first api.RunDTO
+	var first api.CreateRunResponse
 	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "读一下这篇长文"}, http.StatusCreated, &first)
-	waitRunStatus(t, c, first.ID, "completed")
+	waitRunStatus(t, c, first.Run.ID, "completed")
 	views, err := c.store.ThreadViews(ctx, thread.ID)
 	if err != nil || len(views) != 1 {
 		t.Fatalf("views = %+v, %v", views, err)

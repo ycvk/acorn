@@ -154,9 +154,6 @@ func TestRunStateApplyRunFailed(t *testing.T) {
 	if state.failure.Error() != "model stream error: connection reset" {
 		t.Errorf("failure = %q, want 'model stream error: connection reset'", state.failure.Error())
 	}
-	if !state.emittedRunFailed {
-		t.Error("emittedRunFailed should be true after run.failed item")
-	}
 }
 
 func TestRunStateApplyRunFailedEmptyError(t *testing.T) {
@@ -169,9 +166,6 @@ func TestRunStateApplyRunFailedEmptyError(t *testing.T) {
 	})
 	if state.failure != nil {
 		t.Errorf("failure should be nil for empty error, got %v", state.failure)
-	}
-	if state.emittedRunFailed {
-		t.Error("emittedRunFailed should be false for empty error")
 	}
 }
 

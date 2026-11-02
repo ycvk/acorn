@@ -171,20 +171,6 @@ func (s *clientHandlerStore) CreateFreshSessionTurn(context.Context, string, str
 	return 1, nil
 }
 
-func (s *clientHandlerStore) LoadLatestUnboundUserMessage(_ context.Context, _ string) (*core.SessionMessageRecord, error) {
-	if _, err := s.stubOrErr(); err != nil {
-		return nil, err
-	}
-	record := s.messageRecord()
-	if record == nil || strings.TrimSpace(record.RunID) != "" {
-		return nil, core.ErrSessionMessageNotFound
-	}
-	if strings.TrimSpace(record.Role) == "" {
-		record.Role = "user"
-	}
-	return record, nil
-}
-
 func (s *clientHandlerStore) BindUserMessageRunIDByID(_ context.Context, _ int64, runID string) error {
 	stub, err := s.stubOrErr()
 	if err != nil {
@@ -230,13 +216,13 @@ func (s *clientHandlerStore) RunWoken(context.Context, string) (bool, error) {
 	return false, err
 }
 
-func (s *clientHandlerStore) FinishRun(_ context.Context, runID string, status core.RunStatus, output, errText string) error {
+func (s *clientHandlerStore) FinishRun(_ context.Context, end core.RunEnd) (core.EventRecord, *core.RunStart, error) {
 	stub, err := s.stubOrErr()
 	if err != nil {
-		return err
+		return core.EventRecord{}, nil, err
 	}
-	stub.run.ID = runID
-	switch status {
+	stub.run.ID = end.RunID
+	switch end.Status {
 	case core.RunStatusSucceeded:
 		stub.run.Status = "completed"
 	case core.RunStatusInterrupted:
@@ -246,7 +232,25 @@ func (s *clientHandlerStore) FinishRun(_ context.Context, runID string, status c
 	default:
 		stub.run.Status = "running"
 	}
-	return nil
+	return core.EventRecord{RunID: end.RunID, Kind: end.Event, Payload: end.Payload}, nil, nil
+}
+
+// SendOwnerMessage starts a run on the message: the stub thread has no run
+// going that it would wait for.
+func (s *clientHandlerStore) SendOwnerMessage(_ context.Context, message core.OwnerMessage) (core.SentOwnerMessage, error) {
+	stub, err := s.stubOrErr()
+	if err != nil {
+		return core.SentOwnerMessage{}, err
+	}
+	stub.createMessageThreadID = message.SessionID
+	stub.createMessageContent = message.Content
+	record := core.SessionMessageRecord{ID: 7, SessionID: message.SessionID, TurnIndex: 1, Role: "user", Content: message.Content, RunID: message.RunID, CreatedAt: time.Date(2026, 5, 2, 10, 2, 0, 0, time.UTC)}
+	return core.SentOwnerMessage{RunID: message.RunID, Started: &core.RunStart{RunID: message.RunID, SessionID: message.SessionID, TurnIndex: 1, Input: message.Content, Messages: []core.SessionMessageRecord{record}}}, nil
+}
+
+func (s *clientHandlerStore) ListQueuedMessages(context.Context, string) ([]core.QueuedMessage, error) {
+	_, err := s.stubOrErr()
+	return nil, err
 }
 
 func (s *clientHandlerStore) MarkInterrupted(context.Context, string, string) error {

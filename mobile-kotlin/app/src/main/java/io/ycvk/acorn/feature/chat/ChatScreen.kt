@@ -142,6 +142,7 @@ fun ChatScreen(
     approvals: ApprovalsViewModel = hiltViewModel(),
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val queued by viewModel.queued.collectAsStateWithLifecycle()
     val chatState by viewModel.chatState.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val title by viewModel.threadTitle.collectAsStateWithLifecycle()
@@ -210,7 +211,7 @@ fun ChatScreen(
     LaunchedEffect(listState) {
         snapshotFlow { !listState.canScrollForward }.collect { if (it) follow = true }
     }
-    LaunchedEffect(messages.size, chatState.assistantText, chatState.assistantReasoning, chatState.steps, streaming, chatState.activities.size, threadPending.size) {
+    LaunchedEffect(messages.size, queued.size, chatState.assistantText, chatState.assistantReasoning, chatState.steps, streaming, chatState.activities.size, threadPending.size) {
         if (follow) {
             val last = listState.layoutInfo.totalItemsCount - 1
             if (last >= 0) listState.scrollToItem(last, scrollOffset = Int.MAX_VALUE / 2)
@@ -326,6 +327,11 @@ fun ChatScreen(
                         onOpen = { approvals.loadActionDetail(action.actionId) },
                         modifier = rowAnimation(),
                     )
+                }
+                items(queued, key = { it.key }) { message ->
+                    QueuedBubble(message.text, queuedNote(message, status), rowAnimation()) {
+                        MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
+                    }
                 }
                 approvalError?.let {
                     item(key = "__approval_error__") {
@@ -498,6 +504,22 @@ private fun UserBubble(text: String, modifier: Modifier = Modifier, files: @Comp
                     .padding(horizontal = 16.dp, vertical = 11.dp),
             )
         }
+    }
+}
+
+/** What happens to a waiting message: on its way, waiting for the owner's decision, or taken at the run's next step. */
+private fun queuedNote(message: QueuedChat, status: ChatHeaderStatus): String = when {
+    message.queuedId == null -> "发送中"
+    status == ChatHeaderStatus.Waiting -> "你确认之后它会看到"
+    else -> "排队中，它下一步就会看到"
+}
+
+/** An owner message that waits for the run, faded until the run takes it. */
+@Composable
+private fun QueuedBubble(text: String, note: String, modifier: Modifier = Modifier, files: @Composable () -> Unit = {}) {
+    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+        UserBubble(text, Modifier.alpha(0.6f), files)
+        Text(note, style = AcornTheme.type.caption, color = AcornTheme.colors.inkFaint, modifier = Modifier.padding(top = 4.dp, end = 4.dp))
     }
 }
 
@@ -703,9 +725,11 @@ private fun Composer(
             }
             Spacer(Modifier.weight(1f))
             val canSend = input.isNotBlank() || hasAttachments
+            // While a reply runs, a typed message goes to it; with nothing typed the button stops the run.
+            val stops = streaming && !canSend
             val fill by animateColorAsState(
                 when {
-                    streaming -> colors.ink
+                    stops -> colors.ink
                     canSend -> if (colors.isDark) colors.surfaceMuted else colors.ink
                     else -> colors.surfaceMuted
                 },
@@ -717,11 +741,11 @@ private fun Composer(
                 modifier = Modifier
                     .pressScale(interaction, 0.9f)
                     .size(36.dp)
-                    .then(if (canSend && !streaming) Modifier.metalRing(true) else Modifier)
+                    .then(if (canSend) Modifier.metalRing(true) else Modifier)
                     .clip(CircleShape)
                     .background(fill)
                     .clickable(interaction, LocalIndication.current, enabled = streaming || canSend) {
-                        if (streaming) {
+                        if (stops) {
                             haptics.tick()
                             onStop()
                         } else {
@@ -731,9 +755,9 @@ private fun Composer(
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                // The arrow turns into a stop square while a reply runs.
+                // The arrow turns into a stop square while a reply runs and nothing is typed.
                 AnimatedContent(
-                    targetState = streaming,
+                    targetState = stops,
                     transitionSpec = {
                         (fadeIn(AcornMotion.enter(AcornMotion.SHORT)) + scaleIn(AcornMotion.pop(), initialScale = 0.4f)) togetherWith
                             (fadeOut(AcornMotion.exit()) + scaleOut(AcornMotion.exit(), targetScale = 0.4f))

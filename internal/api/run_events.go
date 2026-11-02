@@ -37,12 +37,24 @@ type AssistantDeltaData struct {
 	AssistantDelta map[string]any `json:"assistant_delta"`
 }
 
+// RunCompletedData and RunFailedData name, as NextRunID, the run that
+// started when the run ended on owner messages that waited for it.
 type RunCompletedData struct {
-	Message map[string]any `json:"message,omitempty"`
+	Message   map[string]any `json:"message,omitempty"`
+	NextRunID string         `json:"next_run_id,omitempty"`
 }
 
 type RunFailedData struct {
-	Error string `json:"error,omitempty"`
+	Error     string `json:"error,omitempty"`
+	NextRunID string `json:"next_run_id,omitempty"`
+}
+
+// RunInputData is an owner message the run took while it ran: QueuedID is
+// the message as it waited, MessageID as it now stands in the thread.
+type RunInputData struct {
+	QueuedID  string `json:"queued_id"`
+	MessageID string `json:"message_id"`
+	Text      string `json:"text"`
 }
 
 type RunInterruptedData struct {

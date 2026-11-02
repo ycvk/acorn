@@ -24,7 +24,7 @@ func TestInterruptedRunPushesItsPendingAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := c.runs.CreateRun(ctx, thread.ID, "", "find probe", nil)
+	run, err := startOwnerRun(ctx, c, thread.ID, "find probe")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
