@@ -206,10 +206,10 @@ func fakeAnswers(noul float64) map[string]any {
 			answers[id] = map[string]any{"type": "noul", "noul": noul}
 		}
 	}
-	return map[string]any{"model": "jev-1.13.0", "answers": answers}
+	return map[string]any{"model": "subq-snap-1.1", "answers": answers}
 }
 
-func TestJevRetriesOverloadAndSendsState(t *testing.T) {
+func TestSubQRetriesOverloadAndSendsState(t *testing.T) {
 	var calls atomic.Int32
 	var got map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -223,28 +223,29 @@ func TestJevRetriesOverloadAndSendsState(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Error(err)
 		}
+		checkQuestions(t, got)
 		_ = json.NewEncoder(w).Encode(fakeAnswers(0.9))
 	}))
 	defer server.Close()
-	jev, err := NewJev(server.URL, "key", "jev-1.13.0", server.Client())
+	subq, err := NewSubQ(server.URL, "key", "subq-snap-1.1", server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
-	jev.backoff = time.Millisecond
-	v, err := jev.Review(t.Context(), Call{OwnerRequest: "买了", Browser: &BrowserAction{Action: "click", Target: `button "立即付款"`, URL: "https://cashier.jd.com/", Title: "收银台"}})
+	subq.backoff = time.Millisecond
+	v, err := subq.Review(t.Context(), Call{OwnerRequest: "买了", Browser: &BrowserAction{Action: "click", Target: `button "立即付款"`, URL: "https://cashier.jd.com/", Title: "收银台"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls.Load() != 2 || !v.NeedsApproval || v.Model != "jev-1.13.0" {
+	if calls.Load() != 2 || !v.NeedsApproval || v.Model != "subq-snap-1.1" {
 		t.Fatalf("calls=%d verdict=%+v", calls.Load(), v)
 	}
 	state := got["state"].(map[string]any)
-	if _, ok := state["browser"]; ok || state["target"] != `button "立即付款"` || got["model"] != "jev-1.13.0" {
+	if _, ok := state["browser"]; ok || state["target"] != `button "立即付款"` || got["model"] != "subq-snap-1.1" {
 		t.Fatalf("state = %v", got)
 	}
 }
 
-func TestJevAsksPageQuestionsOnlyOfBrowserActions(t *testing.T) {
+func TestSubQAsksPageQuestionsOnlyOfBrowserActions(t *testing.T) {
 	var asked []map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -257,12 +258,12 @@ func TestJevAsksPageQuestionsOnlyOfBrowserActions(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(fakeAnswers(0.1))
 	}))
 	defer server.Close()
-	jev, err := NewJev(server.URL, "key", "jev-1.13.0", server.Client())
+	subq, err := NewSubQ(server.URL, "key", "subq-snap-1.1", server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, call := range []Call{{Tool: "shell", Command: "python3 count.py a.txt"}, {Browser: &BrowserAction{Action: "click", Target: `button "下一页"`}}} {
-		if _, err := jev.Review(t.Context(), call); err != nil {
+		if _, err := subq.Review(t.Context(), call); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -274,17 +275,17 @@ func TestJevAsksPageQuestionsOnlyOfBrowserActions(t *testing.T) {
 	}
 }
 
-func TestJevReportsFinalFailure(t *testing.T) {
+func TestSubQReportsFinalFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"detail":"bad key"}`))
 	}))
 	defer server.Close()
-	jev, err := NewJev(server.URL, "key", "jev-1.13.0", server.Client())
+	subq, err := NewSubQ(server.URL, "key", "subq-snap-1.1", server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := jev.Review(t.Context(), Call{Tool: "shell", Command: "git push"}); err == nil || !strings.Contains(err.Error(), "HTTP 401") {
+	if _, err := subq.Review(t.Context(), Call{Tool: "shell", Command: "git push"}); err == nil || !strings.Contains(err.Error(), "HTTP 401") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -306,14 +307,14 @@ type labelled struct {
 	} `json:"call"`
 }
 
-// TestJevOnLabelledCalls replays the labelled calls against the real model.
+// TestSubQOnLabelledCalls replays the labelled calls against the real model.
 // Run it when changing questions, thresholds or the model version.
-func TestJevOnLabelledCalls(t *testing.T) {
-	key := os.Getenv("TYPESAFE_API_KEY")
+func TestSubQOnLabelledCalls(t *testing.T) {
+	key := os.Getenv("SUBQ_API_KEY")
 	if key == "" {
-		t.Skip("set TYPESAFE_API_KEY to evaluate the reviewer against the real model")
+		t.Skip("set SUBQ_API_KEY to evaluate the reviewer against the real model")
 	}
-	jev, err := NewJev(DefaultBaseURL, key, "jev-preview", &http.Client{Timeout: 60 * time.Second})
+	subq, err := NewSubQ(DefaultBaseURL, key, "subq-snap-1.1", &http.Client{Timeout: 60 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +333,7 @@ func TestJevOnLabelledCalls(t *testing.T) {
 				call.Browser = &BrowserAction{Action: b.Action, Value: b.Value, Target: b.Target, URL: b.URL, Title: b.Title}
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-			v, err := jev.Review(ctx, call)
+			v, err := subq.Review(ctx, call)
 			cancel()
 			if err != nil {
 				t.Fatalf("%s: %v", c.ID, err)
@@ -340,6 +341,56 @@ func TestJevOnLabelledCalls(t *testing.T) {
 			if v.NeedsApproval != (c.Want == "review") {
 				t.Errorf("%s: needs approval %v, want %s; reasons %v scores %v", c.ID, v.NeedsApproval, c.Want, v.Reasons, v.Scores)
 			}
+		}
+	}
+}
+
+// The doctor's check asks a question the Decisions API accepts.
+func TestSubQCheckAsksAWellFormedQuestion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var got map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Error(err)
+		}
+		checkQuestions(t, got)
+		_ = json.NewEncoder(w).Encode(map[string]any{"model": "subq-snap-1.1", "answers": map[string]any{"ok": map[string]any{"type": "noul", "noul": 0.9}}})
+	}))
+	defer server.Close()
+	subq, err := NewSubQ(server.URL, "key", "subq-snap-1.1", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model, err := subq.Check(t.Context()); err != nil || model != "subq-snap-1.1" {
+		t.Fatalf("check = %q, %v", model, err)
+	}
+}
+
+// checkQuestions holds a request to the Decisions API's question shapes: a
+// noul question's criteria are an object with true and false, a score
+// question's are 2 to 10 levels.
+func checkQuestions(t *testing.T, body map[string]any) {
+	t.Helper()
+	questions, _ := body["questions"].(map[string]any)
+	if len(questions) == 0 {
+		t.Fatalf("request has no questions: %v", body)
+	}
+	for id, raw := range questions {
+		q, _ := raw.(map[string]any)
+		switch q["type"] {
+		case "noul":
+			criteria, ok := q["criteria"].(map[string]any)
+			if !ok || criteria["true"] == nil || criteria["false"] == nil {
+				t.Errorf("noul question %s criteria = %v", id, q["criteria"])
+			}
+		case "score":
+			if levels, ok := q["criteria"].([]any); !ok || len(levels) < 2 || len(levels) > 10 {
+				t.Errorf("score question %s criteria = %v", id, q["criteria"])
+			}
+		default:
+			t.Errorf("question %s type = %v", id, q["type"])
+		}
+		if q["instructions"] == nil {
+			t.Errorf("question %s has no instructions", id)
 		}
 	}
 }

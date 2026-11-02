@@ -30,9 +30,9 @@ func (r *fakeReviewer) Review(_ context.Context, call review.Call) (review.Verdi
 		return review.Verdict{}, r.err
 	}
 	if call.Browser != nil && strings.Contains(call.Browser.Target, "提交订单") || strings.Contains(call.Command, "POST") {
-		return review.Verdict{NeedsApproval: true, Reasons: []string{"涉及付款"}, Scores: map[string]float64{"spends_money": 0.9}, Model: "jev-test"}, nil
+		return review.Verdict{NeedsApproval: true, Reasons: []string{"涉及付款"}, Scores: map[string]float64{"spends_money": 0.9}, Model: "subq-test"}, nil
 	}
-	return review.Verdict{Model: "jev-test"}, nil
+	return review.Verdict{Model: "subq-test"}, nil
 }
 
 const checkoutObservation = `url=https://trade.jd.com/shopping/order/getOrderInfo.action
@@ -134,7 +134,7 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 		t.Fatalf("events = %v", f.store.events)
 	}
 	recorded := f.store.payloads[0].(map[string]any)
-	if recorded["needs_approval"] != true || recorded["model"] != "jev-test" {
+	if recorded["needs_approval"] != true || recorded["model"] != "subq-test" {
 		t.Fatalf("tool_review = %v", recorded)
 	}
 }

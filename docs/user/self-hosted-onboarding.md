@@ -619,22 +619,22 @@ Every tool call meets your rules first. They are tool-name glob patterns in thre
 
 A skill the agent writes becomes part of every later run's instructions, and an imported skill can carry scripts, an MCP server and triggers that run on the workstation, so `approval.require` holds `skill_write`, `skill_import` and `skill_retire` by default; the approval shows the package's MCP server command, its triggers and its secret names, then the skill's `SKILL.md` and the files it adds. Move them to `approval.allow` to let the agent keep its skills on its own.
 
-Action review judges the shell commands, browser actions and MCP calls no rule settles. It uses Jev, TypeSafe's decision model: create a key at [typesafe.ai](https://typesafe.ai), add it to `~/.acorn/acorn.env` and restart Acorn.
+Action review judges the shell commands, browser actions and MCP calls no rule settles. It uses SubQ Snap, a decision model served by SubQ's Decisions API: create a key in the [SubQ console](https://console.subq.ai), add it to `~/.acorn/acorn.env` and restart Acorn.
 
 ```dotenv
-TYPESAFE_API_KEY=your-typesafe-key
+SUBQ_API_KEY=your-subq-key
 ```
 
 ```yaml
 review:
-  api_key: ${TYPESAFE_API_KEY}   # empty turns review off
-  model: jev-preview
+  api_key: ${SUBQ_API_KEY}   # empty turns review off
+  model: subq-snap-1.1
   timeout_seconds: 20
 ```
 
-Commands that only read, such as reading a page with `bsk observe`, run without review. For a click, fill, key press or select, Acorn sends Jev the element's name and the page it is on, as the agent last observed them, together with what you asked for. Calls that would pay, send, publish, delete, follow, change settings or otherwise change something outside the workstation wait for your approval, and the approval card says what the call does and why. A click on a checkout, payment or security page, text that tries to talk the reviewer into allowing it, an element the agent never observed on that page, and a review that fails also wait for you.
+Commands that only read, such as reading a page with `bsk observe`, run without review. For a click, fill, key press or select, Acorn sends SubQ the element's name and the page it is on, as the agent last observed them, together with what you asked for. Calls that would pay, send, publish, delete, follow, change settings or otherwise change something outside the workstation wait for your approval, and the approval card says what the call does and why. A click on a checkout, payment or security page, text that tries to talk the reviewer into allowing it, an element the agent never observed on that page, and a review that fails also wait for you.
 
-The calls you are asked about, their target and page, and your request go to TypeSafe. `acorn doctor` shows whether review works.
+The calls you are asked about, their target and page, and your request go to SubQ. `acorn doctor` shows whether review works.
 
 ## 16. Current Limits
 

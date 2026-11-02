@@ -44,17 +44,17 @@ type Verdict struct {
 }
 
 const (
-	// DefaultBaseURL is TypeSafe's API.
-	DefaultBaseURL = "https://api.typesafe.ai"
+	// DefaultBaseURL is SubQ's API.
+	DefaultBaseURL = "https://api.subq.ai"
 	// Thresholds were set on the labelled calls in testdata.
 	nounThreshold     = 0.5
 	severityThreshold = 1.5
 	attempts          = 3
 )
 
-// Jev asks TypeSafe's Jev model whether a call has consequences outside the
-// workstation. It is safe for concurrent use.
-type Jev struct {
+// SubQ asks a SubQ decision model, through the Decisions API, whether a call
+// has consequences outside the workstation. It is safe for concurrent use.
+type SubQ struct {
 	baseURL string
 	apiKey  string
 	model   string
@@ -62,7 +62,7 @@ type Jev struct {
 	backoff time.Duration
 }
 
-func NewJev(baseURL, apiKey, model string, httpClient *http.Client) (*Jev, error) {
+func NewSubQ(baseURL, apiKey, model string, httpClient *http.Client) (*SubQ, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, errors.New("review: api key is required")
 	}
@@ -72,7 +72,7 @@ func NewJev(baseURL, apiKey, model string, httpClient *http.Client) (*Jev, error
 	if httpClient == nil {
 		return nil, errors.New("review: http client is required")
 	}
-	return &Jev{baseURL: strings.TrimRight(baseURL, "/"), apiKey: apiKey, model: model, http: httpClient, backoff: time.Second}, nil
+	return &SubQ{baseURL: strings.TrimRight(baseURL, "/"), apiKey: apiKey, model: model, http: httpClient, backoff: time.Second}, nil
 }
 
 // untrusted tells the model that page text may argue for its own safety.
@@ -201,9 +201,9 @@ type answer struct {
 // Review asks the model and applies the thresholds. Transient failures are
 // retried; the final failure is returned, and the caller treats it as a
 // call that needs approval.
-func (j *Jev) Review(ctx context.Context, call Call) (Verdict, error) {
+func (q *SubQ) Review(ctx context.Context, call Call) (Verdict, error) {
 	asked := questionsFor(call)
-	body, err := json.Marshal(map[string]any{"state": State(call), "model": j.model, "questions": asked})
+	body, err := json.Marshal(map[string]any{"state": State(call), "model": q.model, "questions": asked})
 	if err != nil {
 		return Verdict{}, err
 	}
@@ -211,7 +211,7 @@ func (j *Jev) Review(ctx context.Context, call Call) (Verdict, error) {
 		Model   string            `json:"model"`
 		Answers map[string]answer `json:"answers"`
 	}
-	if err := j.post(ctx, body, &out); err != nil {
+	if err := q.post(ctx, body, &out); err != nil {
 		return Verdict{}, err
 	}
 	scores := map[string]float64{}
@@ -233,10 +233,14 @@ func (j *Jev) Review(ctx context.Context, call Call) (Verdict, error) {
 
 // Check sends a one-question request, so acorn doctor can tell a working key
 // from a broken one.
-func (j *Jev) Check(ctx context.Context) (string, error) {
+func (q *SubQ) Check(ctx context.Context) (string, error) {
 	body, err := json.Marshal(map[string]any{
-		"state": "acorn doctor", "model": j.model,
-		"questions": map[string]question{"ok": {Type: "noul", Instructions: "Is this a test message?"}},
+		"state": "acorn doctor", "model": q.model,
+		"questions": map[string]question{"ok": {
+			Type:         "noul",
+			Instructions: "Is this a test message?",
+			Criteria:     map[string]string{"true": "It is a test message.", "false": "It is anything else."},
+		}},
 	})
 	if err != nil {
 		return "", err
@@ -244,7 +248,7 @@ func (j *Jev) Check(ctx context.Context) (string, error) {
 	var out struct {
 		Model string `json:"model"`
 	}
-	if err := j.post(ctx, body, &out); err != nil {
+	if err := q.post(ctx, body, &out); err != nil {
 		return "", err
 	}
 	return out.Model, nil
@@ -286,17 +290,17 @@ func Decide(call Call, scores map[string]float64) Verdict {
 	return v
 }
 
-func (j *Jev) post(ctx context.Context, body []byte, out any) error {
+func (q *SubQ) post(ctx context.Context, body []byte, out any) error {
 	var last error
 	for attempt := range attempts {
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
 				return errors.Join(last, ctx.Err())
-			case <-time.After(j.backoff * time.Duration(attempt)):
+			case <-time.After(q.backoff * time.Duration(attempt)):
 			}
 		}
-		retry, err := j.postOnce(ctx, body, out)
+		retry, err := q.postOnce(ctx, body, out)
 		if err == nil {
 			return nil
 		}
@@ -308,14 +312,14 @@ func (j *Jev) post(ctx context.Context, body []byte, out any) error {
 	return last
 }
 
-func (j *Jev) postOnce(ctx context.Context, body []byte, out any) (bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, j.baseURL+"/v1/systemone", bytes.NewReader(body))
+func (q *SubQ) postOnce(ctx context.Context, body []byte, out any) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, q.baseURL+"/v1/systemone", bytes.NewReader(body))
 	if err != nil {
 		return false, err
 	}
-	req.Header.Set("Authorization", "Bearer "+j.apiKey)
+	req.Header.Set("Authorization", "Bearer "+q.apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := j.http.Do(req)
+	resp, err := q.http.Do(req)
 	if err != nil {
 		return ctx.Err() == nil, fmt.Errorf("review: %w", err)
 	}
