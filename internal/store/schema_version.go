@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -133,7 +134,7 @@ func forgetDeletedThreads(ctx context.Context, tx *sql.Tx) error {
 				return err
 			}
 		}
-		paths, err := purgeThread(ctx, tx, sessionID)
+		paths, err := purgeDeletedThread(ctx, tx, sessionID)
 		if err != nil {
 			return err
 		}
@@ -142,6 +143,59 @@ func forgetDeletedThreads(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+// purgeDeletedThread deletes a thread's rows with the tables of version 4
+// and returns the relative paths of its artifact files. The migration keeps
+// its own copy because purgeThread follows the current schema.
+func purgeDeletedThread(ctx context.Context, tx *sql.Tx, sessionID string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT run_id FROM runs WHERE session_id = ?`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	runIDs, err := memoryStringRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	runs, err := json.Marshal(append([]string{}, runIDs...))
+	if err != nil {
+		return nil, err
+	}
+	rows, err = tx.QueryContext(ctx, `SELECT relative_path FROM artifacts WHERE session_id = ? OR run_id IN (SELECT value FROM json_each(?))`, sessionID, string(runs))
+	if err != nil {
+		return nil, err
+	}
+	paths, err := memoryStringRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, step := range []struct {
+		query string
+		args  []any
+	}{
+		// A snapshot leaves with the thread when no other run used it.
+		{`DELETE FROM context_snapshots WHERE hash IN (
+			SELECT hash FROM context_snapshot_refs WHERE run_id IN (SELECT value FROM json_each(?1))
+			UNION SELECT json_extract(payload_json, '$.hash') FROM events WHERE kind = 'presence.snapshot' AND run_id IN (SELECT value FROM json_each(?1)))
+		  AND hash NOT IN (SELECT hash FROM context_snapshot_refs WHERE run_id NOT IN (SELECT value FROM json_each(?1)))
+		  AND hash NOT IN (SELECT json_extract(payload_json, '$.hash') FROM events WHERE kind = 'presence.snapshot' AND run_id NOT IN (SELECT value FROM json_each(?1)) AND json_extract(payload_json, '$.hash') IS NOT NULL)`, []any{string(runs)}},
+		{`DELETE FROM context_snapshot_refs WHERE run_id IN (SELECT value FROM json_each(?))`, []any{string(runs)}},
+		{`DELETE FROM events WHERE run_id IN (SELECT value FROM json_each(?))`, []any{string(runs)}},
+		{`DELETE FROM pending_actions WHERE run_id IN (SELECT value FROM json_each(?))`, []any{string(runs)}},
+		{`DELETE FROM agent_checkpoints WHERE checkpoint_id IN (SELECT value FROM json_each(?))`, []any{string(runs)}},
+		{`DELETE FROM artifacts WHERE session_id = ? OR run_id IN (SELECT value FROM json_each(?))`, []any{sessionID, string(runs)}},
+		{`DELETE FROM notifications WHERE thread_id = ? OR run_id IN (SELECT value FROM json_each(?))`, []any{sessionID, string(runs)}},
+		{`DELETE FROM thread_summary_sources WHERE session_id = ?`, []any{sessionID}},
+		{`DELETE FROM thread_summaries WHERE session_id = ?`, []any{sessionID}},
+		{`DELETE FROM runs WHERE session_id = ?`, []any{sessionID}},
+		{`DELETE FROM session_messages WHERE session_id = ?`, []any{sessionID}},
+		{`DELETE FROM sessions WHERE session_id = ?`, []any{sessionID}},
+	} {
+		if _, err := tx.ExecContext(ctx, step.query, step.args...); err != nil {
+			return nil, err
+		}
+	}
+	return paths, nil
 }
 
 // adoptAgentSkills (5 to 6) adds skill files and staged packages, and moves

@@ -212,3 +212,35 @@ func TestUpgradeForgetsThreadsDeletedEarlier(t *testing.T) {
 		}
 	}
 }
+
+// A version 4 database still holding a thread deleted the old way upgrades:
+// the migration finishes the deletion with the tables version 4 has.
+func TestUpgradeFromVersion4FinishesThreadsDeletedEarlier(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	seed := `INSERT INTO memory_state(id,epoch) VALUES(1,0);
+INSERT INTO runs(run_id,session_id,turn_index,status,input_text,created_at,finished_at) VALUES('run_gone','session_gone',1,'succeeded','hi','2026-09-01T10:00:00Z','2026-09-01T10:00:05Z');
+INSERT INTO events(run_id,kind,payload_json,created_at) VALUES('run_gone','run.completed','{}','2026-09-01T10:00:05Z');
+INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,run_id,body,recorded_at) VALUES('message:1','message','1','1','owner','session_gone','run_gone','hi','2026-09-01T10:00:00Z');
+PRAGMA user_version = 4;`
+	if _, err := raw.Exec(readLayout(t, 4) + seed); err != nil {
+		t.Fatalf("build v4: %v", err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatalf("open v4: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	for query, want := range map[string]int{
+		`SELECT COUNT(*) FROM runs WHERE run_id = 'run_gone'`:                                 0,
+		`SELECT COUNT(*) FROM events WHERE run_id = 'run_gone'`:                               0,
+		`SELECT COUNT(*) FROM memory_exclusions WHERE source_id = 'message:1' AND quote = ''`: 1,
+	} {
+		if got := countRows(t, s, query); got != want {
+			t.Errorf("%s = %d, want %d", query, got, want)
+		}
+	}
+}

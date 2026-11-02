@@ -157,8 +157,10 @@ fun ChatScreen(
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
     val approvalError by approvals.error.collectAsStateWithLifecycle()
 
-    LaunchedEffect(threadId) { viewModel.loadThread(threadId) }
-    DisposableEffect(viewModel) { onDispose { viewModel.leave() } }
+    DisposableEffect(threadId) {
+        val page = viewModel.loadThread(threadId)
+        onDispose { viewModel.leave(page) }
+    }
     OnReturnToForeground {
         viewModel.refresh()
         approvals.loadPendingActions()

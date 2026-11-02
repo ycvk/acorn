@@ -102,12 +102,20 @@ class ChatViewModel @Inject constructor(
     /** Bumped when the thread changes or reloads, so an older check of the inbox is dropped. */
     private val loadGeneration = java.util.concurrent.atomic.AtomicLong(0)
 
+    /**
+     * Numbers the chat pages that opened a thread. A page that replaces another
+     * opens before the old one leaves the screen, so leaving acts only for the
+     * page that opened last.
+     */
+    private var page = 0L
+
     init {
         viewModelScope.launch { follower.updates.collect(::onRunUpdate) }
     }
 
-    /** Opens a thread, or a new conversation when [threadId] is null. */
-    fun loadThread(threadId: String?) {
+    /** Opens a thread, or a new conversation when [threadId] is null, and returns the page's number for [leave]. */
+    fun loadThread(threadId: String?): Long {
+        val opened = ++page
         loadGeneration.incrementAndGet()
         _threadId.value?.let(follower::unwatch)
         _threadId.value = threadId
@@ -117,7 +125,7 @@ class ChatViewModel @Inject constructor(
         _chatState.value = ChatState()
         _error.value = null
         streamingRunId = null
-        if (threadId == null) return
+        if (threadId == null) return opened
         follower.watch(threadId)
         loadMessages(threadId)
         loadThreadTitle(threadId)
@@ -128,14 +136,16 @@ class ChatViewModel @Inject constructor(
         } else {
             reconnectActiveRun(threadId)
         }
+        return opened
     }
 
     /**
-     * Ends the page's watch of its thread when the page leaves the screen: a
-     * run this phone does not show as a Live Update is followed only while
+     * Ends the watch of page [page]'s thread when that page leaves the screen:
+     * a run this phone does not show as a Live Update is followed only while
      * its conversation is open.
      */
-    fun leave() {
+    fun leave(page: Long) {
+        if (page != this.page) return
         loadGeneration.incrementAndGet()
         _threadId.value?.let(follower::unwatch)
         _threadId.value = null

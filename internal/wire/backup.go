@@ -34,7 +34,7 @@ type BackupReport struct {
 // Backup snapshots the database into backup.dir, mirrors attachments,
 // artifacts and thread files, and keeps the newest backup.keep snapshots. A
 // running Acorn keeps working meanwhile.
-func Backup(ctx context.Context, cfg *config.Config, now time.Time) (BackupReport, error) {
+func Backup(ctx context.Context, cfg *config.Config, now time.Time) (_ BackupReport, err error) {
 	dir, keep := cfg.Backup.Dir, cfg.Backup.Keep
 	if dir == "" {
 		return BackupReport{}, errors.New("backup.dir is not set; backups are off")
@@ -55,6 +55,13 @@ func Backup(ctx context.Context, cfg *config.Config, now time.Time) (BackupRepor
 	if err := os.Mkdir(partial, 0o700); err != nil {
 		return BackupReport{}, err
 	}
+	// A failed run takes its partial snapshot with it; pruning only sees
+	// finished snapshots.
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, os.RemoveAll(partial))
+		}
+	}()
 	database := filepath.Join(partial, "acorn.db")
 	if err := store.SnapshotDatabase(ctx, cfg.Runtime.StorageDir, database); err != nil {
 		return BackupReport{}, err

@@ -190,7 +190,7 @@ func trialNote(w core.Watch) string {
 
 func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool("watch_update",
-		"Change a watch: rename it, change what part of the page it follows, switch between digest, immediate and news, move a news source to another section, change how often it is checked, or pause and resume it. A news source the briefing takes is stopped only with news_source; a watch switched to news starts on trial.",
+		"Change a watch: rename it, change what part of the page it follows, switch between digest, immediate and news, move a news source to another section, change how often it is checked, or pause and resume it. A news source the briefing takes is stopped only with news_source; a watch switched to news, or a stopped news source resumed, starts on trial.",
 		func(ctx context.Context, input WatchUpdateInput) (WatchOutput, error) {
 			loaded, err := deps.Store.LoadWatch(ctx, input.ID)
 			if err != nil {
@@ -219,7 +219,8 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 }
 
 // applyWatchUpdate patches w with the fields input sets, at now. A news source
-// the briefing takes is not paused or moved out of news here.
+// the briefing takes is not paused or moved out of news here, and one that
+// news_source stopped comes back on trial, out of the briefing.
 func applyWatchUpdate(w core.Watch, input WatchUpdateInput, now time.Time) (core.Watch, error) {
 	from := w.Mode
 	var err error
@@ -260,6 +261,9 @@ func applyWatchUpdate(w core.Watch, input WatchUpdateInput, now time.Time) (core
 	case string(core.WatchPaused):
 		w = w.Pause(now)
 	case string(core.WatchActive):
+		if inBriefing && w.Status == core.WatchPaused {
+			w.Trial = true
+		}
 		w = w.Resume(now)
 	default:
 		return core.Watch{}, fmt.Errorf("watch_update: status %q must be active or paused", input.Status)
