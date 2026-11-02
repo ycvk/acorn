@@ -23,7 +23,13 @@ func (f fakeResolver) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr
 }
 
 func TestURLPolicyAllowsPublicHTTPSTargets(t *testing.T) {
-	policy := URLPolicy{Resolver: fakeResolver{"example.com": {"93.184.216.34"}}}
+	// 198.18.0.x is what a fake-IP DNS resolver answers for every name.
+	policy := URLPolicy{Resolver: fakeResolver{"example.com": {"93.184.216.34"}, "proxied.example": {"198.18.0.187"}, "wrapped.example": {"64:ff9b::5db8:d822"}}}
+	for _, raw := range []string{"https://proxied.example", "https://wrapped.example", "http://198.18.0.1"} {
+		if _, err := policy.Validate(context.Background(), raw); err != nil {
+			t.Fatalf("Validate(%q): %v", raw, err)
+		}
+	}
 	got, err := policy.Validate(context.Background(), "https://example.com/docs")
 	if err != nil {
 		t.Fatalf("Validate public URL: %v", err)
@@ -72,6 +78,17 @@ func TestURLPolicyRejectsBlockedLiteralAddresses(t *testing.T) {
 		{"http://[fd00::1]", "private_address"},
 		{"http://169.254.169.254", "metadata_address"},
 		{"http://169.254.1.2", "link_local_address"},
+		{"http://100.64.0.1", "private_address"},
+		{"http://100.127.255.254", "private_address"},
+		{"http://100.100.100.200", "metadata_address"},
+		{"http://0.1.2.3", "unspecified_address"},
+		{"http://[64:ff9b::a00:1]", "private_address"},
+		{"http://[64:ff9b::7f00:1]", "loopback_address"},
+		{"http://[64:ff9b::a9fe:a9fe]", "metadata_address"},
+		{"http://[64:ff9b::6440:1]", "private_address"},
+		{"http://[2002:a00:1::1]", "private_address"},
+		{"http://[2002:7f00:1::1]", "loopback_address"},
+		{"http://[2002:a9fe:a9fe::1]", "metadata_address"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.raw, func(t *testing.T) {
@@ -87,6 +104,9 @@ func TestURLPolicyRejectsBlockedDNSResults(t *testing.T) {
 	policy := URLPolicy{Resolver: fakeResolver{
 		"internal.example": {"10.2.3.4"},
 		"metadata.example": {"169.254.169.254"},
+		"cgnat.example":    {"100.64.0.7"},
+		"alibaba.example":  {"100.100.100.200"},
+		"nat64.example":    {"64:ff9b::a00:1"},
 	}}
 	tests := []struct {
 		raw  string
@@ -94,6 +114,9 @@ func TestURLPolicyRejectsBlockedDNSResults(t *testing.T) {
 	}{
 		{"https://internal.example", "private_address"},
 		{"https://metadata.example", "metadata_address"},
+		{"https://cgnat.example", "private_address"},
+		{"https://alibaba.example", "metadata_address"},
+		{"https://nat64.example", "private_address"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.raw, func(t *testing.T) {
@@ -112,13 +135,15 @@ func TestURLPolicyAllowsPrivateNetworksOnlyWhenExplicitlyConfigured(t *testing.T
 			"internal.example": {"10.2.3.4"},
 		},
 	}
-	if _, err := policy.Validate(context.Background(), "http://10.0.0.1"); err != nil {
-		t.Fatalf("Validate private literal with opt-in: %v", err)
+	for _, raw := range []string{"http://10.0.0.1", "http://100.64.0.1", "http://[64:ff9b::a00:1]", "http://[2002:a00:1::1]"} {
+		if _, err := policy.Validate(context.Background(), raw); err != nil {
+			t.Fatalf("Validate(%q) with opt-in: %v", raw, err)
+		}
 	}
 	if _, err := policy.Validate(context.Background(), "https://internal.example"); err != nil {
 		t.Fatalf("Validate private DNS with opt-in: %v", err)
 	}
-	for _, raw := range []string{"http://127.0.0.1", "http://169.254.1.2", "http://169.254.169.254"} {
+	for _, raw := range []string{"http://127.0.0.1", "http://169.254.1.2", "http://169.254.169.254", "http://100.100.100.200", "http://0.1.2.3", "http://[64:ff9b::7f00:1]", "http://[2002:a9fe:a9fe::1]"} {
 		_, err := policy.Validate(context.Background(), raw)
 		if err == nil {
 			t.Fatalf("Validate(%q) should still reject loopback/link-local/metadata", raw)

@@ -141,14 +141,27 @@ func isLocalhostName(host string) bool {
 	return lower == "localhost" || strings.HasSuffix(lower, ".localhost")
 }
 
+var (
+	thisNetwork = netip.MustParsePrefix("0.0.0.0/8")
+	// sharedSpace is carrier-grade NAT space, which Tailscale peers and
+	// some clouds' metadata services use. 198.18.0.0/15 stays open: fake-IP
+	// DNS (Clash, Surge) answers every name from it.
+	sharedSpace = netip.MustParsePrefix("100.64.0.0/10")
+	nat64       = netip.MustParsePrefix("64:ff9b::/96")
+	sixToFour   = netip.MustParsePrefix("2002::/16")
+)
+
 func blockedAddrReason(addr netip.Addr, allowPrivate bool) string {
 	if !addr.IsValid() {
 		return "invalid_address"
 	}
+	if embedded, ok := embeddedIPv4(addr); ok {
+		return blockedAddrReason(embedded, allowPrivate)
+	}
 	if isMetadataAddr(addr) {
 		return "metadata_address"
 	}
-	if addr.IsUnspecified() {
+	if addr.IsUnspecified() || thisNetwork.Contains(addr) {
 		return "unspecified_address"
 	}
 	if addr.IsLoopback() {
@@ -160,13 +173,27 @@ func blockedAddrReason(addr netip.Addr, allowPrivate bool) string {
 	if addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() {
 		return "link_local_address"
 	}
-	if !allowPrivate && addr.IsPrivate() {
+	if !allowPrivate && (addr.IsPrivate() || sharedSpace.Contains(addr)) {
 		return "private_address"
 	}
 	return ""
 }
 
+// embeddedIPv4 is the IPv4 address that a NAT64 (64:ff9b::/96) or 6to4
+// (2002::/16) address carries, which a gateway on the path delivers to.
+func embeddedIPv4(addr netip.Addr) (netip.Addr, bool) {
+	b := addr.As16()
+	switch {
+	case nat64.Contains(addr):
+		return netip.AddrFrom4([4]byte(b[12:16])), true
+	case sixToFour.Contains(addr):
+		return netip.AddrFrom4([4]byte(b[2:6])), true
+	}
+	return netip.Addr{}, false
+}
+
 func isMetadataAddr(addr netip.Addr) bool {
 	return addr == netip.MustParseAddr("169.254.169.254") ||
+		addr == netip.MustParseAddr("100.100.100.200") ||
 		addr == netip.MustParseAddr("fd00:ec2::254")
 }

@@ -76,7 +76,7 @@ func buildStdioTransport(cfg core.ProviderConfig) (mcp.Transport, func(), Transp
 	if strings.TrimSpace(cfg.WorkDir) != "" {
 		cmd.Dir = cfg.WorkDir
 	}
-	cmd.Env = mergeEnv(os.Environ(), cfg.Env)
+	cmd.Env = mergeEnv(inheritedEnv(os.Environ()), cfg.Env)
 
 	stderrFile, err := openProviderLogFile(cfg.Name)
 	if err != nil {

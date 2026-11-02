@@ -236,3 +236,41 @@ func TestLoadRejectsEmptyPath(t *testing.T) {
 		t.Fatal("Load with empty path must fail instead of falling back to a repo-relative example config")
 	}
 }
+
+func TestLoadExpandsMCPProviderEnvironment(t *testing.T) {
+	t.Setenv("ACORN_TEST_MCP_TOKEN", "mcp-from-env")
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "acorn.yaml")
+	configBody := `providers:
+  - name: default
+    model: test
+    base_url: https://example.invalid/v1
+    api_key: sk-test
+    temperature: 0.3
+    max_output_tokens: 100
+    timeout_seconds: 30
+    enabled: true
+web:
+  listen_addr: 127.0.0.1:8080
+mcp:
+  providers:
+    - name: files
+      enabled: true
+      transport: stdio
+      command: mcp-files
+      startup_timeout_seconds: 10
+      env:
+        TOKEN: ${ACORN_TEST_MCP_TOKEN}
+        MODE: read
+`
+	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if got := cfg.MCP.Providers[0].Env; got["TOKEN"] != "mcp-from-env" || got["MODE"] != "read" {
+		t.Fatalf("mcp provider env = %v", got)
+	}
+}

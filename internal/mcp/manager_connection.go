@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -148,6 +149,33 @@ func resolveCommandPath(command string) (string, error) {
 		return "", fmt.Errorf("command %q not found in PATH: %w", command, err)
 	}
 	return path, nil
+}
+
+// inheritedEnvNames and inheritedEnvPrefixes are the variables of Acorn's own
+// environment a stdio server gets: what a program needs to find its tools,
+// locale, temp directory and proxy. Everything else, API keys and the
+// workstation token included, reaches a server only through its env setting.
+var (
+	inheritedEnvNames = map[string]bool{
+		"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SHELL": true, "TERM": true,
+		"LANG": true, "LANGUAGE": true, "TZ": true, "TMPDIR": true,
+		"SSL_CERT_FILE": true, "SSL_CERT_DIR": true,
+		"HTTP_PROXY": true, "HTTPS_PROXY": true, "ALL_PROXY": true, "NO_PROXY": true,
+		"http_proxy": true, "https_proxy": true, "all_proxy": true, "no_proxy": true,
+	}
+	inheritedEnvPrefixes = []string{"LC_", "XDG_"}
+)
+
+// inheritedEnv keeps the entries of environ a stdio server may inherit.
+func inheritedEnv(environ []string) []string {
+	var out []string
+	for _, item := range environ {
+		name, _, _ := strings.Cut(item, "=")
+		if inheritedEnvNames[name] || slices.ContainsFunc(inheritedEnvPrefixes, func(p string) bool { return strings.HasPrefix(name, p) }) {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func mergeEnv(base []string, override map[string]string) []string {

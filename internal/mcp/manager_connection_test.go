@@ -10,6 +10,7 @@ import (
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -294,5 +295,41 @@ func TestNewManagerAppliesPerProviderTimeout(t *testing.T) {
 	}
 	if elapsed > 10*time.Second {
 		t.Fatalf("provider startup took %v, expected it to timeout within a few seconds", elapsed)
+	}
+}
+
+func TestStdioServerDoesNotInheritAcornSecrets(t *testing.T) {
+	t.Setenv("ACORN_WORKSTATION_TOKEN", "workstation-token")
+	t.Setenv("OPENAI_API_KEY", "sk-secret")
+	t.Setenv("TYPESAFE_API_KEY", "typesafe-secret")
+	t.Setenv("HOME", "/home/acorn")
+	t.Setenv("LC_ALL", "C.UTF-8")
+	t.Setenv("HTTPS_PROXY", "http://proxy.lan:3128")
+	t.Setenv("TMPDIR", t.TempDir())
+
+	transport, cleanup, _, err := buildStdioTransport(core.ProviderConfig{
+		Name:    "env-check",
+		Command: "sh",
+		Env:     map[string]string{"TOKEN": "declared", "LC_ALL": "en_US.UTF-8"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	got := map[string]string{}
+	for _, item := range transport.(*mcp.CommandTransport).Command.Env {
+		name, value, _ := strings.Cut(item, "=")
+		got[name] = value
+	}
+	for _, name := range []string{"ACORN_WORKSTATION_TOKEN", "OPENAI_API_KEY", "TYPESAFE_API_KEY"} {
+		if _, ok := got[name]; ok {
+			t.Errorf("stdio server inherits %s", name)
+		}
+	}
+	want := map[string]string{"PATH": os.Getenv("PATH"), "HOME": "/home/acorn", "HTTPS_PROXY": "http://proxy.lan:3128", "TOKEN": "declared", "LC_ALL": "en_US.UTF-8"}
+	for name, value := range want {
+		if got[name] != value {
+			t.Errorf("%s = %q, want %q", name, got[name], value)
+		}
 	}
 }

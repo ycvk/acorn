@@ -372,6 +372,7 @@
 - **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell` 与 `files` 是 deferred 工具，未配置 `workstation.url` 时以原因禁用。
   - `internal/workstation/workstation_test.go`
 - **工作机里的进程用不了工作机 API**：监听非 loopback 地址时，serve 拒绝来自自己地址（loopback 与本机网卡地址）的请求；启动时把 token 从进程环境里移除，它运行的命令、技能包 MCP 服务器与触发器都继承不到。
+- **后端的 stdio MCP 服务器只继承少数环境变量**：Acorn 进程的环境里只有 `PATH`、`HOME`、`USER`、语言与时区、临时目录、证书与代理变量到服务器，API key 与工作机 token 在内的其余变量只有写进 provider 的 `env` 才到；`env` 的值展开环境变量。
   - `internal/workstation/token_test.go`
   - `internal/tools/workstation_tools_test.go`
   - `internal/config/config_workstation_test.go`
