@@ -32,7 +32,7 @@
 - **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再发 `run.completed`/`run.failed` 并把 run 标记为结束；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
-- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批，规则未覆盖、在 Acorn 自己醒来的 run（输入是 wake 消息）里改动板块（action 不是 list）的 `news_sections` 调用审批，owner 对话里的直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读，重定向目标是 `/dev/tcp/`、`/dev/udp/` 或带变量时不算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
+- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批，规则未覆盖、在 Acorn 自己醒来的 run（输入是 wake 消息）里改动板块（action 不是 list）的 `news_sections` 调用审批，owner 对话里的直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读，重定向目标是 `/dev/tcp/`、`/dev/udp/`、登录 shell 会执行的文件（`.bash_profile`、`.bashrc`、`.profile` 等）或带变量与通配符时不算只读；程序必须是不带路径的名字，赋值前缀只允许小写变量名与 `BSK_*`，`sort --compress-program` 与 `printf -v` 不算只读；`bsk` 页面操作带着本 run 观察到的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
   - `internal/runtime/approval_review_test.go`
   - `internal/runtime/approval_test.go`
   - `internal/review/review_test.go`

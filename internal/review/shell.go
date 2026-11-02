@@ -8,9 +8,10 @@ import (
 
 // Shell is a shell command split into the parts review cares about.
 type Shell struct {
-	// ReadOnly is set when every simple command is known to only read or to
-	// stay on the workstation and no redirection can reach the network, so
-	// the command needs no review.
+	// ReadOnly is set when every simple command is a listed program run by
+	// its bare name with nothing that makes it run another program, and no
+	// redirection can reach the network or write a file bash runs at login,
+	// so the command needs no review.
 	ReadOnly bool
 	// Other is set when a part that is neither read-only nor a bsk page
 	// action needs review as a whole command.
@@ -76,7 +77,7 @@ func ParseShell(command string) Shell {
 	if !ok {
 		return Shell{Other: true}
 	}
-	shell := Shell{ReadOnly: !slices.ContainsFunc(targets, networkTarget)}
+	shell := Shell{ReadOnly: !slices.ContainsFunc(targets, riskyTarget)}
 	shell.Other = !shell.ReadOnly
 	for _, simple := range words {
 		readOnly, call := classify(simple)
@@ -93,29 +94,50 @@ func ParseShell(command string) Shell {
 	return shell
 }
 
-// networkTarget reports whether a redirection target may be one of bash's
+// loginFiles are the files a login shell runs, which the workstation's
+// commands are. Whatever is written there runs, unreviewed, with the next
+// command.
+var loginFiles = map[string]bool{
+	".bash_aliases": true, ".bash_login": true, ".bash_logout": true,
+	".bash_profile": true, ".bashrc": true, ".profile": true,
+}
+
+// riskyTarget reports whether a redirection target may be one of bash's
 // network paths, /dev/tcp/host/port and /dev/udp/host/port, which open a
-// connection; a target built from a variable may be one too.
-func networkTarget(target string) bool {
+// connection, or a file a login shell runs; a target built from a variable
+// or a pattern may be one too.
+func riskyTarget(target string) bool {
 	clean := path.Clean(target)
-	return strings.HasPrefix(clean, "/dev/tcp/") || strings.HasPrefix(clean, "/dev/udp/") || strings.Contains(target, "$")
+	return strings.HasPrefix(clean, "/dev/tcp/") || strings.HasPrefix(clean, "/dev/udp/") ||
+		strings.ContainsAny(target, "$*?[") || loginFiles[path.Base(clean)]
 }
 
 func classify(words []string) (bool, *BrowserCall) {
 	for len(words) > 0 && isAssignment(words[0]) {
+		if !plainAssignment(words[0]) {
+			return false, nil
+		}
 		words = words[1:]
 	}
 	if len(words) == 0 {
 		return true, nil
 	}
-	program := path.Base(words[0])
-	if program == "find" {
+	switch program := words[0]; program {
+	case "find":
 		return !slices.ContainsFunc(words[1:], func(w string) bool { return findActions[w] }), nil
-	}
-	if program != "bsk" {
+	case "sort":
+		return !slices.ContainsFunc(words[1:], runsProgram), nil
+	case "printf":
+		// printf -v assigns a variable, PATH among them.
+		return len(words) < 2 || !strings.HasPrefix(words[1], "-v"), nil
+	case "bsk":
+		return classifyBsk(words[1:])
+	default:
 		return readOnlyPrograms[program], nil
 	}
-	args := words[1:]
+}
+
+func classifyBsk(args []string) (bool, *BrowserCall) {
 	sub := ""
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") {
@@ -123,8 +145,7 @@ func classify(words []string) (bool, *BrowserCall) {
 			break
 		}
 	}
-	call := browserCall(sub, args)
-	return bskReadOnly[sub], call
+	return bskReadOnly[sub], browserCall(sub, args)
 }
 
 func browserCall(action string, args []string) *BrowserCall {
@@ -164,6 +185,25 @@ func browserCall(action string, args []string) *BrowserCall {
 		}
 	}
 	return call
+}
+
+// plainAssignment reports whether an assignment sets a variable only the
+// command's own words use: a lowercase name, or one of bsk's settings. Names
+// such as PATH, IFS, BASH_ENV and LD_PRELOAD change which program runs.
+func plainAssignment(word string) bool {
+	name, _, _ := strings.Cut(word, "=")
+	return strings.HasPrefix(name, "BSK_") || name == strings.ToLower(name)
+}
+
+// runsProgram reports whether a sort argument is --compress-program, which
+// runs the program it names, or an abbreviation of it that getopt accepts.
+func runsProgram(arg string) bool {
+	name, ok := strings.CutPrefix(arg, "--")
+	if !ok {
+		return false
+	}
+	name, _, _ = strings.Cut(name, "=")
+	return name != "" && strings.HasPrefix("compress-program", name) && !strings.HasPrefix("check", name)
 }
 
 func isAssignment(word string) bool {
