@@ -44,6 +44,25 @@ func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turn
 	}, nil
 }
 
+// appendOwnerMessage adds message as the thread's next turn, unbound to a
+// run, and moves the thread's updated time to the message's; it sets the
+// message's turn and id.
+func appendOwnerMessage(ctx context.Context, tx *sql.Tx, message *core.SessionMessageRecord) error {
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(turn_index), 0) + 1 FROM session_messages WHERE session_id = ?`, message.SessionID).Scan(&message.TurnIndex); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, '', ?)`,
+		message.SessionID, message.TurnIndex, message.Role, message.Content, formatTimestamp(message.CreatedAt))
+	if err != nil {
+		return err
+	}
+	if message.ID, err = result.LastInsertId(); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(message.CreatedAt), message.SessionID)
+	return err
+}
+
 func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]core.SessionMessageRecord, error) {
 	if limit <= 0 {
 		limit = 20

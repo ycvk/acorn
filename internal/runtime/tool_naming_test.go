@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/core"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -27,9 +28,9 @@ func TestMCPToolName(t *testing.T) {
 		{"a!@#b", "tool", "mcp__a---b__tool"},
 	}
 	for _, tt := range tests {
-		got := mcpToolName(tt.provider, tt.tool)
+		got := mcpprovider.ToolName(tt.provider, tt.tool)
 		if got != tt.want {
-			t.Errorf("mcpToolName(%q, %q) = %q, want %q", tt.provider, tt.tool, got, tt.want)
+			t.Errorf("ToolName(%q, %q) = %q, want %q", tt.provider, tt.tool, got, tt.want)
 		}
 	}
 }

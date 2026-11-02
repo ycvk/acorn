@@ -8,10 +8,12 @@ import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.core.auth.AuthController
-import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.ago
+import io.ycvk.acorn.core.ui.clockTime
+import io.ycvk.acorn.core.ui.dayLabel
+import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.NowRepository
 import io.ycvk.acorn.feature.live.RunFollower
@@ -29,7 +31,6 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 /** Backs the Today tab. Every change is followed by a fresh load; nothing is changed locally. */
@@ -155,37 +156,21 @@ class NowViewModel @Inject constructor(
     private suspend fun reload(profile: ConnectionProfile) {
         _refreshing.value = true
         if (_load.value !is Load.Loaded) _load.value = Load.Loading
-        _load.value = try {
-            withContext(Dispatchers.IO) {
-                Load.Loaded(repository.now(profile))
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Load.Failed(userMessage(e))
+        try {
+            _load.value = loadOf { repository.now(profile) }
         } finally {
             _refreshing.value = false
         }
     }
 
-    private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
+    private fun profile() = authController.profile
 }
-
-private val timeOfDay = DateTimeFormatter.ofPattern("HH:mm")
 
 /** When a commitment wakes, in the phone's time zone: a day ("今天", "明天", "10月14日") and a time. */
 data class WakeTime(val day: String, val time: String)
 
-fun wakeTime(at: OffsetDateTime, today: LocalDate, zone: ZoneId): WakeTime {
-    val local = at.atZoneSameInstant(zone)
-    val date = local.toLocalDate()
-    val day = when (date) {
-        today -> "今天"
-        today.plusDays(1) -> "明天"
-        else -> "${date.monthValue}月${date.dayOfMonth}日"
-    }
-    return WakeTime(day, local.format(timeOfDay))
-}
+fun wakeTime(at: OffsetDateTime, today: LocalDate, zone: ZoneId): WakeTime =
+    WakeTime(dayLabel(at.atZoneSameInstant(zone).toLocalDate(), today), clockTime(at, zone))
 
 /** Under a panel's title: its conversation and when its content last changed, "仓库版本 · 3 分钟前更新". */
 fun panelMeta(panel: NowPanel, now: OffsetDateTime): String = "${panel.threadTitle} · ${ago(panel.updatedAt, now)}更新"

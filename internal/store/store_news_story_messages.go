@@ -121,22 +121,11 @@ func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite)
 				return fmt.Errorf("%w: %s", core.ErrThreadBusy, message.SessionID)
 			}
 		}
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(turn_index), 0) + 1 FROM session_messages WHERE session_id = ?`, message.SessionID).Scan(&message.TurnIndex); err != nil {
+		if err := appendOwnerMessage(ctx, tx, &message); err != nil {
 			return err
 		}
-		result, err := tx.ExecContext(ctx, `INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, '', ?)`,
-			message.SessionID, message.TurnIndex, message.Role, message.Content, formatTimestamp(now))
-		if err != nil {
-			return err
-		}
-		if message.ID, err = result.LastInsertId(); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO news_story_messages (message_id, session_id, story_id, intent, story, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			message.ID, message.SessionID, in.Story.ID, string(in.Intent), string(story), formatTimestamp(now)); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(now), message.SessionID)
+		_, err = tx.ExecContext(ctx, `INSERT INTO news_story_messages (message_id, session_id, story_id, intent, story, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			message.ID, message.SessionID, in.Story.ID, string(in.Intent), string(story), formatTimestamp(now))
 		return err
 	})
 	if err != nil {

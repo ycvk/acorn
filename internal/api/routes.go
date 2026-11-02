@@ -60,6 +60,9 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.PhoneNotifications == nil {
 		return nil, errors.New("phone notification service is required")
 	}
+	if deps.Config == nil {
+		return nil, errors.New("config is required")
+	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -88,7 +91,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	}
 
 	router := chi.NewRouter()
-	if server.cfg != nil && len(server.cfg.Web.AllowedOrigins) > 0 {
+	if len(server.cfg.Web.AllowedOrigins) > 0 {
 		router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   server.cfg.Web.AllowedOrigins,
 			AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},

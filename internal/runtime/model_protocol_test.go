@@ -51,7 +51,7 @@ func TestNativeModelProtocolPreservesReasoningAndTools(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			public := StreamMessageFromSchema(reply, "")
+			public := StreamMessageFromSchema(reply)
 			publicJSON, _ := json.Marshal(public)
 			if strings.Contains(string(publicJSON), "opaque-") {
 				t.Fatal("private reasoning signature reached client projection")

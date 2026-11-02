@@ -1,19 +1,18 @@
 package io.ycvk.acorn.core.di
 
-import java.io.File
-import androidx.core.app.NotificationManagerCompat
-import io.ycvk.acorn.core.notifications.NotificationQueue
-import io.ycvk.acorn.core.notifications.NotificationPreferences
-import io.ycvk.acorn.core.notifications.NotificationDelivery
-import io.ycvk.acorn.data.repository.PhoneNotificationRepository
-
 import android.content.Context
+import androidx.core.app.NotificationManagerCompat
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ycvk.acorn.core.auth.AuthController
+import io.ycvk.acorn.core.notifications.NotificationDelivery
+import io.ycvk.acorn.core.notifications.NotificationPreferences
+import io.ycvk.acorn.core.notifications.NotificationQueue
+import io.ycvk.acorn.data.repository.PhoneNotificationRepository
+import java.io.File
 import javax.inject.Singleton
 
 /** Application-scoped Hilt bindings for phone notification delivery. */

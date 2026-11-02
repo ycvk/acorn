@@ -40,7 +40,7 @@ func seedThread(t *testing.T, s *Store, sessionID, runID, shared string) core.Ar
 			t.Fatal(err)
 		}
 	}
-	if _, err := s.CreatePendingAction(ctx, core.PendingActionInput{ActionID: "action_" + runID, RunID: runID, Kind: core.PendingActionKindToolApproval, Subject: "Approve shell", PayloadJSON: "{}", Status: core.PendingActionStatusPending}); err != nil {
+	if _, err := s.CreatePendingAction(ctx, core.PendingActionInput{ActionID: "action_" + runID, RunID: runID, Kind: core.PendingActionKindToolApproval, Subject: "Approve shell", PayloadJSON: "{}"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SaveCheckpoint(ctx, runID, []byte("checkpoint")); err != nil {

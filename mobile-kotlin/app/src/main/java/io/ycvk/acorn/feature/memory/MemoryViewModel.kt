@@ -9,6 +9,8 @@ import io.ycvk.acorn.api.models.MemoryListResponse
 import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.Load
+import io.ycvk.acorn.core.ui.Save
+import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.MemoryRepository
 import kotlinx.coroutines.CancellationException
@@ -49,12 +51,6 @@ fun memoryListContent(load: Load<MemoryListResponse>, query: String, kind: Memor
 }
 
 /** A change the owner is making to the open memory. */
-sealed interface MemoryChange {
-    data object Idle : MemoryChange
-    data object Saving : MemoryChange
-    data class Failed(val message: String) : MemoryChange
-}
-
 /** Backs the memory list in the knowledge tab and the memory page. */
 @OptIn(FlowPreview::class)
 @HiltViewModel
@@ -78,8 +74,8 @@ class MemoryViewModel @Inject constructor(
     private val _memory = MutableStateFlow<Load<MemoryDetail>>(Load.Loading)
     val memory: StateFlow<Load<MemoryDetail>> = _memory.asStateFlow()
 
-    private val _change = MutableStateFlow<MemoryChange>(MemoryChange.Idle)
-    val change: StateFlow<MemoryChange> = _change.asStateFlow()
+    private val _change = MutableStateFlow<Save>(Save.Idle)
+    val change: StateFlow<Save> = _change.asStateFlow()
 
     private var listJob: Job? = null
     private var memoryJob: Job? = null
@@ -119,7 +115,7 @@ class MemoryViewModel @Inject constructor(
             return
         }
         _memory.value = Load.Loading
-        _change.value = MemoryChange.Idle
+        _change.value = Save.Idle
         memoryJob?.cancel()
         memoryJob = viewModelScope.launch {
             _memory.value = try {
@@ -135,15 +131,15 @@ class MemoryViewModel @Inject constructor(
     /** Forgets the memory; [onDone] runs once the server has excluded it. */
     fun forget(id: String, onDone: () -> Unit) {
         val profile = profile() ?: return
-        _change.value = MemoryChange.Saving
+        _change.value = Save.Saving
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { repository.forget(profile, id) }
-                _change.value = MemoryChange.Idle
+                _change.value = Save.Idle
                 loadList(showLoading = false)
                 onDone()
             } catch (e: Exception) {
-                _change.value = MemoryChange.Failed("没能忘掉：${memoryMessage(e)}")
+                _change.value = Save.Failed("没能忘掉：${memoryMessage(e)}")
             }
         }
     }
@@ -151,26 +147,26 @@ class MemoryViewModel @Inject constructor(
     /** Replaces a fact with [content]; [onCorrected] receives the new fact's id. */
     fun correct(memory: MemorySummary, content: String, onCorrected: (String) -> Unit) {
         val profile = profile() ?: return
-        _change.value = MemoryChange.Saving
+        _change.value = Save.Saving
         viewModelScope.launch {
             try {
                 val corrected = withContext(Dispatchers.IO) { repository.correct(profile, memory.id, memory.revision, content.trim()) }
-                _change.value = MemoryChange.Idle
+                _change.value = Save.Idle
                 loadList(showLoading = false)
                 onCorrected(corrected.id)
             } catch (e: Exception) {
                 if (e is ClientException && e.statusCode == 409) {
-                    _change.value = MemoryChange.Failed("这条记忆刚刚变过，已重新载入，请再改一次")
+                    _change.value = Save.Failed("这条记忆刚刚变过，已重新载入，请再改一次")
                     open(memory.id)
                 } else {
-                    _change.value = MemoryChange.Failed("没能保存：${memoryMessage(e)}")
+                    _change.value = Save.Failed("没能保存：${memoryMessage(e)}")
                 }
             }
         }
     }
 
     fun dismissChangeError() {
-        _change.value = MemoryChange.Idle
+        _change.value = Save.Idle
     }
 
     private fun loadList(showLoading: Boolean) {
@@ -184,14 +180,7 @@ class MemoryViewModel @Inject constructor(
         val limit = _limit.value
         listJob?.cancel()
         listJob = viewModelScope.launch {
-            _list.value = try {
-                val page = withContext(Dispatchers.IO) { repository.list(profile, kind, query, limit) }
-                Load.Loaded(page)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _list.value = loadOf { repository.list(profile, kind, query, limit) }
         }
     }
 

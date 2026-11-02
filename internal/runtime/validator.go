@@ -24,17 +24,7 @@ type toolArgumentValidator struct {
 	schema   *jsonschema.Schema
 }
 
-func newToolArgumentValidator(toolName string, params any) (*toolArgumentValidator, error) {
-	schemaBytes, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("marshal tool params for %q: %w", toolName, err)
-	}
-
-	var doc any
-	if err := json.Unmarshal(schemaBytes, &doc); err != nil {
-		return nil, fmt.Errorf("unmarshal tool params for %q: %w", toolName, err)
-	}
-
+func newToolArgumentValidator(toolName string, doc any) (*toolArgumentValidator, error) {
 	compiler := jsonschema.NewCompiler()
 	const schemaURL = "internal:///schema"
 	if err := compiler.AddResource(schemaURL, doc); err != nil {
@@ -67,11 +57,11 @@ func newToolArgumentValidatorFromToolInfo(info *schema.ToolInfo) (*toolArgumentV
 	if err != nil {
 		return nil, fmt.Errorf("marshal JSONSchema for %q: %w", info.Name, err)
 	}
-	var params any
-	if err := json.Unmarshal(schemaBytes, &params); err != nil {
+	var doc any
+	if err := json.Unmarshal(schemaBytes, &doc); err != nil {
 		return nil, fmt.Errorf("unmarshal JSONSchema for %q: %w", info.Name, err)
 	}
-	return newToolArgumentValidator(info.Name, params)
+	return newToolArgumentValidator(info.Name, doc)
 }
 
 func (v *toolArgumentValidator) validate(argumentsJSON string) ([]validationError, error) {

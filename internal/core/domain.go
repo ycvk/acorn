@@ -3,8 +3,6 @@ package core
 import (
 	"errors"
 	"time"
-
-	"github.com/cloudwego/eino/adk"
 )
 
 // --- Sentinel errors ---
@@ -72,8 +70,6 @@ type SessionRecord struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type EventKind string
-
 // --- Pending actions ---
 
 type PendingActionKind string
@@ -124,23 +120,6 @@ type OperatorQuestionPayload struct {
 	Question      string                `json:"question"`
 	Options       []PendingActionOption `json:"options,omitempty"`
 	AllowFreeform bool                  `json:"allow_freeform,omitempty"`
-
-	// Decision Card fields (ADR-0001 #4). These are optional; old payloads
-	// without them still decode. When present, mobile renders a Decision Card
-	// (options + evidence + rationale + risk) instead of a bare question.
-	ConsideredOptions []ConsideredOption `json:"considered_options,omitempty"`
-	Rationale         string             `json:"rationale,omitempty"`
-	Risk              string             `json:"risk,omitempty"`
-	Recommendation    string             `json:"recommendation,omitempty"`
-}
-
-// ConsideredOption is one alternative the agent evaluated before asking for
-// approval. RejectedReason is empty for the recommended option.
-type ConsideredOption struct {
-	ID             string `json:"id"`
-	Label          string `json:"label"`
-	Evidence       string `json:"evidence,omitempty"`
-	RejectedReason string `json:"rejected_reason,omitempty"`
 }
 
 type OperatorQuestionDecision struct {
@@ -164,6 +143,5 @@ type ExecuteRequest struct {
 	BoundMessageID int64
 	SkillID        string
 	// Wake says what woke this run; empty means an owner message.
-	Wake     string
-	Messages []adk.AgenticMessage
+	Wake string
 }

@@ -50,9 +50,10 @@ linters:
           - noctx
           - rowserrcheck
           - sqlclosecheck
-      # Commands are cancelled via process-group kill (tools.ConfigureCommand),
-      # not exec.CommandContext, which would only kill the group leader.
-      - linters: [noctx]
+      # The go-sdk CommandTransport owns the stdio MCP server's lifetime and
+      # stops it on Close; the command has no context of its own.
+      - path: internal/mcp/transport\.go
+        linters: [noctx]
         text: "os/exec.Command must not be called"
       # One-shot schema bootstrap during Open; no caller context exists yet.
       - path: internal/store/store_schema\.go

@@ -57,6 +57,7 @@ import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.RevisionRow
+import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.StatusDot
@@ -84,7 +85,7 @@ fun SkillScreen(
     // The value lives only while the dialog is open and is never saved with the screen's state.
     var secretValue by remember { mutableStateOf("") }
     val loaded = (load as? Load.Loaded<SkillHistory>)?.value?.takeIf { it.detail.name == name }
-    val saving = change == SkillChange.Saving
+    val saving = change == Save.Saving
     val now = OffsetDateTime.now()
 
     Column(modifier = Modifier.fillMaxSize().background(colors.canvas)) {
@@ -116,7 +117,7 @@ fun SkillScreen(
                         .padding(horizontal = ScreenPadding, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    (change as? SkillChange.Failed)?.let {
+                    (change as? Save.Failed)?.let {
                         InlineError(it.message, action = "知道了", onAction = viewModel::dismissChangeError)
                     }
                     if (detail.retired) {

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -44,7 +43,7 @@ func (s *Store) MemoryMessages(ctx context.Context, session string, after, throu
 	var cursor int64
 	for _, m := range items {
 		cursor = m.ID
-		source, err := s.LoadThreadSource(ctx, "message:"+strconv.FormatInt(m.ID, 10))
+		source, err := s.LoadThreadSource(ctx, core.MessageSourceID(m.ID))
 		if errors.Is(err, core.ErrMemoryExcluded) {
 			continue
 		}

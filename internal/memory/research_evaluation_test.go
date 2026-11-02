@@ -236,7 +236,7 @@ func TestMemoryLongitudinalResearch(t *testing.T) {
 		t.Fatal("ACORN_MEMORY_RESEARCH_SPLIT must name a frozen fixture split")
 	}
 	ctx := context.Background()
-	inner, err := runtime.NewMemoryModel(ctx, cfg)
+	inner, err := runtime.NewMemoryModel(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

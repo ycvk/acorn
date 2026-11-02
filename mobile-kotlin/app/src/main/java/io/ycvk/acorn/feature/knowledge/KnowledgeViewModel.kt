@@ -7,10 +7,10 @@ import io.ycvk.acorn.api.models.KnowledgeNote
 import io.ycvk.acorn.api.models.KnowledgeNoteSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.Load
+import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.data.repository.KnowledgeRepository
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -97,13 +97,7 @@ class KnowledgeViewModel @Inject constructor(
         _note.value = Load.Loading
         noteJob?.cancel()
         noteJob = viewModelScope.launch {
-            _note.value = try {
-                Load.Loaded(withContext(Dispatchers.IO) { repository.note(profile, path) })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _note.value = loadOf { repository.note(profile, path) }
         }
     }
 
@@ -136,13 +130,7 @@ class KnowledgeViewModel @Inject constructor(
         _load.value = Load.Loading
         listJob?.cancel()
         listJob = viewModelScope.launch {
-            _load.value = try {
-                Load.Loaded(withContext(Dispatchers.IO) { repository.notes(profile, query) })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Load.Failed(userMessage(e))
-            }
+            _load.value = loadOf { repository.notes(profile, query) }
         }
     }
 

@@ -45,9 +45,6 @@
   - `internal/api/run_resume_ready_test.go`
   - `internal/wire/run_shutdown_e2e_test.go`
 
-- **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
-  - `internal/core/decision_card_test.go`
-
 ## 持久化与 store 边界
 
 - **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire` 直接 import `internal/store`；其他包只依赖 core 定义的接口或 `internal/store` 导出的记录与错误。

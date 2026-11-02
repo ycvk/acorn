@@ -133,7 +133,7 @@ func (r *toolRegistry) Find(name string) (core.ToolSpec, bool) {
 // name and tolerates providers that were never registered. A spec whose Factory
 // is nil but whose Tool is pre-built returns that Tool instance instead. A
 // factory that returns no tool is an error.
-func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, names []string) ([]einotool.BaseTool, error) {
+func (r *toolRegistry) Resolve(ctx context.Context, names []string) ([]einotool.BaseTool, error) {
 	out := make([]einotool.BaseTool, 0, len(names))
 	for _, name := range names {
 		spec, ok := r.Find(name)
@@ -146,7 +146,7 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 			}
 			continue
 		}
-		tool, err := resolveFactory(ctx, runCtx, spec)
+		tool, err := resolveFactory(ctx, spec)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +158,7 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 // ResolveEnabledSpecs returns every enabled spec with its concrete tool instance
 // populated via Factory. A spec whose Factory is nil but whose Tool is
 // pre-built is returned as-is.
-func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context, runCtx core.RunContext) ([]core.ToolSpec, error) {
+func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context) ([]core.ToolSpec, error) {
 	enabled := r.EnabledSpecs()
 	out := make([]core.ToolSpec, 0, len(enabled))
 	for _, spec := range enabled {
@@ -168,7 +168,7 @@ func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context, runCtx core.RunC
 			}
 			continue
 		}
-		tool, err := resolveFactory(ctx, runCtx, spec)
+		tool, err := resolveFactory(ctx, spec)
 		if err != nil {
 			return nil, err
 		}
@@ -178,8 +178,8 @@ func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context, runCtx core.RunC
 	return out, nil
 }
 
-func resolveFactory(ctx context.Context, runCtx core.RunContext, spec core.ToolSpec) (einotool.BaseTool, error) {
-	tool, err := spec.Factory(ctx, runCtx)
+func resolveFactory(ctx context.Context, spec core.ToolSpec) (einotool.BaseTool, error) {
+	tool, err := spec.Factory(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("tool registry: resolve %q: %w", spec.Name, err)
 	}

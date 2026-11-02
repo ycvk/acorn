@@ -52,35 +52,21 @@ func connectProvider(ctx context.Context, cfg core.ProviderConfig, opts *mcp.Cli
 		Cli:          session,
 		ToolNameList: cfg.ToolNames,
 	})
-	if err != nil {
-		p := &provider{
-			cfg:         cfg,
-			commandPath: commandPath,
-			session:     session,
-			cleanup:     cleanup,
-		}
-		return nil, errors.Join(fmt.Errorf("discover MCP tools: %w", err), p.close())
-	}
-
-	toolNames, err := collectToolNames(connectCtx, tools)
-	if err != nil {
-		p := &provider{
-			cfg:         cfg,
-			commandPath: commandPath,
-			session:     session,
-			cleanup:     cleanup,
-		}
-		return nil, errors.Join(err, p.close())
-	}
-
 	p := &provider{
 		cfg:         cfg,
 		commandPath: commandPath,
 		session:     session,
 		cleanup:     cleanup,
-		tools:       tools,
-		toolNames:   toolNames,
 	}
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("discover MCP tools: %w", err), p.close())
+	}
+
+	toolNames, err := collectToolNames(connectCtx, tools)
+	if err != nil {
+		return nil, errors.Join(err, p.close())
+	}
+	p.tools, p.toolNames = tools, toolNames
 
 	var capabilities *mcp.ServerCapabilities
 	if result := session.InitializeResult(); result != nil {
@@ -258,4 +244,9 @@ func ToolNamespace(provider string) string {
 		return "provider"
 	}
 	return result
+}
+
+// ToolName is the name the model sees for a provider's tool.
+func ToolName(provider, tool string) string {
+	return "mcp__" + ToolNamespace(provider) + "__" + tool
 }

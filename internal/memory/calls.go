@@ -25,7 +25,7 @@ func (e *Engine) reserve(ctx context.Context, operation, model string, input, ou
 	case "autonomous":
 		limit = settings.WakeDailyTokens
 	}
-	err = e.cfg.Store.ReserveMemoryUsage(ctx, u, limit, midnight(now, settings.Location))
+	err = e.cfg.Store.ReserveMemoryUsage(ctx, u, limit, core.Midnight(now, settings.Location))
 	return u, err
 }
 

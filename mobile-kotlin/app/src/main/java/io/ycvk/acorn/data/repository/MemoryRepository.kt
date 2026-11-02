@@ -1,12 +1,12 @@
 package io.ycvk.acorn.data.repository
 
 import io.ycvk.acorn.api.apis.MemoriesApi
-import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.api.models.CorrectMemoryRequest
 import io.ycvk.acorn.api.models.MemoryDetail
 import io.ycvk.acorn.api.models.MemoryListResponse
 import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import javax.inject.Inject
 import javax.inject.Singleton
 

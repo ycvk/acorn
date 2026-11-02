@@ -1,7 +1,7 @@
 // Package workstation runs commands and file operations on the agent's own
 // Linux computer. Server runs inside the workstation container as
-// `acorn workstation serve`; Client is how the backend reaches it over
-// loopback HTTP with a bearer token.
+// `acorn workstation serve`; Client is how the backend reaches it over HTTP
+// with a bearer token.
 package workstation
 
 import (

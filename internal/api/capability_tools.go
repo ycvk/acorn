@@ -13,16 +13,12 @@ func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []Sys
 		return nil, err
 	}
 
-	items := make([]SystemToolCapability, 0, len(specs)+providerToolCount(providers))
+	items := make([]SystemToolCapability, 0, len(specs))
 	for _, spec := range specs {
 		items = append(items, toolCapabilityFromSpec(spec))
 	}
 	for _, provider := range providers {
-		providerItems, err := s.providerToolCapabilities(provider)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, providerItems...)
+		items = append(items, providerToolCapabilities(provider)...)
 	}
 	return items, nil
 }
@@ -35,7 +31,7 @@ func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]core.ToolSpe
 	return specs, nil
 }
 
-func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProviderCapability) ([]SystemToolCapability, error) {
+func providerToolCapabilities(provider SystemMCPProviderCapability) []SystemToolCapability {
 	toolNames := provider.DiscoveredToolNames
 	if len(toolNames) == 0 {
 		toolNames = provider.ConfiguredToolNames
@@ -54,7 +50,7 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 			Risk:         "integration",
 		})
 	}
-	return items, nil
+	return items
 }
 
 func toolCapabilityFromSpec(spec core.ToolSpec) SystemToolCapability {
@@ -99,16 +95,4 @@ func providerToolHealth(provider SystemMCPProviderCapability) (core.HealthState,
 	default:
 		return core.HealthStateHealthy, ""
 	}
-}
-
-func providerToolCount(providers []SystemMCPProviderCapability) int {
-	total := 0
-	for _, provider := range providers {
-		if len(provider.DiscoveredToolNames) > 0 {
-			total += len(provider.DiscoveredToolNames)
-			continue
-		}
-		total += len(provider.ConfiguredToolNames)
-	}
-	return total
 }

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -87,7 +86,7 @@ func (e *Engine) History(ctx context.Context, session string, after, through int
 		out.Tokens += n + 64
 	}
 	for _, m := range out.Messages {
-		out.SourceIDs = append(out.SourceIDs, "message:"+strconv.FormatInt(m.ID, 10))
+		out.SourceIDs = append(out.SourceIDs, core.MessageSourceID(m.ID))
 	}
 	latest, err := e.cfg.Store.MemoryEpoch(ctx)
 	if err != nil {
@@ -157,8 +156,7 @@ pages:
 			}
 			if n > BatchTokens-128 {
 				if len(texts) == 0 {
-					sourceID := "message:" + strconv.FormatInt(m.ID, 10)
-					sources = append(sources, sourceID)
+					sources = append(sources, core.MessageSourceID(m.ID))
 					content, err := e.summarizeLargeMessage(ctx, prefix, m, sources, epoch, budget)
 					if err != nil {
 						return nil, err
@@ -173,7 +171,7 @@ pages:
 				break
 			}
 			texts = append(texts, line)
-			sources = append(sources, "message:"+strconv.FormatInt(m.ID, 10))
+			sources = append(sources, core.MessageSourceID(m.ID))
 			processed = m.ID
 		}
 		content, err := e.summarizeInput(ctx, prefix+"\n"+strings.Join(texts, "\n"), sources, epoch, budget)

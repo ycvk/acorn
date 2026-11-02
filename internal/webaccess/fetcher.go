@@ -49,17 +49,16 @@ type FetchRequest struct {
 }
 
 type FetchResult struct {
-	URL            string
-	FinalURL       string
-	Status         int
-	ContentType    string
-	ContentLength  int64
-	FetchedAt      time.Time
-	Redirects      []string
-	Raw            []byte
-	RawSHA256      string
-	Extracted      ExtractResult
-	ValidatedHosts []string
+	URL           string
+	FinalURL      string
+	Status        int
+	ContentType   string
+	ContentLength int64
+	FetchedAt     time.Time
+	Redirects     []string
+	Raw           []byte
+	RawSHA256     string
+	Extracted     ExtractResult
 }
 
 func NewFetchService(cfg FetchConfig) (*FetchService, error) {
@@ -108,17 +107,16 @@ func (s *FetchService) Fetch(ctx context.Context, req FetchRequest) (FetchResult
 	}
 	sum := sha256.Sum256(got.body)
 	return FetchResult{
-		URL:            got.url,
-		FinalURL:       got.finalURL,
-		Status:         got.status,
-		ContentType:    got.contentType,
-		ContentLength:  int64(len(got.body)),
-		FetchedAt:      s.now().UTC(),
-		Redirects:      got.redirects,
-		Raw:            got.body,
-		RawSHA256:      hex.EncodeToString(sum[:]),
-		Extracted:      extracted,
-		ValidatedHosts: got.validatedIPs,
+		URL:           got.url,
+		FinalURL:      got.finalURL,
+		Status:        got.status,
+		ContentType:   got.contentType,
+		ContentLength: int64(len(got.body)),
+		FetchedAt:     s.now().UTC(),
+		Redirects:     got.redirects,
+		Raw:           got.body,
+		RawSHA256:     hex.EncodeToString(sum[:]),
+		Extracted:     extracted,
 	}, nil
 }
 
@@ -145,7 +143,7 @@ type fetched struct {
 	url, finalURL, contentType, contentTypeHeader string
 	status                                        int
 	body                                          []byte
-	redirects, validatedIPs                       []string
+	redirects                                     []string
 }
 
 func (s *FetchService) get(ctx context.Context, rawURL string, headers map[string]string) (fetched, error) {
@@ -200,7 +198,6 @@ func (s *FetchService) get(ctx context.Context, rawURL string, headers map[strin
 		status:            resp.StatusCode,
 		body:              raw,
 		redirects:         append([]string(nil), redirects...),
-		validatedIPs:      append([]string(nil), validated.IPs...),
 	}, nil
 }
 
@@ -246,11 +243,10 @@ func extractFeed(finalURL string, body, text []byte, format string) (ExtractResu
 	}
 	markdown := feedMarkdown(feed)
 	return ExtractResult{
-		URL:           finalURL,
-		Title:         feed.Title,
-		Markdown:      markdown,
-		Method:        "feed",
-		MarkdownBytes: len(markdown),
+		URL:      finalURL,
+		Title:    feed.Title,
+		Markdown: markdown,
+		Method:   "feed",
 	}, nil
 }
 
@@ -260,10 +256,9 @@ func textResult(finalURL string, raw []byte, method string) (ExtractResult, erro
 		return ExtractResult{}, fmt.Errorf("%s response is empty", method)
 	}
 	return ExtractResult{
-		URL:           finalURL,
-		Markdown:      text,
-		Method:        method,
-		MarkdownBytes: len(text),
+		URL:      finalURL,
+		Markdown: text,
+		Method:   method,
 	}, nil
 }
 

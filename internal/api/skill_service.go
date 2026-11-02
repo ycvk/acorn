@@ -321,18 +321,13 @@ func (s *SkillService) secretsOf(ctx context.Context, name string) ([]SkillSecre
 
 func localEligibilityToolNames(cfg *config.Config) []string {
 	specs := tools.ConfiguredLocalSpecs()
-	names := make([]string, 0, len(specs)+11)
-	seen := make(map[string]struct{}, len(specs)+11)
+	names := make([]string, 0, len(specs))
 	workstation := cfg != nil && strings.TrimSpace(cfg.Workstation.URL) != ""
 	for _, spec := range specs {
 		if spec.Loading.Reason == "workstation" && !workstation {
 			continue
 		}
 		if spec.Enabled() {
-			if _, ok := seen[spec.Name]; ok {
-				continue
-			}
-			seen[spec.Name] = struct{}{}
 			names = append(names, spec.Name)
 		}
 	}

@@ -152,15 +152,14 @@ func checkTrigger(t Trigger) (Trigger, error) {
 	return t, nil
 }
 
-// ManifestOf parses the manifest among a package's files; ok is false when
-// the package has none.
-func ManifestOf(files []core.SkillFile) (Manifest, bool, error) {
+// ManifestOf parses the manifest among a package's files; a package without
+// one has the zero Manifest.
+func ManifestOf(files []core.SkillFile) (Manifest, error) {
 	i := slices.IndexFunc(files, func(f core.SkillFile) bool { return f.Path == ManifestFileName })
 	if i < 0 {
-		return Manifest{}, false, nil
+		return Manifest{}, nil
 	}
-	m, err := ParseManifest(files[i].Content)
-	return m, true, err
+	return ParseManifest(files[i].Content)
 }
 
 // CommandLine shows the server's command and arguments as one line, quoting

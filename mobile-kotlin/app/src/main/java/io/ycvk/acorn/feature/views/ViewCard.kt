@@ -48,10 +48,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.api.models.ViewActionSent
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -62,7 +58,9 @@ import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.Markdown
+import io.ycvk.acorn.core.ui.authorizedImage
 import io.ycvk.acorn.core.ui.hairline
+import io.ycvk.acorn.data.repository.threadFileUrl
 import io.ycvk.acorn.feature.knowledge.AttachmentImage
 
 /**
@@ -412,11 +410,7 @@ private fun ViewImage(ref: String, alt: String, drawing: Drawing) {
     val threadId = drawing.threadId ?: return
     val context = LocalContext.current
     val request = remember(threadId, ref, profile) {
-        ImageRequest.Builder(context)
-            .data("${profile.serverUrl.trimEnd('/')}/v1/threads/$threadId/files/$ref")
-            .httpHeaders(NetworkHeaders.Builder().set("Authorization", "Bearer ${profile.accessToken}").build())
-            .crossfade(true)
-            .build()
+        authorizedImage(context, threadFileUrl(profile.serverUrl, threadId, ref), profile)
     }
     SubcomposeAsyncImage(
         model = request,

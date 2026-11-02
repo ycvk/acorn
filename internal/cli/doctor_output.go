@@ -23,10 +23,9 @@ func renderDoctorKnowledge(status knowledge.Status) string {
 	}, "\n")
 }
 
-// doctorRemediationLines tells the owner WHAT to type to fix a not-ready verdict,
-// naming the active config path. The hint is tailored to the failure reason so it
-// is not misleading for non-api_key failures (e.g. max_iterations, workspace).
-// JSON output is untouched (printJSON returns first).
+// doctorRemediationLines tells the owner what to type to fix a not-ready
+// verdict, naming the active config path; the api_key hint appears only when
+// the reason names api_key.
 func doctorRemediationLines(reason, configPath string) []string {
 	cfgPath := strings.TrimSpace(configPath)
 	if cfgPath == "" {

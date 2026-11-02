@@ -1,7 +1,6 @@
 package io.ycvk.acorn.core.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -167,7 +166,7 @@ fun PageHeader(
     }
 }
 
-/** Detail page bar: back, a one-line title with an optional status line, actions, and a rule below. */
+/** Detail page bar: back, a one-line title with an optional status line, and actions. */
 @Composable
 fun TopBar(
     onBack: () -> Unit,
@@ -235,7 +234,7 @@ fun IconAction(
 
 /** A small label above a bordered group or a card, as in settings and on 今天, with an optional count. */
 @Composable
-fun SectionLabel(text: String, modifier: Modifier = Modifier, count: Int? = null, trailing: @Composable RowScope.() -> Unit = {}) {
+fun SectionLabel(text: String, modifier: Modifier = Modifier, count: Int? = null) {
     val colors = AcornTheme.colors
     Row(
         modifier = modifier
@@ -249,7 +248,6 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, count: Int? = null
             Text("$it", style = AcornTheme.type.caption, color = colors.inkFaint)
         }
         Spacer(Modifier.weight(1f))
-        trailing()
     }
 }
 
@@ -271,23 +269,10 @@ fun Modifier.groupItem(index: Int, count: Int): Modifier = composed {
 }
 
 @Composable
-fun StatusDot(color: Color, modifier: Modifier = Modifier, pulsing: Boolean = false) {
-    val alpha = if (pulsing) {
-        val transition = rememberInfiniteTransition(label = "dot")
-        val value by transition.animateFloat(
-            initialValue = 1f,
-            targetValue = 0.35f,
-            animationSpec = infiniteRepeatable(tween(900, easing = AcornMotion.standard), RepeatMode.Reverse),
-            label = "dot_alpha",
-        )
-        value
-    } else {
-        1f
-    }
+fun StatusDot(color: Color, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(7.dp)
-            .alpha(alpha)
             .background(color, CircleShape),
     )
 }
@@ -452,7 +437,6 @@ fun AcornButton(
     compact: Boolean = false,
     loading: Boolean = false,
     enabled: Boolean = true,
-    leadingIcon: ImageVector? = null,
 ) {
     val colors = AcornTheme.colors
     val (container, content) = when (kind) {
@@ -480,10 +464,6 @@ fun AcornButton(
             CircularProgressIndicator(color = content, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                leadingIcon?.let {
-                    Icon(it, contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                }
                 Text(
                     text,
                     style = if (compact) AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium) else AcornTheme.type.label,

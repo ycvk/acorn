@@ -44,11 +44,11 @@ func (e *Engine) Run(ctx context.Context) {
 	}
 }
 
-// ProcessOne claims and advances one durable stage. Large sources retain a
-// cursor after each committed batch, so restarts continue at the next batch.
 // memoryJobLease is how long a worker holds a claimed job.
 const memoryJobLease = 3 * time.Minute
 
+// ProcessOne claims and advances one durable stage. Large sources retain a
+// cursor after each committed batch, so restarts continue at the next batch.
 func (e *Engine) ProcessOne(ctx context.Context) (bool, error) { return e.processOne(ctx, "") }
 
 func (e *Engine) processOne(ctx context.Context, operation string) (bool, error) {
@@ -96,7 +96,7 @@ func (e *Engine) recoverMemoryJobs(ctx context.Context, jobs []core.MemoryJob, c
 		if err != nil {
 			return err
 		}
-		tomorrow = midnight(now, settings.Location).AddDate(0, 0, 1)
+		tomorrow = core.Midnight(now, settings.Location).AddDate(0, 0, 1)
 	}
 	var errs []error
 	for _, job := range jobs {

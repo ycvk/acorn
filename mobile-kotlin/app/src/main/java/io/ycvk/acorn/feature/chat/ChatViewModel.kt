@@ -1,7 +1,7 @@
 package io.ycvk.acorn.feature.chat
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
-import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
@@ -14,6 +14,7 @@ import io.ycvk.acorn.api.models.SendViewActionRequest
 import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunStatus
@@ -34,7 +35,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.net.Uri
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -151,7 +151,7 @@ class ChatViewModel @Inject constructor(
      * may not have given the app its network back yet.
      */
     private fun reconnectActiveRun(threadId: String) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         val gen = loadGeneration.get()
         viewModelScope.launch {
             val inbox = fetchInbox(profile, gen) ?: return@launch
@@ -211,7 +211,7 @@ class ChatViewModel @Inject constructor(
 
     /** Downloads a file of the thread and hands the local copy to [onReady]. */
     fun withFile(file: FileView, onReady: (File) -> Unit) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         val threadId = _threadId.value ?: return
         val id = file.id ?: return
         if (id in _fileBusy.value) return
@@ -247,7 +247,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendMessage(text: String) {
-        val profile = getConnectionProfile() ?: run {
+        val profile = profile() ?: run {
             _error.value = "还没有连接服务器"
             return
         }
@@ -308,7 +308,7 @@ class ChatViewModel @Inject constructor(
      * sent from elsewhere shows it.
      */
     fun sendViewAction(press: ViewActionPress) {
-        val profile = getConnectionProfile() ?: run {
+        val profile = profile() ?: run {
             _error.value = "还没有连接服务器"
             return
         }
@@ -348,7 +348,7 @@ class ChatViewModel @Inject constructor(
 
     /** Pins [view] to the now page, or takes it off when it is pinned; the server's view replaces it here. */
     fun togglePin(view: View) {
-        val profile = getConnectionProfile() ?: run {
+        val profile = profile() ?: run {
             _error.value = "还没有连接服务器"
             return
         }
@@ -404,7 +404,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun deleteThread(onDeleted: () -> Unit) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         val threadId = _threadId.value ?: return onDeleted()
         viewModelScope.launch {
             try {
@@ -420,7 +420,7 @@ class ChatViewModel @Inject constructor(
 
     /** Asks the server to stop the streaming run; the stream reports run.interrupted when it has. */
     fun interruptRun() {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         val runId = streamingRunId ?: return
         follower.stopping(runId, true)
         viewModelScope.launch {
@@ -436,7 +436,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun loadMessages(threadId: String) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         viewModelScope.launch {
             try {
                 val response = withRetries({ _threadId.value == threadId }) {
@@ -453,7 +453,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun loadThreadTitle(threadId: String) {
-        val profile = getConnectionProfile() ?: return
+        val profile = profile() ?: return
         viewModelScope.launch {
             try {
                 val title = withContext(Dispatchers.IO) {
@@ -506,10 +506,9 @@ class ChatViewModel @Inject constructor(
     }
 
     /** The paired server, for loading attachments. */
-    fun connection(): ConnectionProfile? = getConnectionProfile()
+    fun connection(): ConnectionProfile? = profile()
 
-    private fun getConnectionProfile(): ConnectionProfile? =
-        authController.profile
+    private fun profile() = authController.profile
 
     override fun onCleared() {
         _threadId.value?.let(follower::unwatch)

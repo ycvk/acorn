@@ -174,8 +174,6 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 	switch {
 	case errors.Is(err, core.ErrSessionNotFound):
 		s.respondError(w, r, http.StatusNotFound, "thread_not_found", err.Error())
-	case errors.Is(err, core.ErrRunNotFound):
-		s.respondError(w, r, http.StatusNotFound, "run_not_found", err.Error())
 	case errors.Is(err, core.ErrThreadBusy):
 		s.respondConflict(w, r, "thread_busy", err.Error())
 	case errors.Is(err, ErrClientNoPendingMessage), errors.Is(err, core.ErrInvalidThreadFile):
@@ -197,8 +195,6 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 	case errors.Is(err, ErrClientProjectionFailed):
 		s.logInternalError(r, "client_projection_failed", err, slog.Int("status", http.StatusInternalServerError))
 		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", "a stored record could not be shown to the client")
-	case errors.Is(err, core.ErrExecutionNotReady):
-		s.respondError(w, r, http.StatusServiceUnavailable, "execution_not_ready", err.Error())
 	default:
 		s.respondKnownError(w, r, err)
 	}

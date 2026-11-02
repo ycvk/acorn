@@ -10,7 +10,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// LoadOAuthToken implements core.OAuthRepo.
 func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*core.OAuthToken, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT provider_name, access_token, refresh_token, expiry, updated_at
@@ -42,7 +41,6 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*core.O
 	return &token, nil
 }
 
-// SaveOAuthToken implements core.OAuthRepo.
 func (s *Store) SaveOAuthToken(ctx context.Context, token core.OAuthToken) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(

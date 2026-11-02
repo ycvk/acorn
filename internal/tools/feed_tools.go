@@ -42,9 +42,9 @@ type FeedDiscoverOutput struct {
 }
 
 func buildFeedDiscoverTool(deps WatchToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("feed_discover",
+	return inferLocalTool("feed_discover",
 		"Find the feeds of a site or page: the address itself when it is a feed, the feeds its <link rel=\"alternate\"> tags name, links on it that look like feeds, and common feed paths, each fetched and checked. found_by says which; per_day is the dated entries over the time they span, at least an hour. Use it before adding a source: prefer ranked feeds such as top stories and digests over a feed of hundreds of entries a day in order of time.",
-		func(ctx context.Context, input FeedDiscoverInput, _ ToolProgressEmitter) (FeedDiscoverOutput, error) {
+		func(ctx context.Context, input FeedDiscoverInput) (FeedDiscoverOutput, error) {
 			page := strings.TrimSpace(input.URL)
 			if page == "" {
 				return FeedDiscoverOutput{}, errors.New("feed_discover: url is required")

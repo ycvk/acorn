@@ -165,7 +165,7 @@ func (p *Processor) ProcessOne(ctx context.Context) (bool, error) {
 	defer cancelRecover()
 	switch {
 	case errors.Is(err, core.ErrMemoryBudget):
-		tomorrow := midnight(now, settings.Location).AddDate(0, 0, 1)
+		tomorrow := core.Midnight(now, settings.Location).AddDate(0, 0, 1)
 		return true, ignoreLost(p.cfg.Store.DeferNewsBatch(recoverCtx, batch.Token, tomorrow))
 	case ctx.Err() != nil:
 		// The caller stopped waiting, as when Acorn stops or a briefing's
@@ -181,11 +181,6 @@ func ignoreLost(err error) error {
 		return nil
 	}
 	return err
-}
-
-func midnight(now time.Time, loc *time.Location) time.Time {
-	local := now.In(loc)
-	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
 }
 
 func (p *Processor) sort(ctx context.Context, batch core.NewsBatch, now time.Time, settings core.Settings) error {
@@ -287,7 +282,7 @@ func (p *Processor) generate(ctx context.Context, input string, settings core.Se
 	}
 	now := p.cfg.Clock()
 	usage := core.MemoryUsage{ID: rand.Text(), Operation: "news_sort", Budget: budget, Model: p.cfg.ModelName, InputTokens: n, OutputTokens: maxOutputTokens, CreatedAt: now}
-	if err := p.cfg.Store.ReserveMemoryUsage(ctx, usage, settings.NewsDailyTokens, midnight(now, settings.Location)); err != nil {
+	if err := p.cfg.Store.ReserveMemoryUsage(ctx, usage, settings.NewsDailyTokens, core.Midnight(now, settings.Location)); err != nil {
 		return "", err
 	}
 	result, callErr := p.cfg.Model.GenerateNews(ctx, sortInstruction, input, maxOutputTokens)

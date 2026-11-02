@@ -44,6 +44,7 @@ import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.RevisionRow
+import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.SkeletonRows
@@ -129,7 +130,7 @@ private fun PersonaBody(state: Load.Loaded<PersonaHistory>, thisDevice: String?,
 }
 
 @Composable
-private fun PersonaEditor(draft: PersonaDraft, current: Persona, save: PersonaSave, viewModel: PersonaViewModel) {
+private fun PersonaEditor(draft: PersonaDraft, current: Persona, save: Save, viewModel: PersonaViewModel) {
     val colors = AcornTheme.colors
     val state = draftState(draft.text, current.content)
     var confirmDiscard by rememberSaveable { mutableStateOf(false) }
@@ -183,17 +184,17 @@ private fun PersonaEditor(draft: PersonaDraft, current: Persona, save: PersonaSa
                 .padding(horizontal = ScreenPadding, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            (save as? PersonaSave.Failed)?.let {
+            (save as? Save.Failed)?.let {
                 InlineError(it.message, action = "知道了", onAction = viewModel::dismissSaveError)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AcornButton("取消", leave, modifier = Modifier.weight(1f), kind = ButtonKind.Secondary, enabled = save != PersonaSave.Saving)
+                AcornButton("取消", leave, modifier = Modifier.weight(1f), kind = ButtonKind.Secondary, enabled = save != Save.Saving)
                 AcornButton(
                     "保存",
                     viewModel::saveDraft,
                     modifier = Modifier.weight(1f),
                     enabled = state == DraftState.Ready,
-                    loading = save == PersonaSave.Saving,
+                    loading = save == Save.Saving,
                 )
             }
         }
@@ -287,7 +288,7 @@ fun PersonaRevisionScreen(
                             .padding(horizontal = ScreenPadding, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        (save as? PersonaSave.Failed)?.let {
+                        (save as? Save.Failed)?.let {
                             InlineError(it.message, action = "知道了", onAction = viewModel::dismissSaveError)
                         }
                         AcornButton(
@@ -295,7 +296,7 @@ fun PersonaRevisionScreen(
                             { confirmRestore = true },
                             modifier = Modifier.fillMaxWidth(),
                             kind = ButtonKind.Secondary,
-                            loading = save == PersonaSave.Saving,
+                            loading = save == Save.Saving,
                         )
                     }
                 }

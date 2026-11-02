@@ -8,14 +8,12 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/tools"
 )
 
 type auditedTool struct {
 	spec      core.ToolSpec
 	tool      einotool.BaseTool
 	invokable einotool.InvokableTool
-	progress  tools.ProgressTool
 	validator *toolArgumentValidator
 }
 
@@ -39,7 +37,6 @@ func wrapToolForAudit(ctx context.Context, spec core.ToolSpec) (einotool.BaseToo
 		spec:      spec,
 		tool:      spec.Tool,
 		invokable: invokable,
-		progress:  progressToolFromBase(spec.Tool),
 		validator: validator,
 	}, nil
 }
@@ -49,14 +46,6 @@ func (t *auditedTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
 }
 
 func (t *auditedTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
-	return t.run(ctx, argumentsInJSON, nil, opts...)
-}
-
-func (t *auditedTool) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit tools.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
-	return t.run(ctx, argumentsInJSON, emit, opts...)
-}
-
-func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tools.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
 	if t.validator != nil {
 		validationErrors, validateErr := t.validator.validate(argumentsInJSON)
 		if validateErr != nil {
@@ -67,22 +56,6 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 		}
 	}
 
-	output, err := t.invoke(ctx, argumentsInJSON, emit, opts...)
-	return output, err
-}
-
-func progressToolFromBase(tool einotool.BaseTool) tools.ProgressTool {
-	progress, ok := tool.(tools.ProgressTool)
-	if !ok {
-		return nil
-	}
-	return progress
-}
-
-func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit tools.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
-	if t.progress != nil {
-		return t.progress.InvokableRunWithProgress(ctx, argumentsInJSON, emit, opts...)
-	}
 	return t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
 }
 

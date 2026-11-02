@@ -54,25 +54,21 @@ type Run struct {
 // terminality, and interrupting in-flight runs. It binds a run to its
 // originating user message via the ThreadService and drives the executor.
 type RunService struct {
-	store       core.SessionStore
-	threads     *ThreadService
-	executeRun  func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
-	controller  *runtime.RunController
-	newRunID    func() string
-	reportError func(context.Context, string, error)
-	resumer     runResumer
+	store      core.SessionStore
+	threads    *ThreadService
+	executeRun func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
+	controller *runtime.RunController
+	resumer    runResumer
 }
 
 // NewRunService constructs a RunService backed by the given store, executor
 // factory, and run controller.
 func NewRunService(store core.SessionStore, threads *ThreadService, executeRun func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error), controller *runtime.RunController) *RunService {
 	return &RunService{
-		store:       store,
-		threads:     threads,
-		executeRun:  executeRun,
-		controller:  controller,
-		newRunID:    newRunID,
-		reportError: reportClientBackgroundError,
+		store:      store,
+		threads:    threads,
+		executeRun: executeRun,
+		controller: controller,
 	}
 }
 
@@ -83,14 +79,7 @@ func (s *RunService) WithResumer(resumer runResumer) *RunService {
 	return s
 }
 
-func newRunID() string {
-	return fmt.Sprintf("run_%d", time.Now().UTC().UnixNano())
-}
-
 func (s *RunService) GetRun(ctx context.Context, runID string) (*Run, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	record, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -106,9 +95,6 @@ func (s *RunService) GetRun(ctx context.Context, runID string) (*Run, error) {
 // interrupted run is waiting for the owner's decision and the server resumes
 // it afterwards, so it is not terminal.
 func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, error) {
-	if s == nil || s.store == nil {
-		return false, errors.New("client store is nil")
-	}
 	record, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return false, err
@@ -124,10 +110,6 @@ func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, err
 }
 
 func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
-	_ = ctx
-	if s == nil || s.controller == nil {
-		return errors.New("run controller is nil")
-	}
 	return s.controller.Interrupt(runID)
 }
 
@@ -162,9 +144,6 @@ func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input strin
 // unbound message) and starts the run. wake, when set, tells the agent what
 // woke it.
 func (s *RunService) createRun(ctx context.Context, threadID, skillID, input string, fileIDs []string, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
-	if s == nil || s.store == nil || s.executeRun == nil || s.newRunID == nil || s.threads == nil {
-		return nil, errors.New("client service is not initialized")
-	}
 	threadID = strings.TrimSpace(threadID)
 	skillID = strings.TrimSpace(skillID)
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
@@ -210,9 +189,6 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input str
 // thread as their message and starts a run on it. The action is resolved
 // against the stored view, and each action of a view is sent once.
 func (s *RunService) SendViewAction(ctx context.Context, threadID, viewID string, req views.ActionRequest) (*ViewActionResult, error) {
-	if s == nil || s.threads == nil {
-		return nil, errors.New("client service is not initialized")
-	}
 	view, err := s.threads.views.ThreadView(ctx, threadID, viewID)
 	if err != nil {
 		return nil, err
@@ -258,9 +234,6 @@ type ViewActionResult struct {
 // newest briefing gave the story, as the owner saw it on the card, else the
 // story's own. The model sees the story as it stands now beside the message.
 func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent core.StoryIntent) (*StoryMessageResult, error) {
-	if s == nil || s.threads == nil {
-		return nil, errors.New("client service is not initialized")
-	}
 	story, err := s.threads.stories.NewsStory(ctx, storyID)
 	if err != nil {
 		return nil, err
@@ -273,7 +246,7 @@ func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent
 		title = story.Title
 	}
 	message, err := s.threads.stories.SendStoryMessage(ctx, core.StoryMessageWrite{
-		Intent: intent, Text: storyMessageText(intent, title), Title: title, Story: core.SnapshotOf(story), NewThreadID: s.threads.newThreadID(),
+		Intent: intent, Text: storyMessageText(intent, title), Title: title, Story: core.SnapshotOf(story), NewThreadID: core.NewSessionID(),
 	})
 	if err != nil {
 		return nil, err
@@ -304,10 +277,7 @@ func storyMessageText(intent core.StoryIntent, title string) string {
 
 // startRun starts a run bound to message.
 func (s *RunService) startRun(ctx context.Context, threadID, skillID string, message *core.SessionMessageRecord, wake string, scheduled *core.ScheduledWake) (*Run, error) {
-	runID := strings.TrimSpace(s.newRunID())
-	if runID == "" {
-		return nil, errors.New("client run id is empty")
-	}
+	runID := core.NewRunID()
 	started := newRunStartSignal()
 	req := core.ExecuteRequest{
 
@@ -408,7 +378,7 @@ func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteReques
 	}
 	if result != nil && result.Status == core.RunStatusInterrupted && s.resumer != nil {
 		if err := s.resumer.ResumeIfReady(ctx, req.RunID); err != nil {
-			s.reportError(ctx, req.RunID, err)
+			reportClientBackgroundError(ctx, req.RunID, err)
 		}
 	}
 }
@@ -432,17 +402,10 @@ func (s *RunService) reportBackgroundRunFailure(ctx context.Context, runID strin
 		fmt.Errorf("client executor failed after run start: %w", cause),
 		fmt.Errorf("record started client run failure: %w", persistErr),
 	)
-	report := reportClientBackgroundError
-	if s != nil && s.reportError != nil {
-		report = s.reportError
-	}
-	report(ctx, runID, err)
+	reportClientBackgroundError(ctx, runID, err)
 }
 
 func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {
-	if s == nil || s.store == nil {
-		return errors.New("client store is nil")
-	}
 	if strings.TrimSpace(runID) == "" || cause == nil {
 		return nil
 	}

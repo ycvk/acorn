@@ -1,7 +1,6 @@
 package io.ycvk.acorn.feature.live
 
 import android.app.ForegroundServiceStartNotAllowedException
-import io.ycvk.acorn.core.auth.authorized
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
@@ -16,6 +15,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.core.auth.AuthController
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.ui.userMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -53,13 +53,11 @@ type RunResumeRequestedData struct {
 	Targets map[string]any `json:"targets,omitempty"`
 }
 
-type ElicitationPendingData struct {
+type ElicitationData struct {
 	ActionID        string `json:"action_id"`
 	Message         string `json:"message,omitempty"`
 	RequestedSchema any    `json:"requested_schema,omitempty"`
 }
-
-type ElicitationDecidedData = ElicitationPendingData
 
 type OperatorQuestionData struct {
 	ActionID         string                     `json:"action_id"`
@@ -70,9 +68,6 @@ type OperatorQuestionData struct {
 	SelectedOptionID string                     `json:"selected_option_id,omitempty"`
 	Answer           string                     `json:"answer,omitempty"`
 }
-
-type OperatorQuestionPendingData = OperatorQuestionData
-type OperatorQuestionDecidedData = OperatorQuestionData
 
 // ToolCallData carries tool.call.started, tool.call.succeeded and
 // tool.call.failed: which tool, a one-line summary of what it was asked to

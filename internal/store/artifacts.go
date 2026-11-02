@@ -64,9 +64,6 @@ func NewArtifactService(rootDir string, store ArtifactDB) (*ArtifactService, err
 
 // WriteArtifact implements core.ArtifactService.
 func (s *ArtifactService) WriteArtifact(ctx context.Context, req core.ArtifactWriteRequest) (core.ArtifactRecord, error) {
-	if s == nil {
-		return core.ArtifactRecord{}, fmt.Errorf("artifact service is nil")
-	}
 	if err := ctx.Err(); err != nil {
 		return core.ArtifactRecord{}, err
 	}
@@ -126,9 +123,6 @@ func (s *ArtifactService) WriteArtifact(ctx context.Context, req core.ArtifactWr
 
 // ReadArtifactRange implements core.ArtifactService.
 func (s *ArtifactService) ReadArtifactRange(ctx context.Context, req core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error) {
-	if s == nil {
-		return core.ArtifactReadRangeResult{}, fmt.Errorf("artifact service is nil")
-	}
 	if err := ctx.Err(); err != nil {
 		return core.ArtifactReadRangeResult{}, err
 	}

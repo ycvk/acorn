@@ -6,21 +6,19 @@ import (
 	"strings"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
 func BuildCatalogSpecs(
 	ctx context.Context,
-	cfg *config.Config,
 	source string,
 	kind core.ToolKind,
 	baseTools []einotool.BaseTool,
 ) ([]core.ToolSpec, error) {
 	specs := make([]core.ToolSpec, 0, len(baseTools))
 	for _, tool := range baseTools {
-		spec, err := RuntimeToolSpec(ctx, cfg, source, kind, tool)
+		spec, err := RuntimeToolSpec(ctx, source, kind, tool)
 		if err != nil {
 			return nil, err
 		}
@@ -31,7 +29,6 @@ func BuildCatalogSpecs(
 
 func RuntimeToolSpec(
 	ctx context.Context,
-	cfg *config.Config,
 	source string,
 	kind core.ToolKind,
 	tool einotool.BaseTool,

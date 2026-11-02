@@ -58,7 +58,7 @@ func connectSkillTools(ctx context.Context, deps RuntimeDeps, view skills.View) 
 	specs := make([]core.ToolSpec, 0, len(conn.Tools()))
 	names := make([]string, 0, len(conn.Tools()))
 	for _, tool := range conn.Tools() {
-		spec, err := buildMCPToolSpec(ctx, deps.Config, view.Name, tool)
+		spec, err := buildMCPToolSpec(ctx, view.Name, tool)
 		if err != nil {
 			return nil, closeFor(conn, view.Name, "mcp_tool_invalid:"+err.Error())
 		}

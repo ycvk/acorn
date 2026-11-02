@@ -29,37 +29,37 @@ type PresenceToolDeps struct {
 }
 
 func buildKeepTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("keep", "Persist a fact immediately when the owner explicitly asks to remember it, citing the current owner source and exact words.", func(ctx context.Context, in memory.WriteInput, _ ToolProgressEmitter) (core.MemoryRecord, error) {
+	return inferLocalTool("keep", "Persist a fact immediately when the owner explicitly asks to remember it, citing the current owner source and exact words.", func(ctx context.Context, in memory.WriteInput) (core.MemoryRecord, error) {
 		return deps.Memory.Keep(ctx, deps.Context.CurrentRunID(ctx), in)
 	})
 }
 
 func buildThinkTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("think", "Record a sourced thought or open question of your own.", func(ctx context.Context, in memory.WriteInput, _ ToolProgressEmitter) (core.MemoryRecord, error) {
+	return inferLocalTool("think", "Record a sourced thought or open question of your own.", func(ctx context.Context, in memory.WriteInput) (core.MemoryRecord, error) {
 		return deps.Memory.Think(ctx, deps.Context.CurrentRunID(ctx), deps.Context.CurrentSessionID(ctx), in)
 	})
 }
 
 func buildRecallTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("recall", "Find sourced memories by meaning, words, related events and time. mode=current/history; depth=standard/deep. Results report unprocessed sources; use memory_read to inspect evidence.", func(ctx context.Context, in core.MemoryQuery, _ ToolProgressEmitter) (core.MemoryRecall, error) {
+	return inferLocalTool("recall", "Find sourced memories by meaning, words, related events and time. mode=current/history; depth=standard/deep. Results report unprocessed sources; use memory_read to inspect evidence.", func(ctx context.Context, in core.MemoryQuery) (core.MemoryRecall, error) {
 		return deps.Memory.Recall(ctx, in)
 	})
 }
 
 func buildMemoryReadTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("memory_read", "Expand a memory's evidence, revisions and related records. Continue through source text with next_cursor.", func(ctx context.Context, in memory.ReadInput, _ ToolProgressEmitter) (memory.ReadPage, error) {
+	return inferLocalTool("memory_read", "Expand a memory's evidence, revisions and related records. Continue through source text with next_cursor.", func(ctx context.Context, in memory.ReadInput) (memory.ReadPage, error) {
 		return deps.Memory.Read(ctx, in)
 	})
 }
 
 func buildMemoryCorrectTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("memory_correct", "Correct a fact using the current owner's explicit correction, exact quote and the target revision. Previous validity remains available to historical recall.", func(ctx context.Context, in memory.CorrectInput, _ ToolProgressEmitter) (core.MemoryRecord, error) {
+	return inferLocalTool("memory_correct", "Correct a fact using the current owner's explicit correction, exact quote and the target revision. Previous validity remains available to historical recall.", func(ctx context.Context, in memory.CorrectInput) (core.MemoryRecord, error) {
 		return deps.Memory.Correct(ctx, deps.Context.CurrentRunID(ctx), in)
 	})
 }
 
 func buildMemoryForgetTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("memory_forget", "Exclude identified memories from future agent use. Requires the current owner's request source. Fact IDs exclude their supporting fragments; inference IDs withdraw the inference while preserving its underlying facts. source_ids exclude whole sources. Resolve ambiguous scope with the owner first.", func(ctx context.Context, in core.MemoryForget, _ ToolProgressEmitter) (core.MemoryForgetResult, error) {
+	return inferLocalTool("memory_forget", "Exclude identified memories from future agent use. Requires the current owner's request source. Fact IDs exclude their supporting fragments; inference IDs withdraw the inference while preserving its underlying facts. source_ids exclude whole sources. Resolve ambiguous scope with the owner first.", func(ctx context.Context, in core.MemoryForget) (core.MemoryForgetResult, error) {
 		runID := deps.Context.CurrentRunID(ctx)
 		forgotten, err := deps.Memory.Forget(ctx, runID, in)
 		if err != nil {
@@ -73,7 +73,7 @@ func buildMemoryForgetTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildConcernTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("concern", "Track a continuing goal or open issue. List before creating a related concern; update with its revision, reason, source and complete title/record links. When the owner asks you to make something, give the concern an outcome. Resolve when supported by owner confirmation or observed results; a concern with an outcome is resolved only by the owner's confirmation, cited as source.", func(ctx context.Context, in memory.ConcernInput, _ ToolProgressEmitter) ([]core.MemoryConcern, error) {
+	return inferLocalTool("concern", "Track a continuing goal or open issue. List before creating a related concern; update with its revision, reason, source and complete title/record links. When the owner asks you to make something, give the concern an outcome. Resolve when supported by owner confirmation or observed results; a concern with an outcome is resolved only by the owner's confirmation, cited as source.", func(ctx context.Context, in memory.ConcernInput) ([]core.MemoryConcern, error) {
 		return deps.Memory.Concern(ctx, deps.Context.CurrentRunID(ctx), deps.Context.CurrentSessionID(ctx), in)
 	})
 }

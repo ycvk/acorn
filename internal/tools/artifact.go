@@ -60,17 +60,29 @@ type ArtifactListOutput struct {
 	Items     []ArtifactSummary `json:"items"`
 }
 
+// toolTimeLayout is how tool results write times.
+const toolTimeLayout = "2006-01-02T15:04:05.000000000Z07:00"
+
+// toolResultRef names the result of the tool call ctx carries, the source of
+// what the call stores.
+func toolResultRef(ctx context.Context, bridge core.ToolCallContextBridge, tool string) (runID, ref string, err error) {
+	runID = strings.TrimSpace(bridge.CurrentRunID(ctx))
+	if runID == "" {
+		return "", "", fmt.Errorf("%s requires current run context", tool)
+	}
+	callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
+	if callID == "" {
+		return "", "", fmt.Errorf("%s requires current tool call context", tool)
+	}
+	return runID, "tool_result:" + runID + ":" + callID, nil
+}
+
 func buildArtifactWriteTool(service core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("artifact_write", "Persist run-scoped artifact content and return an opaque artifact id.", func(ctx context.Context, input ArtifactWriteInput, emit ToolProgressEmitter) (ArtifactWriteOutput, error) {
-		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
-		if runID == "" {
-			return ArtifactWriteOutput{}, errors.New("artifact_write requires current run context")
+	tool, err := inferLocalTool("artifact_write", "Persist run-scoped artifact content and return an opaque artifact id.", func(ctx context.Context, input ArtifactWriteInput) (ArtifactWriteOutput, error) {
+		runID, sourceRef, err := toolResultRef(ctx, bridge, "artifact_write")
+		if err != nil {
+			return ArtifactWriteOutput{}, err
 		}
-		callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
-		if callID == "" {
-			return ArtifactWriteOutput{}, errors.New("artifact_write requires current tool call context")
-		}
-		sourceRef := "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID)
 		record, err := service.WriteArtifact(ctx, core.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
@@ -83,9 +95,6 @@ func buildArtifactWriteTool(service core.ArtifactService, bridge core.ToolCallCo
 		if err != nil {
 			return ArtifactWriteOutput{}, err
 		}
-		if err := emitToolProgress(ctx, emit, fmt.Sprintf("wrote artifact %s (%d bytes)", record.ArtifactID, record.SizeBytes)); err != nil {
-			return ArtifactWriteOutput{}, err
-		}
 		return ArtifactWriteOutput{ArtifactSummary: artifactSummaryFromRecord(record)}, nil
 	})
 	if err != nil {
@@ -95,16 +104,13 @@ func buildArtifactWriteTool(service core.ArtifactService, bridge core.ToolCallCo
 }
 
 func buildArtifactReadTool(service core.ArtifactService) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("artifact_read", "Read an explicit byte range from a persisted artifact.", func(ctx context.Context, input ArtifactReadInput, emit ToolProgressEmitter) (ArtifactReadOutput, error) {
+	tool, err := inferLocalTool("artifact_read", "Read an explicit byte range from a persisted artifact.", func(ctx context.Context, input ArtifactReadInput) (ArtifactReadOutput, error) {
 		result, err := service.ReadArtifactRange(ctx, core.ArtifactReadRangeRequest{
 			ArtifactID: input.ArtifactID,
 			Offset:     input.Offset,
 			Limit:      input.Limit,
 		})
 		if err != nil {
-			return ArtifactReadOutput{}, err
-		}
-		if err := emitToolProgress(ctx, emit, fmt.Sprintf("read artifact %s offset %d bytes %d", result.Record.ArtifactID, result.Offset, len(result.Content))); err != nil {
 			return ArtifactReadOutput{}, err
 		}
 		return ArtifactReadOutput{
@@ -122,7 +128,7 @@ func buildArtifactReadTool(service core.ArtifactService) (einotool.BaseTool, err
 }
 
 func buildArtifactListTool(service core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("artifact_list", "List artifacts for a run or session.", func(ctx context.Context, input ArtifactListInput, emit ToolProgressEmitter) (ArtifactListOutput, error) {
+	tool, err := inferLocalTool("artifact_list", "List artifacts for a run or session.", func(ctx context.Context, input ArtifactListInput) (ArtifactListOutput, error) {
 		runID := strings.TrimSpace(input.RunID)
 		sessionID := strings.TrimSpace(input.SessionID)
 		if runID != "" && sessionID != "" {
@@ -152,9 +158,6 @@ func buildArtifactListTool(service core.ArtifactService, bridge core.ToolCallCon
 		for _, record := range records {
 			items = append(items, artifactSummaryFromRecord(record))
 		}
-		if err := emitToolProgress(ctx, emit, fmt.Sprintf("listed %d artifacts", len(items))); err != nil {
-			return ArtifactListOutput{}, err
-		}
 		return ArtifactListOutput{RunID: runID, SessionID: sessionID, Items: items}, nil
 	})
 	if err != nil {
@@ -174,6 +177,6 @@ func artifactSummaryFromRecord(record core.ArtifactRecord) ArtifactSummary {
 		MIMEType:            record.MIMEType,
 		SizeBytes:           record.SizeBytes,
 		SHA256:              record.SHA256,
-		CreatedAt:           record.CreatedAt.Format("2006-01-02T15:04:05.000000000Z07:00"),
+		CreatedAt:           record.CreatedAt.Format(toolTimeLayout),
 	}
 }

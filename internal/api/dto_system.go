@@ -85,8 +85,6 @@ type InboxResponse struct {
 	System             SystemStatusDTO           `json:"system"`
 }
 
-// RunSummaryDTO is a lightweight summary of a run for list views.
-
 func inboxDTOFromDomain(inbox MobileInbox) InboxResponse {
 	return InboxResponse{
 		PendingActions:     DefaultConverter.pendingActionSummaryDTOsFromDomain(inbox.PendingActions),

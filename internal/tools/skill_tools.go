@@ -90,9 +90,9 @@ type SkillFileOutput struct {
 }
 
 func buildSkillWriteTool(deps SkillToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("skill_write",
+	return inferLocalTool("skill_write",
 		"Save a reusable procedure as a skill, or change one. Write one after finishing multi-step work the owner is likely to ask for again, and fix a skill whose steps turned out wrong. A skill holds steps and when they apply, and may carry scripts and reference files; facts about the owner belong in memory. Every write is kept as a new revision, and writing a retired skill brings it back.",
-		func(ctx context.Context, input SkillWriteInput, _ ToolProgressEmitter) (SkillWriteOutput, error) {
+		func(ctx context.Context, input SkillWriteInput) (SkillWriteOutput, error) {
 			if err := checkRequiredTools(input.Markdown); err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_write: %w", err)
 			}
@@ -115,9 +115,9 @@ func buildSkillWriteTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildSkillRetireTool(deps SkillToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("skill_retire",
+	return inferLocalTool("skill_retire",
 		"Take a skill out of use when it no longer applies or another skill covers it. The skill stays in its history and skill_write brings it back.",
-		func(ctx context.Context, input SkillRetireInput, _ ToolProgressEmitter) (SkillWriteOutput, error) {
+		func(ctx context.Context, input SkillRetireInput) (SkillWriteOutput, error) {
 			skill, err := deps.Library.Retire(ctx, input.Name, input.BaseRevision, deps.Context.CurrentRunID(ctx))
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_retire: %w", err)
@@ -131,9 +131,9 @@ func buildSkillRetireTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildSkillInspectTool(deps SkillToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("skill_inspect",
+	return inferLocalTool("skill_inspect",
 		"Check a skill package in the Agent Skills format, a directory or .zip with a SKILL.md, that you downloaded or wrote on the workstation. It reports the skill and the sha256 that skill_import takes. Read the package's SKILL.md and scripts before importing it.",
-		func(ctx context.Context, input SkillInspectInput, _ ToolProgressEmitter) (SkillInspectOutput, error) {
+		func(ctx context.Context, input SkillInspectInput) (SkillInspectOutput, error) {
 			entries, err := deps.Packages.ReadPackage(ctx, input.Path)
 			if err != nil {
 				return SkillInspectOutput{}, fmt.Errorf("skill_inspect: %w", err)
@@ -163,9 +163,9 @@ func buildSkillInspectTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildSkillImportTool(deps SkillToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("skill_import",
+	return inferLocalTool("skill_import",
 		"Add a package that skill_inspect checked to your skills, or replace a skill with it. The owner sees the package's SKILL.md and files when approving.",
-		func(ctx context.Context, input SkillImportInput, _ ToolProgressEmitter) (SkillWriteOutput, error) {
+		func(ctx context.Context, input SkillImportInput) (SkillWriteOutput, error) {
 			skill, err := deps.Library.ImportStaged(ctx, input.Name, input.SHA256, input.BaseRevision, deps.Context.CurrentRunID(ctx))
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_import: %w", err)

@@ -76,16 +76,10 @@ type PendingActionDecisionInput struct {
 }
 
 func (s *PendingActionService) List(ctx context.Context, limit int) ([]PendingActionSummary, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("pending action store is nil")
-	}
 	return listPendingActionSummaries(ctx, s.store, limit)
 }
 
 func (s *PendingActionService) Get(ctx context.Context, actionID string) (*PendingActionDetail, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("pending action store is nil")
-	}
 	actionID = strings.TrimSpace(actionID)
 	if actionID == "" {
 		return nil, errors.New("pending action id is required")
@@ -191,9 +185,6 @@ func (s *PendingActionService) keptManifest(ctx context.Context, name string, ar
 }
 
 func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*core.PendingActionRecord, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("pending action store is nil")
-	}
 	actionID = strings.TrimSpace(actionID)
 	if actionID == "" {
 		return nil, errors.New("pending action id is required")

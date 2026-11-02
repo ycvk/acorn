@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
@@ -27,15 +26,13 @@ import (
 )
 
 type containerRuntimeDeps struct {
-	memory                *memory.Engine
-	skills                *skills.Library
-	mcpPendingActionStore core.SessionStore
-	toolRegistry          core.ToolRegistry
-	runnerFactory         *runtime.RunnerFactory
-	runController         *runtime.RunController
-	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
-	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
-	settings              *settings.Service
+	memory        *memory.Engine
+	skills        *skills.Library
+	runnerFactory *runtime.RunnerFactory
+	runController *runtime.RunController
+	executeRun    func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
+	resumeRun     func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	settings      *settings.Service
 	// notifier is nil when push notifications are not configured.
 	notifier     *notify.Sender
 	vault        *knowledge.Vault
@@ -92,16 +89,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 
 	runController := runtime.NewRunController()
 
-	var mcpPendingActionStore core.SessionStore = db
-
-	artifactSvc, err := store.NewArtifactService(
-		filepath.Join(cfg.Runtime.StorageDir, "artifacts"),
-		db,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("artifact service: %w", err)
-	}
-
 	ctxBridge := runtime.NewContextBridge()
 	ownerSettings, err := settings.NewService(db, db, options.clock)
 	if err != nil {
@@ -135,7 +122,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	newsProcessor, err := buildNews(ctx, cfg, db, ownerSettings, webFetcher, options.clock)
+	newsProcessor, err := buildNews(cfg, db, ownerSettings, webFetcher, options.clock)
 	if err != nil {
 		return nil, fmt.Errorf("news: %w", err)
 	}
@@ -162,9 +149,9 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
-		ArtifactService: artifactSvc,
+		ArtifactService: db,
 		ArtifactContext: ctxBridge,
-		OperatorStore:   mcpPendingActionStore,
+		OperatorStore:   db,
 		OperatorContext: ctxBridge,
 		Presence: tools.PresenceToolDeps{
 			Store:         db,
@@ -230,8 +217,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Skills:             skillLibrary,
 		SkillPackages:      skillPackages,
 		SkillServers:       skillServers,
-		MCPPendingActions:  mcpPendingActionStore,
-		ArtifactService:    artifactSvc,
+		ArtifactService:    db,
 		ToolRegistry:       toolRegistry,
 		Activity:           db,
 		MemoryStore:        db,
@@ -252,7 +238,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, err
 	}
 	executeRun := func(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*runtime.Result, error) {
-		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
+		exec, err := runtime.NewExecutorWithRunRuntimeAndController(db, runnerFactory, runController)
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +247,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return result, err
 	}
 	resumeRun := func(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*runtime.Result, error) {
-		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
+		exec, err := runtime.NewExecutorWithRunRuntimeAndController(db, runnerFactory, runController)
 		if err != nil {
 			return nil, err
 		}
@@ -271,23 +257,21 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	return &containerRuntimeDeps{
-		skills:                skillLibrary,
-		settings:              ownerSettings,
-		memory:                memoryEngine,
-		mcpPendingActionStore: mcpPendingActionStore,
-		toolRegistry:          toolRegistry,
-		runnerFactory:         runnerFactory,
-		runController:         runController,
-		executeRun:            executeRun,
-		resumeRun:             resumeRun,
-		notifier:              notifier,
-		vault:                 vault,
-		watchChecker:          watchChecker,
-		news:                  newsProcessor,
-		triggers:              triggers,
-		workstation:           workstationClient,
-		panels:                panels,
-		packageStatus:         packageStatus,
+		skills:        skillLibrary,
+		settings:      ownerSettings,
+		memory:        memoryEngine,
+		runnerFactory: runnerFactory,
+		runController: runController,
+		executeRun:    executeRun,
+		resumeRun:     resumeRun,
+		notifier:      notifier,
+		vault:         vault,
+		watchChecker:  watchChecker,
+		news:          newsProcessor,
+		triggers:      triggers,
+		workstation:   workstationClient,
+		panels:        panels,
+		packageStatus: packageStatus,
 	}, nil
 }
 

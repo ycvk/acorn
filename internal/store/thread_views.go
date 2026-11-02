@@ -337,22 +337,11 @@ func (s *Store) SendViewAction(ctx context.Context, in core.ViewActionWrite) (co
 		if sent > 0 {
 			return fmt.Errorf("%w: %s of %s", core.ErrViewActionTaken, in.Key, in.ViewID)
 		}
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(turn_index), 0) + 1 FROM session_messages WHERE session_id = ?`, in.SessionID).Scan(&message.TurnIndex); err != nil {
+		if err := appendOwnerMessage(ctx, tx, &message); err != nil {
 			return err
 		}
-		result, err := tx.ExecContext(ctx, `INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, '', ?)`,
-			message.SessionID, message.TurnIndex, message.Role, message.Content, formatTimestamp(now))
-		if err != nil {
-			return err
-		}
-		if message.ID, err = result.LastInsertId(); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO thread_view_actions (`+threadViewActionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.ViewID, in.Key, in.SessionID, in.ComponentID, string(scope), in.Name, string(selected), string(carried), message.ID, formatTimestamp(now)); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(now), in.SessionID)
+		_, err := tx.ExecContext(ctx, `INSERT INTO thread_view_actions (`+threadViewActionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.ViewID, in.Key, in.SessionID, in.ComponentID, string(scope), in.Name, string(selected), string(carried), message.ID, formatTimestamp(now))
 		return err
 	})
 	if err != nil {

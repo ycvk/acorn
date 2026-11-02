@@ -78,7 +78,6 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		Kind:        core.PendingActionKindElicitation,
 		Subject:     "elicitation",
 		PayloadJSON: string(paramsJSON),
-		Status:      core.PendingActionStatusPending,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create elicitation pending action: %w", err)
@@ -156,9 +155,6 @@ func pendingActionStatusToElicitResult(status core.PendingActionStatus) *mcp.Eli
 
 // emitElicitationEvent emits an elicitation event via the store's AppendEvent.
 func (h *ElicitationHandler) emitElicitationEvent(ctx context.Context, runID, actionID string, params *mcp.ElicitParams, eventKind string) error {
-	if h.store == nil {
-		return fmt.Errorf("elicitation event store not configured")
-	}
 	payload := map[string]any{
 		"action_id": actionID,
 	}

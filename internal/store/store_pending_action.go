@@ -13,9 +13,9 @@ import (
 )
 
 func (s *Store) CreatePendingAction(ctx context.Context, input core.PendingActionInput) (*core.PendingActionRecord, error) {
-	kind, status, err := normalizeCreatePendingActionInput(input)
+	kind, err := normalizePendingActionKind(input.Kind)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create pending action: %w", err)
 	}
 	if _, err := s.LoadRun(ctx, input.RunID); err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func (s *Store) CreatePendingAction(ctx context.Context, input core.PendingActio
 		Kind:        kind,
 		Subject:     strings.TrimSpace(input.Subject),
 		PayloadJSON: input.PayloadJSON,
-		Status:      status,
+		Status:      core.PendingActionStatusPending,
 		Reason:      strings.TrimSpace(input.Reason),
 		CreatedAt:   now,
 	}
@@ -60,20 +60,6 @@ func (s *Store) insertPendingAction(ctx context.Context, record *core.PendingAct
 		return fmt.Errorf("create pending action: %w", err)
 	}
 	return nil
-}
-
-// normalizeCreatePendingActionInput normalizes the kind/status fields of a
-// PendingActionInput, returning them together with any error.
-func normalizeCreatePendingActionInput(input core.PendingActionInput) (core.PendingActionKind, core.PendingActionStatus, error) {
-	kind, err := normalizePendingActionKind(input.Kind)
-	if err != nil {
-		return "", "", fmt.Errorf("create pending action: %w", err)
-	}
-	status, err := normalizePendingActionStatus(input.Status)
-	if err != nil {
-		return "", "", fmt.Errorf("create pending action: %w", err)
-	}
-	return kind, status, nil
 }
 
 func (s *Store) LoadPendingAction(ctx context.Context, actionID string) (*core.PendingActionRecord, error) {
@@ -146,9 +132,9 @@ func (s *Store) ListPendingActionsByRun(ctx context.Context, runID string) ([]co
 // transaction: it loads and validates the action, applies the decision update,
 // appends an action.decided event, and commits.
 func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status core.PendingActionStatus, decisionJSON string) (out *core.PendingActionRecord, err error) {
-	normalizedStatus, err := normalizePendingActionDecisionInput(status)
+	normalizedStatus, err := normalizePendingActionDecision(status)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decide pending action: %w", err)
 	}
 	resolvedAt := time.Now().UTC()
 
@@ -168,25 +154,10 @@ func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status
 	if err := decideAppendEvent(ctx, tx, record, normalizedStatus, resolvedAt); err != nil {
 		return nil, err
 	}
-	return decideCommit(tx, record, normalizedStatus, decisionJSON, resolvedAt)
-}
-
-// normalizePendingActionDecisionInput normalizes the decision status,
-// wrapping any error with the "decide pending action" context.
-func normalizePendingActionDecisionInput(status core.PendingActionStatus) (core.PendingActionStatus, error) {
-	normalizedStatus, err := normalizePendingActionDecision(status)
-	if err != nil {
-		return "", fmt.Errorf("decide pending action: %w", err)
-	}
-	return normalizedStatus, nil
-}
-
-// decideCommit commits the tx and returns the finalized record.
-func decideCommit(tx *sql.Tx, record *core.PendingActionRecord, status core.PendingActionStatus, decisionJSON string, resolvedAt time.Time) (*core.PendingActionRecord, error) {
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("decide pending action commit: %w", err)
 	}
-	record.Status = status
+	record.Status = normalizedStatus
 	record.DecisionJSON = decisionJSON
 	record.ResolvedAt = &resolvedAt
 	return record, nil
@@ -271,23 +242,6 @@ func normalizePendingActionKind(kind core.PendingActionKind) (core.PendingAction
 		return core.PendingActionKindToolApproval, nil
 	default:
 		return "", fmt.Errorf("unsupported pending action kind %q", kind)
-	}
-}
-
-func normalizePendingActionStatus(status core.PendingActionStatus) (core.PendingActionStatus, error) {
-	switch strings.TrimSpace(string(status)) {
-	case "":
-		return core.PendingActionStatusPending, nil
-	case string(core.PendingActionStatusPending):
-		return core.PendingActionStatusPending, nil
-	case string(core.PendingActionStatusApproved):
-		return core.PendingActionStatusApproved, nil
-	case string(core.PendingActionStatusRejected):
-		return core.PendingActionStatusRejected, nil
-	case string(core.PendingActionStatusResolved):
-		return core.PendingActionStatusResolved, nil
-	default:
-		return "", fmt.Errorf("unsupported pending action status %q", status)
 	}
 }
 

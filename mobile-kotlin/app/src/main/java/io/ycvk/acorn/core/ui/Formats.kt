@@ -21,6 +21,13 @@ fun weekdayName(day: DayOfWeek): String = when (day) {
 
 fun clockTime(at: OffsetDateTime, zone: ZoneId): String = at.atZoneSameInstant(zone).format(clock)
 
+/** A coming day: "今天", "明天" or "10月14日". */
+fun dayLabel(date: LocalDate, today: LocalDate): String = when (date) {
+    today -> "今天"
+    today.plusDays(1) -> "明天"
+    else -> "${date.monthValue}月${date.dayOfMonth}日"
+}
+
 /** A list timestamp: "14:05" today, then "昨天", a weekday within the week, or a date. */
 fun listTime(at: OffsetDateTime, today: LocalDate, zone: ZoneId): String {
     val local = at.atZoneSameInstant(zone)

@@ -27,6 +27,8 @@ import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * SSE client for `GET /v1/runs/{runId}/events?follow=true&after_seq=N`.
@@ -38,7 +40,8 @@ import java.util.concurrent.ConcurrentHashMap
  * [EventSourceListener.onEvent]) to select the matching concrete [Client*Event]
  * Moshi adapter.
  */
-class RunEventStreamClient(client: OkHttpClient) {
+@Singleton
+class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
     // Reuse the generated client's Moshi (date/UUID adapters + KotlinJsonAdapterFactory)
     // so envelope fields (OffsetDateTime ts, Long seq) decode the same way as REST calls.
     private val moshi = Serializer.moshi
@@ -109,15 +112,15 @@ class RunEventStreamClient(client: OkHttpClient) {
      * Parses an SSE `data` payload into a [RunEventPacket] by dispatching on the
      * `type` discriminator (the SSE `event:` line).
      *
-     * If the type is unknown the raw data is preserved in [RunEventPacket.Unknown].
+     * An event of an unknown type is [RunEventPacket.Unknown].
      */
     private fun parseRunEvent(type: String?, data: String): RunEventPacket {
         if (type == null) {
-            return RunEventPacket.Unknown(rawType = "(null)", rawData = data)
+            return RunEventPacket.Unknown
         }
 
         val eventType = eventTypes[type]
-            ?: return RunEventPacket.Unknown(rawType = type, rawData = data)
+            ?: return RunEventPacket.Unknown
         val adapter = eventAdapters.computeIfAbsent(type) { moshi.adapter(eventType) }
 
         val parsed = adapter.fromJson(data)
@@ -141,7 +144,7 @@ class RunEventStreamClient(client: OkHttpClient) {
             "tool.call.failed" -> RunEventPacket.ToolCallFailed(parsed as ClientToolCallFailedEvent)
             "view.shown" -> RunEventPacket.ViewShown(parsed as ClientViewShownEvent)
             "view.updated" -> RunEventPacket.ViewUpdated(parsed as ClientViewUpdatedEvent)
-            else -> RunEventPacket.Unknown(rawType = type, rawData = data)
+            else -> RunEventPacket.Unknown
         }
     }
 }
@@ -151,8 +154,7 @@ class RunEventStreamClient(client: OkHttpClient) {
  * classes. Each subtype takes [eventId] and [seq] from the wrapped event so callers
  * can read envelope fields without unwrapping.
  *
- * [Unknown] preserves the raw SSE type and data for events the client does not
- * recognise, so they can be logged or ignored without losing information.
+ * [Unknown] stands for an event the client does not recognise; it is ignored.
  */
 sealed class RunEventPacket(val eventId: String, val seq: Long) {
     data class Started(val event: ClientRunStartedEvent) : RunEventPacket(event.eventId, event.seq)
@@ -173,5 +175,5 @@ sealed class RunEventPacket(val eventId: String, val seq: Long) {
     data class ViewShown(val event: ClientViewShownEvent) : RunEventPacket(event.eventId, event.seq)
     data class ViewUpdated(val event: ClientViewUpdatedEvent) : RunEventPacket(event.eventId, event.seq)
 
-    data class Unknown(val rawType: String, val rawData: String) : RunEventPacket("", 0L)
+    data object Unknown : RunEventPacket("", 0L)
 }

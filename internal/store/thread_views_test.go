@@ -190,3 +190,37 @@ func TestPinnedViewsArePanelsFedOnlyWhilePinned(t *testing.T) {
 		t.Fatalf("panels after the thread was deleted = %+v, %v", panels, err)
 	}
 }
+
+func TestSendViewActionTakesTheNextTurnAndTouchesTheThread(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.CreateSession(ctx, "eino", "eino"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendSessionMessage(ctx, "eino", 3, "user", "earlier", ""); err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.SaveThreadView(ctx, core.ThreadViewWrite{SessionID: "eino", RunID: "run_1", Title: "t", Catalog: "acorn.views.v1",
+		Components: json.RawMessage(`[{"component":"Text","id":"root","text":"x"}]`), Data: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	message, _, err := s.SendViewAction(ctx, core.ViewActionWrite{ViewID: view.ID, SessionID: "eino", Key: "go", ComponentID: "go", Name: "go", Text: "继续"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if message.TurnIndex != 4 || message.SessionID != "eino" {
+		t.Fatalf("message = %+v, want turn 4 in eino", message)
+	}
+	session, err := s.LoadSession(ctx, "eino")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !session.UpdatedAt.Equal(message.CreatedAt) {
+		t.Fatalf("thread updated at %v, want the message time %v", session.UpdatedAt, message.CreatedAt)
+	}
+}

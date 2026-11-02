@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -29,22 +28,20 @@ type ArtifactSummary struct {
 type EventService struct {
 	store     core.SessionStore
 	artifacts core.ArtifactService
-	eventPoll time.Duration
 }
+
+// eventPollInterval is how often a followed run's stream checks for new events.
+const eventPollInterval = 100 * time.Millisecond
 
 // NewEventService constructs an EventService backed by the given store.
 func NewEventService(store core.SessionStore, artifacts core.ArtifactService) *EventService {
 	return &EventService{
 		store:     store,
 		artifacts: artifacts,
-		eventPoll: 100 * time.Millisecond,
 	}
 }
 
 func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*RunEventBatch, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}
@@ -52,20 +49,13 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 	if err != nil {
 		return nil, fmt.Errorf("load run %s events: %w", runID, err)
 	}
-	events := make([]RunEvent, 0, len(records))
+	events, err := projectLiveEvents(records)
+	if err != nil {
+		return nil, err
+	}
 	cursorSeq := afterSeq
 	for _, record := range records {
-		if record.Sequence > cursorSeq {
-			cursorSeq = record.Sequence
-		}
-		if !IsLiveRunEventKind(record.Kind) {
-			continue
-		}
-		event, err := ProjectRunEvent(record)
-		if err != nil {
-			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
-		}
-		events = append(events, event)
+		cursorSeq = max(cursorSeq, record.Sequence)
 	}
 	return &RunEventBatch{
 		Events:    events,
@@ -74,9 +64,6 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 }
 
 func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string) (*RunEventDetail, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}
@@ -84,6 +71,17 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 	if err != nil {
 		return nil, fmt.Errorf("load run %s events: %w", runID, err)
 	}
+	events, err := projectLiveEvents(records)
+	if err != nil {
+		return nil, err
+	}
+	return &RunEventDetail{
+		Events: events,
+	}, nil
+}
+
+// projectLiveEvents projects the records of the kinds clients are shown.
+func projectLiveEvents(records []core.EventRecord) ([]RunEvent, error) {
 	events := make([]RunEvent, 0, len(records))
 	for _, record := range records {
 		if !IsLiveRunEventKind(record.Kind) {
@@ -95,22 +93,10 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 		}
 		events = append(events, event)
 	}
-	return &RunEventDetail{
-		Events: events,
-	}, nil
-}
-
-func (s *EventService) EventPollInterval() time.Duration {
-	if s == nil || s.eventPoll <= 0 {
-		return 100 * time.Millisecond
-	}
-	return s.eventPoll
+	return events, nil
 }
 
 func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]ArtifactSummary, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}

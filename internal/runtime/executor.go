@@ -8,7 +8,6 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -26,10 +25,7 @@ type Executor struct {
 	controller *RunController
 }
 
-func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
+func NewExecutorWithRunRuntimeAndController(store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
 	if store == nil {
 		return nil, errors.New("store is required")
 	}
@@ -37,9 +33,9 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		return nil, errors.New("run runtime is required")
 	}
 	if controller == nil {
-		controller = NewRunController()
+		return nil, errors.New("run controller is required")
 	}
-	if err := cfg.ValidateExecutionReady(); err != nil {
+	if err := runRuntime.deps.Config.ValidateExecutionReady(); err != nil {
 		return nil, fmt.Errorf("%w: %w", core.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
@@ -62,15 +58,12 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRe
 		return req, nil
 	}
 	req.SessionID = core.NewSessionID()
-	title, _ := compactText(req.Input, 48)
+	title := compactText(req.Input, 48)
 	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, req.SessionID, title, req.Input)
 	if err != nil {
 		return req, err
 	}
 	req.TurnIndex = turnIndex
-	if len(req.Messages) == 0 && strings.TrimSpace(req.Input) != "" {
-		req.Messages = []adk.AgenticMessage{schema.UserAgenticMessage(req.Input)}
-	}
 	return req, nil
 }
 
@@ -102,7 +95,12 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		return nil, err
 	}
 	runCtxBase = memoryScope(runCtxBase, runID, req.Autonomous)
-	active, err := e.buildExecuteRunner(runCtxBase, req, runID, sink)
+	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
+		SessionID:  req.SessionID,
+		RunID:      runID,
+		Wake:       req.Wake,
+		Standalone: req.Standalone,
+	})
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
@@ -127,18 +125,6 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.Ex
 		return e.store.BindUserMessageRunIDByID(ctx, req.BoundMessageID, runID)
 	}
 	return e.store.BindLatestUserMessageRunID(ctx, req.SessionID, req.TurnIndex, runID)
-}
-
-func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.ExecuteRequest, runID string, sink core.StreamSink) (*ActiveRunner, error) {
-	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID:  req.SessionID,
-		RunID:      runID,
-		Input:      req.Input,
-		SkillID:    req.SkillID,
-		Wake:       req.Wake,
-		Standalone: req.Standalone,
-		Sink:       sink,
-	})
 }
 
 func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func(), error) {
@@ -244,7 +230,7 @@ func (e *Executor) consume(ctx, runCtx context.Context, runID string, iter *adk.
 
 func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
 	state := RunState{}
-	projector := newAgentEventProjector(runID, active.ChatModel, active.FailedCalls)
+	projector := newAgentEventProjector(runID, active.FailedCalls)
 	emit := func(item core.StreamItem) error {
 		item.RunID = runID
 		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
@@ -332,9 +318,6 @@ func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink core.St
 }
 
 func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink core.StreamSink) error {
-	if strings.TrimSpace(runID) == "" || setupErr == nil {
-		return setupErr
-	}
 	durableCtx := context.WithoutCancel(ctx)
 	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
 		return err

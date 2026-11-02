@@ -17,6 +17,12 @@ func NewSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
+// Midnight is the start of now's day in loc.
+func Midnight(now time.Time, loc *time.Location) time.Time {
+	local := now.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+}
+
 // NewActionID generates a pending action identifier. Clients address actions
 // as /v1/pending-actions/{action_id}:decide, so the ID holds only [a-z0-9_].
 func NewActionID() string {

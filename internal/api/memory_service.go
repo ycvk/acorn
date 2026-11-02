@@ -193,7 +193,7 @@ func (s *MemoryService) Forget(ctx context.Context, id string) (MemoryForgetResp
 	if err := s.barrier(ctx, forgotten.Exclusion, ""); err != nil {
 		return MemoryForgetResponse{}, err
 	}
-	return MemoryForgetResponse{ForgottenIDs: nonNilStrings(forgotten.RecordIDs)}, nil
+	return MemoryForgetResponse{ForgottenIDs: nonNilTags(forgotten.RecordIDs)}, nil
 }
 
 // Correct replaces a fact with the owner's wording and returns the new fact.
@@ -215,8 +215,8 @@ func memorySummary(record core.MemoryRecord) MemorySummaryDTO {
 		Revision:    record.Revision,
 		Pinned:      record.Pinned,
 		NeedsReview: record.NeedsReview,
-		ValidFrom:   optionalTime(record.ValidFrom),
-		ValidTo:     optionalTime(record.ValidTo),
+		ValidFrom:   optionalUTC(record.ValidFrom),
+		ValidTo:     optionalUTC(record.ValidTo),
 		UpdatedAt:   record.UpdatedAt.UTC(),
 	}
 }
@@ -235,19 +235,4 @@ func memoryEvidence(evidence core.MemoryEvidence, source core.MemorySource) Memo
 		out.NotePath = source.ObjectID
 	}
 	return out
-}
-
-func optionalTime(t time.Time) *time.Time {
-	if t.IsZero() {
-		return nil
-	}
-	utc := t.UTC()
-	return &utc
-}
-
-func nonNilStrings(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-	return values
 }

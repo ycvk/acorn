@@ -1,15 +1,11 @@
 package io.ycvk.acorn.feature.approvals
 
-import android.Manifest
-import io.ycvk.acorn.core.auth.authorized
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
@@ -22,8 +18,10 @@ import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.SecureStore
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
 import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
+import io.ycvk.acorn.core.push.canPostNotifications
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.feature.live.RunFollower
 import kotlinx.coroutines.CoroutineScope
@@ -83,7 +81,7 @@ class ApprovalNotifications @Inject constructor(
      * text is shown, so the owner still learns something is waiting.
      */
     fun show(push: PendingActionPush) {
-        if (!hasPermission()) return
+        if (!canPostNotifications(context)) return
         val profile = secureStore.getConnection() ?: return
         val detail = try {
             api(profile).clientGetPendingAction(push.actionId)
@@ -203,9 +201,6 @@ class ApprovalNotifications @Inject constructor(
         return ClientApi(basePath = profile.serverUrl).authorized(profile)
     }
 
-    private fun hasPermission(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     companion object {
         const val CHANNEL_ID = "acorn_approvals"

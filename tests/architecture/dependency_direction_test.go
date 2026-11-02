@@ -14,7 +14,6 @@ import (
 // lower layer. This prevents architectural drift.
 //
 // Layer 0: core (domain types, contracts, ports, tool registry interfaces)
-// Layer 1: (reserved — port/contract merged into core)
 // Layer 2: store, redact, presence, memory, news, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, workstation, views, settings, config
 // Layer 3: runtime (executor, per-run assembly, middleware, projection)
 // Layer 4: api
@@ -112,8 +111,7 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 }
 
 // TestNoDirectStoreImportOutsideWire checks that packages outside wire/
-// do not import internal/store directly. Sentinel errors are now in core,
-// and ArtifactService is accessed via the core.ArtifactService interface.
+// do not import internal/store directly.
 func TestNoDirectStoreImportOutsideWire(t *testing.T) {
 	root := filepath.Join("..", "..", "internal")
 	violations := []string{}

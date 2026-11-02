@@ -127,9 +127,6 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	if req.Memory == nil {
-		return nil, errors.New("run memory context is required")
-	}
 	inputBudget -= req.Memory.budget + 64
 	patch, err := patchtoolcalls.NewTyped[*schema.AgenticMessage](ctx, nil)
 	if err != nil {

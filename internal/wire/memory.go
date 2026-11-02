@@ -14,7 +14,7 @@ import (
 )
 
 func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, owner core.SettingsReader, clock func() time.Time, rebuild bool) (*memory.Engine, error) {
-	model, err := runtime.NewMemoryModel(ctx, cfg)
+	model, err := runtime.NewMemoryModel(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (c *Container) MemoryStatus(ctx context.Context) (core.MemoryProcessingStat
 		return status, err
 	}
 	now := c.clock().In(current.Location)
-	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, current.Location)
+	midnight := core.Midnight(now, current.Location)
 	status.TokensToday, err = c.store.MemoryUsageSince(ctx, midnight, "memory")
 	status.DailyTokenLimit = current.MemoryDailyTokens
 	return status, err

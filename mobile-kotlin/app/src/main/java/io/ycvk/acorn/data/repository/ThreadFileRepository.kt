@@ -80,7 +80,7 @@ class ThreadFileRepository @Inject constructor(@ApplicationContext private val c
         val target = File(dir, file.name.replace('/', '_'))
         if (target.length() == file.sizeBytes) return target
         val request = Request.Builder()
-            .url("${profile.serverUrl.trimEnd('/')}/v1/threads/$threadId/files/$id")
+            .url(threadFileUrl(profile.serverUrl, threadId, id))
             .header("Authorization", "Bearer ${profile.accessToken}")
             .build()
         client.newCall(request).execute().use { response ->
@@ -214,3 +214,7 @@ fun pendingAttachment(context: Context, uri: Uri, photo: Boolean): PendingAttach
     val mime = resolver.getType(uri) ?: "application/octet-stream"
     return PendingAttachment(uri, name ?: uri.lastPathSegment ?: "file", mime, size, photo)
 }
+
+/** Where the paired server serves a file of a conversation. */
+fun threadFileUrl(serverUrl: String, threadId: String, fileId: String): String =
+    "${serverUrl.trimEnd('/')}/v1/threads/$threadId/files/$fileId"

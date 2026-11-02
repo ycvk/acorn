@@ -77,7 +77,8 @@ Usage:
   acorn memory reindex [-c path] [--json]
   acorn skills list [-c path] [--json]
   acorn skills inspect [-c path] [--json] SKILL_ID
-  acorn skills check [-c path] [--json] [--fixtures path]
+  acorn skills check [-c path] [--json]
+  acorn skills import [-c path] [--replace] DIR|ZIP
   acorn skills secret set [-c path] SKILL NAME < value
   acorn persona show [-c path] [--json]
   acorn persona set [-c path] FILE

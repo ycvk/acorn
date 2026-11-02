@@ -2,9 +2,7 @@ package io.ycvk.acorn.feature.shell
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -43,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -51,6 +48,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.net.LocalNetworkDenied
+import io.ycvk.acorn.core.push.canPostNotifications
 import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
@@ -106,9 +104,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
         shellViewModel.registerPush()
     }
     val askNotifications = {
-        val needsPrompt = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        if (needsPrompt) {
+        if (!canPostNotifications(context)) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             shellViewModel.registerPush()

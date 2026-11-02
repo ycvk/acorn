@@ -13,16 +13,13 @@ import (
 	"github.com/ycvk/acorn/internal/tools"
 )
 
-func compactText(value string, limit int) (string, bool) {
+func compactText(value string, limit int) string {
 	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "", false
-	}
 	runes := []rune(trimmed)
-	if limit <= 0 || len(runes) <= limit {
-		return trimmed, false
+	if len(runes) <= limit {
+		return trimmed
 	}
-	return string(runes[:limit]) + "...", true
+	return string(runes[:limit]) + "..."
 }
 
 var registerOnce sync.Once
@@ -73,7 +70,6 @@ type RuntimeDeps struct {
 	Skills             SkillLibrary
 	SkillPackages      skills.PackageHost
 	SkillServers       SkillServerHost
-	MCPPendingActions  core.SessionStore
 	ArtifactService    core.ArtifactService
 	ToolRegistry       core.ToolRegistry
 	PhoneNotifications core.PhoneNotificationStore

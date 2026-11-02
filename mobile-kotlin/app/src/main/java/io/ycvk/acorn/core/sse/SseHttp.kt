@@ -24,8 +24,4 @@ object SseModule {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
-
-    @Provides
-    @Singleton
-    fun provideRunEventStreamClient(@SseHttp client: OkHttpClient): RunEventStreamClient = RunEventStreamClient(client)
 }

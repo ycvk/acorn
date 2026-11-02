@@ -13,7 +13,6 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/core"
-	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -35,11 +34,15 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	if err != nil {
 		return nil, err
 	}
-	capabilityAssembly, err := f.buildRunCapabilityAssembly(ctx, req)
+	mcpManager, err := bootstrapRunMCP(ctx, f.deps, f.mcpCache, req)
 	if err != nil {
 		return nil, err
 	}
-	return f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
+	capabilities, err := buildRunCapabilities(ctx, f.deps, mcpManager)
+	if err != nil {
+		return nil, err
+	}
+	return f.newAgentRunner(ctx, req, chatModel, capabilities)
 }
 
 // BuildCapabilitySpecs returns the non-MCP tool specs a run can see: the
@@ -68,23 +71,6 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSp
 // Close releases the cached MCP manager.
 func (f *RunnerFactory) Close() error {
 	return closeMCPCache(f.mcpCache)
-}
-
-func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
-	mcpManager, err := bootstrapRunMCP(ctx, f.deps, f.mcpCache, req)
-	if err != nil {
-		return nil, err
-	}
-	capabilities, err := buildRunCapabilities(ctx, f.deps, req.SessionID, req.RunID, mcpManager)
-	if err != nil {
-		return nil, err
-	}
-	return &capabilityAssembly{mcpManager: mcpManager, capabilities: capabilities}, nil
-}
-
-type capabilityAssembly struct {
-	mcpManager   *mcpprovider.Manager
-	capabilities *runCapabilities
 }
 
 func validateRuntimeDeps(deps RuntimeDeps) error {
@@ -124,6 +110,12 @@ func validateRuntimeDeps(deps RuntimeDeps) error {
 	if deps.Settings == nil {
 		return errors.New("settings are required")
 	}
+	if deps.ArtifactService == nil {
+		return errors.New("artifact service is required")
+	}
+	if deps.Memory == nil {
+		return errors.New("runtime memory service is required")
+	}
 	return nil
 }
 
@@ -135,11 +127,7 @@ type runCapabilities struct {
 	skillDir string
 }
 
-func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.AgenticModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
-	if capabilityAssembly == nil || capabilityAssembly.capabilities == nil {
-		return nil, errors.New("run capabilities are required")
-	}
-	capabilities := capabilityAssembly.capabilities
+func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.AgenticModel, capabilities *runCapabilities) (*ActiveRunner, error) {
 	current, err := f.deps.Persona.Persona(ctx)
 	if err != nil {
 		return nil, err
@@ -202,12 +190,9 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		return nil, err
 	}
 	return &ActiveRunner{
-		Mcp:         capabilityAssembly.mcpManager,
 		Runner:      runner,
-		ChatModel:   chatModel,
 		FailedCalls: failed,
 		Memory:      mem,
-		RunID:       req.RunID,
 		ToolCatalog: capabilities.catalog,
 	}, nil
 }
@@ -219,18 +204,12 @@ type RunnerBuildRequest struct {
 	Standalone bool
 	SessionID  string
 	RunID      string
-	Input      string
-	SkillID    string
-	Sink       core.StreamSink
 }
 
 type ActiveRunner struct {
 	Memory      *runMemory
-	Mcp         *mcpprovider.Manager
 	Runner      *adk.TypedRunner[*schema.AgenticMessage]
-	ChatModel   einomodel.AgenticModel
 	FailedCalls *failedToolCalls
-	RunID       string
 	ToolCatalog *tools.Catalog
 }
 

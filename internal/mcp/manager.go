@@ -53,9 +53,7 @@ type provider struct {
 // The third parameter allows the caller to supply ClientOptions (e.g. for
 // notification handler registration). When nil, the client is created with
 // no options.
-var connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore) (*provider, error) {
-	return connectProvider(ctx, cfg, opts, store)
-}
+var connectProviderFunc = connectProvider
 
 // ManagerOption configures Manager construction.
 type ManagerOption func(*managerOptions)
@@ -83,10 +81,9 @@ func WithStore(store core.SessionStore) ManagerOption {
 
 // ToolSpecBuilder translates a discovered MCP tool (provider + tool) into a
 // core.ToolSpec for registration in the unified ToolRegistry. It is supplied by
-// the runtime — which owns MCP namespacing, parallel-policy resolution, and
-// description augmentation — so the manager can register tools without taking
-// a config/runtime dependency. The namespaced tool name returned in the spec
-// MUST match what the capability catalog expects (see runtime.mcpToolName).
+// the runtime, which owns description augmentation, so the manager can register
+// tools without taking a runtime dependency. The spec is named
+// ToolName(provider, tool).
 type ToolSpecBuilder func(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error)
 
 // WithToolRegistry wires a unified core.ToolRegistry so MCP tools discovered
@@ -136,10 +133,7 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	}
 
 	// Connect providers concurrently, preserving config order via indexed results.
-	type slotResult struct {
-		slot providerSlot
-	}
-	results := make([]slotResult, len(enabled))
+	slots := make([]providerSlot, len(enabled))
 	var wg sync.WaitGroup
 	wg.Add(len(enabled))
 	for i, cfg := range enabled {
@@ -154,15 +148,11 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 				slot.p = p
 				slot.startupStatus = "healthy"
 			}
-			results[idx] = slotResult{slot: slot}
+			slots[idx] = slot
 		}(i, cfg)
 	}
 	wg.Wait()
 
-	slots := make([]providerSlot, len(results))
-	for i, r := range results {
-		slots[i] = r.slot
-	}
 	mgr.mu.Lock()
 	mgr.slots = slots
 	mgr.mu.Unlock()

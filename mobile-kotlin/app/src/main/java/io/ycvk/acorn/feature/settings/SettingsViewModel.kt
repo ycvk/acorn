@@ -1,18 +1,18 @@
 package io.ycvk.acorn.feature.settings
 
 import androidx.lifecycle.ViewModel
-import io.ycvk.acorn.core.auth.authorized
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
-import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.push.PushStatus
 import io.ycvk.acorn.core.theme.ThemeMode
 import io.ycvk.acorn.core.theme.ThemePreference
+import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.OwnerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

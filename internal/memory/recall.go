@@ -404,11 +404,9 @@ func (h *vectorHeap) offer(v vectorScore, k int) {
 func queryTerms(query string) []string {
 	var terms []string
 	for word := range strings.FieldsSeq(strings.ToLower(query)) {
+		terms = append(terms, word)
 		runes := []rune(word)
-		if len(runes) <= 3 {
-			terms = append(terms, word)
-		} else {
-			terms = append(terms, word)
+		if len(runes) > 3 {
 			for i := 0; i+3 <= len(runes); i++ {
 				terms = append(terms, string(runes[i:i+3]))
 			}

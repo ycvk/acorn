@@ -49,9 +49,6 @@ type runMemory struct {
 }
 
 func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest, instruction string, catalogTokens int, owner ownerFiles) (*runMemory, error) {
-	if deps.Memory == nil {
-		return nil, errors.New("runtime memory service is required")
-	}
 	counter, err := NewTokenCounter()
 	if err != nil {
 		return nil, err
@@ -171,7 +168,7 @@ func (m *runMemory) messages() []*schema.AgenticMessage {
 		if item.Role == "assistant" {
 			msg = &schema.AgenticMessage{Role: schema.AgenticRoleTypeAssistant, ContentBlocks: []*schema.ContentBlock{{Type: schema.ContentBlockTypeAssistantGenText, AssistantGenText: &schema.AssistantGenText{Text: item.Content}}}}
 		}
-		msg.Extra = map[string]any{"memory_source_id": "message:" + strconv.FormatInt(item.ID, 10)}
+		msg.Extra = map[string]any{"memory_source_id": core.MessageSourceID(item.ID)}
 		messages = append(messages, msg)
 	}
 	return messages
@@ -287,7 +284,7 @@ func (m *memoryVisibilityMiddleware) BeforeModelRewriteState(ctx context.Context
 	history.SourceIDs = nil
 	history.Messages = nil
 	for _, msg := range m.memory.history.Messages {
-		id := "message:" + strconv.FormatInt(msg.ID, 10)
+		id := core.MessageSourceID(msg.ID)
 		source, err := m.memory.store.LoadThreadSource(ctx, id)
 		if errors.Is(err, core.ErrMemoryExcluded) {
 			continue

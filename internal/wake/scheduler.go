@@ -1,6 +1,6 @@
-// Package wake runs the serve-process scheduler that keeps the agent's
-// commitments: it starts a run in the commitment's
-// conversation when its wake time arrives.
+// Package wake runs the serve-process scheduler: it wakes the agent for its
+// commitments, the morning briefing and the reflections, checks watches and
+// runs skill triggers.
 package wake
 
 import (
@@ -37,7 +37,7 @@ type WatchChecker interface {
 	Apply(ctx context.Context, w core.Watch, fetched watch.Fetched) (watch.Result, error)
 }
 
-// Config holds the scheduler's dependencies; every field is required.
+// Config holds the scheduler's dependencies; every field but Backups is required.
 type Config struct {
 	Routines           core.RoutineStore
 	PhoneNotifications core.PhoneNotificationStore
@@ -307,7 +307,7 @@ func (s *Scheduler) linkedConcern(ctx context.Context, id string) (*core.MemoryC
 // once a day per subject when it does not.
 func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.Time, settings core.Settings) (bool, error) {
 	local := now.In(settings.Location)
-	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, settings.Location)
+	midnight := core.Midnight(local, settings.Location)
 	count, err := s.cfg.Store.CountWakesSince(ctx, midnight)
 	if err != nil {
 		return false, err

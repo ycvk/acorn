@@ -56,14 +56,10 @@ func ParseCron(expr string) (*CronSchedule, error) {
 	return s, nil
 }
 
-// parseCronField parses one cron field into a set of ints. Supports:
-//
-//   - — all values in [min, max]
-//     */n      — every n-th value starting from min
-//     a        — single value
-//     a-b      — range
-//     a-b/n    — every n-th value in range
-//     a,b,c    — comma-separated list of any of the above
+// parseCronField parses one cron field into a set of ints. A field is a
+// comma-separated list of "*" (every value in [min, max]), "*/n" (every n-th
+// value from min), "a" (one value), "a-b" (a range) and "a-b/n" (every n-th
+// value in a range).
 func parseCronField(field string, min, max int) (map[int]bool, error) {
 	result, _, err := parseCronFieldTrackingStar(field, min, max)
 	return result, err

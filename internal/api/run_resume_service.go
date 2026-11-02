@@ -15,24 +15,17 @@ import (
 )
 
 type RunResumeService struct {
-	store       core.SessionStore
-	resumeRun   func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
-	reportError func(context.Context, string, error)
+	store     core.SessionStore
+	resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
 
 	mu       sync.Mutex
 	inflight map[string]struct{}
 }
 
-type resumeStatus struct {
-	Resumable bool
-	Reason    string
-}
-
 func NewRunResumeService(store core.SessionStore) *RunResumeService {
 	return &RunResumeService{
-		store:       store,
-		reportError: reportClientBackgroundError,
-		inflight:    make(map[string]struct{}),
+		store:    store,
+		inflight: make(map[string]struct{}),
 	}
 }
 
@@ -42,9 +35,6 @@ func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, ma
 }
 
 func (s *RunResumeService) Resume(ctx context.Context, runID string) (*runtime.Result, error) {
-	if s == nil || s.resumeRun == nil {
-		return nil, errors.New("resume runner is nil")
-	}
 	targets, err := s.InferResumeTargets(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -144,7 +134,7 @@ func (s *RunResumeService) resumeClaimed(ctx context.Context, runID string) {
 	s.release(runID)
 	if result != nil && result.Status == core.RunStatusInterrupted {
 		if err := s.ResumeIfReady(ctx, runID); err != nil {
-			s.reportError(ctx, runID, err)
+			reportClientBackgroundError(ctx, runID, err)
 		}
 	}
 }
@@ -159,11 +149,11 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 	}
 	run, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
-		s.reportError(ctx, runID, errors.Join(cause, err))
+		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
 		return
 	}
 	if run.Status == core.RunStatusSucceeded || run.Status == core.RunStatusFailed {
-		s.reportError(ctx, runID, cause)
+		reportClientBackgroundError(ctx, runID, cause)
 		return
 	}
 	// Another resumer (or process) already claimed the run.
@@ -171,11 +161,11 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 		return
 	}
 	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
-		s.reportError(ctx, runID, errors.Join(cause, err))
+		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
 		return
 	}
 	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
-		s.reportError(ctx, runID, errors.Join(cause, err))
+		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
 	}
 }
 
@@ -184,13 +174,9 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 	if err != nil {
 		return nil, err
 	}
-	status := buildResumeStatus(runID, run, items)
-	if !status.Resumable {
-		return nil, fmt.Errorf("%w: %s", core.ErrRunNotInterrupted, status.Reason)
-	}
-	contexts, err := latestRootInterruptContexts(items)
+	contexts, err := resumableInterruptContexts(runID, run, items)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", core.ErrRunNotInterrupted, err)
+		return nil, err
 	}
 	targets := make(map[string]any, len(contexts))
 	for _, ctxItem := range contexts {
@@ -262,9 +248,6 @@ func interruptInfoField(raw any, key string) string {
 }
 
 func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*core.RunRecord, []core.EventRecord, error) {
-	if s == nil || s.store == nil {
-		return nil, nil, fmt.Errorf("run resume store is nil")
-	}
 	run, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, nil, err
@@ -276,32 +259,25 @@ func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*co
 	return run, items, nil
 }
 
-func buildResumeStatus(runID string, run *core.RunRecord, items []core.EventRecord) *resumeStatus {
-	status := &resumeStatus{}
-	if run == nil {
-		status.Reason = fmt.Sprintf("run %s is unavailable", runID)
-		return status
-	}
+// resumableInterruptContexts returns the root interrupts an interrupted run
+// waits on; for a run in any other state it says why there is nothing to resume.
+func resumableInterruptContexts(runID string, run *core.RunRecord, items []core.EventRecord) ([]resumeInterruptContext, error) {
 	switch run.Status {
 	case core.RunStatusInterrupted:
 		contexts, err := latestRootInterruptContexts(items)
 		if err != nil {
-			status.Reason = fmt.Sprintf("run %s is interrupted but missing resumable interrupt data: %v", runID, err)
-			return status
+			return nil, fmt.Errorf("%w: run %s is interrupted but missing resumable interrupt data: %v", core.ErrRunNotInterrupted, runID, err)
 		}
-		status.Resumable = true
-		status.Reason = fmt.Sprintf("run %s is interrupted and waiting on %d root actions", runID, len(contexts))
-		return status
+		return contexts, nil
 	case core.RunStatusFailed:
-		status.Reason = fmt.Sprintf("run %s failed and cannot be resumed; inspect run detail or start a new client run", runID)
+		return nil, fmt.Errorf("%w: run %s failed and cannot be resumed; inspect run detail or start a new client run", core.ErrRunNotInterrupted, runID)
 	case core.RunStatusSucceeded:
-		status.Reason = fmt.Sprintf("run %s completed and does not need resume", runID)
+		return nil, fmt.Errorf("%w: run %s completed and does not need resume", core.ErrRunNotInterrupted, runID)
 	case core.RunStatusRunning:
-		status.Reason = fmt.Sprintf("run %s is still running and has no persisted interrupt to resume", runID)
+		return nil, fmt.Errorf("%w: run %s is still running and has no persisted interrupt to resume", core.ErrRunNotInterrupted, runID)
 	default:
-		status.Reason = fmt.Sprintf("run %s is not resumable from status %s", runID, run.Status)
+		return nil, fmt.Errorf("%w: run %s is not resumable from status %s", core.ErrRunNotInterrupted, runID, run.Status)
 	}
-	return status
 }
 
 func defaultTargets(interruptID string) map[string]any {

@@ -103,13 +103,13 @@ func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, de
 	}, nil
 }
 
-// matchesAny takes patterns newApprovalMiddleware already validated, so
-// path.Match cannot fail on them.
 func matchesAny(patterns []string, name string) bool {
 	return matchingPattern(patterns, name) != ""
 }
 
-// matchingPattern is the first pattern that matches name, or "".
+// matchingPattern is the first pattern that matches name, or "". It takes
+// patterns newApprovalMiddleware already validated, so path.Match cannot fail
+// on them.
 func matchingPattern(patterns []string, name string) string {
 	for _, p := range patterns {
 		if ok, err := path.Match(p, name); err == nil && ok {
@@ -449,7 +449,6 @@ func (m *approvalMiddleware) requestApproval(ctx context.Context, tCtx *adk.Tool
 		Kind:        core.PendingActionKindToolApproval,
 		Subject:     "Approve " + tCtx.Name,
 		PayloadJSON: string(payloadJSON),
-		Status:      core.PendingActionStatusPending,
 		Reason:      request.reason,
 	}); err != nil {
 		return err
