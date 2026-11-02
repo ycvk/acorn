@@ -32,7 +32,7 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 	if err := c.store.CreateRun(ctx, core.RunCreateParams{RunID: "run_briefing", Input: "[briefing 2026-10-11]"}); err != nil {
 		t.Fatalf("create briefing run: %v", err)
 	}
-	if err := c.store.FinishRun(ctx, "run_briefing", core.RunStatusSucceeded, "## 今天\n有一个约定。", ""); err != nil {
+	if _, _, err := c.store.FinishRun(ctx, core.RunEnd{RunID: "run_briefing", Status: core.RunStatusSucceeded, Output: "## 今天\n有一个约定。", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatalf("finish briefing run: %v", err)
 	}
 	if err := c.store.SetRoutineRun(ctx, "briefing", "2026-10-11", "thread_briefings", "run_briefing"); err != nil {

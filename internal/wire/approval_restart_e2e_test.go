@@ -242,6 +242,19 @@ func decideOverHTTP(t *testing.T, c *Container, actionID, decision string) {
 	}
 }
 
+// startOwnerRun sends input as the owner's message in a thread with no run
+// going and returns the run it starts.
+func startOwnerRun(ctx context.Context, c *Container, threadID, input string) (*api.Run, error) {
+	sent, err := c.runs.SendMessage(ctx, threadID, input, nil)
+	if err != nil {
+		return nil, err
+	}
+	if sent.Queued != nil {
+		return nil, fmt.Errorf("message waits for run %s of thread %s", sent.Run.ID, threadID)
+	}
+	return &sent.Run, nil
+}
+
 func waitRunStatus(t *testing.T, c *Container, runID, want string) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
@@ -285,7 +298,7 @@ func startApprovalRun(t *testing.T, cfg *config.Config) (runID, actionID string)
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := first.runs.CreateRun(ctx, thread.ID, "", "find probe", nil)
+	run, err := startOwnerRun(ctx, first, thread.ID, "find probe")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
@@ -406,7 +419,7 @@ func TestDecidedRunResumesFromSweepAndShowsRunning(t *testing.T) {
 	}
 	waitRunStatus(t, second, runID, "interrupted")
 
-	if err := second.ResumeReadyRuns(ctx); err != nil {
+	if err := second.ContinueRuns(ctx); err != nil {
 		t.Fatalf("resume ready runs: %v", err)
 	}
 	deadline := time.Now().Add(10 * time.Second)
@@ -453,7 +466,7 @@ func TestBrokenAssistantStreamFailsRunThroughNormalPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := c.runs.CreateRun(ctx, thread.ID, "", "say something", nil)
+	run, err := startOwnerRun(ctx, c, thread.ID, "say something")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
@@ -530,7 +543,7 @@ func TestApprovalRulesSavedWhileServingGateTheNextRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := c.runs.CreateRun(ctx, thread.ID, "", "find probe", nil)
+	first, err := startOwnerRun(ctx, c, thread.ID, "find probe")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -540,7 +553,7 @@ func TestApprovalRulesSavedWhileServingGateTheNextRun(t *testing.T) {
 	}}, "device_test"); err != nil {
 		t.Fatal(err)
 	}
-	second, err := c.runs.CreateRun(ctx, thread.ID, "", "find probe again", nil)
+	second, err := startOwnerRun(ctx, c, thread.ID, "find probe again")
 	if err != nil {
 		t.Fatal(err)
 	}

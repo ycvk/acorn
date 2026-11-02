@@ -44,9 +44,9 @@ func TestViewsShowUnderTheReply(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var run api.RunDTO
+	var run api.CreateRunResponse
 	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "比较一下 eino 最近几个版本"}, http.StatusCreated, &run)
-	waitRunStatus(t, c, run.ID, "completed")
+	waitRunStatus(t, c, run.Run.ID, "completed")
 
 	if rejected := toolResult(t, provider.request(2), "broken_view"); !strings.Contains(rejected, "/missing") || !strings.Contains(rejected, "finds nothing") {
 		t.Fatalf("the model saw %q for the broken view", rejected)
@@ -67,7 +67,7 @@ func TestViewsShowUnderTheReply(t *testing.T) {
 	}
 
 	var detail api.RunDetailDTO
-	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/runs/"+run.ID+"/detail", nil), http.StatusOK, &detail)
+	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/runs/"+run.Run.ID+"/detail", nil), http.StatusOK, &detail)
 	var announced []string
 	for _, event := range detail.Events {
 		if event.Type != "view.shown" {

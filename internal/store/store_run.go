@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -38,12 +40,16 @@ func (s *Store) CreateRun(ctx context.Context, params core.RunCreateParams) erro
 }
 
 func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error) {
+	return appendEvent(ctx, s.db, runID, kind, payload)
+}
+
+func appendEvent(ctx context.Context, q memorySQL, runID, kind string, payload any) (core.EventRecord, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return core.EventRecord{}, fmt.Errorf("marshal event payload: %w", err)
 	}
 	now := time.Now().UTC()
-	result, err := s.db.ExecContext(ctx,
+	result, err := q.ExecContext(ctx,
 		`INSERT INTO events(run_id, kind, payload_json, created_at) VALUES(?, ?, ?, ?)`,
 		runID,
 		kind,
@@ -60,24 +66,61 @@ func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any
 	return core.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: payload, CreatedAt: now}, nil
 }
 
-func (s *Store) FinishRun(ctx context.Context, runID string, status core.RunStatus, output, errText string) error {
+// FinishRun implements core.SessionStore. The terminal event commits with
+// the status, so a client that sees the run finished finds its last event.
+func (s *Store) FinishRun(ctx context.Context, end core.RunEnd) (core.EventRecord, *core.RunStart, error) {
+	if strings.TrimSpace(end.Event) == "" {
+		return core.EventRecord{}, nil, errors.New("finish run: Event is required")
+	}
+	payload := maps.Clone(end.Payload)
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	var event core.EventRecord
+	var next *core.RunStart
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		var sessionID string
+		err := tx.QueryRowContext(ctx, `SELECT session_id FROM runs WHERE run_id = ?`, end.RunID).Scan(&sessionID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: %s", core.ErrRunNotFound, end.RunID)
+		}
+		if err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE runs SET status = ?, output_text = ?, error_text = ?, finished_at = ? WHERE run_id = ?`,
-			string(status),
-			output,
-			errText,
+			string(end.Status),
+			end.Output,
+			end.Error,
 			formatTimestamp(time.Now()),
-			runID,
+			end.RunID,
 		); err != nil {
 			return err
 		}
-		return stopRunProcess(ctx, tx, runID)
+		if err := stopRunProcess(ctx, tx, end.RunID); err != nil {
+			return err
+		}
+		if end.Next != "" && sessionID != "" {
+			active, err := activeRunOf(ctx, tx, sessionID)
+			if err != nil {
+				return err
+			}
+			if active == "" {
+				if next, err = startQueuedRun(ctx, tx, s.process, sessionID, end.Next, nil); err != nil {
+					return err
+				}
+			}
+			if next != nil {
+				payload["next_run_id"] = next.RunID
+			}
+		}
+		event, err = appendEvent(ctx, tx, end.RunID, end.Event, payload)
+		return err
 	})
 	if err != nil {
-		return fmt.Errorf("finish run: %w", err)
+		return core.EventRecord{}, nil, fmt.Errorf("finish run: %w", err)
 	}
-	return nil
+	return event, next, nil
 }
 
 // stopRunProcess drops the process of a run that is no longer running.

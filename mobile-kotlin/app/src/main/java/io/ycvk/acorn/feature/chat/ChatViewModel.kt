@@ -9,6 +9,7 @@ import io.ycvk.acorn.api.models.CreateRunRequest
 import io.ycvk.acorn.api.models.CreateThreadRequest
 import io.ycvk.acorn.api.models.InboxResponse
 import io.ycvk.acorn.api.models.PendingActionSummary
+import io.ycvk.acorn.api.models.RunInputData
 import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.api.models.SendViewActionRequest
 import io.ycvk.acorn.api.models.View
@@ -22,6 +23,7 @@ import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.data.repository.PendingAttachment
 import io.ycvk.acorn.data.repository.ThreadFileRepository
+import io.ycvk.acorn.data.repository.fileView
 import io.ycvk.acorn.feature.live.FollowedRun
 import io.ycvk.acorn.feature.live.RunFollower
 import io.ycvk.acorn.feature.live.RunUpdate
@@ -50,6 +52,8 @@ import javax.inject.Inject
  *   pending activities. Reset on every new run and folded into [messages] once
  *   the run reaches a terminal event. The thread's run is read from [RunFollower],
  *   which keeps following runs started here after the screen is gone.
+ * - [queued] are the owner's messages sent while a run of the thread is going.
+ *   They wait for that run, and join [messages] when a run takes them.
  */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
@@ -66,6 +70,12 @@ class ChatViewModel @Inject constructor(
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+
+    private val _queued = MutableStateFlow<List<QueuedChat>>(emptyList())
+    val queued: StateFlow<List<QueuedChat>> = _queued.asStateFlow()
+
+    /** Queued ids a run of the thread took, so a send answered late does not queue its message again. */
+    private val taken = mutableSetOf<String>()
 
     private val _chatState = MutableStateFlow(ChatState())
     val chatState: StateFlow<ChatState> = _chatState.asStateFlow()
@@ -121,6 +131,8 @@ class ChatViewModel @Inject constructor(
         _threadId.value = threadId
         _threadTitle.value = null
         _messages.value = emptyList()  // clear stale messages immediately
+        _queued.value = emptyList()
+        taken.clear()
         _attachments.value = emptyList()
         _chatState.value = ChatState()
         _error.value = null
@@ -256,6 +268,11 @@ class ChatViewModel @Inject constructor(
         _error.value = message
     }
 
+    /**
+     * Sends the owner's message. While a run of the thread is going the
+     * message waits for it, shown queued until a run takes it; otherwise it
+     * starts a run, followed as a Live Update.
+     */
     fun sendMessage(text: String) {
         val profile = profile() ?: run {
             _error.value = "还没有连接服务器"
@@ -266,15 +283,21 @@ class ChatViewModel @Inject constructor(
         if (text.isBlank() && attachments.isEmpty()) return
         _attachments.value = emptyList()
 
-        // Optimistic user bubble + fresh streaming state.
+        val busy = existing != null && runGoing()
         val bubble = ChatMessage.User(text, attachments.map { it.view() })
-        _messages.value = _messages.value + bubble
-        loadGeneration.incrementAndGet()  // cancel any pending reconnectActiveRun
-        _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+        val waiting = QueuedChat(text, bubble.files)
+        if (busy) {
+            _queued.value = _queued.value + waiting
+        } else {
+            // Optimistic user bubble + fresh streaming state.
+            _messages.value = _messages.value + bubble
+            loadGeneration.incrementAndGet()  // cancel any pending reconnectActiveRun
+            _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+        }
         _error.value = null
         val title = threadTitleFor(text.ifBlank { attachments.firstOrNull { !it.photo }?.name ?: "图片" })
         // Shown as sending now, while the app is in front and its Live Update may start.
-        val sendKey = follower.beginSend(_threadTitle.value ?: title)
+        val sendKey = if (busy) null else follower.beginSend(_threadTitle.value ?: title)
 
         viewModelScope.launch {
             try {
@@ -291,23 +314,59 @@ class ChatViewModel @Inject constructor(
                     withContext(Dispatchers.IO) { files.upload(profile, threadId, attachment).id }
                 }
                 _uploading.value = null
-                val runId = withContext(Dispatchers.IO) {
+                val sent = withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientCreateRun(
                         threadId = threadId,
                         createRunRequest = CreateRunRequest(input = text.ifBlank { null }, fileIds = fileIds.ifEmpty { null }),
-                    ).id
+                    )
                 }
-                streamingRunId = runId
-                follower.follow(profile, runId, threadId, _threadTitle.value ?: title, live = true, sendKey = sendKey)
+                val queued = sent.queued
+                if (queued != null) {
+                    sendKey?.let(follower::endSend)
+                    _messages.value = _messages.value - bubble
+                    _queued.value = if (queued.id in taken) {
+                        _queued.value.filterNot { it.key == waiting.key }
+                    } else {
+                        (_queued.value.filterNot { it.key == waiting.key } + waiting.copy(queuedId = queued.id))
+                    }
+                    // The run it waits for is followed here, as when the app had not seen it start.
+                    if (streamingRunId != sent.run.id) {
+                        streamingRunId = sent.run.id
+                        follower.follow(profile, sent.run.id, threadId, _threadTitle.value ?: title, live = false)
+                    }
+                    return@launch
+                }
+                if (busy) {
+                    // The run ended meanwhile, and the message started the next one.
+                    _queued.value = _queued.value.filterNot { it.key == waiting.key }
+                    _messages.value = _messages.value + bubble
+                    _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                }
+                streamingRunId = sent.run.id
+                follower.follow(profile, sent.run.id, threadId, _threadTitle.value ?: title, live = true, sendKey = sendKey)
             } catch (e: Exception) {
-                follower.endSend(sendKey)
+                sendKey?.let(follower::endSend)
                 _uploading.value = null
                 _messages.value = _messages.value - bubble
-                _chatState.value = ChatState()
+                _queued.value = _queued.value.filterNot { it.key == waiting.key }
+                if (!busy) _chatState.value = ChatState()
                 _restoredInput.value = text
                 _attachments.value = attachments + _attachments.value
                 _error.value = "没发出去：${userMessage(e)}"
             }
+        }
+    }
+
+    /** Whether a run of the open thread runs or waits on the owner, so a message would wait for it. */
+    private fun runGoing(): Boolean = _chatState.value.isStreaming || _chatState.value.runStatus == RunStatus.Interrupted
+
+    /** A run took a waiting message: it leaves the queue and joins the thread's messages. */
+    private fun takeQueued(input: RunInputData) {
+        taken += input.queuedId
+        val waiting = _queued.value.firstOrNull { it.queuedId == input.queuedId }
+        _queued.value = _queued.value.filterNot { it.queuedId == input.queuedId }
+        if (_messages.value.none { it.id == input.messageId }) {
+            _messages.value = _messages.value + ChatMessage.User(input.text, waiting?.files.orEmpty(), id = input.messageId)
         }
     }
 
@@ -456,6 +515,12 @@ class ChatViewModel @Inject constructor(
                 } ?: return@launch
                 if (_threadId.value != threadId) return@launch
                 _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty(), msg.id) }
+                // Messages still on their way are not on the server's list yet.
+                val shown = _queued.value
+                _queued.value = response.queued.filterNot { it.id in taken }.map { waiting ->
+                    val key = shown.firstOrNull { it.queuedId == waiting.id }?.key ?: "queued_${waiting.id}"
+                    QueuedChat(waiting.text, waiting.files.orEmpty().map(::fileView), waiting.id, key)
+                } + shown.filter { it.queuedId == null }
             } catch (e: Exception) {
                 if (_threadId.value == threadId) _error.value = userMessage(e)
             }
@@ -498,6 +563,7 @@ class ChatViewModel @Inject constructor(
         _chatState.value = state
         val packet = update.packet
         if (packet is RunEventPacket.ViewUpdated) _messages.value = withView(_messages.value, packet.event.`data`.view)
+        if (packet is RunEventPacket.Input) takeQueued(packet.event.`data`)
         if (update.ended) {
             val finalText = state.assistantText
             if (finalText.isNotBlank() && awaitsReply(_messages.value)) {

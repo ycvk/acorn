@@ -107,7 +107,7 @@ func TestFilesTravelBetweenOwnerAndAgent(t *testing.T) {
 	client.upload(t, thread.ID, "big.bin", bytes.Repeat([]byte{1}, 1<<20+1), http.StatusRequestEntityTooLarge)
 	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "x", "file_ids": []string{"file_00000000000000000000000000000000"}}, http.StatusBadRequest, nil)
 
-	var run api.RunDTO
+	var run api.CreateRunResponse
 	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "找一本红楼梦给我，顺便看看这两个", "file_ids": []string{photo.ID, text.ID}}, http.StatusCreated, &run)
 	first := waitNewRun(t, c, thread.ID, "")
 
@@ -164,7 +164,7 @@ func TestFilesTravelBetweenOwnerAndAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.runs.CreateRun(ctx, other.ID, "", "在吗", nil); err != nil {
+	if _, err := startOwnerRun(ctx, c, other.ID, "在吗"); err != nil {
 		t.Fatal(err)
 	}
 	waitNewRun(t, c, other.ID, "")
@@ -208,9 +208,9 @@ func TestFilesOfARunWithoutAReplyStayInTheThread(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var run api.RunDTO
+	var run api.CreateRunResponse
 	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "把周报发我"}, http.StatusCreated, &run)
-	waitRunStatus(t, c, run.ID, "failed")
+	waitRunStatus(t, c, run.Run.ID, "failed")
 
 	var listed api.MessageListResponse
 	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/threads/"+thread.ID+"/messages", nil), http.StatusOK, &listed)
@@ -218,7 +218,7 @@ func TestFilesOfARunWithoutAReplyStayInTheThread(t *testing.T) {
 		t.Fatalf("messages = %+v", listed.Items)
 	}
 	reply := listed.Items[1]
-	if reply.Role != "assistant" || reply.ID != run.ID || reply.RunID != run.ID || reply.Content.Text != "" || len(reply.Files) != 1 {
+	if reply.Role != "assistant" || reply.ID != run.Run.ID || reply.RunID != run.Run.ID || reply.Content.Text != "" || len(reply.Files) != 1 {
 		t.Fatalf("message after the owner's = %+v", reply)
 	}
 	if sent := reply.Files[0]; sent.Name != "report.txt" || sent.Origin != "agent" || !reply.CreatedAt.Equal(sent.CreatedAt) {

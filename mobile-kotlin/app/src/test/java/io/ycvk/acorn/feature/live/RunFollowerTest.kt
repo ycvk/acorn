@@ -3,12 +3,14 @@ package io.ycvk.acorn.feature.live
 import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionPendingEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
+import io.ycvk.acorn.api.models.ClientRunInputEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
 import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientToolCallStartedEvent
 import io.ycvk.acorn.api.models.OperatorQuestionData
 import io.ycvk.acorn.api.models.RunCompletedData
 import io.ycvk.acorn.api.models.RunEventMessage
+import io.ycvk.acorn.api.models.RunInputData
 import io.ycvk.acorn.api.models.RunInterruptedData
 import io.ycvk.acorn.api.models.RunResumeRequestedData
 import io.ycvk.acorn.api.models.ToolCallData
@@ -94,6 +96,14 @@ class RunFollowerTest {
 
     private fun completed(runId: String, seq: Long, reply: String) = RunEventPacket.RunCompleted(
         ClientRunCompletedEvent("$runId:$seq", runId, seq, at, null, RunCompletedData(RunEventMessage(role = "assistant", content = reply))),
+    )
+
+    private fun continued(runId: String, seq: Long, reply: String, next: String) = RunEventPacket.RunCompleted(
+        ClientRunCompletedEvent("$runId:$seq", runId, seq, at, null, RunCompletedData(RunEventMessage(role = "assistant", content = reply), nextRunId = next)),
+    )
+
+    private fun input(runId: String, seq: Long, queuedId: String, text: String) = RunEventPacket.Input(
+        ClientRunInputEvent("$runId:$seq", runId, seq, at, null, RunInputData(queuedId, "message_$seq", text)),
     )
 
     private fun interrupted(runId: String, seq: Long) = RunEventPacket.RunInterrupted(
@@ -237,5 +247,33 @@ class RunFollowerTest {
         assertEquals("run_1", lost.run.runId)
         assertTrue(lost.lost != null)
         assertTrue(h.ended.isEmpty())
+    }
+
+    @Test
+    fun `a run that ends on messages left waiting hands over to the run that takes them`() = runTest {
+        val h = Harness(this)
+        h.follower.follow(profile, "run_1", "thread_1", "天气", live = true)
+        runCurrent()
+        h.streams.last("run_1").onEvent(input("run_1", 3, "7", "只要气温"))
+        runCurrent()
+        assertEquals(RunStatus.Running, h.follower.runs.value.getValue("run_1").state.runStatus)
+        assertTrue(h.updates.last().packet is RunEventPacket.Input)
+
+        h.streams.last("run_1").onEvent(continued("run_1", 9, "晴，20 度", next = "run_2"))
+        runCurrent()
+        assertNull(h.follower.runs.value["run_1"])
+        assertEquals("run_2", h.updates.last().nextRunId)
+        val next = h.follower.runs.value.getValue("run_2")
+        assertEquals("thread_1", next.threadId)
+        assertEquals("天气", next.title)
+        assertTrue(next.live && next.running)
+        assertEquals(0L, h.streams.last("run_2").afterSeq)
+        // The work goes on, so the first run's end leaves no notification.
+        assertTrue(h.ended.isEmpty())
+
+        h.streams.last("run_2").onEvent(completed("run_2", 4, "明天多云"))
+        runCurrent()
+        assertNull(h.follower.runs.value["run_2"])
+        assertEquals(listOf("明天多云"), h.ended.map { it.state.assistantText })
     }
 }

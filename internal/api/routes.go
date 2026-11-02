@@ -123,7 +123,6 @@ func (s *Server) registerRoutes(router chi.Router) {
 					r.Patch("/", s.handleClientUpdateThread)
 					r.Delete("/", s.handleClientDeleteThread)
 					r.Get("/messages", s.handleClientListMessages)
-					r.Post("/messages", s.handleClientCreateMessage)
 					r.Post("/runs", s.handleClientCreateRun)
 					r.Post("/files", s.handleUploadThreadFile)
 					r.Get("/files/{file_id}", s.handleGetThreadFile)

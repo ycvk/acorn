@@ -62,7 +62,7 @@ func briefedNewsStory(t *testing.T, c *Container, at time.Time) core.NewsStory {
 	if err := c.store.CreateRun(ctx, core.RunCreateParams{RunID: "run_briefing", SessionID: briefings.ID, Input: "[briefing " + slot + "]"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.store.FinishRun(ctx, "run_briefing", core.RunStatusSucceeded, "## 国际\n1. **菲律宾央行意外加息**：加息 25 个基点。[BBC](https://bbc.test/b1)", ""); err != nil {
+	if _, _, err := c.store.FinishRun(ctx, core.RunEnd{RunID: "run_briefing", Status: core.RunStatusSucceeded, Output: "## 国际\n1. **菲律宾央行意外加息**：加息 25 个基点。[BBC](https://bbc.test/b1)", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.store.SetRoutineRun(ctx, "briefing", slot, briefings.ID, "run_briefing"); err != nil {

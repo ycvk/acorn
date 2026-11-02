@@ -27,14 +27,13 @@ import java.io.IOException
 import okhttp3.Call
 import okhttp3.HttpUrl
 
-import io.ycvk.acorn.api.models.CreateMessageRequest
 import io.ycvk.acorn.api.models.CreateRunRequest
+import io.ycvk.acorn.api.models.CreateRunResponse
 import io.ycvk.acorn.api.models.CreateThreadRequest
 import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.ErrorResponse
 import io.ycvk.acorn.api.models.InboxResponse
 import io.ycvk.acorn.api.models.InterruptRunResponse
-import io.ycvk.acorn.api.models.Message
 import io.ycvk.acorn.api.models.MessageListResponse
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.api.models.PendingActionDecision
@@ -222,89 +221,12 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
-     * POST /v1/threads/{thread_id}/messages
-     * Append a user message without starting a run
-     * 
-     * @param threadId 
-     * @param createMessageRequest 
-     * @return Message
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     * @throws UnsupportedOperationException If the API returns an informational or redirection response
-     * @throws ClientException If the API returns a client error response
-     * @throws ServerException If the API returns a server error response
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientCreateMessage(threadId: kotlin.String, createMessageRequest: CreateMessageRequest) : Message {
-        val localVarResponse = clientCreateMessageWithHttpInfo(threadId = threadId, createMessageRequest = createMessageRequest)
-
-        return when (localVarResponse.responseType) {
-            ResponseType.Success -> (localVarResponse as Success<*>).data as Message
-            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
-            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
-            ResponseType.ClientError -> {
-                val localVarError = localVarResponse as ClientError<*>
-                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
-            }
-            ResponseType.ServerError -> {
-                val localVarError = localVarResponse as ServerError<*>
-                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
-            }
-        }
-    }
-
-    /**
-     * POST /v1/threads/{thread_id}/messages
-     * Append a user message without starting a run
-     * 
-     * @param threadId 
-     * @param createMessageRequest 
-     * @return ApiResponse<Message?>
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class)
-    fun clientCreateMessageWithHttpInfo(threadId: kotlin.String, createMessageRequest: CreateMessageRequest) : ApiResponse<Message?> {
-        val localVariableConfig = clientCreateMessageRequestConfig(threadId = threadId, createMessageRequest = createMessageRequest)
-
-        return request<CreateMessageRequest, Message>(
-            localVariableConfig
-        )
-    }
-
-    /**
-     * To obtain the request config of the operation clientCreateMessage
-     *
-     * @param threadId 
-     * @param createMessageRequest 
-     * @return RequestConfig
-     */
-    fun clientCreateMessageRequestConfig(threadId: kotlin.String, createMessageRequest: CreateMessageRequest) : RequestConfig<CreateMessageRequest> {
-        val localVariableBody = createMessageRequest
-        val localVariableQuery: MultiValueMap = mutableMapOf()
-        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
-        localVariableHeaders["Content-Type"] = "application/json"
-        localVariableHeaders["Accept"] = "application/json"
-
-        return RequestConfig(
-            method = RequestMethod.POST,
-            path = "/v1/threads/{thread_id}/messages".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
-            query = localVariableQuery,
-            headers = localVariableHeaders,
-            requiresAuthentication = true,
-            body = localVariableBody
-        )
-    }
-
-    /**
      * POST /v1/threads/{thread_id}/runs
-     * Start a runtime run; with input set, record the user message and run in one step (otherwise run the latest unbound user message)
-     * 
+     * Send the owner&#39;s message; it starts a run, or waits for the thread&#39;s run still going
+     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. 
      * @param threadId 
-     * @param createRunRequest  (optional)
-     * @return Run
+     * @param createRunRequest 
+     * @return CreateRunResponse
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
      * @throws UnsupportedOperationException If the API returns an informational or redirection response
@@ -313,11 +235,11 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientCreateRun(threadId: kotlin.String, createRunRequest: CreateRunRequest? = null) : Run {
+    fun clientCreateRun(threadId: kotlin.String, createRunRequest: CreateRunRequest) : CreateRunResponse {
         val localVarResponse = clientCreateRunWithHttpInfo(threadId = threadId, createRunRequest = createRunRequest)
 
         return when (localVarResponse.responseType) {
-            ResponseType.Success -> (localVarResponse as Success<*>).data as Run
+            ResponseType.Success -> (localVarResponse as Success<*>).data as CreateRunResponse
             ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
             ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
             ResponseType.ClientError -> {
@@ -333,20 +255,20 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
 
     /**
      * POST /v1/threads/{thread_id}/runs
-     * Start a runtime run; with input set, record the user message and run in one step (otherwise run the latest unbound user message)
-     * 
+     * Send the owner&#39;s message; it starts a run, or waits for the thread&#39;s run still going
+     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. 
      * @param threadId 
-     * @param createRunRequest  (optional)
-     * @return ApiResponse<Run?>
+     * @param createRunRequest 
+     * @return ApiResponse<CreateRunResponse?>
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class)
-    fun clientCreateRunWithHttpInfo(threadId: kotlin.String, createRunRequest: CreateRunRequest?) : ApiResponse<Run?> {
+    fun clientCreateRunWithHttpInfo(threadId: kotlin.String, createRunRequest: CreateRunRequest) : ApiResponse<CreateRunResponse?> {
         val localVariableConfig = clientCreateRunRequestConfig(threadId = threadId, createRunRequest = createRunRequest)
 
-        return request<CreateRunRequest, Run>(
+        return request<CreateRunRequest, CreateRunResponse>(
             localVariableConfig
         )
     }
@@ -355,10 +277,10 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      * To obtain the request config of the operation clientCreateRun
      *
      * @param threadId 
-     * @param createRunRequest  (optional)
+     * @param createRunRequest 
      * @return RequestConfig
      */
-    fun clientCreateRunRequestConfig(threadId: kotlin.String, createRunRequest: CreateRunRequest?) : RequestConfig<CreateRunRequest> {
+    fun clientCreateRunRequestConfig(threadId: kotlin.String, createRunRequest: CreateRunRequest) : RequestConfig<CreateRunRequest> {
         val localVariableBody = createRunRequest
         val localVariableQuery: MultiValueMap = mutableMapOf()
         val localVariableHeaders: MutableMap<String, String> = mutableMapOf()

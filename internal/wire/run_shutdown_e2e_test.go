@@ -26,7 +26,7 @@ func TestCloseFailsActiveRuns(t *testing.T) {
 			if err != nil {
 				return "", err
 			}
-			run, err := c.runs.CreateRun(ctx, thread.ID, "", "say something", nil)
+			run, err := startOwnerRun(ctx, c, thread.ID, "say something")
 			if err != nil {
 				return "", err
 			}
@@ -185,7 +185,7 @@ func TestResumeRefusedWhileStoppingStaysInterrupted(t *testing.T) {
 		t.Fatalf("second container: %v", err)
 	}
 	defer func() { _ = second.Close() }()
-	if err := second.ResumeReadyRuns(ctx); err != nil {
+	if err := second.ContinueRuns(ctx); err != nil {
 		t.Fatalf("resume ready runs: %v", err)
 	}
 	waitRunStatus(t, second, runID, "completed")

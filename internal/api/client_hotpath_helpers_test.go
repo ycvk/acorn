@@ -42,10 +42,6 @@ func (noThreadFiles) OpenThreadFile(_ context.Context, _, fileID string) (core.T
 	return core.ThreadFile{}, nil, fmt.Errorf("%w: %s", core.ErrThreadFileNotFound, fileID)
 }
 
-func (noThreadFiles) AttachThreadFiles(context.Context, string, int64, []string) error {
-	return errors.New("no thread files in this test")
-}
-
 func (noThreadFiles) OwnerThreadFileIDs(context.Context) ([]string, error) { return nil, nil }
 
 // noThreadViews is a thread view store holding no views.
@@ -118,7 +114,6 @@ func (s *clientHandlerStub) executeRun(_ context.Context, req core.ExecuteReques
 	}
 	if s != nil {
 		s.createRunThreadID = req.SessionID
-		s.createRunSkillID = req.SkillID
 		if strings.TrimSpace(s.run.ID) == "" {
 			s.run = Run{
 				ID:        req.RunID,

@@ -116,33 +116,6 @@ func (s *Store) NextSessionMessageTurnIndex(ctx context.Context, sessionID strin
 	return current + 1, nil
 }
 
-func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*core.SessionMessageRecord, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, session_id, turn_index, role, content, run_id, created_at
-		 FROM session_messages
-		 WHERE session_id = ? AND role = 'user' AND run_id = ''
-		 ORDER BY id DESC
-		 LIMIT 1`,
-		sessionID,
-	)
-	var (
-		rec     core.SessionMessageRecord
-		created string
-	)
-	if err := row.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &rec.RunID, &created); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: latest unbound user message for %s", core.ErrSessionMessageNotFound, sessionID)
-		}
-		return nil, fmt.Errorf("load latest unbound user message: %w", err)
-	}
-	createdAt, err := parseTimestamp(created, "session_message.created_at")
-	if err != nil {
-		return nil, err
-	}
-	rec.CreatedAt = createdAt
-	return &rec, nil
-}
-
 func (s *Store) BindLatestUserMessageRunID(ctx context.Context, sessionID string, turnIndex int, runID string) error {
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE session_messages

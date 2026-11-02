@@ -14,6 +14,61 @@ type RunCreateParams struct {
 	BoundMessageID int64
 }
 
+// RunEnd is how a run ends: its status, output and error, and its terminal
+// event, which the store records with the status.
+type RunEnd struct {
+	RunID   string
+	Status  RunStatus
+	Output  string
+	Error   string
+	Event   string
+	Payload map[string]any
+	// Next, when set, is the id of the run the store starts on the owner
+	// messages waiting in the conversation, unless another of its runs is
+	// going. The terminal event then names it as next_run_id.
+	Next string
+}
+
+// OwnerMessage is what the owner sends in a conversation: text, files
+// uploaded to it, or both. RunID names the run started on it when the
+// conversation has none going.
+type OwnerMessage struct {
+	SessionID string
+	Content   string
+	FileIDs   []string
+	RunID     string
+}
+
+// QueuedMessage is an owner message that waits for the conversation's run:
+// the run takes it before its next model call, or a run that starts when it
+// ends does.
+type QueuedMessage struct {
+	ID        int64
+	SessionID string
+	Content   string
+	FileIDs   []string
+	CreatedAt time.Time
+}
+
+// RunStart is a run the store created on owner messages, with the messages
+// it took, in the order they were sent.
+type RunStart struct {
+	RunID     string
+	SessionID string
+	TurnIndex int
+	Input     string
+	Messages  []SessionMessageRecord
+}
+
+// SentOwnerMessage is what sending an owner message did: RunID is the run
+// that takes it. Queued is set when that run was already going and the
+// message waits for it; Started is set when the message started the run.
+type SentOwnerMessage struct {
+	RunID   string
+	Queued  *QueuedMessage
+	Started *RunStart
+}
+
 // PendingActionInput holds the parameters for creating a pending action.
 type PendingActionInput struct {
 	ActionID    string

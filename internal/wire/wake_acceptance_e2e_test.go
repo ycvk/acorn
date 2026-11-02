@@ -239,7 +239,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := first.runs.CreateRun(ctx, thread.ID, "", "三天后提醒我看 X", nil)
+	run, err := startOwnerRun(ctx, first, thread.ID, "三天后提醒我看 X")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
@@ -341,7 +341,7 @@ func TestNotificationInQuietHoursWaitsForTheirEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := c.runs.CreateRun(ctx, thread.ID, "", "明早提醒我看 X", nil)
+	run, err := startOwnerRun(ctx, c, thread.ID, "明早提醒我看 X")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}

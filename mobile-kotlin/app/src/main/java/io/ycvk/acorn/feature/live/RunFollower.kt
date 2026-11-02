@@ -41,6 +41,13 @@ data class PendingSend(val key: String, val title: String)
 /** One step of a followed run: the event it took and the run after it, or [lost] once its stream could not be kept. */
 data class RunUpdate(val run: FollowedRun, val packet: RunEventPacket?, val lost: Throwable? = null) {
     val ended: Boolean get() = packet is RunEventPacket.RunCompleted || packet is RunEventPacket.RunFailed
+
+    /** The run that started as this one ended, on owner messages that waited for it. */
+    val nextRunId: String? get() = when (packet) {
+        is RunEventPacket.RunCompleted -> packet.event.`data`.nextRunId
+        is RunEventPacket.RunFailed -> packet.event.`data`.nextRunId
+        else -> null
+    }
 }
 
 /** Opens a run's event stream after event [afterSeq], from its first event at 0; closing the handle ends it. */
@@ -76,8 +83,9 @@ fun interface ThreadTitles {
  * the Live Update service shows the runs started from this phone while they
  * run. A run is kept while it runs as a Live Update or while a screen watches
  * its thread; it is dropped when it ends, when its stream cannot be kept, or
- * when it waits on the owner with nobody watching. A broken stream is opened
- * again after the last event read.
+ * when it waits on the owner with nobody watching. A run that ends on owner
+ * messages left waiting hands over to the run that takes them, followed the
+ * same way. A broken stream is opened again after the last event read.
  *
  * All state changes run on [scope], which must run one coroutine at a time.
  */
@@ -227,7 +235,15 @@ class RunFollower(
         when {
             update.ended -> {
                 drop(runId)
-                if (next.live) endings.ended(next)
+                val continued = update.nextRunId
+                if (continued != null) {
+                    put(FollowedRun(continued, next.threadId, next.title, next.live, starting))
+                    tracked[continued] = Tracked(t.profile, starting, null)
+                    open(continued)
+                    if (next.live) liveUpdates.ensureShown()
+                } else if (next.live) {
+                    endings.ended(next)
+                }
             }
             // A run waiting on the owner is read again when someone acts on it.
             !next.running && (watching[next.threadId] ?: 0) == 0 -> drop(runId)

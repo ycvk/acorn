@@ -193,30 +193,25 @@ func (s *Store) OpenThreadFile(ctx context.Context, sessionID, fileID string) (c
 	return file, content, nil
 }
 
-// AttachThreadFiles sends unsent owner files of the thread with messageID.
-func (s *Store) AttachThreadFiles(ctx context.Context, sessionID string, messageID int64, fileIDs []string) error {
-	if messageID < 1 || len(fileIDs) == 0 {
-		return errors.New("attaching thread files needs a message id and file ids")
-	}
+// attachThreadFiles sends unsent owner files of the thread with messageID.
+func attachThreadFiles(ctx context.Context, tx *sql.Tx, sessionID string, messageID int64, fileIDs []string) error {
 	placeholders, args := inClause(fileIDs)
 	if len(args) != len(fileIDs) {
 		return fmt.Errorf("%w: file ids repeat", core.ErrInvalidThreadFile)
 	}
-	return s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		result, err := tx.ExecContext(ctx, `UPDATE thread_files SET message_id = ? WHERE session_id = ? AND origin = 'owner' AND message_id = 0 AND file_id IN (`+placeholders+`)`,
-			append([]any{messageID, sessionID}, args...)...)
-		if err != nil {
-			return fmt.Errorf("attach thread files: %w", err)
-		}
-		attached, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("attach thread files: %w", err)
-		}
-		if attached != int64(len(fileIDs)) {
-			return fmt.Errorf("%w: only %d of %d files are unsent owner files of thread %s", core.ErrInvalidThreadFile, attached, len(fileIDs), sessionID)
-		}
-		return nil
-	})
+	result, err := tx.ExecContext(ctx, `UPDATE thread_files SET message_id = ? WHERE session_id = ? AND origin = 'owner' AND message_id = 0 AND file_id IN (`+placeholders+`)`,
+		append([]any{messageID, sessionID}, args...)...)
+	if err != nil {
+		return fmt.Errorf("attach thread files: %w", err)
+	}
+	attached, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("attach thread files: %w", err)
+	}
+	if attached != int64(len(fileIDs)) {
+		return fmt.Errorf("%w: only %d of %d files are unsent owner files of thread %s", core.ErrInvalidThreadFile, attached, len(fileIDs), sessionID)
+	}
+	return nil
 }
 
 // OwnerThreadFileIDs lists the owner files of every thread.

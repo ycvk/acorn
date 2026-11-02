@@ -162,7 +162,7 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.runs.CreateRun(ctx, thread.ID, "", "早上给我国内要闻和 AI 新闻", nil); err != nil {
+	if _, err := startOwnerRun(ctx, c, thread.ID, "早上给我国内要闻和 AI 新闻"); err != nil {
 		t.Fatal(err)
 	}
 	// New sources start on trial; the owner approves taking each in.

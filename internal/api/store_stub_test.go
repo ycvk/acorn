@@ -74,8 +74,23 @@ func (unimplementedStore) LoadRun(context.Context, string) (*core.RunRecord, err
 func (unimplementedStore) RunWoken(context.Context, string) (bool, error) {
 	return false, errUnexpectedClientStoreCall
 }
-func (unimplementedStore) FinishRun(context.Context, string, core.RunStatus, string, string) error {
-	return errUnexpectedClientStoreCall
+func (unimplementedStore) FinishRun(context.Context, core.RunEnd) (core.EventRecord, *core.RunStart, error) {
+	return core.EventRecord{}, nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) SendOwnerMessage(context.Context, core.OwnerMessage) (core.SentOwnerMessage, error) {
+	return core.SentOwnerMessage{}, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) TakeQueuedMessages(context.Context, string) ([]core.SessionMessageRecord, error) {
+	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) StartQueuedRun(context.Context, string, string) (*core.RunStart, error) {
+	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) ListQueuedMessages(context.Context, string) ([]core.QueuedMessage, error) {
+	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) ListQueuedSessions(context.Context) ([]string, error) {
+	return nil, errUnexpectedClientStoreCall
 }
 func (unimplementedStore) MarkInterrupted(context.Context, string, string) error {
 	return errUnexpectedClientStoreCall

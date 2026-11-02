@@ -28,20 +28,15 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * 
+ * The owner's message. It needs input, files or both.
  *
- * @param skillId 
- * @param input Optional run input. When set, the run records it as the pending user message in one step, so a separate POST /messages is not required.
+ * @param input 
  * @param fileIds Files uploaded to the thread that the message sends. With files, the message is recorded even when input is empty.
  */
 
 
 data class CreateRunRequest (
 
-    @Json(name = "skill_id")
-    val skillId: kotlin.String? = null,
-
-    /* Optional run input. When set, the run records it as the pending user message in one step, so a separate POST /messages is not required. */
     @Json(name = "input")
     val input: kotlin.String? = null,
 

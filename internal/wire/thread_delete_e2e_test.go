@@ -28,7 +28,7 @@ func ownerSaid(t *testing.T, c *Container, threadID, runID, said, fact string) c
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.store.FinishRun(ctx, runID, core.RunStatusSucceeded, "记住了", ""); err != nil {
+	if _, _, err := c.store.FinishRun(ctx, core.RunEnd{RunID: runID, Status: core.RunStatusSucceeded, Output: "记住了", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatal(err)
 	}
 	records, err := c.store.CommitMemory(ctx, core.MemoryMutation{Now: time.Now(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "fact", Content: fact, Evidence: []core.MemoryEvidence{{SourceID: "message:" + strconv.FormatInt(message.ID, 10), Quote: said, Relation: "supports"}}}, Reason: "owner statement"}}})

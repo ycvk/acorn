@@ -17,6 +17,9 @@ import (
 type RunResumeService struct {
 	store     core.SessionStore
 	resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	// continueRun executes the run the store starts on owner messages that
+	// waited for a resumed run to end.
+	continueRun func(context.Context, core.ExecuteRequest)
 
 	mu       sync.Mutex
 	inflight map[string]struct{}
@@ -31,6 +34,13 @@ func NewRunResumeService(store core.SessionStore) *RunResumeService {
 
 func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)) *RunResumeService {
 	s.resumeRun = resumeRun
+	return s
+}
+
+// WithContinue executes the runs the store starts on owner messages that
+// waited for a resumed run, as RunService.ContinueRun does.
+func (s *RunResumeService) WithContinue(continueRun func(context.Context, core.ExecuteRequest)) *RunResumeService {
+	s.continueRun = continueRun
 	return s
 }
 
@@ -132,10 +142,13 @@ func (s *RunResumeService) resumeClaimed(ctx context.Context, runID string) {
 		return
 	}
 	s.release(runID)
-	if result != nil && result.Status == core.RunStatusInterrupted {
+	if result.Status == core.RunStatusInterrupted {
 		if err := s.ResumeIfReady(ctx, runID); err != nil {
 			reportClientBackgroundError(ctx, runID, err)
 		}
+	}
+	if result.Next != nil {
+		s.continueRun(ctx, *result.Next)
 	}
 }
 
@@ -160,12 +173,13 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 	if errors.Is(cause, core.ErrRunNotInterrupted) && run.Status == core.RunStatusRunning {
 		return
 	}
-	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
+	_, next, err := s.store.FinishRun(ctx, failedRunEnd(runID, cause))
+	if err != nil {
 		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
 		return
 	}
-	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
-		reportClientBackgroundError(ctx, runID, errors.Join(cause, err))
+	if next != nil {
+		s.continueRun(ctx, createdRunRequest(*next))
 	}
 }
 

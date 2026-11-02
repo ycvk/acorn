@@ -96,12 +96,14 @@ func (s *resumeReadyStore) AppendEvent(_ context.Context, runID, kind string, pa
 	return record, nil
 }
 
-func (s *resumeReadyStore) FinishRun(_ context.Context, _ string, status core.RunStatus, _, _ string) error {
+func (s *resumeReadyStore) FinishRun(_ context.Context, end core.RunEnd) (core.EventRecord, *core.RunStart, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.run.Status = status
-	s.finished = append(s.finished, status)
-	return nil
+	s.run.Status = end.Status
+	s.finished = append(s.finished, end.Status)
+	record := core.EventRecord{RunID: end.RunID, Sequence: int64(len(s.events) + 1), Kind: end.Event, Payload: end.Payload}
+	s.events = append(s.events, record)
+	return record, nil, nil
 }
 
 type resumeRecorder struct {

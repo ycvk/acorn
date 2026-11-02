@@ -28,7 +28,7 @@ func TestStoreLifecycle(t *testing.T) {
 	if _, err := store.AppendEvent(context.Background(), "run_1", "run.started", map[string]any{"input": "hello"}); err != nil {
 		t.Fatalf("append event: %v", err)
 	}
-	if err := store.FinishRun(context.Background(), "run_1", core.RunStatusSucceeded, "done", ""); err != nil {
+	if _, _, err := store.FinishRun(context.Background(), core.RunEnd{RunID: "run_1", Status: core.RunStatusSucceeded, Output: "done", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -40,8 +40,9 @@ func TestStoreLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if run == nil || len(items) != 1 {
-		t.Fatalf("expected run and one event, got run=%#v items=%#v", run, items)
+	// The run's terminal event is recorded with its end.
+	if run == nil || len(items) != 2 || items[1].Kind != "run.completed" {
+		t.Fatalf("expected run and its started and completed events, got run=%#v items=%#v", run, items)
 	}
 	if run.Status != core.RunStatusSucceeded {
 		t.Fatalf("Status = %q, want %q", run.Status, core.RunStatusSucceeded)
@@ -198,7 +199,7 @@ func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create done run: %v", err)
 	}
-	if err := store.FinishRun(ctx, "run_done", core.RunStatusSucceeded, "done", ""); err != nil {
+	if _, _, err := store.FinishRun(ctx, core.RunEnd{RunID: "run_done", Status: core.RunStatusSucceeded, Output: "done", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatalf("finish done run: %v", err)
 	}
 	if err := store.CreateRun(ctx, core.RunCreateParams{
@@ -209,7 +210,7 @@ func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create failed run: %v", err)
 	}
-	if err := store.FinishRun(ctx, "run_failed", core.RunStatusFailed, "", "boom"); err != nil {
+	if _, _, err := store.FinishRun(ctx, core.RunEnd{RunID: "run_failed", Status: core.RunStatusFailed, Output: "", Error: "boom", Event: "run.failed"}); err != nil {
 		t.Fatalf("finish failed run: %v", err)
 	}
 	if err := store.CreateRun(ctx, core.RunCreateParams{

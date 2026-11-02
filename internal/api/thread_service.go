@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -287,6 +288,35 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 	return messages, nil
 }
 
+// QueuedMessages lists the owner messages that wait in the thread for its
+// run, in the order they were sent.
+func (s *ThreadService) QueuedMessages(ctx context.Context, threadID string) ([]QueuedMessage, error) {
+	queued, err := s.store.ListQueuedMessages(ctx, threadID)
+	if err != nil {
+		return nil, err
+	}
+	files, err := s.files.ThreadFiles(ctx, threadID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]QueuedMessage, 0, len(queued))
+	for _, message := range queued {
+		out = append(out, queuedMessage(message, files))
+	}
+	return out, nil
+}
+
+// queuedMessage projects a waiting owner message with the thread files it sends.
+func queuedMessage(message core.QueuedMessage, files []core.ThreadFile) QueuedMessage {
+	out := QueuedMessage{ID: fmt.Sprintf("%d", message.ID), Text: message.Content, CreatedAt: message.CreatedAt}
+	for _, file := range files {
+		if slices.Contains(message.FileIDs, file.ID) {
+			out.Files = append(out.Files, threadFileInfo(file))
+		}
+	}
+	return out
+}
+
 func isRunInput(record core.SessionMessageRecord) bool {
 	switch record.Role {
 	case "user", core.MessageRoleWake, core.MessageRoleCapture:
@@ -411,20 +441,8 @@ func toolSteps(events []core.EventRecord) ([]ToolStep, error) {
 	return steps, nil
 }
 
-func (s *ThreadService) CreateMessage(ctx context.Context, threadID, content string) (*Message, error) {
-	record, err := s.createInputMessage(ctx, threadID, "user", content)
-	if err != nil {
-		return nil, err
-	}
-	message, err := projectMessage(*record)
-	if err != nil {
-		return nil, err
-	}
-	return &message, nil
-}
-
-// createInputMessage records the input of a run, the owner's message (role
-// user), a commitment wake (role wake) or a capture (role capture), and returns the stored record
+// createInputMessage records the input of a run Acorn starts itself, a wake
+// (role wake) or a capture (role capture), and returns the stored record
 // (including its id and turn index) so the run can bind to that exact id.
 func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, content string) (*core.SessionMessageRecord, error) {
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
@@ -490,6 +508,14 @@ type Message struct {
 	Files []ThreadFileInfo
 	// Views are what the run behind an assistant message showed the owner.
 	Views []core.ViewData
+}
+
+// QueuedMessage is an owner message that waits for the thread's run.
+type QueuedMessage struct {
+	ID        string
+	Text      string
+	CreatedAt time.Time
+	Files     []ThreadFileInfo
 }
 
 // ThreadFileInfo describes a file in a thread.

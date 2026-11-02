@@ -23,7 +23,8 @@
 
 package io.ycvk.acorn.api.models
 
-import io.ycvk.acorn.api.models.MessageContent
+import io.ycvk.acorn.api.models.QueuedMessage
+import io.ycvk.acorn.api.models.Run
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -31,14 +32,20 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param content 
+ * @param run The run that takes the message, the one started on it or the thread's run still going.
+ * @param queued Set when the message waits for the run.
  */
 
 
-data class CreateMessageRequest (
+data class CreateRunResponse (
 
-    @Json(name = "content")
-    val content: MessageContent
+    /* The run that takes the message, the one started on it or the thread's run still going. */
+    @Json(name = "run")
+    val run: Run,
+
+    /* Set when the message waits for the run. */
+    @Json(name = "queued")
+    val queued: QueuedMessage? = null
 
 ) {
 

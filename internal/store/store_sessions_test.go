@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,21 +36,14 @@ func TestBindUserMessageRunIDByID(t *testing.T) {
 	if err := store.BindUserMessageRunIDByID(ctx, m1.ID, "run_a"); err != nil {
 		t.Fatalf("bind m1: %v", err)
 	}
-	// m1 is bound; the latest unbound is still m2 (m1 was not skipped for latest,
-	// and m2 was untouched).
-	latest, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind")
-	if err != nil {
-		t.Fatalf("load latest unbound: %v", err)
+	if got := boundRuns(t, store, "sess_bind"); got != "first:run_a second:" {
+		t.Fatalf("bound runs = %q", got)
 	}
-	if latest.ID != m2.ID {
-		t.Fatalf("latest unbound id = %d, want m2 %d", latest.ID, m2.ID)
-	}
-
 	if err := store.BindUserMessageRunIDByID(ctx, m2.ID, "run_b"); err != nil {
 		t.Fatalf("bind m2: %v", err)
 	}
-	if _, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind"); !errors.Is(err, core.ErrSessionMessageNotFound) {
-		t.Fatalf("after binding both, want core.ErrSessionMessageNotFound, got %v", err)
+	if got := boundRuns(t, store, "sess_bind"); got != "first:run_a second:run_b" {
+		t.Fatalf("bound runs = %q", got)
 	}
 
 	// Re-binding an already-bound message fails loud (RowsAffected = 0), so a
@@ -82,7 +74,7 @@ func TestSessionQueries(t *testing.T) {
 	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: "run_1", SessionID: s1.SessionID, TurnIndex: 1, Input: "hello"}); err != nil {
 		t.Fatalf("create session run: %v", err)
 	}
-	if err := store.FinishRun(context.Background(), "run_1", core.RunStatusSucceeded, "done", ""); err != nil {
+	if _, _, err := store.FinishRun(context.Background(), core.RunEnd{RunID: "run_1", Status: core.RunStatusSucceeded, Output: "done", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatalf("finish session run: %v", err)
 	}
 
@@ -137,13 +129,13 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: "run_alpha_1", SessionID: alpha.SessionID, TurnIndex: 1, Input: "first"}); err != nil {
 		t.Fatalf("create alpha run 1: %v", err)
 	}
-	if err := store.FinishRun(context.Background(), "run_alpha_1", core.RunStatusSucceeded, "done", ""); err != nil {
+	if _, _, err := store.FinishRun(context.Background(), core.RunEnd{RunID: "run_alpha_1", Status: core.RunStatusSucceeded, Output: "done", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatalf("finish alpha run 1: %v", err)
 	}
 	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: "run_alpha_2", SessionID: alpha.SessionID, TurnIndex: 2, Input: "second"}); err != nil {
 		t.Fatalf("create alpha run 2: %v", err)
 	}
-	if err := store.FinishRun(context.Background(), "run_alpha_2", core.RunStatusFailed, "partial", "command failed"); err != nil {
+	if _, _, err := store.FinishRun(context.Background(), core.RunEnd{RunID: "run_alpha_2", Status: core.RunStatusFailed, Output: "partial", Error: "command failed", Event: "run.failed"}); err != nil {
 		t.Fatalf("finish alpha run 2: %v", err)
 	}
 
@@ -235,7 +227,7 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_1"); err != nil {
 		t.Fatalf("bind latest user message run id: %v", err)
 	}
-	if err := store.FinishRun(context.Background(), "run_1", core.RunStatusSucceeded, "done", ""); err != nil {
+	if _, _, err := store.FinishRun(context.Background(), core.RunEnd{RunID: "run_1", Status: core.RunStatusSucceeded, Output: "done", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 	if _, err := store.AppendEvent(context.Background(), "run_1", "runtime.message", map[string]any{
@@ -314,30 +306,35 @@ func TestClientSessionMessageHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AppendSessionMessage second: %v", err)
 	}
-	latest, err := store.LoadLatestUnboundUserMessage(context.Background(), session.SessionID)
-	if err != nil {
-		t.Fatalf("LoadLatestUnboundUserMessage: %v", err)
-	}
-	if latest.ID != second.ID || latest.Content != "run this" {
-		t.Fatalf("latest = %#v, want second %#v", latest, second)
+	if second.Content != "run this" || first.Content != "hello" {
+		t.Fatalf("messages = %#v, %#v", first, second)
 	}
 	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, second.TurnIndex, "run_v1"); err != nil {
 		t.Fatalf("BindLatestUserMessageRunID: %v", err)
 	}
-	latest, err = store.LoadLatestUnboundUserMessage(context.Background(), session.SessionID)
-	if err != nil {
-		t.Fatalf("LoadLatestUnboundUserMessage after binding second: %v", err)
-	}
-	if latest.ID != first.ID {
-		t.Fatalf("latest ID = %d, want first ID %d", latest.ID, first.ID)
+	if got := boundRuns(t, store, session.SessionID); got != "hello: run this:run_v1" {
+		t.Fatalf("bound runs = %q", got)
 	}
 	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, first.TurnIndex, "run_v1_first"); err != nil {
 		t.Fatalf("BindLatestUserMessageRunID first: %v", err)
 	}
-	_, err = store.LoadLatestUnboundUserMessage(context.Background(), session.SessionID)
-	if !errors.Is(err, core.ErrSessionMessageNotFound) {
-		t.Fatalf("LoadLatestUnboundUserMessage exhausted error = %v, want core.ErrSessionMessageNotFound", err)
+	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, first.TurnIndex, "run_again"); err == nil {
+		t.Fatal("binding a turn whose message is bound should fail")
 	}
+}
+
+// boundRuns lists the thread's messages as content:run.
+func boundRuns(t *testing.T, store *Store, sessionID string) string {
+	t.Helper()
+	messages, err := store.ListSessionMessages(context.Background(), sessionID, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := make([]string, 0, len(messages))
+	for _, message := range messages {
+		parts = append(parts, message.Content+":"+message.RunID)
+	}
+	return strings.Join(parts, " ")
 }
 
 func TestUpdateSessionTitleIfEmptyTreatsWhitespaceAsEmpty(t *testing.T) {
@@ -395,7 +392,7 @@ func TestSyncAssistantMessageForRunPersistsFailureContext(t *testing.T) {
 	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: "run_failed", SessionID: session.SessionID, TurnIndex: turnIndex, Input: "inspect repo"}); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
-	if err := store.FinishRun(context.Background(), "run_failed", core.RunStatusFailed, "rg stdout", "shell exited with status 1"); err != nil {
+	if _, _, err := store.FinishRun(context.Background(), core.RunEnd{RunID: "run_failed", Status: core.RunStatusFailed, Output: "rg stdout", Error: "shell exited with status 1", Event: "run.failed"}); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_failed"); err != nil {
@@ -446,7 +443,7 @@ func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_resume"); err != nil {
 		t.Fatalf("sync interrupted message: %v", err)
 	}
-	if err := store.FinishRun(context.Background(), "run_resume", core.RunStatusSucceeded, "final answer", ""); err != nil {
+	if _, _, err := store.FinishRun(context.Background(), core.RunEnd{RunID: "run_resume", Status: core.RunStatusSucceeded, Output: "final answer", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatalf("finish resumed run: %v", err)
 	}
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_resume"); err != nil {

@@ -42,16 +42,24 @@ func TestThreadFilesAreSentOnceAndLeaveWithTheirThread(t *testing.T) {
 	elsewhere := saveFile(t, s, core.ThreadFileWrite{SessionID: "other", Origin: core.ThreadFileFromOwner, Name: "a.txt", Content: strings.NewReader("a"), MaxBytes: 64})
 	sent := saveFile(t, s, core.ThreadFileWrite{SessionID: "books", RunID: "run_1", Origin: core.ThreadFileFromAgent, Name: "book.epub", Content: strings.NewReader("PK\x03\x04"), MaxBytes: 64})
 
+	send := func(runID string, ids []string) (core.SentOwnerMessage, error) {
+		return s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "books", FileIDs: ids, RunID: runID})
+	}
 	for _, ids := range [][]string{{elsewhere.ID}, {sent.ID}, {notes.ID, notes.ID}} {
-		if err := s.AttachThreadFiles(ctx, "books", 7, ids); !errors.Is(err, core.ErrInvalidThreadFile) {
-			t.Fatalf("attach %v err = %v, want ErrInvalidThreadFile", ids, err)
+		if _, err := send("run_bad", ids); !errors.Is(err, core.ErrInvalidThreadFile) {
+			t.Fatalf("send %v err = %v, want ErrInvalidThreadFile", ids, err)
 		}
 	}
-	if err := s.AttachThreadFiles(ctx, "books", 7, []string{notes.ID}); err != nil {
-		t.Fatal(err)
+	first, err := send("run_a", []string{notes.ID})
+	if err != nil || first.Started == nil {
+		t.Fatalf("send = %+v, %v", first, err)
 	}
-	if err := s.AttachThreadFiles(ctx, "books", 8, []string{notes.ID}); !errors.Is(err, core.ErrInvalidThreadFile) {
-		t.Fatalf("second attach err = %v, want ErrInvalidThreadFile", err)
+	// The run that took the file is going, so the next message would wait for it.
+	if _, err := send("run_b", []string{notes.ID}); !errors.Is(err, core.ErrInvalidThreadFile) {
+		t.Fatalf("second send err = %v, want ErrInvalidThreadFile", err)
+	}
+	if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: "run_a", Status: core.RunStatusSucceeded, Event: "run.completed"}); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := s.SaveThreadFile(ctx, core.ThreadFileWrite{SessionID: "books", Origin: core.ThreadFileFromOwner, Name: "big.bin", Content: strings.NewReader(strings.Repeat("x", 65)), MaxBytes: 64}); !errors.Is(err, core.ErrThreadFileTooLarge) {
 		t.Fatalf("oversized err = %v", err)
@@ -61,7 +69,7 @@ func TestThreadFilesAreSentOnceAndLeaveWithTheirThread(t *testing.T) {
 	}
 
 	files, err := s.ThreadFiles(ctx, "books")
-	if err != nil || len(files) != 2 || files[0].MessageID != 7 || files[1].RunID != "run_1" {
+	if err != nil || len(files) != 2 || files[0].MessageID != first.Started.Messages[0].ID || files[1].RunID != "run_1" {
 		t.Fatalf("thread files = %+v, %v", files, err)
 	}
 	_, content, err := s.OpenThreadFile(ctx, "books", notes.ID)

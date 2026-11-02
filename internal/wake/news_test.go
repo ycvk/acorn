@@ -155,7 +155,7 @@ func (h *harness) writtenBriefing(t *testing.T, slot, output string) {
 	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_" + slot, Input: "[briefing " + slot + "]"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.data.FinishRun(ctx, "run_"+slot, core.RunStatusSucceeded, output, ""); err != nil {
+	if _, _, err := h.data.FinishRun(ctx, core.RunEnd{RunID: "run_" + slot, Status: core.RunStatusSucceeded, Output: output, Error: "", Event: "run.completed"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.data.SetRoutineRun(ctx, "briefing", slot, "thread_briefings", "run_"+slot); err != nil {

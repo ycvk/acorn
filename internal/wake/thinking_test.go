@@ -141,7 +141,7 @@ func TestWanderSkipsAConcernWhoseConversationIsBusy(t *testing.T) {
 	if len(h.runs.starts) != 2 || !strings.HasPrefix(h.runs.starts[1], "thread_b|") {
 		t.Fatalf("a conversation waiting for approval was not skipped: %v", h.runs.starts)
 	}
-	if err := h.data.FinishRun(ctx, "run_a", core.RunStatusSucceeded, "好了", ""); err != nil {
+	if _, _, err := h.data.FinishRun(ctx, core.RunEnd{RunID: "run_a", Status: core.RunStatusSucceeded, Output: "好了", Error: "", Event: "run.completed"}); err != nil {
 		t.Fatal(err)
 	}
 	h.wanderAt(t, 0, 20)

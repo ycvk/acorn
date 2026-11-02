@@ -86,9 +86,9 @@ func TestPinnedPanelsTakeTheirTriggersViewData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var run api.RunDTO
+	var run api.CreateRunResponse
 	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "把 eino 的最新版本做成一个视图"}, http.StatusCreated, &run)
-	waitRunStatus(t, c, run.ID, "completed")
+	waitRunStatus(t, c, run.Run.ID, "completed")
 	shown, err := c.store.ThreadViews(ctx, thread.ID)
 	if err != nil || len(shown) != 1 || shown[0].Source != "repo-releases/check" {
 		t.Fatalf("views = %+v, %v", shown, err)

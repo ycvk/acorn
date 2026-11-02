@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-func TestResumeReadyRunsLoopSweepsAtStartupAndOnTicks(t *testing.T) {
+func TestContinueRunsLoopSweepsAtStartupAndOnTicks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var calls atomic.Int32
 	done := make(chan struct{})
 	go func() {
-		resumeReadyRunsLoop(ctx, func(context.Context) error {
+		continueRunsLoop(ctx, func(context.Context) error {
 			calls.Add(1)
 			return errors.New("store busy")
 		}, 10*time.Millisecond)

@@ -32,13 +32,18 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param message 
+ * @param nextRunId The run that started when this one ended, on owner messages that waited for it.
  */
 
 
 data class RunCompletedData (
 
     @Json(name = "message")
-    val message: RunEventMessage? = null
+    val message: RunEventMessage? = null,
+
+    /* The run that started when this one ended, on owner messages that waited for it. */
+    @Json(name = "next_run_id")
+    val nextRunId: kotlin.String? = null
 
 ) {
 

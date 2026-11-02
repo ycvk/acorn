@@ -31,7 +31,7 @@ func AppendStreamItem(ctx context.Context, store core.EventAppender, sink core.S
 	return saved, nil
 }
 
-func ProjectStreamItemToEvent(item core.StreamItem) (string, any, error) {
+func ProjectStreamItemToEvent(item core.StreamItem) (string, map[string]any, error) {
 	if item.Payload == nil {
 		return streamKindToEventKind(item.Kind), map[string]any{}, nil
 	}
