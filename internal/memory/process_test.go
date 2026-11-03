@@ -24,7 +24,12 @@ type protocolModel struct {
 	beforeReply func()
 	seen        []string
 	maxOutputs  []int
-	summary     string
+	// instructions are the thread summary instructions the model saw.
+	instructions []string
+	// summaries are the next thread summary replies; summary follows them,
+	// then a summary with every section the model writes.
+	summaries []string
+	summary   string
 }
 
 func (m *protocolModel) GenerateMemory(ctx context.Context, instruction, input string, maxOutput int) (Generation, error) {
@@ -51,8 +56,15 @@ func (m *protocolModel) GenerateMemory(ctx context.Context, instruction, input s
 		reply, err := json.Marshal(map[string]any{"records": []core.MemoryDraft{{Kind: "fact", Content: in.Source.Content, Entities: []string{"饮食"}, Evidence: []core.MemoryEvidence{{SourceID: in.Source.ID, Quote: in.Source.Content, Relation: "supports"}}}}})
 		return Generation{Text: string(reply), InputTokens: 100, OutputTokens: 30, Reported: true}, err
 	}
-	if m.summary != "" && instruction == threadSummaryInstruction {
-		return Generation{Text: m.summary, InputTokens: 100, OutputTokens: 3, Reported: true}, nil
+	if strings.HasPrefix(instruction, "Summarize the supplied thread") {
+		m.instructions = append(m.instructions, instruction)
+		reply := modelSummary("- (none)")
+		if len(m.summaries) > 0 {
+			reply, m.summaries = m.summaries[0], m.summaries[1:]
+		} else if m.summary != "" {
+			reply = m.summary
+		}
+		return Generation{Text: reply, InputTokens: 100, OutputTokens: 3, Reported: true}, nil
 	}
 	return Generation{Text: `{"changes":[],"links":[]}`, InputTokens: 100, OutputTokens: 3, Reported: true}, nil
 }

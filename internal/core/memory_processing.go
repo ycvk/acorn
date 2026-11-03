@@ -68,6 +68,16 @@ type ThreadSummary struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+// ToolCallRecord is a tool call a finished run made, with the memory source of
+// its result.
+type ToolCallRecord struct {
+	SourceID  string `json:"source_id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+	// ObjectResult is whether the call succeeded with a JSON object.
+	ObjectResult bool `json:"object_result"`
+}
+
 type MemoryUsage struct {
 	ID           string    `json:"id"`
 	Operation    string    `json:"operation"`
