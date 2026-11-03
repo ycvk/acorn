@@ -58,7 +58,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - 约定分规则与每次发生,发生只能被认领一次;完成需要 owner 确认或成功的工具结果。
 - 关切属于建立它的对话。游思每次推进到期关切里最久没有修订的一件,在它所在的对话里运行,对话里有 run 在运行或等待审批时跳过它。有 outcome 的关切由游思在工作机的 `~/work/<id>/` 里推进,交付到所在对话后转为 waiting,只由 owner 的确认解决。owner 从早安卡要求跟进的事件,关切建在这件事的对话里,游思选中它时看到跟进时存下的事件内容,查新进展,有才推送。
 - 跟进属于建立它的对话:agent 经 `follow_up` 等工作机上的任务结束、任务输出出现某段文字,或某个路径就绪(目录存在,或文件存在且相隔一次检查大小不变),到期限(默认 24 小时,至多 7 天)无论如何醒来。wake 调度器每次检查经工作机查看条件,对话里没有运行中或等待审批的 run、也没有排队的 owner 消息时,经条件更新认领一次并在原对话起 run(输入以 `[follow_up #id` 开头);没有工作机时只在期限醒来。
-- 目标属于建立它的对话,每个对话至多一个进行中的目标。agent 经 `goal` 开始目标,对话的 run 结束、没有排队的 owner 消息与等待中的跟进时,wake 调度器在这个对话里起下一轮(输入以 `[goal #id, run k of n]` 开头),直到 agent 以 done、blocked 或 stop 结束它,或轮数用完转为 blocked;Acorn 重启打断的 run 不算失败,其他失败的 run 让目标转为 blocked。done 与 blocked 在对话的 run 结束后推送给 owner 一次。跟进与目标的 run 都计入每日唤醒预算并记 `wake.fired`;删除对话一并删除它的跟进与目标。
+- 目标属于建立它的对话,每个对话至多一个进行中的目标。agent 经 `goal` 开始目标,对话的 run 结束、没有排队的 owner 消息与等待中的跟进时,wake 调度器在这个对话里起下一轮(输入以 `[goal #id, run k of n]` 开头),直到 agent 以 done、blocked 或 stop 结束它,或轮数用完转为 blocked;Acorn 重启打断的 run 不算失败,其他失败的 run 让目标转为 blocked。done 与 blocked 在对话的 run 结束后推送给 owner 一次;agent 结束目标的那个 run 已经推送过的不再推送。跟进与目标的 run 都计入每日唤醒预算并记 `wake.fired`;删除对话一并删除它的跟进与目标。
 - 后台记忆调用受 `memory.daily_tokens` 设置约束,自主唤醒受 `wake.daily_limit`/`wake.daily_tokens` 设置约束;预算耗尽时任务保留到下一本地日。
 
 ### 追踪与早安卡

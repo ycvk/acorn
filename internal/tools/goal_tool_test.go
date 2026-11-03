@@ -68,7 +68,7 @@ func TestGoalStartsAndEndsTheConversationsGoal(t *testing.T) {
 		t.Fatalf("blocked = %+v, %v", ended, err)
 	}
 	pending, err := db.UnannouncedGoals(context.Background())
-	if err != nil || len(pending) != 1 || pending[0].Result != "需要你登录图书馆账号" {
+	if err != nil || len(pending) != 1 || pending[0].Result != "需要你登录图书馆账号" || pending[0].EndRunID != "run_goal" {
 		t.Fatalf("unannounced = %+v, %v", pending, err)
 	}
 }

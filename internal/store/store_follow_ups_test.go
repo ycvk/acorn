@@ -157,15 +157,15 @@ func TestGoalsRunWithinTheirBudget(t *testing.T) {
 	if err != nil || active.Runs != 2 || active.SourceRunID != "run_1" {
 		t.Fatalf("active = %+v, %v", active, err)
 	}
-	ended, err := s.EndGoal(ctx, g.ID, core.GoalDone, "全书 12 章已入库", now)
-	if err != nil || ended.State != core.GoalDone || ended.Announced {
+	ended, err := s.EndGoal(ctx, g.ID, core.GoalDone, "全书 12 章已入库", "run_end", now)
+	if err != nil || ended.State != core.GoalDone || ended.Announced || ended.EndRunID != "run_end" {
 		t.Fatalf("ended = %+v, %v", ended, err)
 	}
-	if _, err := s.EndGoal(ctx, g.ID, core.GoalBlocked, "again", now); !errors.Is(err, core.ErrGoalNotFound) {
+	if _, err := s.EndGoal(ctx, g.ID, core.GoalBlocked, "again", "", now); !errors.Is(err, core.ErrGoalNotFound) {
 		t.Fatalf("end an ended goal = %v", err)
 	}
 	pending, err := s.UnannouncedGoals(ctx)
-	if err != nil || len(pending) != 1 || pending[0].Result != "全书 12 章已入库" {
+	if err != nil || len(pending) != 1 || pending[0].Result != "全书 12 章已入库" || pending[0].EndRunID != "run_end" {
 		t.Fatalf("unannounced = %+v, %v", pending, err)
 	}
 	if err := s.MarkGoalAnnounced(ctx, g.ID, now); err != nil {
@@ -175,7 +175,7 @@ func TestGoalsRunWithinTheirBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.EndGoal(ctx, stopped.ID, core.GoalStopped, "owner asked to stop", now); err != nil {
+	if _, err := s.EndGoal(ctx, stopped.ID, core.GoalStopped, "owner asked to stop", "run_stop", now); err != nil {
 		t.Fatal(err)
 	}
 	if pending, err := s.UnannouncedGoals(ctx); err != nil || len(pending) != 0 {
@@ -194,5 +194,53 @@ func TestGoalsRunWithinTheirBudget(t *testing.T) {
 	var left int
 	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM goals) + (SELECT COUNT(*) FROM follow_ups)`).Scan(&left); err != nil || left != 0 {
 		t.Fatalf("rows left after delete = %d, %v", left, err)
+	}
+}
+
+// Upgrading to version 33 keeps the goals, with no ending run recorded.
+func TestGoalEndRunsKeepTheGoals(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	if _, err := raw.Exec(readLayout(t, 32) + `PRAGMA user_version = 32;
+INSERT INTO goals(session_id, objective, max_runs, runs, state, result, announced, created_at, updated_at)
+VALUES('chat', '四大名著', 12, 1, 'done', '四本都齐了', 1, '2026-11-03T09:02:50.000000000Z', '2026-11-03T09:17:10.000000000Z');`); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	goals, err := s.queryGoals(context.Background(), `SELECT `+goalColumns+` FROM goals`)
+	if err != nil || len(goals) != 1 || goals[0].Objective != "四大名著" || goals[0].Runs != 1 || !goals[0].Announced || goals[0].EndRunID != "" {
+		t.Fatalf("goals after the upgrade = %+v, %v", goals, err)
+	}
+}
+
+// A run notified the owner when it pushed something of its own; the pushes
+// announcing its pending actions do not count.
+func TestRunNotifiedOwnerCountsOnlyTheRunsOwnPushes(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	now := time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)
+	for _, n := range []core.Notification{
+		{Title: "需要你批准", Body: "下载要访问外网", ThreadID: "chat", RunID: "run_approval", ActionID: "action_1", SendAfter: now, CreatedAt: now},
+		{Title: "四大名著齐了", Body: "四本都附上了", ThreadID: "chat", RunID: "run_told", SendAfter: now, CreatedAt: now},
+	} {
+		if _, err := s.QueueNotification(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for run, want := range map[string]bool{"run_told": true, "run_approval": false, "run_quiet": false} {
+		if got, err := s.RunNotifiedOwner(ctx, run); err != nil || got != want {
+			t.Fatalf("RunNotifiedOwner(%s) = %v, %v; want %v", run, got, err, want)
+		}
 	}
 }

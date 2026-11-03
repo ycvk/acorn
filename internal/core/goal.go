@@ -34,7 +34,10 @@ type Goal struct {
 	Runs        int
 	State       string
 	// Result says what was achieved, what the agent needs or why it stopped.
-	Result    string
+	Result string
+	// EndRunID is the run in which the agent ended the goal; empty while it
+	// is active and when the scheduler ended it.
+	EndRunID  string
 	Announced bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -46,8 +49,9 @@ type GoalStore interface {
 	// ActiveGoal fails with ErrGoalNotFound when the conversation has none.
 	ActiveGoal(ctx context.Context, sessionID string) (Goal, error)
 	ActiveGoals(context.Context) ([]Goal, error)
-	// EndGoal ends an active goal; a stopped goal needs no announcement.
-	EndGoal(ctx context.Context, id int64, state, result string, now time.Time) (Goal, error)
+	// EndGoal ends an active goal, in endRunID when the agent ends it; a
+	// stopped goal needs no announcement.
+	EndGoal(ctx context.Context, id int64, state, result, endRunID string, now time.Time) (Goal, error)
 	// CountGoalRun counts a run for the goal while it is active and has
 	// taken runs runs; otherwise it fails with ErrGoalChanged.
 	CountGoalRun(ctx context.Context, id int64, runs int, now time.Time) error

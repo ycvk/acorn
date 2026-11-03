@@ -22,13 +22,32 @@ const goalsTable = `CREATE TABLE IF NOT EXISTS goals (
     runs INTEGER NOT NULL DEFAULT 0,
     state TEXT NOT NULL,
     result TEXT NOT NULL DEFAULT '',
+    end_run_id TEXT NOT NULL DEFAULT '',
     announced INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_active ON goals(session_id) WHERE state = 'active';`
 
-const goalColumns = `id,session_id,source_run_id,objective,max_runs,runs,state,result,announced,created_at,updated_at`
+const goalColumns = `id,session_id,source_run_id,objective,max_runs,runs,state,result,end_run_id,announced,created_at,updated_at`
+
+// addGoalEndRuns (32 to 33) records the run in which the agent ended each
+// goal, rebuilding the table from goalsTable.
+func addGoalEndRuns(ctx context.Context, tx *sql.Tx) error {
+	columns := "id, session_id, source_run_id, objective, max_runs, runs, state, result, announced, created_at, updated_at"
+	for _, statement := range []string{
+		`CREATE TEMP TABLE goals_v32 AS SELECT ` + columns + ` FROM goals`,
+		`DROP TABLE goals`,
+		goalsTable,
+		`INSERT INTO goals(` + columns + `) SELECT ` + columns + ` FROM goals_v32`,
+		`DROP TABLE goals_v32`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // StartGoal implements core.GoalStore.
 func (s *Store) StartGoal(ctx context.Context, g core.Goal) (core.Goal, error) {
@@ -87,7 +106,7 @@ func (s *Store) UnannouncedGoals(ctx context.Context) ([]core.Goal, error) {
 }
 
 // EndGoal implements core.GoalStore.
-func (s *Store) EndGoal(ctx context.Context, id int64, state, result string, now time.Time) (core.Goal, error) {
+func (s *Store) EndGoal(ctx context.Context, id int64, state, result, endRunID string, now time.Time) (core.Goal, error) {
 	if state != core.GoalDone && state != core.GoalBlocked && state != core.GoalStopped {
 		return core.Goal{}, fmt.Errorf("goal can end done, blocked or stopped, got %q", state)
 	}
@@ -96,8 +115,8 @@ func (s *Store) EndGoal(ctx context.Context, id int64, state, result string, now
 	}
 	var g core.Goal
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		changed, err := tx.ExecContext(ctx, `UPDATE goals SET state = ?, result = ?, announced = ?, updated_at = ? WHERE id = ? AND state = ?`,
-			state, result, state == core.GoalStopped, formatTimestamp(now), id, core.GoalActive)
+		changed, err := tx.ExecContext(ctx, `UPDATE goals SET state = ?, result = ?, end_run_id = ?, announced = ?, updated_at = ? WHERE id = ? AND state = ?`,
+			state, result, endRunID, state == core.GoalStopped, formatTimestamp(now), id, core.GoalActive)
 		if err := goalChanged(changed, err, core.ErrGoalNotFound); err != nil {
 			return err
 		}
@@ -161,7 +180,7 @@ func (s *Store) queryGoals(ctx context.Context, query string, args ...any) ([]co
 func scanGoal(row interface{ Scan(...any) error }) (core.Goal, error) {
 	var g core.Goal
 	var created, updated string
-	if err := row.Scan(&g.ID, &g.SessionID, &g.SourceRunID, &g.Objective, &g.MaxRuns, &g.Runs, &g.State, &g.Result, &g.Announced, &created, &updated); err != nil {
+	if err := row.Scan(&g.ID, &g.SessionID, &g.SourceRunID, &g.Objective, &g.MaxRuns, &g.Runs, &g.State, &g.Result, &g.EndRunID, &g.Announced, &created, &updated); err != nil {
 		return g, err
 	}
 	var err error

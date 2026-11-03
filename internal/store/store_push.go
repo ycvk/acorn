@@ -170,6 +170,16 @@ func (s *Store) FinishNotification(ctx context.Context, id int64, status core.No
 	return nil
 }
 
+// RunNotifiedOwner reports whether a run pushed something of its own to the
+// owner; the pushes that announce its pending actions do not count.
+func (s *Store) RunNotifiedOwner(ctx context.Context, runID string) (bool, error) {
+	var notified bool
+	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM notifications WHERE run_id = ? AND action_id = '')`, runID).Scan(&notified); err != nil {
+		return false, fmt.Errorf("notifications of run %s: %w", runID, err)
+	}
+	return notified, nil
+}
+
 // CountNotificationsSince counts notifications created at or after since,
 // whatever their delivery state, so queued ones count toward the hourly cap.
 func (s *Store) CountNotificationsSince(ctx context.Context, since time.Time) (int, error) {
