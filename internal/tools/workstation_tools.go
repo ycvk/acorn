@@ -7,6 +7,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
@@ -14,32 +15,83 @@ import (
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
-// WorkstationService is the subset of the workstation client the shell,
-// files and send_file tools need.
+// WorkstationService is the subset of the workstation client the shell, job,
+// follow_up, files and send_file tools need.
 type WorkstationService interface {
-	Exec(ctx context.Context, req workstation.ExecRequest) (workstation.ExecResult, error)
+	StartJob(ctx context.Context, req workstation.JobStartRequest) (workstation.JobResult, error)
+	Jobs(ctx context.Context) ([]workstation.Job, error)
+	Job(ctx context.Context, id string) (workstation.Job, error)
+	JobOutput(ctx context.Context, id string, offset int64, limit int) (workstation.JobOutput, error)
+	StopJob(ctx context.Context, id string) (workstation.Job, error)
 	ReadFile(ctx context.Context, req workstation.ReadRequest) (workstation.ReadResult, error)
 	WriteFile(ctx context.Context, req workstation.WriteRequest) (workstation.WriteResult, error)
 	OpenFile(ctx context.Context, path string) (io.ReadCloser, int64, error)
 }
 
-// WorkstationToolsConfig carries the workstation behind shell, files and
-// send_file, and the thread files send_file stores into. A nil Service
-// disables the three tools, and DisabledReason says why.
+// WorkstationToolsConfig carries the workstation behind shell, job,
+// follow_up, files and send_file, the follow-ups follow_up sets and the
+// thread files send_file stores into. A nil Service disables the five tools,
+// and DisabledReason says why.
 type WorkstationToolsConfig struct {
-	Service               WorkstationService
-	Files                 core.ThreadFiles
-	Context               core.ToolCallContextBridge
-	CommandTimeoutSeconds int
-	MaxOutputBytes        int
-	MaxSendBytes          int64
-	DisabledReason        string
+	Service        WorkstationService
+	Files          core.ThreadFiles
+	FollowUps      core.FollowUpStore
+	Context        core.ToolCallContextBridge
+	Settings       core.SettingsReader
+	Clock          func() time.Time
+	MaxOutputBytes int
+	MaxSendBytes   int64
+	DisabledReason string
 }
 
+// defaultShellWaitSeconds is how long shell waits for a command that does
+// not say.
+const defaultShellWaitSeconds = 120
+
 type ShellInput struct {
-	Command        string `json:"command" jsonschema:"required" jsonschema_description:"Bash command line to run. It runs in a login shell as the agent user."`
-	Dir            string `json:"dir,omitempty" jsonschema_description:"Working directory, absolute or relative to the home directory. Defaults to the home directory."`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema_description:"Seconds before the command and everything it started are killed. Defaults to and cannot exceed the configured limit."`
+	Command     string `json:"command" jsonschema:"required" jsonschema_description:"Bash command line to run. It runs in a login shell as the agent user."`
+	Dir         string `json:"dir,omitempty" jsonschema_description:"Working directory, absolute or relative to the home directory. Defaults to the home directory."`
+	WaitSeconds *int   `json:"wait_seconds,omitempty" jsonschema_description:"Seconds to wait for the command to end, 0 to 600; defaults to 120. Give 0 to start long work, such as a download or a build, and come back to it."`
+}
+
+// ShellOutput is a command's job as the wait left it. Output holds the
+// beginning and end of what it printed once it ended, its end while it runs.
+type ShellOutput struct {
+	JobID           string `json:"job_id"`
+	State           string `json:"state"`
+	ExitCode        *int   `json:"exit_code,omitempty"`
+	Note            string `json:"note,omitempty"`
+	Seconds         int64  `json:"seconds"`
+	Output          string `json:"output"`
+	OutputTruncated bool   `json:"output_truncated,omitempty"`
+	OutputPath      string `json:"output_path"`
+}
+
+type JobInput struct {
+	Action string `json:"action" jsonschema:"required,enum=list,enum=status,enum=output,enum=stop" jsonschema_description:"list shows the newest jobs; status one job; output reads a job's output from offset; stop ends a running job and everything it started."`
+	JobID  string `json:"job_id,omitempty" jsonschema_description:"The job, as shell returned it; required except for list."`
+	Offset int64  `json:"offset,omitempty" jsonschema_description:"Byte offset to read the output from; output only."`
+}
+
+// JobView is a job as the agent sees it.
+type JobView struct {
+	ID          string     `json:"id"`
+	Command     string     `json:"command"`
+	State       string     `json:"state"`
+	ExitCode    *int       `json:"exit_code,omitempty"`
+	Note        string     `json:"note,omitempty"`
+	StartedAt   time.Time  `json:"started_at"`
+	EndedAt     *time.Time `json:"ended_at,omitempty"`
+	OutputBytes int64      `json:"output_bytes"`
+	OutputPath  string     `json:"output_path"`
+}
+
+type JobToolOutput struct {
+	Jobs       []JobView `json:"jobs,omitempty"`
+	Job        *JobView  `json:"job,omitempty"`
+	Text       string    `json:"text,omitempty"`
+	Offset     int64     `json:"offset,omitempty"`
+	NextOffset int64     `json:"next_offset,omitempty"`
 }
 
 type FilesInput struct {
@@ -68,11 +120,12 @@ type FilesOutput struct {
 	Bytes     int    `json:"bytes,omitempty"`
 }
 
-// BuildWorkstationToolSpecs returns the specs for shell and files.
+// BuildWorkstationToolSpecs returns the specs for shell, job, follow_up,
+// files and send_file.
 func BuildWorkstationToolSpecs(cfg WorkstationToolsConfig) ([]core.ToolSpec, error) {
 	if cfg.Service == nil {
 		var specs []core.ToolSpec
-		for _, name := range []string{"shell", "files", "send_file"} {
+		for _, name := range []string{"shell", "job", "follow_up", "files", "send_file"} {
 			spec, err := disabledLocalSpec(name, cfg.DisabledReason)
 			if err != nil {
 				return nil, err
@@ -81,13 +134,21 @@ func BuildWorkstationToolSpecs(cfg WorkstationToolsConfig) ([]core.ToolSpec, err
 		}
 		return specs, nil
 	}
-	if cfg.CommandTimeoutSeconds < 1 || cfg.MaxOutputBytes < 1 || cfg.MaxSendBytes < 1 {
-		return nil, errors.New("workstation tools need a positive CommandTimeoutSeconds, MaxOutputBytes and MaxSendBytes")
+	if cfg.MaxOutputBytes < 1 || cfg.MaxSendBytes < 1 {
+		return nil, errors.New("workstation tools need a positive MaxOutputBytes and MaxSendBytes")
 	}
-	if cfg.Files == nil || cfg.Context == nil {
-		return nil, errors.New("workstation tools need thread files and the tool call context")
+	if cfg.Files == nil || cfg.FollowUps == nil || cfg.Context == nil || cfg.Settings == nil || cfg.Clock == nil {
+		return nil, errors.New("workstation tools need thread files, follow-ups, the tool call context, settings and a clock")
 	}
 	shell, err := buildShellTool(cfg)
+	if err != nil {
+		return nil, err
+	}
+	job, err := buildJobTool(cfg)
+	if err != nil {
+		return nil, err
+	}
+	followUp, err := buildFollowUpTool(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -99,26 +160,97 @@ func BuildWorkstationToolSpecs(cfg WorkstationToolsConfig) ([]core.ToolSpec, err
 	if err != nil {
 		return nil, err
 	}
-	return []core.ToolSpec{enabledLocalSpec("shell", shell), enabledLocalSpec("files", files), enabledLocalSpec("send_file", send)}, nil
+	return []core.ToolSpec{enabledLocalSpec("shell", shell), enabledLocalSpec("job", job), enabledLocalSpec("follow_up", followUp), enabledLocalSpec("files", files), enabledLocalSpec("send_file", send)}, nil
 }
 
 func buildShellTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
-	description := fmt.Sprintf("Run a bash command on your own Linux workstation (Debian, user agent with passwordless sudo, internet access). Files under the home directory persist; system packages installed with apt are lost when the workstation is rebuilt. Commands time out after %d seconds at most. stdout and stderr each keep their beginning and end when long.", cfg.CommandTimeoutSeconds)
-	return inferLocalTool("shell", description, func(ctx context.Context, input ShellInput) (workstation.ExecResult, error) {
+	description := fmt.Sprintf("Run a bash command on your own Linux workstation (Debian, user agent with passwordless sudo, internet access). Files under the home directory persist; system packages installed with apt are lost when the workstation is rebuilt. "+
+		"Every command runs as a job: shell waits up to wait_seconds for it, and a command still running then keeps running in the background, for up to %d hours, with its job_id. "+
+		"Output is stdout and stderr together; the whole of it stays in output_path, and the result shows its beginning and end. Check, read or stop a job with the job tool, and set a follow_up to be woken when it ends.", workstation.MaxJobSeconds/3600)
+	return inferLocalTool("shell", description, func(ctx context.Context, input ShellInput) (ShellOutput, error) {
 		if strings.TrimSpace(input.Command) == "" {
-			return workstation.ExecResult{}, errors.New("shell: command is required")
+			return ShellOutput{}, errors.New("shell: command is required")
 		}
-		timeout := cfg.CommandTimeoutSeconds
-		if input.TimeoutSeconds > 0 && input.TimeoutSeconds < timeout {
-			timeout = input.TimeoutSeconds
+		wait := defaultShellWaitSeconds
+		if input.WaitSeconds != nil {
+			wait = *input.WaitSeconds
 		}
-		return cfg.Service.Exec(ctx, workstation.ExecRequest{
+		if wait < 0 || wait > workstation.MaxJobWaitSeconds {
+			return ShellOutput{}, fmt.Errorf("shell: wait_seconds must be between 0 and %d", workstation.MaxJobWaitSeconds)
+		}
+		got, err := cfg.Service.StartJob(ctx, workstation.JobStartRequest{
 			Command:        input.Command,
 			Dir:            input.Dir,
-			TimeoutSeconds: timeout,
+			WaitSeconds:    wait,
 			MaxOutputBytes: cfg.MaxOutputBytes,
 		})
+		if err != nil {
+			return ShellOutput{}, err
+		}
+		job := got.Job
+		end := time.Now()
+		if job.EndedAt != nil {
+			end = *job.EndedAt
+		}
+		return ShellOutput{
+			JobID:           job.ID,
+			State:           job.State,
+			ExitCode:        job.ExitCode,
+			Note:            job.Note,
+			Seconds:         int64(end.Sub(job.StartedAt).Seconds()),
+			Output:          got.Output,
+			OutputTruncated: got.OutputTruncated,
+			OutputPath:      job.OutputPath,
+		}, nil
 	})
+}
+
+func buildJobTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
+	description := fmt.Sprintf("Check on the jobs shell started on your workstation: list the newest, see one's state, read its output %d bytes at a time from an offset, or stop it. A job is running, exited (with its exit code), stopped, or lost when the workstation restarted.", cfg.MaxOutputBytes)
+	return inferLocalTool("job", description, func(ctx context.Context, input JobInput) (JobToolOutput, error) {
+		if input.Action != "list" && strings.TrimSpace(input.JobID) == "" {
+			return JobToolOutput{}, fmt.Errorf("job: job_id is required for %s", input.Action)
+		}
+		switch input.Action {
+		case "list":
+			jobs, err := cfg.Service.Jobs(ctx)
+			if err != nil {
+				return JobToolOutput{}, err
+			}
+			out := JobToolOutput{Jobs: []JobView{}}
+			for _, job := range jobs {
+				out.Jobs = append(out.Jobs, jobView(job))
+			}
+			return out, nil
+		case "status":
+			job, err := cfg.Service.Job(ctx, input.JobID)
+			if err != nil {
+				return JobToolOutput{}, err
+			}
+			view := jobView(job)
+			return JobToolOutput{Job: &view}, nil
+		case "output":
+			got, err := cfg.Service.JobOutput(ctx, input.JobID, input.Offset, cfg.MaxOutputBytes)
+			if err != nil {
+				return JobToolOutput{}, err
+			}
+			view := jobView(got.Job)
+			return JobToolOutput{Job: &view, Text: got.Text, Offset: got.Offset, NextOffset: got.NextOffset}, nil
+		case "stop":
+			job, err := cfg.Service.StopJob(ctx, input.JobID)
+			if err != nil {
+				return JobToolOutput{}, err
+			}
+			view := jobView(job)
+			return JobToolOutput{Job: &view}, nil
+		default:
+			return JobToolOutput{}, fmt.Errorf("job: action must be list, status, output or stop, got %q", input.Action)
+		}
+	})
+}
+
+func jobView(job workstation.Job) JobView {
+	return JobView{ID: job.ID, Command: job.Command, State: job.State, ExitCode: job.ExitCode, Note: job.Note, StartedAt: job.StartedAt, EndedAt: job.EndedAt, OutputBytes: job.OutputBytes, OutputPath: job.OutputPath}
 }
 
 func buildFilesTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {

@@ -6,33 +6,37 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
 const workstationTestToken = "0123456789abcdef0123456789abcdef"
 
-func workstationSpecs(t *testing.T, timeout int) map[string]core.ToolSpec {
+func workstationSpecs(t *testing.T) map[string]core.ToolSpec {
 	t.Helper()
-	specs, _ := workstationSpecsWithFiles(t, timeout, 1<<20)
+	specs, _ := workstationSpecsWithFiles(t, 1<<20)
 	return specs
 }
 
 // workstationSpecsWithFiles builds the workstation tools on a real
 // workstation server and store; send_file runs as run_send in thread
 // thread_send.
-func workstationSpecsWithFiles(t *testing.T, timeout int, maxSend int64) (map[string]core.ToolSpec, *store.Store) {
+func workstationSpecsWithFiles(t *testing.T, maxSend int64) (map[string]core.ToolSpec, *store.Store) {
 	t.Helper()
 	server, err := workstation.NewServer(workstation.ServerConfig{Home: t.TempDir(), Token: workstationTestToken, Supervisor: workstation.NewSupervisor(io.Discard)})
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(server.Close)
 	ts := httptest.NewServer(server.Handler())
 	t.Cleanup(ts.Close)
 	client, err := workstation.NewClient(ts.URL, workstationTestToken, ts.Client())
@@ -48,8 +52,9 @@ func workstationSpecsWithFiles(t *testing.T, timeout int, maxSend int64) (map[st
 		t.Fatal(err)
 	}
 	specs, err := BuildWorkstationToolSpecs(WorkstationToolsConfig{
-		Service: client, Files: db, Context: fixedArtifactContext{runID: "run_send", sessionID: "thread_send"},
-		CommandTimeoutSeconds: timeout, MaxOutputBytes: 4096, MaxSendBytes: maxSend,
+		Service: client, Files: db, FollowUps: db, Context: fixedArtifactContext{runID: "run_send", sessionID: "thread_send"},
+		Settings: settings.Fixed(core.Settings{Location: time.UTC}), Clock: func() time.Time { return followUpNow },
+		MaxOutputBytes: 4096, MaxSendBytes: maxSend,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,8 +72,8 @@ func invoke(t *testing.T, spec core.ToolSpec, args string) (string, error) {
 }
 
 func TestWorkstationToolsRunCommandsAndFiles(t *testing.T) {
-	specs := workstationSpecs(t, 30)
-	for _, name := range []string{"shell", "files"} {
+	specs := workstationSpecs(t)
+	for _, name := range []string{"shell", "job", "follow_up", "files"} {
 		spec := specs[name]
 		if !spec.Enabled() || spec.Loading.Mode != core.ToolLoadingModeDeferred {
 			t.Fatalf("%s enabled=%v loading=%s", name, spec.Enabled(), spec.Loading.Mode)
@@ -81,8 +86,8 @@ func TestWorkstationToolsRunCommandsAndFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var result workstation.ExecResult
-	if err := json.Unmarshal([]byte(out), &result); err != nil || strings.TrimSpace(result.Stdout) != "7" || result.ExitCode != 0 {
+	var result ShellOutput
+	if err := json.Unmarshal([]byte(out), &result); err != nil || strings.TrimSpace(result.Output) != "7" || result.State != workstation.JobExited || result.ExitCode == nil || *result.ExitCode != 0 || result.OutputPath == "" {
 		t.Fatalf("shell = %s err = %v", out, err)
 	}
 	out, err = invoke(t, specs["files"], `{"action":"read","path":"data/n.txt"}`)
@@ -94,15 +99,114 @@ func TestWorkstationToolsRunCommandsAndFiles(t *testing.T) {
 	}
 }
 
-func TestShellCannotRaiseTheConfiguredTimeout(t *testing.T) {
-	specs := workstationSpecs(t, 1)
-	out, err := invoke(t, specs["shell"], `{"command":"sleep 5","timeout_seconds":600}`)
+// A command still running when shell stops waiting keeps running as a job,
+// which job reads and stops.
+func TestShellLeavesLongCommandsRunningAsJobs(t *testing.T) {
+	specs := workstationSpecs(t)
+	out, err := invoke(t, specs["shell"], `{"command":"echo start; sleep 2; echo 完成","wait_seconds":0}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var result workstation.ExecResult
-	if err := json.Unmarshal([]byte(out), &result); err != nil || !result.TimedOut {
+	var started ShellOutput
+	if err := json.Unmarshal([]byte(out), &started); err != nil || started.State != workstation.JobRunning || started.JobID == "" || started.ExitCode != nil {
 		t.Fatalf("shell = %s err = %v", out, err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	var status JobToolOutput
+	for {
+		out, err = invoke(t, specs["job"], `{"action":"status","job_id":"`+started.JobID+`"}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(out), &status); err != nil {
+			t.Fatal(err)
+		}
+		if status.Job.State != workstation.JobRunning || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if status.Job.State != workstation.JobExited || *status.Job.ExitCode != 0 || status.Job.EndedAt == nil {
+		t.Fatalf("status = %+v", status.Job)
+	}
+	out, err = invoke(t, specs["job"], `{"action":"output","job_id":"`+started.JobID+`","offset":6}`)
+	var read JobToolOutput
+	if err != nil || json.Unmarshal([]byte(out), &read) != nil || read.Text != "完成\n" || read.NextOffset != int64(len("start\n完成\n")) {
+		t.Fatalf("output = %s err = %v", out, err)
+	}
+
+	out, err = invoke(t, specs["shell"], `{"command":"sleep 30","wait_seconds":0}`)
+	if err != nil || json.Unmarshal([]byte(out), &started) != nil {
+		t.Fatalf("shell = %s err = %v", out, err)
+	}
+	out, err = invoke(t, specs["job"], `{"action":"stop","job_id":"`+started.JobID+`"}`)
+	var stopped JobToolOutput
+	if err != nil || json.Unmarshal([]byte(out), &stopped) != nil || stopped.Job.State != workstation.JobStopped || stopped.Job.Note != "stopped on request" {
+		t.Fatalf("stop = %s err = %v", out, err)
+	}
+	out, err = invoke(t, specs["job"], `{"action":"list"}`)
+	var listed JobToolOutput
+	if err != nil || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Jobs) != 2 || listed.Jobs[0].ID != started.JobID {
+		t.Fatalf("list = %s err = %v", out, err)
+	}
+	if _, err := invoke(t, specs["shell"], `{"command":"true","wait_seconds":601}`); err == nil || !strings.Contains(err.Error(), "between 0 and 600") {
+		t.Fatalf("long wait err = %v", err)
+	}
+	if _, err := invoke(t, specs["job"], `{"action":"status","job_id":"job-00000000"}`); err == nil || !strings.Contains(err.Error(), "job not found") {
+		t.Fatalf("missing job err = %v", err)
+	}
+}
+
+var followUpNow = time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)
+
+// follow_up waits on a running job or on a path, up to its deadline, and
+// cancels only what still waits.
+func TestFollowUpWaitsOnJobsAndFiles(t *testing.T) {
+	specs, db := workstationSpecsWithFiles(t, 1<<20)
+	out, err := invoke(t, specs["shell"], `{"command":"sleep 30","wait_seconds":0}`)
+	var running ShellOutput
+	if err != nil || json.Unmarshal([]byte(out), &running) != nil {
+		t.Fatalf("shell = %s err = %v", out, err)
+	}
+	out, err = invoke(t, specs["shell"], `{"command":"true"}`)
+	var ended ShellOutput
+	if err != nil || json.Unmarshal([]byte(out), &ended) != nil {
+		t.Fatalf("shell = %s err = %v", out, err)
+	}
+
+	out, err = invoke(t, specs["follow_up"], `{"task":"下载完就整理","job_id":"`+running.JobID+`","output_contains":"100%"}`)
+	var waiting FollowUpOutput
+	if err != nil || json.Unmarshal([]byte(out), &waiting) != nil || waiting.State != core.FollowUpWaiting || waiting.Deadline != "2026-11-04 Wed 08:00" {
+		t.Fatalf("follow_up = %s err = %v", out, err)
+	}
+	out, err = invoke(t, specs["follow_up"], `{"task":"书到了就读","path":"books/book.epub","within":"3d"}`)
+	var file FollowUpOutput
+	if err != nil || json.Unmarshal([]byte(out), &file) != nil || file.Deadline != "2026-11-06 Fri 08:00" {
+		t.Fatalf("follow_up = %s err = %v", out, err)
+	}
+	for args, want := range map[string]string{
+		`{"task":"x","job_id":"` + ended.JobID + `"}`:                     "already ended",
+		`{"task":"x","job_id":"job-00000000"}`:                            "job not found",
+		`{"task":"x","job_id":"` + running.JobID + `","path":"a"}`:        "either job_id or path",
+		`{"task":"x","path":"a","output_contains":"done"}`:                "needs job_id",
+		`{"task":"x","path":"a","within":"8d"}`:                           "at most",
+		`{"job_id":"` + running.JobID + `"}`:                              "task is required",
+		`{"cancel":` + strconv.FormatInt(waiting.ID, 10) + `,"task":"x"}`: "cancel alone",
+	} {
+		if _, err := invoke(t, specs["follow_up"], args); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("follow_up %s err = %v, want %q", args, err, want)
+		}
+	}
+	all, err := db.WaitingFollowUps(context.Background(), "thread_send")
+	if err != nil || len(all) != 2 || all[0].JobID != running.JobID || all[0].OutputContains != "100%" || all[0].SourceRunID != "run_send" || all[1].Path != "books/book.epub" {
+		t.Fatalf("waiting = %+v, %v", all, err)
+	}
+	out, err = invoke(t, specs["follow_up"], `{"cancel":`+strconv.FormatInt(waiting.ID, 10)+`}`)
+	if err != nil || !strings.Contains(out, `"state":"cancelled"`) {
+		t.Fatalf("cancel = %s err = %v", out, err)
+	}
+	if _, err := invoke(t, specs["follow_up"], `{"cancel":`+strconv.FormatInt(waiting.ID, 10)+`}`); err == nil || !strings.Contains(err.Error(), "not waiting") {
+		t.Fatalf("second cancel err = %v", err)
 	}
 }
 
@@ -122,7 +226,7 @@ func TestWorkstationToolsDisabledWithoutService(t *testing.T) {
 }
 
 func TestSendFileHandsTheOwnerAWorkstationFile(t *testing.T) {
-	specs, db := workstationSpecsWithFiles(t, 30, 1<<20)
+	specs, db := workstationSpecsWithFiles(t, 1<<20)
 	if spec := specs["send_file"]; !spec.Enabled() || spec.Loading.Mode != core.ToolLoadingModeEager {
 		t.Fatalf("send_file enabled=%v loading=%s", spec.Enabled(), spec.Loading.Mode)
 	}

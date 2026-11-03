@@ -168,10 +168,6 @@ const wakeInterval = 30 * time.Second
 // by the next start.
 const runStopTimeout = 10 * time.Second
 
-// abandonedRunError is the failure of a run whose process stopped before the
-// run ended.
-const abandonedRunError = "Acorn stopped before this run finished"
-
 // Close stops the runs this container executes, then closes the runner
 // factory and the store.
 func (c *Container) Close() error {
@@ -212,7 +208,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, options buildOption
 		}
 	}()
 
-	abandoned, err := store.FailAbandonedRuns(ctx, abandonedRunError)
+	abandoned, err := store.FailAbandonedRuns(ctx, core.AbandonedRunError)
 	if err != nil {
 		return nil, err
 	}
@@ -294,6 +290,10 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	if container.now, err = api.NewNowService(db, clock); err != nil {
 		return nil, err
 	}
+	var followUpChecks wake.Workstation
+	if deps.workstation != nil {
+		followUpChecks = deps.workstation
+	}
 	container.wake, err = wake.NewScheduler(wake.Config{
 		Routines:           db,
 		PhoneNotifications: db,
@@ -311,6 +311,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Sorter:             deps.news,
 		Stories:            db,
 		Triggers:           db,
+		FollowUps:          db,
+		Goals:              db,
+		Workstation:        followUpChecks,
 		Clock:              clock,
 		Settings:           deps.settings,
 		Backups:            backupStatus(cfg),

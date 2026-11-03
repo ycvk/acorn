@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 )
 
 // TokenEnv names the environment variable that carries the shared bearer
@@ -27,8 +28,8 @@ func TakeToken() (string, error) {
 // MinTokenLength rejects tokens too short to resist guessing.
 const MinTokenLength = 32
 
-// CommandTimeoutSeconds and CommandOutputBytes bound each shell command and
-// trigger run the backend sends.
+// CommandTimeoutSeconds bounds a trigger run the backend sends, and
+// CommandOutputBytes the output a shell or trigger result carries.
 const (
 	CommandTimeoutSeconds = 300
 	CommandOutputBytes    = 32 << 10
@@ -76,6 +77,20 @@ type ReadResult struct {
 	Content   string `json:"content"`
 	Size      int64  `json:"size"`
 	Truncated bool   `json:"truncated,omitempty"`
+}
+
+type StatRequest struct {
+	Path string `json:"path"`
+}
+
+// StatResult describes what is at Path, the request's path resolved against
+// the home directory.
+type StatResult struct {
+	Path       string    `json:"path"`
+	Exists     bool      `json:"exists"`
+	Dir        bool      `json:"dir,omitempty"`
+	Size       int64     `json:"size,omitempty"`
+	ModifiedAt time.Time `json:"modified_at,omitzero"`
 }
 
 type WriteRequest struct {

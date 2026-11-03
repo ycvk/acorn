@@ -37,7 +37,8 @@ type WatchChecker interface {
 	Apply(ctx context.Context, w core.Watch, fetched watch.Fetched) (watch.Result, error)
 }
 
-// Config holds the scheduler's dependencies; every field but Backups is required.
+// Config holds the scheduler's dependencies; every field but Backups and
+// Workstation is required.
 type Config struct {
 	Routines           core.RoutineStore
 	PhoneNotifications core.PhoneNotificationStore
@@ -58,7 +59,14 @@ type Config struct {
 	// Stories tells idle thought which concerns follow a briefing story.
 	Stories  core.StoryMessageLister
 	Triggers core.TriggerStore
-	Clock    func() time.Time
+	// FollowUps wake the agent on what happens on its workstation, and Goals
+	// continue its conversations.
+	FollowUps core.FollowUpStore
+	Goals     core.GoalStore
+	// Workstation is where follow-ups are checked; nil when none is
+	// configured, and follow-ups then wake the agent at their deadline.
+	Workstation Workstation
+	Clock       func() time.Time
 	// Settings gives each tick the owner's time zone, the times of the
 	// briefing and the reflections, and the wake budget.
 	Settings core.SettingsReader
@@ -114,6 +122,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Stories is required")
 	case cfg.Triggers == nil:
 		return nil, errors.New("wake scheduler: Triggers is required")
+	case cfg.FollowUps == nil || cfg.Goals == nil:
+		return nil, errors.New("wake scheduler: FollowUps and Goals are required")
 	case cfg.Clock == nil:
 		return nil, errors.New("wake scheduler: Clock is required")
 	case cfg.Settings == nil:
@@ -192,10 +202,11 @@ func (s *Scheduler) tickTriggers(ctx context.Context) error {
 	return s.fireTriggers(ctx, s.cfg.Clock(), settings)
 }
 
-// tickMain wakes every due commitment within the daily limit, checks due
-// watches, records what finished briefings picked and pushes their focus,
-// starts the morning briefing when its time has come, then sends
-// notifications whose quiet hours ended.
+// tickMain wakes every due commitment within the daily limit, wakes the
+// follow-ups whose condition holds, continues active goals and announces
+// ended ones, checks due watches, records what finished briefings picked and
+// pushes their focus, starts the morning briefing when its time has come,
+// then sends notifications whose quiet hours ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) tickMain(ctx context.Context) error {
 	settings, err := s.cfg.Settings.Settings(ctx)
@@ -215,6 +226,15 @@ func (s *Scheduler) tickMain(ctx context.Context) error {
 		if err := s.wake(ctx, item, now, settings); err != nil {
 			errs = append(errs, fmt.Errorf("commitment #%d: %w", item.ID, err))
 		}
+	}
+	if err := s.checkFollowUps(ctx, now, settings); err != nil {
+		errs = append(errs, err)
+	}
+	if err := s.continueGoals(ctx, now, settings); err != nil {
+		errs = append(errs, err)
+	}
+	if err := s.announceGoals(ctx, now); err != nil {
+		errs = append(errs, err)
 	}
 	if err := s.checkWatches(ctx, now, settings); err != nil {
 		errs = append(errs, err)

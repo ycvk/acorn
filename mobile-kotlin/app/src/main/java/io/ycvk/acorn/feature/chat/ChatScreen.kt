@@ -53,6 +53,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Redo
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.NotificationsNone
@@ -467,6 +469,8 @@ private fun wakeLabel(source: WakeSource) = when (source) {
     WakeSource.Briefing -> "早安简报"
     WakeSource.Night -> "夜思"
     WakeSource.Wander -> "游思"
+    WakeSource.FollowUp -> "等到结果"
+    WakeSource.Goal -> "继续目标"
 }
 
 private fun wakeIcon(source: WakeSource) = when (source) {
@@ -475,6 +479,8 @@ private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Briefing -> Icons.Outlined.WbSunny
     WakeSource.Night -> Icons.Outlined.DarkMode
     WakeSource.Wander -> Icons.Outlined.Lightbulb
+    WakeSource.FollowUp -> Icons.Outlined.HourglassBottom
+    WakeSource.Goal -> Icons.Outlined.Flag
 }
 
 /** The owner's words on a soft bubble at the right, its corner toward the edge kept tight. */

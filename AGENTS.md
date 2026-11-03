@@ -40,7 +40,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - 对话里有 run 在运行或等待审批时,owner 发的消息进这个对话的队列,不另起 run。run 每次调用模型前把队列里的文字消息按顺序收进对话与上下文并记 `run.input`;run 结束时剩下的(包括带文件的)在同一事务里起下一个 run,终止事件带 `next_run_id`。消息被 run 收下时才成为对话消息与记忆来源。
 - 工具调用先按 owner 设置里的规则:`approval.block` 拒绝,`approval.require` 审批,`approval.allow` 直接执行(block 优先于 require,require 优先于 allow)。规则未覆盖的 `shell` 与 MCP 调用由 `internal/review` 经 SubQ 的决策模型(Decisions API)审查:只读命令不审查,会对外产生后果的转审批,审查失败也转审批。审批登记 `tool_approval` pending action 并发起工具级 interrupt;resume 参数必须与登记一致。规则未覆盖的 `news_source` 调用转审批;Acorn 自己醒来的 run(输入是 wake 消息)里改动板块的 `news_sections` 调用同样转审批,owner 对话里的直接执行。require 与 block 不能命中 `ask_operator`。续跑只由服务端驱动,没有客户端 resume 端点。
 - web 工具默认加载;所有外部抓取走 `webaccess` 的共享 URL policy。
-- agent 的工作机是一个容器,里面运行只读挂载的 `acorn workstation serve`;`shell` 与 `files` 经 `internal/workstation` 的 HTTP 客户端和 bearer token 调用它,backend 不接触容器引擎。浏览器只有工作机自带的 Chromium,agent 经 `bsk`(BrowserSkill)操作;owner 在 App 里经 `/v1/browser/*` 实时查看并操作它来登录网站;`web_rendered` 追踪也由工作机渲染。
+- agent 的工作机是一个容器,里面运行只读挂载的 `acorn workstation serve`;`shell`、`job`、`follow_up` 与 `files` 经 `internal/workstation` 的 HTTP 客户端和 bearer token 调用它,backend 不接触容器引擎。`shell` 的每条命令都是工作机上的任务:等到 `wait_seconds`(默认 120,至多 600)还没结束就留在后台继续跑,至多 24 小时;完整输出留在 `~/.jobs/<id>/`,`job` 查状态、分页读输出或停止。浏览器只有工作机自带的 Chromium,agent 经 `bsk`(BrowserSkill)操作;owner 在 App 里经 `/v1/browser/*` 实时查看并操作它来登录网站;`web_rendered` 追踪也由工作机渲染。
 - `<memory_context>` 与 `<presence>` 是每次模型调用临时追加的 system 消息,不进入可被总结的消息序列,各自受预算约束。
 
 ### 技能
@@ -54,9 +54,11 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 - 记忆是 fact/insight/thought,每条可追溯到来源并带修订与有效时间;写入时间由调用方提供。assistant 的话不能直接成为 owner 的事实。
 - 后台处理以租约 token、revision 与 exclusion epoch 防止过期写入;同一来源重复处理必须幂等。
-- 遗忘需要当前 owner 的请求,排除来源及派生记录、向量与摘要;旧 epoch 的 checkpoint 禁止恢复;agent 的知识库读取遵守相同排除。删除对话是 owner 的遗忘请求:先排除对话的消息与工具结果来源,再删除对话、对话里的文件及其 run 留下的记录,在这个对话里建立的关切随之排除,它们在工作机上的 `~/work/<id>/` 在下一次 run 前删除;笔记、技能、约定与追踪项保留。删除笔记同样是遗忘请求:先排除它每个 revision 的来源,再删除笔记与全部 revision。
+- 遗忘需要当前 owner 的请求,排除来源及派生记录、向量与摘要;旧 epoch 的 checkpoint 禁止恢复;agent 的知识库读取遵守相同排除。删除对话是 owner 的遗忘请求:先排除对话的消息与工具结果来源,再删除对话、对话里的文件、跟进、目标及其 run 留下的记录,在这个对话里建立的关切随之排除,它们在工作机上的 `~/work/<id>/` 在下一次 run 前删除;笔记、技能、约定与追踪项保留。删除笔记同样是遗忘请求:先排除它每个 revision 的来源,再删除笔记与全部 revision。
 - 约定分规则与每次发生,发生只能被认领一次;完成需要 owner 确认或成功的工具结果。
 - 关切属于建立它的对话。游思每次推进到期关切里最久没有修订的一件,在它所在的对话里运行,对话里有 run 在运行或等待审批时跳过它。有 outcome 的关切由游思在工作机的 `~/work/<id>/` 里推进,交付到所在对话后转为 waiting,只由 owner 的确认解决。owner 从早安卡要求跟进的事件,关切建在这件事的对话里,游思选中它时看到跟进时存下的事件内容,查新进展,有才推送。
+- 跟进属于建立它的对话:agent 经 `follow_up` 等工作机上的任务结束、任务输出出现某段文字,或某个路径就绪(目录存在,或文件存在且相隔一次检查大小不变),到期限(默认 24 小时,至多 7 天)无论如何醒来。wake 调度器每次检查经工作机查看条件,对话里没有运行中或等待审批的 run、也没有排队的 owner 消息时,经条件更新认领一次并在原对话起 run(输入以 `[follow_up #id` 开头);没有工作机时只在期限醒来。
+- 目标属于建立它的对话,每个对话至多一个进行中的目标。agent 经 `goal` 开始目标,对话的 run 结束、没有排队的 owner 消息与等待中的跟进时,wake 调度器在这个对话里起下一轮(输入以 `[goal #id, run k of n]` 开头),直到 agent 以 done、blocked 或 stop 结束它,或轮数用完转为 blocked;Acorn 重启打断的 run 不算失败,其他失败的 run 让目标转为 blocked。done 与 blocked 在对话的 run 结束后推送给 owner 一次。跟进与目标的 run 都计入每日唤醒预算并记 `wake.fired`;删除对话一并删除它的跟进与目标。
 - 后台记忆调用受 `memory.daily_tokens` 设置约束,自主唤醒受 `wake.daily_limit`/`wake.daily_tokens` 设置约束;预算耗尽时任务保留到下一本地日。
 
 ### 追踪与早安卡

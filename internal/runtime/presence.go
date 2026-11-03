@@ -29,6 +29,8 @@ type presenceMiddleware struct {
 	store       core.ActivityStore
 	memory      core.MemoryStore
 	commitments core.CommitmentStore
+	followUps   core.FollowUpStore
+	goals       core.GoalStore
 	events      core.EventAppender
 	clock       func() time.Time
 	location    *time.Location
@@ -57,6 +59,8 @@ func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string,
 		store:                             deps.Activity,
 		memory:                            deps.MemoryStore,
 		commitments:                       deps.Commitments,
+		followUps:                         deps.FollowUps,
+		goals:                             deps.Goals,
 		phones:                            deps.PhoneNotifications,
 		events:                            deps.Store,
 		clock:                             deps.Clock,
@@ -153,6 +157,10 @@ func (m *presenceMiddleware) render(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	followUps, goal, err := m.conversationWork(ctx)
+	if err != nil {
+		return "", err
+	}
 	return presence.Render(presence.RenderInput{
 		PhoneNotifications: phones.Items,
 		Now:                now,
@@ -160,11 +168,34 @@ func (m *presenceMiddleware) render(ctx context.Context) (string, error) {
 		Wake:               wakeOrDefault(ctx),
 		Commitments:        commitments,
 		Occurrences:        occurrences,
+		FollowUps:          followUps,
+		Goal:               goal,
 		Thoughts:           thoughts,
 		Concerns:           concerns,
 		MaxTokens:          m.maxTokens,
 		Count:              func(text string) (int, error) { return m.counter.CountText(ctx, text) },
 	})
+}
+
+// conversationWork is what waits in the run's conversation: its follow-ups
+// and its active goal, nil when it has none.
+func (m *presenceMiddleware) conversationWork(ctx context.Context) ([]core.FollowUp, *core.Goal, error) {
+	sessionID := core.CurrentSessionID(ctx)
+	if sessionID == "" {
+		return nil, nil, nil
+	}
+	followUps, err := m.followUps.WaitingFollowUps(ctx, sessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	goal, err := m.goals.ActiveGoal(ctx, sessionID)
+	if errors.Is(err, core.ErrGoalNotFound) {
+		return followUps, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return followUps, &goal, nil
 }
 
 func (m *presenceMiddleware) recordSnapshot(ctx context.Context, rendered string) error {

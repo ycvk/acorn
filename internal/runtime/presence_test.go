@@ -20,8 +20,12 @@ type memPresenceStore struct {
 	core.PhoneNotificationStore
 	core.MemoryStore
 	core.CommitmentStore
+	core.FollowUpStore
+	core.GoalStore
 	mu        sync.Mutex
 	items     []core.MemoryRecord
+	followUps []core.FollowUp
+	goal      *core.Goal
 	snapshots map[string]string
 	events    []string
 }
@@ -43,6 +47,20 @@ func (s *memPresenceStore) ListCommitments(context.Context, bool) ([]core.Commit
 }
 func (s *memPresenceStore) ListDueOccurrences(context.Context) ([]core.CommitmentOccurrence, error) {
 	return nil, nil
+}
+
+func (s *memPresenceStore) WaitingFollowUps(context.Context, string) ([]core.FollowUp, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]core.FollowUp(nil), s.followUps...), nil
+}
+func (s *memPresenceStore) ActiveGoal(context.Context, string) (core.Goal, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.goal == nil {
+		return core.Goal{}, core.ErrGoalNotFound
+	}
+	return *s.goal, nil
 }
 
 func (s *memPresenceStore) CountWakesSince(context.Context, time.Time) (int, error) { return 0, nil }
@@ -86,6 +104,8 @@ func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceM
 		store:                             store,
 		memory:                            store,
 		commitments:                       store,
+		followUps:                         store,
+		goals:                             store,
 		phones:                            store,
 		events:                            store,
 		clock:                             func() time.Time { return presenceNow },

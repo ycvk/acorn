@@ -55,6 +55,38 @@ func TestRenderOrdersSectionsInOwnerTime(t *testing.T) {
 	}
 }
 
+// The conversation's goal leads the present, followed by its follow-ups and
+// what they wait for.
+func TestRenderShowsTheConversationsGoalAndFollowUps(t *testing.T) {
+	in := RenderInput{Now: t0, Location: shanghai(t), Wake: "goal #2", Count: runeCount, MaxTokens: 10000,
+		Goal: &core.Goal{ID: 2, Objective: "下完整本书并整理进知识库", Runs: 3, MaxRuns: 10, CreatedAt: t0},
+		FollowUps: []core.FollowUp{
+			{ID: 4, Task: "下载完就整理", JobID: "job-00000001", DeadlineAt: t0.Add(24 * time.Hour)},
+			{ID: 5, Task: "服务起来就测", JobID: "job-00000002", OutputContains: "ready", DeadlineAt: t0.Add(time.Hour)},
+			{ID: 6, Task: "书到了就读", Path: "book.epub", DeadlineAt: t0.Add(2 * time.Hour)},
+		},
+		Occurrences: []core.CommitmentOccurrence{{ID: 30, CommitmentID: 3, State: "due", DueAt: t0}},
+		Commitments: []core.Commitment{{ID: 3, State: "due", Content: "提醒", WakeAt: t0}}}
+	out := mustRender(t, in)
+	last := -1
+	for _, marker := range []string{
+		"## Goal of this conversation\n- #2 [3 of 10 runs taken] 下完整本书并整理进知识库",
+		"## Due commitments",
+		"## Follow-ups of this conversation",
+		`#5 [when job job-00000002 prints "ready"; until 2026-10-05 Mon 10:00] 服务起来就测`,
+		"#4 [when job job-00000001 ends; until 2026-10-06 Tue 09:00] 下载完就整理",
+	} {
+		i := strings.Index(out, marker)
+		if i <= last {
+			t.Fatalf("missing or out of order %q: %s", marker, out)
+		}
+		last = i
+	}
+	if !strings.Contains(out, "#6 [when book.epub is ready; until 2026-10-05 Mon 11:00] 书到了就读") {
+		t.Fatalf("path follow-up missing: %s", out)
+	}
+}
+
 func TestRenderPreservesDueOccurrenceAndEnforcesBudget(t *testing.T) {
 	in := RenderInput{Now: t0, Location: time.UTC, Wake: "owner message", Count: runeCount,
 		Commitments: []core.Commitment{{ID: 1, State: "due", Content: "must stay", WakeAt: t0}}, Occurrences: []core.CommitmentOccurrence{{ID: 10, CommitmentID: 1, State: "due", DueAt: t0}},

@@ -19,10 +19,13 @@ type RenderInput struct {
 	PhoneNotifications []core.PhoneNotification
 	Commitments        []core.Commitment
 	Occurrences        []core.CommitmentOccurrence
-	Thoughts           []core.MemoryRecord
-	Concerns           []core.MemoryConcern
-	MaxTokens          int
-	Count              func(string) (int, error)
+	// FollowUps and Goal are what waits in the run's conversation.
+	FollowUps []core.FollowUp
+	Goal      *core.Goal
+	Thoughts  []core.MemoryRecord
+	Concerns  []core.MemoryConcern
+	MaxTokens int
+	Count     func(string) (int, error)
 }
 
 type presenceLine struct {
@@ -49,7 +52,7 @@ func Render(in RenderInput) (string, error) {
 		if lines[i].priority != lines[j].priority {
 			return lines[i].priority > lines[j].priority
 		}
-		if lines[i].section == "Upcoming commitments" {
+		if lines[i].section == "Upcoming commitments" || lines[i].section == "Follow-ups of this conversation" {
 			return lines[i].at.Before(lines[j].at)
 		}
 		return lines[i].at.After(lines[j].at)
@@ -102,6 +105,12 @@ func presenceLines(in RenderInput) ([]presenceLine, error) {
 		}
 		lines = append(lines, presenceLine{section: "Due commitments", priority: 5, at: o.DueAt, essential: true, text: fmt.Sprintf("#%d occurrence #%d [%s; set for %s; run %s] %s", c.ID, o.ID, o.State, formatLocal(o.DueAt, in.Location), o.RunID, c.Content)})
 	}
+	if g := in.Goal; g != nil {
+		lines = append(lines, presenceLine{section: "Goal of this conversation", priority: 6, at: g.CreatedAt, essential: true, text: fmt.Sprintf("#%d [%d of %d runs taken] %s", g.ID, g.Runs, g.MaxRuns, g.Objective)})
+	}
+	for _, f := range in.FollowUps {
+		lines = append(lines, presenceLine{section: "Follow-ups of this conversation", priority: 4, at: f.DeadlineAt, text: fmt.Sprintf("#%d [%s; until %s] %s", f.ID, followUpCondition(f), formatLocal(f.DeadlineAt, in.Location), f.Task)})
+	}
 	for _, c := range in.Concerns {
 		if c.State == "active" || c.State == "waiting" {
 			lines = append(lines, presenceLine{section: "Concerns", priority: 2, at: c.UpdatedAt, text: fmt.Sprintf("%s rev %d [%s] %s; source %s", c.ID, c.Revision, c.State, c.Title, c.SourceID)})
@@ -134,6 +143,17 @@ func renderPresence(in RenderInput, lines []presenceLine, omitted int) string {
 	}
 	b.WriteString("</presence>")
 	return b.String()
+}
+
+func followUpCondition(f core.FollowUp) string {
+	switch {
+	case f.OutputContains != "":
+		return fmt.Sprintf("when job %s prints %q", f.JobID, f.OutputContains)
+	case f.JobID != "":
+		return fmt.Sprintf("when job %s ends", f.JobID)
+	default:
+		return fmt.Sprintf("when %s is ready", f.Path)
+	}
 }
 
 func formatLocal(t time.Time, loc *time.Location) string {

@@ -77,6 +77,8 @@ type RuntimeDeps struct {
 	MemoryStore        core.MemoryStore
 	Memory             MemoryContextService
 	Commitments        core.CommitmentStore
+	FollowUps          core.FollowUpStore
+	Goals              core.GoalStore
 	Attachments        core.AttachmentReader
 	Files              core.ThreadFiles
 	Views              ThreadViewLister

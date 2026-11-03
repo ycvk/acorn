@@ -113,7 +113,7 @@
 - **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
-- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
+- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、跟进、目标、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
@@ -265,6 +265,18 @@
   - `internal/wire/wake_acceptance_e2e_test.go`
 - **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 设置限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
+- **跟进在条件成立时只醒一次**：`follow_up` 在当前对话里登记一件跟进：等工作机上仍在运行的任务结束，或它的输出出现一段文字（至多 1024 字节，任务没打印就结束也算），或某个路径就绪（目录存在，或文件存在且相隔一次检查大小不变）；期限默认 24 小时、至多 7 天，到期无论条件如何都醒来并写明当时的状况或检查失败的原因。wake 调度器每次检查经工作机查看条件：输出从上次查到的位置接着搜，工作机已没有这个任务也算成立；没有工作机时只在期限醒来。对话里有 run 在运行或等待审批、或有排队的 owner 消息时不醒；醒来先经条件更新认领，在原对话起 run（输入以 `[follow_up #id` 开头并写明发生了什么），计入 `wake.daily_limit` 并记 `wake.fired{follow_up_id}`，起 run 失败时放回等待，认领后五分钟没有 run 的重新等待。只有等待中的跟进能取消，且只在它的对话里。
+  - `internal/store/store_follow_ups_test.go`
+  - `internal/wake/follow_ups_test.go`
+  - `internal/tools/workstation_tools_test.go`
+  - `internal/workstation/jobs_test.go`
+  - `internal/wire/long_work_e2e_test.go`
+- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话最新的 run 结束、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束；轮数用完时转为 blocked。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果），stop 不推送。presence 列出当前对话的目标与等待中的跟进。
+  - `internal/store/store_follow_ups_test.go`
+  - `internal/wake/follow_ups_test.go`
+  - `internal/tools/goal_tool_test.go`
+  - `internal/presence/presence_test.go`
+  - `internal/wire/long_work_e2e_test.go`
 - **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 设置时返回错误；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出；排队的待决事项推送在发出前读它的 pending action，已不在 pending 的记 dropped 并写明状态，不再投递；没有任何已登记设备时返回错误。推送按 App 向 FCM 注册的 Firebase installation ID（FID）投递，设备经 `PUT /v1/devices/self/push-installation` 登记 FID，格式不符的拒绝；一个 FID 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 FID 被删除，设备吊销时其 FID 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
   - `internal/notify/notify_test.go`
   - `internal/store/store_presence_test.go`
@@ -374,8 +386,11 @@
 
 ## 工作机
 
-- **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell` 与 `files` 是 deferred 工具，未配置 `workstation.url` 时以原因禁用。
+- **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell`、`job`、`follow_up` 与 `files` 是 deferred 工具，未配置 `workstation.url` 时以原因禁用。
   - `internal/workstation/workstation_test.go`
+- **shell 的命令是任务，长命令留在后台**：工作机为每条命令建 `~/.jobs/<id>/`，记下命令、状态与起止时间，stdout 与 stderr 交错写进 `output.log`，超过 64 MiB 的部分计数后丢弃；命令在自己的进程组里运行，至多 24 小时，到时或经 `job stop` 先 SIGTERM、5 秒后 SIGKILL 整组。`shell` 等到 `wait_seconds`（0 到 600，默认 120）为止：结束了就返回退出码与输出的首尾，还在跑就返回任务 id 与输出的末尾，任务继续。输出摘录与分页读取都不切断 UTF-8 字符，摘录写明省略了多少字节、从哪读回。工作机重启时仍记为 running 的任务标为 lost，结束超过 7 天的任务目录被删除。
+  - `internal/workstation/jobs_test.go`
+  - `internal/tools/workstation_tools_test.go`
 - **工作机里的进程用不了工作机 API**：监听非 loopback 地址时，serve 拒绝来自自己地址（loopback 与本机网卡地址）的请求；启动时把 token 从进程环境里移除，它运行的命令、技能包 MCP 服务器与触发器都继承不到。
 - **后端的 stdio MCP 服务器只继承少数环境变量**：Acorn 进程的环境里只有 `PATH`、`HOME`、`USER`、语言与时区、临时目录、证书与代理变量到服务器，API key 与工作机 token 在内的其余变量只有写进 provider 的 `env` 才到；`env` 的值展开环境变量。
   - `internal/workstation/token_test.go`

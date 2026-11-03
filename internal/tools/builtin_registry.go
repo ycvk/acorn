@@ -20,6 +20,7 @@ type NativeToolDeps struct {
 	OperatorStore   OperatorQuestionStore
 	OperatorContext core.ToolCallContextBridge
 	Presence        PresenceToolDeps
+	Goals           GoalToolDeps
 	Notify          NotifyToolDeps
 	Knowledge       KnowledgeToolDeps
 	Skills          SkillToolDeps
@@ -100,6 +101,13 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "settle":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) { return buildSettleTool(deps.Presence) }
+	case "goal":
+		needs = []nativeToolDep{
+			{"Goals.Store", deps.Goals.Store != nil},
+			{"Goals.Context", deps.Goals.Context != nil},
+			{"Goals.Clock", deps.Goals.Clock != nil},
+		}
+		build = func() (einotool.BaseTool, error) { return buildGoalTool(deps.Goals) }
 	case "recall":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) { return buildRecallTool(deps.Presence) }

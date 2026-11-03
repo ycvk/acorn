@@ -193,7 +193,7 @@ func TestRenderDoctorWorkstation(t *testing.T) {
 		status wire.WorkstationStatus
 		want   string
 	}{
-		{wire.WorkstationStatus{State: "off"}, "Workstation: off (workstation.url is not configured; shell and files are disabled)"},
+		{wire.WorkstationStatus{State: "off"}, "Workstation: off (workstation.url is not configured; shell, job and files are disabled)"},
 		{wire.WorkstationStatus{State: "ok", URL: "http://127.0.0.1:7810", Home: "/home/agent"}, "Workstation: ok http://127.0.0.1:7810 home=/home/agent"},
 		{wire.WorkstationStatus{State: "ok", URL: "http://127.0.0.1:7810", Home: "/home/agent", Browser: &wire.BrowserStatus{State: "connected", Connected: []string{"afc17aef"}}},
 			"Workstation: ok http://127.0.0.1:7810 home=/home/agent\n  Browser: connected afc17aef"},

@@ -25,6 +25,7 @@ func newTestClientWithBrowser(t *testing.T, chromium string) (*Client, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(server.Close)
 	ts := httptest.NewServer(server.Handler())
 	t.Cleanup(ts.Close)
 	client, err := NewClient(ts.URL, testToken, ts.Client())
