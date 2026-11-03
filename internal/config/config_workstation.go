@@ -11,7 +11,7 @@ import (
 
 // WorkstationConfig points at the agent's workstation, which serves
 // `acorn workstation serve` inside its own container. An empty URL turns the
-// shell, job and files tools off; the token expands environment variables.
+// shell, job, follow_up, files and send_file tools off; the token expands environment variables.
 type WorkstationConfig struct {
 	URL   string `yaml:"url"`
 	Token string `yaml:"token"`

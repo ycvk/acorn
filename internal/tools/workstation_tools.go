@@ -12,6 +12,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/textedit"
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
@@ -25,6 +26,7 @@ type WorkstationService interface {
 	StopJob(ctx context.Context, id string) (workstation.Job, error)
 	ReadFile(ctx context.Context, req workstation.ReadRequest) (workstation.ReadResult, error)
 	WriteFile(ctx context.Context, req workstation.WriteRequest) (workstation.WriteResult, error)
+	EditFile(ctx context.Context, req workstation.EditRequest) (workstation.EditResult, error)
 	OpenFile(ctx context.Context, path string) (io.ReadCloser, int64, error)
 }
 
@@ -95,9 +97,24 @@ type JobToolOutput struct {
 }
 
 type FilesInput struct {
-	Action  string `json:"action" jsonschema:"required,enum=read,enum=write" jsonschema_description:"read returns a text file; write creates or replaces one, creating parent directories."`
-	Path    string `json:"path" jsonschema:"required" jsonschema_description:"File path, absolute or relative to the home directory."`
-	Content string `json:"content,omitempty" jsonschema_description:"Full file content for write."`
+	Action  string     `json:"action" jsonschema:"required,enum=read,enum=write,enum=edit" jsonschema_description:"read returns a text file; write creates or replaces one, creating parent directories; edit changes parts of an existing one and leaves the rest as it is."`
+	Path    string     `json:"path" jsonschema:"required" jsonschema_description:"File path, absolute or relative to the home directory."`
+	Content string     `json:"content,omitempty" jsonschema_description:"Full file content for write."`
+	Edits   []TextEdit `json:"edits,omitempty" jsonschema_description:"For edit: the changes, all made against the file as it is now. Each old text must occur exactly once in the file, and edits must not overlap; either all apply or none does."`
+}
+
+// TextEdit replaces one piece of a text.
+type TextEdit struct {
+	Old string `json:"old" jsonschema:"required" jsonschema_description:"Text to replace, copied from the file with enough around it to occur only once. Whitespace at line ends and typographic quotes and dashes may differ."`
+	New string `json:"new" jsonschema:"required" jsonschema_description:"Replacement text; empty removes the old text."`
+}
+
+func textEdits(edits []TextEdit) []textedit.Edit {
+	out := make([]textedit.Edit, 0, len(edits))
+	for _, e := range edits {
+		out = append(out, textedit.Edit{Old: e.Old, New: e.New})
+	}
+	return out
 }
 
 type SendFileInput struct {
@@ -118,6 +135,8 @@ type FilesOutput struct {
 	Size      int64  `json:"size,omitempty"`
 	Truncated bool   `json:"truncated,omitempty"`
 	Bytes     int    `json:"bytes,omitempty"`
+	// Lines is where each edit's new text starts, counted from 1.
+	Lines []int `json:"lines,omitempty"`
 }
 
 // BuildWorkstationToolSpecs returns the specs for shell, job, follow_up,
@@ -254,7 +273,7 @@ func jobView(job workstation.Job) JobView {
 }
 
 func buildFilesTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
-	description := fmt.Sprintf("Read or write a UTF-8 text file on your workstation. read returns at most %d bytes and says when the file is longer; use shell for other files and listings.", cfg.MaxOutputBytes)
+	description := fmt.Sprintf("Read, write or edit a UTF-8 text file on your workstation. read returns at most %d bytes and says when the file is longer. To change part of a file, such as a line of a script or a setting, use edit instead of writing the whole file again; line endings stay as they were. Use shell for other files and listings.", cfg.MaxOutputBytes)
 	return inferLocalTool("files", description, func(ctx context.Context, input FilesInput) (FilesOutput, error) {
 		switch input.Action {
 		case "read":
@@ -269,8 +288,14 @@ func buildFilesTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
 				return FilesOutput{}, err
 			}
 			return FilesOutput{Path: got.Path, Bytes: got.Bytes}, nil
+		case "edit":
+			got, err := cfg.Service.EditFile(ctx, workstation.EditRequest{Path: input.Path, Edits: textEdits(input.Edits)})
+			if err != nil {
+				return FilesOutput{}, err
+			}
+			return FilesOutput{Path: got.Path, Bytes: got.Bytes, Lines: got.Lines}, nil
 		default:
-			return FilesOutput{}, fmt.Errorf("files: action must be read or write, got %q", input.Action)
+			return FilesOutput{}, fmt.Errorf("files: action must be read, write or edit, got %q", input.Action)
 		}
 	})
 }

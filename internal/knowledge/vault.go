@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/textedit"
 )
 
 var (
@@ -101,28 +102,23 @@ func (v *Vault) Write(ctx context.Context, w WriteNote) (core.KnowledgeNote, err
 	return v.write(ctx, core.KnowledgeWrite{Path: notePath, Title: strings.TrimSpace(w.Title), Tags: normalizeTags(w.Tags), Source: strings.TrimSpace(w.Source), Body: w.Body, RunID: w.RunID}, "write")
 }
 
-// Edit replaces the single occurrence of old in a note's body. The write is
-// based on the revision it read, so a concurrent change fails it.
-func (v *Vault) Edit(ctx context.Context, notePath, old, replacement, runID string) (core.KnowledgeNote, error) {
+// Edit makes edits to a note's body, each replacing the one place its old
+// text occurs. The write is based on the revision it read, so a concurrent
+// change fails it.
+func (v *Vault) Edit(ctx context.Context, notePath string, edits []textedit.Edit, runID string) (core.KnowledgeNote, error) {
 	notePath, err := CleanNotePath(notePath)
 	if err != nil {
 		return core.KnowledgeNote{}, err
-	}
-	if old == "" {
-		return core.KnowledgeNote{}, errors.New("knowledge edit: old text is required")
 	}
 	note, err := v.store.KnowledgeNote(ctx, notePath)
 	if err != nil {
 		return core.KnowledgeNote{}, err
 	}
-	switch count := strings.Count(note.Body, old); count {
-	case 0:
-		return core.KnowledgeNote{}, fmt.Errorf("knowledge edit: the old text does not occur in %s", notePath)
-	case 1:
-	default:
-		return core.KnowledgeNote{}, fmt.Errorf("knowledge edit: the old text occurs %d times in %s; include more context so it is unique", count, notePath)
+	body, _, err := textedit.Apply(note.Body, edits)
+	if err != nil {
+		return core.KnowledgeNote{}, fmt.Errorf("knowledge edit %s: %w", notePath, err)
 	}
-	return v.write(ctx, core.KnowledgeWrite{Path: notePath, Title: note.Title, Tags: note.Tags, Source: note.Source, Body: strings.Replace(note.Body, old, replacement, 1), RunID: runID, BaseRevision: note.Revision}, "edit")
+	return v.write(ctx, core.KnowledgeWrite{Path: notePath, Title: note.Title, Tags: note.Tags, Source: note.Source, Body: body, RunID: runID, BaseRevision: note.Revision}, "edit")
 }
 
 func (v *Vault) write(ctx context.Context, w core.KnowledgeWrite, verb string) (core.KnowledgeNote, error) {

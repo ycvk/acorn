@@ -12,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/textedit"
 )
 
 var shanghai = time.FixedZone("CST", 8*3600)
@@ -91,17 +92,17 @@ func TestWriteAddsRevisionsAndKeepsCreated(t *testing.T) {
 func TestEditNeedsUniqueOldTextAndCurrentRevision(t *testing.T) {
 	ctx := context.Background()
 	v := openTestVault(t)
-	if _, err := v.Write(ctx, WriteNote{Path: "a.md", Title: "A", Tags: []string{"t"}, Body: "one two two"}); err != nil {
+	if _, err := v.Write(ctx, WriteNote{Path: "a.md", Title: "A", Tags: []string{"t"}, Body: "one two two\nthree"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := v.Edit(ctx, "a.md", "three", "3", ""); err == nil || !strings.Contains(err.Error(), "does not occur") {
+	if _, err := v.Edit(ctx, "a.md", []textedit.Edit{{Old: "four", New: "4"}}, ""); err == nil || !strings.Contains(err.Error(), "is not in the file") {
 		t.Fatalf("missing old text err = %v", err)
 	}
-	if _, err := v.Edit(ctx, "a.md", "two", "2", ""); err == nil || !strings.Contains(err.Error(), "occurs 2 times") {
+	if _, err := v.Edit(ctx, "a.md", []textedit.Edit{{Old: "one", New: "1"}, {Old: "two", New: "2"}}, ""); err == nil || !strings.Contains(err.Error(), "edit 2: the old text occurs 2 times") {
 		t.Fatalf("ambiguous old text err = %v", err)
 	}
-	edited, err := v.Edit(ctx, "a.md", "one", "1", "run-edit")
-	if err != nil || edited.Body != "1 two two" || edited.Revision != 2 || edited.Title != "A" || strings.Join(edited.Tags, ",") != "t" {
+	edited, err := v.Edit(ctx, "a.md", []textedit.Edit{{Old: "one", New: "1"}, {Old: "three", New: "3"}}, "run-edit")
+	if err != nil || edited.Body != "1 two two\n3" || edited.Revision != 2 || edited.Title != "A" || strings.Join(edited.Tags, ",") != "t" {
 		t.Fatalf("edit = %+v, %v", edited, err)
 	}
 	_, err = v.db.WriteKnowledgeNote(ctx, core.KnowledgeWrite{Path: "a.md", Title: "A", Body: "stale", At: v.now, BaseRevision: 1})

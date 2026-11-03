@@ -390,8 +390,13 @@
 
 ## 工作机
 
-- **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell`、`job`、`follow_up` 与 `files` 是 deferred 工具，未配置 `workstation.url` 时以原因禁用。
+- **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell`、`job`、`follow_up`、`files` 与 `send_file` 是 deferred 工具，未配置 `workstation.url` 时以原因禁用。
   - `internal/workstation/workstation_test.go`
+- **按段编辑只改旧文本所在之处**：`files` 的 edit 与 `knowledge_edit` 都经 `internal/textedit` 修改文本：每段旧文本对照修改前的全文，必须只出现一次；完全对不上时把行尾空白、弯引号、破折号与不换行空格归一后再找，仍然对不上或出现多次就报错并指出是第几段；各段不能重叠；要么全部生效，要么文本不变。CRLF 换行与 BOM 保持原样，结果给出每段新文本所在的行。工作机写到旁边的临时文件再整体换入，保留文件权限，只改 UTF-8 文本文件。
+  - `internal/textedit/textedit_test.go`
+  - `internal/workstation/workstation_test.go`
+  - `internal/knowledge/knowledge_test.go`
+  - `internal/tools/workstation_tools_test.go`
 - **shell 的命令是任务，长命令留在后台**：工作机为每条命令建 `~/.jobs/<id>/`，记下命令、状态与起止时间，stdout 与 stderr 交错写进 `output.log`，超过 64 MiB 的部分计数后丢弃；命令在自己的进程组里运行，至多 24 小时，到时或经 `job stop` 先 SIGTERM、5 秒后 SIGKILL 整组。`shell` 等到 `wait_seconds`（0 到 600，默认 120）为止：结束了就返回退出码与输出的首尾，还在跑就返回任务 id 与输出的末尾，任务继续。输出摘录与分页读取都不切断 UTF-8 字符，摘录写明省略了多少字节、从哪读回。工作机重启时仍记为 running 的任务标为 lost，结束超过 7 天的任务目录被删除。
   - `internal/workstation/jobs_test.go`
   - `internal/tools/workstation_tools_test.go`

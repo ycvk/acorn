@@ -95,7 +95,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 		spec.Category = core.ToolCategoryRead
 	case "artifact_write", "knowledge_write", "knowledge_edit", "skill_write", "skill_retire", "skill_import", "watch_create", "watch_update", "news_sections", "news_source":
 		spec.Category = core.ToolCategoryWrite
-	case "ask_operator", "notify_owner", "send_file":
+	case "ask_operator", "notify_owner":
 		spec.Category = core.ToolCategoryIntegration
 	case "keep", "think", "schedule_wake", "settle", "goal", "memory_correct", "memory_forget", "concern":
 		spec.Category = core.ToolCategoryMemory
@@ -103,7 +103,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 		spec.Category = core.ToolCategoryRead
 	case "web_fetch", "web_search":
 		spec.Category = core.ToolCategoryRead
-	case "shell", "job", "follow_up", "files":
+	case "shell", "job", "follow_up", "files", "send_file":
 		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("workstation")
 	case "show_view", "update_view":

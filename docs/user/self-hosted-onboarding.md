@@ -542,13 +542,13 @@ The database records its schema version. A newer Acorn upgrades an older databas
 
 ## 15. Agent Workstation
 
-The agent has its own Linux computer: a Podman container run by `acorn-workstation.service`. It runs Debian with common command-line tools, Python and internet access; the agent works there as user `agent` with sudo. The agent uses it through four tools, loaded with `tool_search`: `shell` runs a bash command, `job` checks on commands still running, `follow_up` wakes the agent when one of them ends or a file is ready, and `files` reads or writes a text file. A command that has not finished after `shell`'s wait (two minutes unless the agent asks for another, at most ten) keeps running in the background for up to 24 hours, so downloads and builds are not cut off; its whole output stays under `~/.jobs/` on the workstation for a week. `send_file` hands you a file from it, and files you send the agent are copied there under `~/uploads/`.
+The agent has its own Linux computer: a Podman container run by `acorn-workstation.service`. It runs Debian with common command-line tools, Python and internet access; the agent works there as user `agent` with sudo. The agent uses it through tools it loads with `tool_search`: `shell` runs a bash command, `job` checks on commands still running, `follow_up` wakes the agent when one of them ends or a file is ready, `files` reads, writes or edits a text file in place, and `send_file` hands you a file from it. A command that has not finished after `shell`'s wait (two minutes unless the agent asks for another, at most ten) keeps running in the background for up to 24 hours, so downloads and builds are not cut off; its whole output stays under `~/.jobs/` on the workstation for a week. Files you send the agent are copied there under `~/uploads/`.
 
 The installer installs Podman, builds the image from the release's `workstation/Containerfile`, adds `ACORN_WORKSTATION_TOKEN` to `acorn.env` and starts the service. The Acorn binary is mounted read-only into the container and serves the workstation API on `127.0.0.1:7810`; every request carries the token. The API refuses requests from inside the container, so commands, skill packages and triggers running there cannot use it to skip approval. The container cannot see Acorn's config, env, data or model keys.
 
 ```yaml
 workstation:
-  url: http://127.0.0.1:7810            # empty turns shell, job, follow_up and files off
+  url: http://127.0.0.1:7810            # empty turns the workstation tools off
   token: ${ACORN_WORKSTATION_TOKEN}
 ```
 

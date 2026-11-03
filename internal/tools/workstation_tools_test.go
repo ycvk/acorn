@@ -94,7 +94,15 @@ func TestWorkstationToolsRunCommandsAndFiles(t *testing.T) {
 	if err != nil || !strings.Contains(out, `"content":"3\n4\n"`) {
 		t.Fatalf("read = %s err = %v", out, err)
 	}
-	if _, err := invoke(t, specs["files"], `{"action":"delete","path":"data/n.txt"}`); err == nil || !strings.Contains(err.Error(), "read or write") {
+	out, err = invoke(t, specs["files"], `{"action":"edit","path":"data/n.txt","edits":[{"old":"4\n","new":"5\n6\n"}]}`)
+	if err != nil || !strings.Contains(out, `"lines":[2]`) {
+		t.Fatalf("edit = %s err = %v", out, err)
+	}
+	out, err = invoke(t, specs["files"], `{"action":"read","path":"data/n.txt"}`)
+	if err != nil || !strings.Contains(out, `"content":"3\n5\n6\n"`) {
+		t.Fatalf("read after edit = %s err = %v", out, err)
+	}
+	if _, err := invoke(t, specs["files"], `{"action":"delete","path":"data/n.txt"}`); err == nil || !strings.Contains(err.Error(), "read, write or edit") {
 		t.Fatalf("delete err = %v", err)
 	}
 }
@@ -227,7 +235,7 @@ func TestWorkstationToolsDisabledWithoutService(t *testing.T) {
 
 func TestSendFileHandsTheOwnerAWorkstationFile(t *testing.T) {
 	specs, db := workstationSpecsWithFiles(t, 1<<20)
-	if spec := specs["send_file"]; !spec.Enabled() || spec.Loading.Mode != core.ToolLoadingModeEager {
+	if spec := specs["send_file"]; !spec.Enabled() || spec.Loading.Mode != core.ToolLoadingModeDeferred {
 		t.Fatalf("send_file enabled=%v loading=%s", spec.Enabled(), spec.Loading.Mode)
 	}
 	if _, err := invoke(t, specs["shell"], `{"command":"mkdir -p books && printf 'PK\\003\\004book' > books/hongloumeng.epub && head -c 2000000 /dev/zero > big.bin"}`); err != nil {

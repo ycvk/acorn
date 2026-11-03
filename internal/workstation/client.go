@@ -100,6 +100,12 @@ func (c *Client) WriteFile(ctx context.Context, req WriteRequest) (WriteResult, 
 	return out, c.call(ctx, http.MethodPost, "/v1/files/write", req, &out)
 }
 
+// EditFile changes parts of a text file on the workstation.
+func (c *Client) EditFile(ctx context.Context, req EditRequest) (EditResult, error) {
+	var out EditResult
+	return out, c.call(ctx, http.MethodPost, "/v1/files/edit", req, &out)
+}
+
 // BrowserTabs lists the pages of the agent's browser.
 func (c *Client) BrowserTabs(ctx context.Context) ([]Tab, error) {
 	var out struct {

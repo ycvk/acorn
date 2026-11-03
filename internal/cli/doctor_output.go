@@ -228,7 +228,7 @@ func renderDoctorProviderLine(provider api.SystemMCPProviderCapability) string {
 func renderDoctorWorkstation(status wire.WorkstationStatus) string {
 	switch status.State {
 	case "off":
-		return "Workstation: off (workstation.url is not configured; shell, job and files are disabled)"
+		return "Workstation: off (workstation.url is not configured; shell, job, follow_up, files and send_file are disabled)"
 	case "ok":
 		line := fmt.Sprintf("Workstation: ok %s home=%s", status.URL, status.Home)
 		if status.Browser != nil {
