@@ -83,7 +83,7 @@ func (s *Scheduler) continueGoal(ctx context.Context, g core.Goal, now time.Time
 }
 
 func (s *Scheduler) endGoal(ctx context.Context, g core.Goal, state, result string, now time.Time) error {
-	if _, err := s.cfg.Goals.EndGoal(ctx, g.ID, state, result, "", now); err != nil && !errors.Is(err, core.ErrGoalNotFound) {
+	if _, err := s.cfg.Goals.EndGoal(ctx, g.ID, state, result, "", now); err != nil && !errors.Is(err, core.ErrGoalNotFound) && !errors.Is(err, core.ErrGoalEnded) {
 		return err
 	}
 	return nil

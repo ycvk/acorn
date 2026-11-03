@@ -79,6 +79,16 @@ func (c *ConverterImpl) apiRunSummaryToApiRunSummaryDTO(source RunSummary) RunSu
 	apiRunSummaryDTO.UpdatedAt = TimeToTime(source.UpdatedAt)
 	return apiRunSummaryDTO
 }
+func (c *ConverterImpl) apiSubRunDataToApiSubRunData(source SubRunData) SubRunData {
+	var apiSubRunData SubRunData
+	apiSubRunData.Task = source.Task
+	apiSubRunData.Attempt = source.Attempt
+	apiSubRunData.State = source.State
+	apiSubRunData.Objective = source.Objective
+	apiSubRunData.Summary = source.Summary
+	apiSubRunData.Error = source.Error
+	return apiSubRunData
+}
 func (c *ConverterImpl) apiSystemToolCapabilityToApiCapabilitiesToolDTO(source SystemToolCapability) CapabilitiesToolDTO {
 	var apiCapabilitiesToolDTO CapabilitiesToolDTO
 	apiCapabilitiesToolDTO.Name = source.Name
@@ -212,6 +222,12 @@ func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 		apiMessageDTO.Views = make([]core.ViewData, len(source.Views))
 		for k := 0; k < len(source.Views); k++ {
 			apiMessageDTO.Views[k] = c.coreViewDataToCoreViewData(source.Views[k])
+		}
+	}
+	if source.SubRuns != nil {
+		apiMessageDTO.SubRuns = make([]SubRunData, len(source.SubRuns))
+		for l := 0; l < len(source.SubRuns); l++ {
+			apiMessageDTO.SubRuns[l] = c.apiSubRunDataToApiSubRunData(source.SubRuns[l])
 		}
 	}
 	return apiMessageDTO

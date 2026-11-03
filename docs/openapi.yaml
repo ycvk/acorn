@@ -655,8 +655,9 @@ paths:
       description: |
         Returns the latest morning briefing note, the scheduled and due
         commitments with the occurrences that wait for an outcome, the active
-        and waiting concerns, and every watch with failing watches first. A
-        failing read of any section fails the request.
+        and waiting concerns, the active goals, the waiting follow-ups, and
+        every watch with failing watches first. A failing read of any section
+        fails the request.
       operationId: clientGetNow
       responses:
         '200':
@@ -695,6 +696,59 @@ paths:
           $ref: '#/components/responses/CommitmentNotFound'
         '409':
           $ref: '#/components/responses/CommitmentEnded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/goals/{goal_id}:stop:
+    post:
+      tags: [client]
+      summary: Stop a goal
+      description: |
+        Ends an active goal as stopped, with the owner as the reason. No
+        further run starts for it and nothing is pushed; a run of it that is
+        going goes on.
+      operationId: clientStopGoal
+      parameters:
+        - $ref: '#/components/parameters/GoalID'
+      responses:
+        '204':
+          description: Goal stopped
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/GoalNotFound'
+        '409':
+          $ref: '#/components/responses/GoalEnded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/follow-ups/{follow_up_id}:cancel:
+    post:
+      tags: [client]
+      summary: Cancel a follow-up
+      description: |
+        Cancels a waiting follow-up of any conversation, the same change the
+        agent makes with its follow_up tool in its own conversation.
+      operationId: clientCancelFollowUp
+      parameters:
+        - $ref: '#/components/parameters/FollowUpID'
+      responses:
+        '204':
+          description: Follow-up cancelled
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/FollowUpNotFound'
+        '409':
+          $ref: '#/components/responses/FollowUpNotWaiting'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -1939,6 +1993,20 @@ components:
       schema:
         type: integer
         format: int64
+    GoalID:
+      name: goal_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    FollowUpID:
+      name: follow_up_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     WatchID:
       name: watch_id
       in: path
@@ -2185,6 +2253,54 @@ components:
                 error:
                   code: commitment_ended
                   message: 'commitment already ended: commitment 7 is cancelled'
+    GoalNotFound:
+      description: Goal not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            goalNotFound:
+              value:
+                error:
+                  code: goal_not_found
+                  message: 'end goal #3: no active goal: #3'
+    GoalEnded:
+      description: Goal is already done, blocked or stopped
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            goalEnded:
+              value:
+                error:
+                  code: goal_ended
+                  message: 'end goal #3: goal ended: #3 is done'
+    FollowUpNotFound:
+      description: Follow-up not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            followUpNotFound:
+              value:
+                error:
+                  code: follow_up_not_found
+                  message: 'cancel follow-up: follow-up not found: #7'
+    FollowUpNotWaiting:
+      description: Follow-up already fired or was cancelled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            followUpNotWaiting:
+              value:
+                error:
+                  code: follow_up_not_waiting
+                  message: 'cancel follow-up: follow-up is not waiting: #7 is fired'
     WatchNotFound:
       description: Watch not found
       content:
@@ -3305,6 +3421,11 @@ components:
           description: Views the run behind an assistant message showed the owner, oldest first.
           items:
             $ref: '#/components/schemas/View'
+        sub_runs:
+          type: array
+          description: Tasks the run behind an assistant message handed to sub-agents, by task number, each at its latest attempt.
+          items:
+            $ref: '#/components/schemas/SubRunData'
 
     ThreadFile:
       type: object
@@ -3451,6 +3572,7 @@ components:
         - $ref: '#/components/schemas/ClientToolCallFailedEvent'
         - $ref: '#/components/schemas/ClientViewShownEvent'
         - $ref: '#/components/schemas/ClientViewUpdatedEvent'
+        - $ref: '#/components/schemas/ClientSubRunUpdatedEvent'
       discriminator:
         propertyName: type
         mapping:
@@ -3472,6 +3594,7 @@ components:
           tool.call.failed: '#/components/schemas/ClientToolCallFailedEvent'
           view.shown: '#/components/schemas/ClientViewShownEvent'
           view.updated: '#/components/schemas/ClientViewUpdatedEvent'
+          sub_run.updated: '#/components/schemas/ClientSubRunUpdatedEvent'
 
     RunEventBase:
       type: object
@@ -3689,6 +3812,20 @@ components:
               const: view.updated
             data:
               $ref: '#/components/schemas/ViewShownData'
+
+    ClientSubRunUpdatedEvent:
+      description: |
+        A task the run handed to a sub-agent started an attempt, reported to
+        the run, or had its result accepted; `data` is the task as it now is.
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: sub_run.updated
+            data:
+              $ref: '#/components/schemas/SubRunData'
 
     RunStartedData:
       type: object
@@ -3976,7 +4113,7 @@ components:
     NowResponse:
       type: object
       additionalProperties: false
-      required: [panels, commitments, concerns, watches]
+      required: [panels, commitments, concerns, goals, follow_ups, watches]
       properties:
         briefing:
           $ref: '#/components/schemas/NowBriefing'
@@ -3993,6 +4130,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NowConcern'
+        goals:
+          type: array
+          description: Active goals, oldest first.
+          items:
+            $ref: '#/components/schemas/NowGoal'
+        follow_ups:
+          type: array
+          description: Waiting follow-ups, earliest deadline first.
+          items:
+            $ref: '#/components/schemas/NowFollowUp'
         watches:
           type: array
           items:
@@ -4185,6 +4332,72 @@ components:
           type: string
           format: date-time
         updated_at:
+          type: string
+          format: date-time
+
+    NowGoal:
+      type: object
+      additionalProperties: false
+      description: An outcome the agent works toward over runs of its own in a conversation.
+      required: [id, thread_id, thread_title, objective, runs, max_runs, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        thread_id:
+          type: string
+          description: The conversation the goal continues in.
+        thread_title:
+          type: string
+        objective:
+          type: string
+          description: The outcome and how to tell it is reached, in the agent's words.
+        runs:
+          type: integer
+          description: Runs started for the goal so far.
+        max_runs:
+          type: integer
+          description: The most runs the goal may take.
+        created_at:
+          type: string
+          format: date-time
+
+    NowFollowUp:
+      type: object
+      additionalProperties: false
+      description: |
+        A follow-up that wakes the agent in its conversation once something
+        on the workstation happens, and at its deadline regardless.
+      required: [id, thread_id, thread_title, task, waits_for, deadline_at, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        thread_id:
+          type: string
+          description: The conversation the agent wakes in.
+        thread_title:
+          type: string
+        task:
+          type: string
+          description: What the agent does when it wakes, in its words.
+        waits_for:
+          type: string
+          enum: [job_end, job_output, path]
+          description: |
+            `job_end` waits for the job `job_id` to end, `job_output` for it to
+            print `output_contains`, `path` for a directory at `path` to exist
+            or a file there to stop growing.
+        job_id:
+          type: string
+        output_contains:
+          type: string
+        path:
+          type: string
+        deadline_at:
+          type: string
+          format: date-time
+        created_at:
           type: string
           format: date-time
 
@@ -4690,6 +4903,36 @@ components:
         error:
           type: string
           description: Set on tool.call.failed; at most 300 characters.
+
+    SubRunData:
+      type: object
+      additionalProperties: false
+      description: A task the run handed to a sub-agent, at its latest attempt.
+      required: [task, attempt, state, objective]
+      properties:
+        task:
+          type: integer
+          minimum: 1
+        attempt:
+          type: integer
+          minimum: 1
+          description: Attempts after the first are redos the run sent back with feedback.
+        state:
+          type: string
+          enum: [running, reported, failed, accepted]
+          description: |
+            `reported` waits for the run to accept the result or send it back;
+            `failed` ended with an error, also when the run that delegated it
+            ended first.
+        objective:
+          type: string
+          description: What the sub-agent is to achieve, at most 120 characters.
+        summary:
+          type: string
+          description: What the attempt handed back, or its last reply when it submitted nothing; at most 600 characters.
+        error:
+          type: string
+          description: Why a failed attempt failed; at most 300 characters.
 
     ViewShownData:
       type: object

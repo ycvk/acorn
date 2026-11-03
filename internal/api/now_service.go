@@ -16,6 +16,11 @@ type nowStore interface {
 	ListDueOccurrences(ctx context.Context) ([]core.CommitmentOccurrence, error)
 	SettleCommitment(ctx context.Context, change core.CommitmentSettlement) error
 	ListConcerns(ctx context.Context, activeOnly bool) ([]core.MemoryConcern, error)
+	ActiveGoals(ctx context.Context) ([]core.Goal, error)
+	EndGoal(ctx context.Context, id int64, state, result, endRunID string, now time.Time) (core.Goal, error)
+	WaitingFollowUps(ctx context.Context, sessionID string) ([]core.FollowUp, error)
+	CancelFollowUp(ctx context.Context, sessionID string, id int64, now time.Time) error
+	LoadSession(ctx context.Context, sessionID string) (*core.SessionRecord, error)
 	ListWatches(ctx context.Context) ([]core.Watch, error)
 	LoadWatch(ctx context.Context, id int64) (*core.Watch, error)
 	UpdateWatch(ctx context.Context, w core.Watch) error
@@ -27,7 +32,8 @@ type nowStore interface {
 }
 
 // NowService serves the now page: the latest briefing, the views the owner
-// pinned, what is coming up, what the agent is working on and the watches.
+// pinned, what is coming up, what the agent is working on, what it waits
+// for and the watches.
 type NowService struct {
 	store nowStore
 	clock func() time.Time
@@ -46,6 +52,8 @@ type NowResponse struct {
 	Panels      []NowPanelDTO      `json:"panels"`
 	Commitments []NowCommitmentDTO `json:"commitments"`
 	Concerns    []NowConcernDTO    `json:"concerns"`
+	Goals       []NowGoalDTO       `json:"goals"`
+	FollowUps   []NowFollowUpDTO   `json:"follow_ups"`
 	Watches     []NowWatchDTO      `json:"watches"`
 }
 
@@ -121,6 +129,40 @@ type NowConcernDTO struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
+// NowGoalDTO is an active goal: what it works toward, the runs it took of
+// the most it may take, and its conversation.
+type NowGoalDTO struct {
+	ID          int64     `json:"id"`
+	ThreadID    string    `json:"thread_id"`
+	ThreadTitle string    `json:"thread_title"`
+	Objective   string    `json:"objective"`
+	Runs        int       `json:"runs"`
+	MaxRuns     int       `json:"max_runs"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// What a waiting follow-up waits for.
+const (
+	followUpWaitsForJobEnd    = "job_end"
+	followUpWaitsForJobOutput = "job_output"
+	followUpWaitsForPath      = "path"
+)
+
+// NowFollowUpDTO is a waiting follow-up: what wakes the agent, the deadline
+// at which it wakes regardless, and its conversation.
+type NowFollowUpDTO struct {
+	ID             int64     `json:"id"`
+	ThreadID       string    `json:"thread_id"`
+	ThreadTitle    string    `json:"thread_title"`
+	Task           string    `json:"task"`
+	WaitsFor       string    `json:"waits_for"`
+	JobID          string    `json:"job_id,omitempty"`
+	OutputContains string    `json:"output_contains,omitempty"`
+	Path           string    `json:"path,omitempty"`
+	DeadlineAt     time.Time `json:"deadline_at"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 // NowWatchDTO is one watch.
 type NowWatchDTO struct {
 	ID              int64      `json:"id"`
@@ -157,6 +199,14 @@ func (s *NowService) Load(ctx context.Context) (NowResponse, error) {
 	if err != nil {
 		return NowResponse{}, fmt.Errorf("list concerns: %w", err)
 	}
+	goals, err := s.store.ActiveGoals(ctx)
+	if err != nil {
+		return NowResponse{}, fmt.Errorf("list goals: %w", err)
+	}
+	followUps, err := s.store.WaitingFollowUps(ctx, "")
+	if err != nil {
+		return NowResponse{}, fmt.Errorf("list follow-ups: %w", err)
+	}
 	watches, err := s.store.ListWatches(ctx)
 	if err != nil {
 		return NowResponse{}, fmt.Errorf("list watches: %w", err)
@@ -176,13 +226,57 @@ func (s *NowService) Load(ctx context.Context) (NowResponse, error) {
 	if out.Commitments, err = nowCommitments(commitments, occurrences); err != nil {
 		return NowResponse{}, err
 	}
+	titles, err := s.threadTitles(ctx, goals, followUps)
+	if err != nil {
+		return NowResponse{}, err
+	}
+	out.Goals, out.FollowUps = nowGoals(goals, titles), nowFollowUps(followUps, titles)
 	return out, nil
+}
+
+// threadTitles reads the title of each conversation a goal or follow-up
+// belongs to.
+func (s *NowService) threadTitles(ctx context.Context, goals []core.Goal, followUps []core.FollowUp) (map[string]string, error) {
+	titles := map[string]string{}
+	ids := make([]string, 0, len(goals)+len(followUps))
+	for _, g := range goals {
+		ids = append(ids, g.SessionID)
+	}
+	for _, f := range followUps {
+		ids = append(ids, f.SessionID)
+	}
+	for _, id := range ids {
+		if _, ok := titles[id]; ok {
+			continue
+		}
+		session, err := s.store.LoadSession(ctx, id)
+		if err != nil {
+			return nil, fmt.Errorf("conversation %s: %w", id, err)
+		}
+		titles[id] = session.Title
+	}
+	return titles, nil
 }
 
 // CancelCommitment cancels a commitment and its unsettled occurrences, the
 // same way the agent's settle tool does.
 func (s *NowService) CancelCommitment(ctx context.Context, id int64) error {
 	return s.store.SettleCommitment(ctx, core.CommitmentSettlement{CommitmentID: id, Action: "cancel", Now: s.clock()})
+}
+
+// ownerStoppedGoal is the result of a goal the owner stopped.
+const ownerStoppedGoal = "the owner stopped it"
+
+// StopGoal ends an active goal as stopped: no further run starts for it and
+// nothing is pushed.
+func (s *NowService) StopGoal(ctx context.Context, id int64) error {
+	_, err := s.store.EndGoal(ctx, id, core.GoalStopped, ownerStoppedGoal, "", s.clock())
+	return err
+}
+
+// CancelFollowUp cancels a waiting follow-up of any conversation.
+func (s *NowService) CancelFollowUp(ctx context.Context, id int64) error {
+	return s.store.CancelFollowUp(ctx, "", id, s.clock())
 }
 
 // PauseWatch stops checking a watch.
@@ -267,6 +361,35 @@ func nowConcerns(concerns []core.MemoryConcern) []NowConcernDTO {
 		out = append(out, NowConcernDTO{
 			ID: c.ID, ThreadID: c.ThreadID, Title: c.Title, Outcome: c.Outcome, State: c.State, Reason: c.Reason,
 			ReviewAt: optionalUTC(c.ReviewAt), UpdatedAt: c.UpdatedAt.UTC(),
+		})
+	}
+	return out
+}
+
+func nowGoals(goals []core.Goal, titles map[string]string) []NowGoalDTO {
+	out := make([]NowGoalDTO, 0, len(goals))
+	for _, g := range goals {
+		out = append(out, NowGoalDTO{
+			ID: g.ID, ThreadID: g.SessionID, ThreadTitle: titles[g.SessionID], Objective: g.Objective,
+			Runs: g.Runs, MaxRuns: g.MaxRuns, CreatedAt: g.CreatedAt.UTC(),
+		})
+	}
+	return out
+}
+
+func nowFollowUps(followUps []core.FollowUp, titles map[string]string) []NowFollowUpDTO {
+	out := make([]NowFollowUpDTO, 0, len(followUps))
+	for _, f := range followUps {
+		waits := followUpWaitsForPath
+		switch {
+		case f.OutputContains != "":
+			waits = followUpWaitsForJobOutput
+		case f.JobID != "":
+			waits = followUpWaitsForJobEnd
+		}
+		out = append(out, NowFollowUpDTO{
+			ID: f.ID, ThreadID: f.SessionID, ThreadTitle: titles[f.SessionID], Task: f.Task, WaitsFor: waits,
+			JobID: f.JobID, OutputContains: f.OutputContains, Path: f.Path, DeadlineAt: f.DeadlineAt.UTC(), CreatedAt: f.CreatedAt.UTC(),
 		})
 	}
 	return out

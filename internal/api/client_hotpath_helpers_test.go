@@ -77,9 +77,15 @@ func (noStories) SendStoryMessage(context.Context, core.StoryMessageWrite) (core
 	return core.SessionMessageRecord{}, errors.New("no stories in this test")
 }
 
+type noSubRuns struct{}
+
+func (noSubRuns) SubRunsOf(context.Context, []string) (map[string][]core.SubRun, error) {
+	return map[string][]core.SubRun{}, nil
+}
+
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
-	threads, err := NewThreadService(store, noThreadFiles{}, noThreadViews{}, noStories{}, noThreadMemory{}, noForgetBarrier)
+	threads, err := NewThreadService(store, noThreadFiles{}, noThreadViews{}, noStories{}, noSubRuns{}, noThreadMemory{}, noForgetBarrier)
 	if err != nil {
 		panic(err)
 	}

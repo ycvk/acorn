@@ -18,6 +18,7 @@ import io.ycvk.acorn.api.models.ClientRunInputEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
 import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
+import io.ycvk.acorn.api.models.ClientSubRunUpdatedEvent
 import io.ycvk.acorn.api.models.ClientViewShownEvent
 import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -69,6 +70,7 @@ class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
         "tool.call.failed" to ClientToolCallFailedEvent::class.java,
         "view.shown" to ClientViewShownEvent::class.java,
         "view.updated" to ClientViewUpdatedEvent::class.java,
+        "sub_run.updated" to ClientSubRunUpdatedEvent::class.java,
     )
 
     private val eventAdapters = ConcurrentHashMap<String, JsonAdapter<*>>()
@@ -147,6 +149,7 @@ class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
             "tool.call.failed" -> RunEventPacket.ToolCallFailed(parsed as ClientToolCallFailedEvent)
             "view.shown" -> RunEventPacket.ViewShown(parsed as ClientViewShownEvent)
             "view.updated" -> RunEventPacket.ViewUpdated(parsed as ClientViewUpdatedEvent)
+            "sub_run.updated" -> RunEventPacket.SubRunUpdated(parsed as ClientSubRunUpdatedEvent)
             else -> RunEventPacket.Unknown
         }
     }
@@ -180,6 +183,9 @@ sealed class RunEventPacket(val eventId: String, val seq: Long) {
     data class ToolCallFailed(val event: ClientToolCallFailedEvent) : RunEventPacket(event.eventId, event.seq)
     data class ViewShown(val event: ClientViewShownEvent) : RunEventPacket(event.eventId, event.seq)
     data class ViewUpdated(val event: ClientViewUpdatedEvent) : RunEventPacket(event.eventId, event.seq)
+
+    /** A task the run handed to a sub-agent started an attempt, reported or was accepted. */
+    data class SubRunUpdated(val event: ClientSubRunUpdatedEvent) : RunEventPacket(event.eventId, event.seq)
 
     data object Unknown : RunEventPacket("", 0L)
 }

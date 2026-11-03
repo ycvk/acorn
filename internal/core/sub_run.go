@@ -69,6 +69,67 @@ func (s SubRun) Reported() bool {
 	return s.Status != RunStatusRunning
 }
 
+// Where an attempt stands for the run that delegated it.
+const (
+	SubRunStateRunning  = "running"
+	SubRunStateReported = "reported"
+	SubRunStateFailed   = "failed"
+	SubRunStateAccepted = "accepted"
+)
+
+// State is where the attempt stands: running, reported, failed, or
+// accepted once the delegating run took its result.
+func (s SubRun) State() string {
+	switch {
+	case s.Verdict == SubRunAccepted:
+		return SubRunStateAccepted
+	case s.Status == RunStatusFailed:
+		return SubRunStateFailed
+	case s.Reported():
+		return SubRunStateReported
+	}
+	return SubRunStateRunning
+}
+
+// LatestSubRuns keeps the latest attempt of each task from attempts listed
+// by task and attempt.
+func LatestSubRuns(attempts []SubRun) []SubRun {
+	var out []SubRun
+	for _, sub := range attempts {
+		if n := len(out); n > 0 && out[n-1].Task == sub.Task {
+			out[n-1] = sub
+			continue
+		}
+		out = append(out, sub)
+	}
+	return out
+}
+
+// EventSubRunUpdated is recorded on the delegating run when one of its tasks
+// starts an attempt, reports to it or is accepted.
+const EventSubRunUpdated = "sub_run.updated"
+
+// SubRunUpdate is the payload of EventSubRunUpdated: the task's latest
+// attempt and, once it reported, what it handed back.
+type SubRunUpdate struct {
+	Task      int    `json:"task"`
+	Attempt   int    `json:"attempt"`
+	State     string `json:"state"`
+	Objective string `json:"objective"`
+	// Summary is the submitted summary, or the last reply of an attempt
+	// that ended without submitting.
+	Summary string `json:"summary,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+func SubRunUpdateOf(sub SubRun) SubRunUpdate {
+	update := SubRunUpdate{Task: sub.Task, Attempt: sub.Attempt, State: sub.State(), Objective: sub.Brief.Objective, Summary: sub.Output, Error: sub.Error}
+	if sub.Submission != nil {
+		update.Summary = sub.Submission.Summary
+	}
+	return update
+}
+
 // SubRunStart records a sub-run with its run. Task 0 starts a new task;
 // otherwise it is the next attempt of Task, whose latest attempt gets the
 // redo verdict with Feedback. Input is what the sub-run starts from. A run
@@ -84,6 +145,9 @@ type SubRunStart struct {
 	CreatedAt   time.Time
 }
 
+// SubRunStore records sub-runs. Starting an attempt, delivering its report
+// and accepting it each record EventSubRunUpdated on the delegating run in
+// the same transaction.
 type SubRunStore interface {
 	// StartSubRun creates the sub-run's run in the parent's conversation,
 	// running in this process, and its record.

@@ -238,12 +238,18 @@
 - **OpenAPI 是 wire contract**：remote client DTO 只投影 core domain 类型；改 wire shape 须同步 `docs/openapi.yaml` + generated mobile client。投影逻辑在 `internal/api` 的 `projection.go`/`projection_helpers.go` 与 `dto_*.go` 中，不导入 `internal/runtime`。`thread_service.go`/`event_service.go` 合法导入 `internal/core`，不在 projection boundary 列表中。客户端生成器按 YAML 1.1 读文档，枚举值里会被读成布尔的词（如 `off`）必须加引号。
   - `tests/architecture/client_projection_boundary_test.go`
   - `internal/api/openapi_test.go`
+- **子 run 的进展随父 run 的事件到达客户端**：store 在起一次尝试、把报告交给父 run、收下结果的同一事务里在父 run 上记 `sub_run.updated`：任务、第几次尝试、状态（running、reported、failed、accepted）、objective、提交的 summary（没有提交时是最后的回复）与错误；被拒绝的起跑不记。它进入 live 契约，客户端拿到的 objective 压成一行、至多 120 字，summary 至多 600 字，错误至多 300 字，状态或编号不对的载荷投影失败。线程消息把 run 派出的每个任务按最新一次尝试、按任务编号列在其 assistant 消息的 `sub_runs` 上。子 run 自己的事件不进对话。
+  - `internal/store/store_sub_runs_test.go`
+  - `internal/api/openapi_test.go`
+  - `internal/wire/delegation_e2e_test.go`
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/chat/SubRunsTest.kt`
 - **Pending action 对客户端可达**：action ID 由 `core.NewActionID()` 生成，只含 `[a-z0-9_]`，能直接放进 `/v1/pending-actions/{action_id}:decide`。每种 pending action kind 都以 `<kind>.pending` / `<kind>.decided` 进入 live RunEvent，且 live 事件集合与 OpenAPI `RunEvent` discriminator 一致。
   - `internal/core/core_test.go`
   - `internal/api/openapi_test.go`
   - `internal/wire/approval_restart_e2e_test.go`
-- **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（带所在对话与 outcome，没有 outcome 的不输出该字段；来源已遗忘或所在对话已删除的不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
+- **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（带所在对话与 outcome，没有 outcome 的不输出该字段；来源已遗忘或所在对话已删除的不出现）、进行中的目标（目标、已起的轮数与上限、所在对话与标题）、等待中的跟进（任务、等的是任务结束、任务输出还是路径就绪、期限、所在对话与标题，期限早的在前）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。`/v1/goals/{goal_id}:stop` 以 `the owner stopped it` 为结果把进行中的目标结束为 stopped，不记结束它的 run、不推送；`/v1/follow-ups/{follow_up_id}:cancel` 取消任一对话里等待中的跟进；不存在时 404，目标已结束或跟进不在等待时 409。
   - `internal/api/now_test.go`
+  - `internal/store/store_follow_ups_test.go`
   - `internal/wire/now_acceptance_e2e_test.go`
 - **技能页只读后端事实**：`GET /v1/skills` 列出全部技能，已停用的也在内，带当前 revision、作者、更新时间、是否带清单、下一次 run 能否列出与原因（静态工具资格加缺的密钥）；当前 revision 的 `SKILL.md` 或清单解析不了的技能带 `problem`，列表与详情照常返回。详情给出当前 revision 的 `SKILL.md`、附带文件（不超过 64 KiB 的 UTF-8 文本带内容）与写入它的 run，有清单时给出清单内容、运行状态与密钥是否已设置；修订历史给出每个 revision 的作者、run、时间、是否停用与包哈希，任一 revision 可读。两个 revision 的差异由后端逐文件按行算好：`SKILL.md` 在前，其余按路径，相同的文件省略，文本文件是带 3 行上下文的 hunk，非文本只标出变化；App 只渲染。
   - `internal/api/handlers_skills_test.go`
@@ -273,6 +279,8 @@
   - `internal/wire/view_panels_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
+- **wake 输入在对话里显示成摘要**：App 按后端写的开头认出 wake 的来源；目标的一轮显示「继续目标 · 第 k/n 轮」与目标，Acorn 重启打断上一轮时注明；跟进显示「等到结果」与任务和发生了什么，后端写的几种结果译成中文，认不出的原样显示；点开可看完整输入。认不出格式的 wake 输入照常显示全文。
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/chat/ChatMessageTest.kt`
 - **只有这台手机发起或批准的 run 在后台跟随**：run 的事件流只由 `RunFollower` 持有，断线后从最后读到的事件接着读；为 owner 刚做的决定而跟随的 run 在这个决定的事件之前不显示，重放里更早的等待不会结束它。这类 run 运行时显示为 Live Update，结束、等 owner 或被 owner 停止时消失；App 不在前台时完成与失败留一条通知，owner 停止的不留。终止事件带 `next_run_id` 时，`RunFollower` 以同一个对话、标题与是否 Live Update 接着跟随那个 run，这次结束不留通知。
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/RunFollowerTest.kt`
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/LiveStatusTest.kt`
@@ -285,13 +293,13 @@
   - `internal/wire/wake_acceptance_e2e_test.go`
 - **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 设置限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
-- **跟进在条件成立时只醒一次**：`follow_up` 在当前对话里登记一件跟进：等工作机上仍在运行的任务结束，或它的输出出现一段文字（至多 1024 字节，任务没打印就结束也算），或某个路径就绪（目录存在，或文件存在且相隔一次检查大小不变）；期限默认 24 小时、至多 7 天，到期无论条件如何都醒来并写明当时的状况或检查失败的原因。wake 调度器每次检查经工作机查看条件：输出从上次查到的位置接着搜，工作机已没有这个任务也算成立；没有工作机时只在期限醒来。对话里有 run 在运行或等待审批、或有排队的 owner 消息时不醒；醒来先经条件更新认领，在原对话起 run（输入以 `[follow_up #id` 开头并写明发生了什么），计入 `wake.daily_limit` 并记 `wake.fired{follow_up_id}`，起 run 失败时放回等待，认领后五分钟没有 run 的重新等待。只有等待中的跟进能取消，且只在它的对话里。
+- **跟进在条件成立时只醒一次**：`follow_up` 在当前对话里登记一件跟进：等工作机上仍在运行的任务结束，或它的输出出现一段文字（至多 1024 字节，任务没打印就结束也算），或某个路径就绪（目录存在，或文件存在且相隔一次检查大小不变）；期限默认 24 小时、至多 7 天，到期无论条件如何都醒来并写明当时的状况或检查失败的原因。wake 调度器每次检查经工作机查看条件：输出从上次查到的位置接着搜，工作机已没有这个任务也算成立；没有工作机时只在期限醒来。对话里有 run 在运行或等待审批、或有排队的 owner 消息时不醒；醒来先经条件更新认领，在原对话起 run（输入以 `[follow_up #id` 开头并写明发生了什么），计入 `wake.daily_limit` 并记 `wake.fired{follow_up_id}`，起 run 失败时放回等待，认领后五分钟没有 run 的重新等待。只有等待中的跟进能取消：agent 只能取消它所在对话里的，owner 经 App 取消任一对话里的。
   - `internal/store/store_follow_ups_test.go`
   - `internal/wake/follow_ups_test.go`
   - `internal/tools/workstation_tools_test.go`
   - `internal/workstation/jobs_test.go`
   - `internal/wire/long_work_e2e_test.go`
-- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话最新的 run 结束、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束；轮数用完时转为 blocked。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果）；agent 结束目标时记下这个 run，它已经给 owner 推送过（审批推送不算）就不再推送，调度器结束的目标照常推送；stop 不推送。presence 列出当前对话的目标与等待中的跟进。
+- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话最新的 run 结束、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束，owner 也可在 App 里直接停止它；轮数用完时转为 blocked；结束已结束的目标返回 `ErrGoalEnded`。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果）；agent 结束目标时记下这个 run，它已经给 owner 推送过（审批推送不算）就不再推送，调度器结束的目标照常推送；stop 不推送。presence 列出当前对话的目标与等待中的跟进。
   - `internal/store/store_follow_ups_test.go`
   - `internal/wake/follow_ups_test.go`
   - `internal/tools/goal_tool_test.go`

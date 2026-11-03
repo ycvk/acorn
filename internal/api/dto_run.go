@@ -148,6 +148,7 @@ type MessageDTO struct {
 	Steps     []ToolStepDTO     `json:"steps,omitempty"`
 	Files     []ThreadFileDTO   `json:"files,omitempty"`
 	Views     []core.ViewData   `json:"views,omitempty"`
+	SubRuns   []SubRunData      `json:"sub_runs,omitempty"`
 }
 
 // SendViewActionRequest is what the owner pressed or chose in a view.

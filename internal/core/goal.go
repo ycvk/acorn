@@ -17,6 +17,8 @@ const (
 
 var (
 	ErrGoalNotFound = errors.New("no active goal")
+	// ErrGoalEnded means the goal is no longer active.
+	ErrGoalEnded = errors.New("goal ended")
 	// ErrGoalActive means the conversation already has an active goal.
 	ErrGoalActive = errors.New("the conversation already has an active goal")
 	// ErrGoalChanged means the goal ended or took a run since it was read.
@@ -36,7 +38,7 @@ type Goal struct {
 	// Result says what was achieved, what the agent needs or why it stopped.
 	Result string
 	// EndRunID is the run in which the agent ended the goal; empty while it
-	// is active and when the scheduler ended it.
+	// is active and when the scheduler or the owner ended it.
 	EndRunID  string
 	Announced bool
 	CreatedAt time.Time
@@ -50,7 +52,8 @@ type GoalStore interface {
 	ActiveGoal(ctx context.Context, sessionID string) (Goal, error)
 	ActiveGoals(context.Context) ([]Goal, error)
 	// EndGoal ends an active goal, in endRunID when the agent ends it; a
-	// stopped goal needs no announcement.
+	// stopped goal needs no announcement. It fails with ErrGoalNotFound for
+	// an unknown id and with ErrGoalEnded once the goal ended.
 	EndGoal(ctx context.Context, id int64, state, result, endRunID string, now time.Time) (Goal, error)
 	// CountGoalRun counts a run for the goal while it is active and has
 	// taken runs runs; otherwise it fails with ErrGoalChanged.

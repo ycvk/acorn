@@ -17,6 +17,10 @@ class NowRepository @Inject constructor() {
 
     fun cancelCommitment(profile: ConnectionProfile, id: Long) = api(profile).clientCancelCommitment(id)
 
+    fun stopGoal(profile: ConnectionProfile, id: Long) = api(profile).clientStopGoal(id)
+
+    fun cancelFollowUp(profile: ConnectionProfile, id: Long) = api(profile).clientCancelFollowUp(id)
+
     fun pauseWatch(profile: ConnectionProfile, id: Long) = api(profile).clientPauseWatch(id)
 
     fun resumeWatch(profile: ConnectionProfile, id: Long) = api(profile).clientResumeWatch(id)

@@ -97,6 +97,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.ycvk.acorn.api.models.SubRunData
 import io.ycvk.acorn.core.sse.ActivityItem
 import io.ycvk.acorn.core.sse.ActivityKind
 import io.ycvk.acorn.core.sse.ChatHeaderStatus
@@ -292,11 +293,11 @@ fun ChatScreen(
                         is ChatMessage.User -> UserBubble(message.text, itemModifier) {
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
                         }
-                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, streaming = false, modifier = itemModifier) {
+                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, message.subRuns, streaming = false, modifier = itemModifier) {
                             ViewCards(message.views, currentThread, viewModel.connection(), viewActions, Modifier.padding(top = 10.dp))
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, Modifier.padding(top = 8.dp))
                         }
-                        is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier)
+                        is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier, summary = message.summary)
                         is ChatMessage.Capture -> InputNote("从手机分享", Icons.Outlined.Share, message.text, itemModifier) {
                             val profile = viewModel.connection()
                             if (message.image != null && profile != null) {
@@ -306,12 +307,13 @@ fun ChatScreen(
                         }
                     }
                 }
-                if (streaming || chatState.assistantText.isNotBlank() || chatState.steps.isNotEmpty() || chatState.views.isNotEmpty()) {
+                if (streaming || chatState.assistantText.isNotBlank() || chatState.steps.isNotEmpty() || chatState.views.isNotEmpty() || chatState.subRuns.isNotEmpty()) {
                     item(key = "__streaming__") {
                         AssistantMessage(
                             text = chatState.assistantText,
                             reasoning = chatState.assistantReasoning.ifBlank { null },
                             steps = chatState.steps,
+                            subRuns = chatState.subRuns,
                             streaming = streaming,
                             modifier = rowAnimation(),
                         ) {
@@ -534,6 +536,7 @@ private fun AssistantMessage(
     text: String,
     reasoning: String?,
     steps: List<ToolStep>,
+    subRuns: List<SubRunData>,
     streaming: Boolean,
     modifier: Modifier = Modifier,
     handedOver: @Composable () -> Unit = {},
@@ -545,6 +548,10 @@ private fun AssistantMessage(
             ToolSteps(steps, streaming)
             Spacer(Modifier.height(8.dp))
         }
+        if (subRuns.isNotEmpty()) {
+            SubRuns(subRuns, streaming)
+            Spacer(Modifier.height(8.dp))
+        }
         reasoning?.let {
             Reasoning(it)
             Spacer(Modifier.height(8.dp))
@@ -552,11 +559,20 @@ private fun AssistantMessage(
         if (text.isNotBlank()) {
             SelectionContainer { Markdown(text) }
         }
-        // While no step runs, the orb at the foot of the reply shows whether Acorn is still thinking or already writing.
+        // While no step runs, the orb at the foot of the reply shows whether Acorn waits for its sub-agents, is still thinking or already writing.
+        val waitingFor = runningSubRuns(subRuns)
         if (streaming && steps.none { it.status == StepStatus.Running }) {
             RunStatus(
-                state = if (text.isBlank()) OrbState.Thinking else OrbState.Composing,
-                label = if (text.isBlank()) "正在思考" else "正在回复",
+                state = when {
+                    waitingFor > 0 -> OrbState.Working
+                    text.isBlank() -> OrbState.Thinking
+                    else -> OrbState.Composing
+                },
+                label = when {
+                    waitingFor > 0 -> "等 $waitingFor 个子任务交回"
+                    text.isBlank() -> "正在思考"
+                    else -> "正在回复"
+                },
                 modifier = Modifier.padding(top = if (text.isBlank()) 2.dp else 10.dp),
             )
         }
@@ -617,21 +633,28 @@ private fun Reasoning(reasoning: String) {
     }
 }
 
-/** What started a run when the owner didn't type it: a wake, or something shared from the phone. */
+/**
+ * What started a run when the owner didn't type it: a wake, or something
+ * shared from the phone. A wake with a [summary] shows it in place of the
+ * input; a tap shows the whole input the agent got, and another folds it.
+ */
 @Composable
 private fun InputNote(
     label: String,
     icon: ImageVector,
     text: String,
     modifier: Modifier = Modifier,
+    summary: WakeSummary? = null,
     attachment: @Composable () -> Unit = {},
 ) {
     val colors = AcornTheme.colors
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "input_note_chevron")
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(6.dp))
-            Text(label, style = AcornTheme.type.caption, color = colors.inkFaint)
+            Text(summary?.title ?: label, style = AcornTheme.type.caption, color = colors.inkFaint)
         }
         Spacer(Modifier.height(6.dp))
         Column(
@@ -640,10 +663,24 @@ private fun InputNote(
                 .clip(AcornShapes.large)
                 .background(colors.well)
                 .hairline(AcornShapes.large)
+                .then(if (summary != null) Modifier.clickable(onClickLabel = if (expanded) "收起" else "看完整内容") { expanded = !expanded } else Modifier)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            if (text.isNotEmpty()) {
-                Text(text, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 12)
+            when {
+                summary != null && !expanded -> {
+                    Text(summary.body, style = AcornTheme.type.footnote, color = colors.ink, maxLines = 6, overflow = TextOverflow.Ellipsis)
+                    summary.detail?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(it, style = AcornTheme.type.caption, color = colors.inkSoft, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                text.isNotEmpty() -> Text(text, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = if (summary != null) Int.MAX_VALUE else 12)
+            }
+            if (summary != null) {
+                Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (expanded) "收起" else "完整内容", style = AcornTheme.type.caption, color = colors.inkFaint)
+                    Icon(AcornIcons.ChevronDown, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(14.dp).rotate(rotation))
+                }
             }
             attachment()
         }

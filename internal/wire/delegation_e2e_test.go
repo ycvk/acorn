@@ -203,6 +203,38 @@ func TestDelegatedWorkReportsBeforeTheRunEnds(t *testing.T) {
 		t.Fatalf("second check submitted %+v", attempts[2].Submission)
 	}
 
+	// The reply lists each task's latest attempt; the run's events told the
+	// owner how each task went as it went.
+	wantTasks := []api.SubRunData{
+		{Task: 1, Attempt: 1, State: "accepted", Objective: "读 A: https://example.com/a", Summary: "A 的三条要点"},
+		{Task: 2, Attempt: 2, State: "accepted", Objective: "复核 A 的三条要点", Summary: "复核通过"},
+	}
+	if reply := listed.Items[1]; !slices.Equal(reply.SubRuns, wantTasks) {
+		t.Fatalf("the reply's tasks = %+v, want %+v", reply.SubRuns, wantTasks)
+	}
+	events, err := c.store.LoadEvents(ctx, started.Run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updates := map[int][]string{}
+	for _, record := range events {
+		if record.Kind != core.EventSubRunUpdated {
+			continue
+		}
+		event, err := api.ProjectRunEvent(record)
+		if err != nil {
+			t.Fatalf("project %s: %v", record.Kind, err)
+		}
+		data := event.Data.(api.SubRunData)
+		updates[data.Task] = append(updates[data.Task], fmt.Sprintf("%d %s %s", data.Attempt, data.State, data.Summary))
+	}
+	if got, want := updates[2], []string{"1 running ", "1 reported 看起来没问题", "2 running ", "2 reported 复核通过", "2 accepted 复核通过"}; !slices.Equal(got, want) {
+		t.Fatalf("task 2 updates = %q, want %q", got, want)
+	}
+	if got, want := updates[1], []string{"1 running ", "1 reported A 的三条要点", "1 accepted A 的三条要点"}; !slices.Equal(got, want) {
+		t.Fatalf("task 1 updates = %q, want %q", got, want)
+	}
+
 	var sawParent, sawReport bool
 	for _, request := range provider.recorded() {
 		tools := requestTools(request)

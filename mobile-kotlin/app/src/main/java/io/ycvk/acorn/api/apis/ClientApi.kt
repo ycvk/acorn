@@ -150,6 +150,77 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
+     * POST /v1/follow-ups/{follow_up_id}:cancel
+     * Cancel a follow-up
+     * Cancels a waiting follow-up of any conversation, the same change the agent makes with its follow_up tool in its own conversation. 
+     * @param followUpId 
+     * @return void
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientCancelFollowUp(followUpId: kotlin.Long) : Unit {
+        val localVarResponse = clientCancelFollowUpWithHttpInfo(followUpId = followUpId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> Unit
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/follow-ups/{follow_up_id}:cancel
+     * Cancel a follow-up
+     * Cancels a waiting follow-up of any conversation, the same change the agent makes with its follow_up tool in its own conversation. 
+     * @param followUpId 
+     * @return ApiResponse<Unit?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientCancelFollowUpWithHttpInfo(followUpId: kotlin.Long) : ApiResponse<Unit?> {
+        val localVariableConfig = clientCancelFollowUpRequestConfig(followUpId = followUpId)
+
+        return request<Unit, Unit>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientCancelFollowUp
+     *
+     * @param followUpId 
+     * @return RequestConfig
+     */
+    fun clientCancelFollowUpRequestConfig(followUpId: kotlin.Long) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/follow-ups/{follow_up_id}:cancel".replace("{"+"follow_up_id"+"}", encodeURIComponent(followUpId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
      * DELETE /v1/news/stories/{story_id}/reaction
      * Take back the reaction to a story
      * 
@@ -738,7 +809,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * GET /v1/now
      * Load the now page
-     * Returns the latest morning briefing note, the scheduled and due commitments with the occurrences that wait for an outcome, the active and waiting concerns, and every watch with failing watches first. A failing read of any section fails the request. 
+     * Returns the latest morning briefing note, the scheduled and due commitments with the occurrences that wait for an outcome, the active and waiting concerns, the active goals, the waiting follow-ups, and every watch with failing watches first. A failing read of any section fails the request. 
      * @return NowResponse
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
@@ -769,7 +840,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * GET /v1/now
      * Load the now page
-     * Returns the latest morning briefing note, the scheduled and due commitments with the occurrences that wait for an outcome, the active and waiting concerns, and every watch with failing watches first. A failing read of any section fails the request. 
+     * Returns the latest morning briefing note, the scheduled and due commitments with the occurrences that wait for an outcome, the active and waiting concerns, the active goals, the waiting follow-ups, and every watch with failing watches first. A failing read of any section fails the request. 
      * @return ApiResponse<NowResponse?>
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
@@ -2124,6 +2195,77 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.POST,
             path = "/v1/threads/{thread_id}/views/{view_id}/actions".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())).replace("{"+"view_id"+"}", encodeURIComponent(viewId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/goals/{goal_id}:stop
+     * Stop a goal
+     * Ends an active goal as stopped, with the owner as the reason. No further run starts for it and nothing is pushed; a run of it that is going goes on. 
+     * @param goalId 
+     * @return void
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientStopGoal(goalId: kotlin.Long) : Unit {
+        val localVarResponse = clientStopGoalWithHttpInfo(goalId = goalId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> Unit
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/goals/{goal_id}:stop
+     * Stop a goal
+     * Ends an active goal as stopped, with the owner as the reason. No further run starts for it and nothing is pushed; a run of it that is going goes on. 
+     * @param goalId 
+     * @return ApiResponse<Unit?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientStopGoalWithHttpInfo(goalId: kotlin.Long) : ApiResponse<Unit?> {
+        val localVariableConfig = clientStopGoalRequestConfig(goalId = goalId)
+
+        return request<Unit, Unit>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientStopGoal
+     *
+     * @param goalId 
+     * @return RequestConfig
+     */
+    fun clientStopGoalRequestConfig(goalId: kotlin.Long) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/goals/{goal_id}:stop".replace("{"+"goal_id"+"}", encodeURIComponent(goalId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

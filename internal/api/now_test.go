@@ -30,6 +30,46 @@ type nowStoreFake struct {
 	panels      []core.Panel
 	stories     map[string][]core.BriefingStory
 	reactions   map[int64]core.StoryReaction
+	goals       []core.Goal
+	followUps   []core.FollowUp
+	sessions    map[string]string
+	ended       []core.Goal
+	endErr      error
+	cancelled   []int64
+	cancelErr   error
+}
+
+func (f *nowStoreFake) ActiveGoals(context.Context) ([]core.Goal, error) {
+	return f.goals, nil
+}
+
+func (f *nowStoreFake) EndGoal(_ context.Context, id int64, state, result, endRunID string, now time.Time) (core.Goal, error) {
+	g := core.Goal{ID: id, State: state, Result: result, EndRunID: endRunID, UpdatedAt: now}
+	f.ended = append(f.ended, g)
+	return g, f.endErr
+}
+
+func (f *nowStoreFake) WaitingFollowUps(_ context.Context, sessionID string) ([]core.FollowUp, error) {
+	if sessionID != "" {
+		return nil, fmt.Errorf("the now page lists the follow-ups of every conversation, got %q", sessionID)
+	}
+	return f.followUps, nil
+}
+
+func (f *nowStoreFake) CancelFollowUp(_ context.Context, sessionID string, id int64, _ time.Time) error {
+	if sessionID != "" {
+		return fmt.Errorf("the owner cancels a follow-up of any conversation, got %q", sessionID)
+	}
+	f.cancelled = append(f.cancelled, id)
+	return f.cancelErr
+}
+
+func (f *nowStoreFake) LoadSession(_ context.Context, sessionID string) (*core.SessionRecord, error) {
+	title, ok := f.sessions[sessionID]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", core.ErrSessionNotFound, sessionID)
+	}
+	return &core.SessionRecord{SessionID: sessionID, Title: title}, nil
 }
 
 func (f *nowStoreFake) BriefingStories(_ context.Context, runID string) ([]core.BriefingStory, error) {
@@ -188,7 +228,7 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 func TestNowWithoutBriefingOmitsIt(t *testing.T) {
 	router := newNowRouter(t, &nowStoreFake{})
 	rec := performClientRequest(router, http.MethodGet, "/v1/now", "")
-	if rec.Code != http.StatusOK || rec.Body.String() != `{"panels":[],"commitments":[],"concerns":[],"watches":[]}` {
+	if rec.Code != http.StatusOK || rec.Body.String() != `{"panels":[],"commitments":[],"concerns":[],"goals":[],"follow_ups":[],"watches":[]}` {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
@@ -231,6 +271,84 @@ func TestCancelCommitmentSettlesAsCancel(t *testing.T) {
 		t.Errorf("bad id status = %d", rec.Code)
 	}
 	if rec := performClientRequestWithoutAuth(router, http.MethodPost, "/v1/commitments/7:cancel", ""); rec.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated status = %d", rec.Code)
+	}
+}
+
+// The now page lists active goals and waiting follow-ups with their
+// conversations' titles, and says what each follow-up waits for.
+func TestNowListsGoalsAndFollowUps(t *testing.T) {
+	store := &nowStoreFake{
+		goals: []core.Goal{{ID: 3, SessionID: "thread_books", Objective: "下完整本书并整理进知识库", MaxRuns: 10, Runs: 4, State: core.GoalActive, CreatedAt: nowTestTime}},
+		followUps: []core.FollowUp{
+			{ID: 7, SessionID: "thread_books", Task: "文件到了就读", Path: "books/go.epub", DeadlineAt: nowTestTime.Add(time.Hour), CreatedAt: nowTestTime},
+			{ID: 8, SessionID: "thread_build", Task: "编译完看结果", JobID: "job-00000001", DeadlineAt: nowTestTime.Add(2 * time.Hour), CreatedAt: nowTestTime},
+			{ID: 9, SessionID: "thread_build", Task: "下载到一半就检查", JobID: "job-00000002", OutputContains: "50%", DeadlineAt: nowTestTime.Add(3 * time.Hour), CreatedAt: nowTestTime},
+		},
+		sessions: map[string]string{"thread_books": "整理 Go 书", "thread_build": "编译 acorn"},
+	}
+	rec := performClientRequest(newNowRouter(t, store), http.MethodGet, "/v1/now", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got NowResponse
+	decodeClientTestJSON(t, rec, &got)
+	wantGoals := []NowGoalDTO{{ID: 3, ThreadID: "thread_books", ThreadTitle: "整理 Go 书", Objective: "下完整本书并整理进知识库", Runs: 4, MaxRuns: 10, CreatedAt: nowTestTime}}
+	if !reflect.DeepEqual(got.Goals, wantGoals) {
+		t.Fatalf("goals = %+v, want %+v", got.Goals, wantGoals)
+	}
+	wantFollowUps := []NowFollowUpDTO{
+		{ID: 7, ThreadID: "thread_books", ThreadTitle: "整理 Go 书", Task: "文件到了就读", WaitsFor: "path", Path: "books/go.epub", DeadlineAt: nowTestTime.Add(time.Hour), CreatedAt: nowTestTime},
+		{ID: 8, ThreadID: "thread_build", ThreadTitle: "编译 acorn", Task: "编译完看结果", WaitsFor: "job_end", JobID: "job-00000001", DeadlineAt: nowTestTime.Add(2 * time.Hour), CreatedAt: nowTestTime},
+		{ID: 9, ThreadID: "thread_build", ThreadTitle: "编译 acorn", Task: "下载到一半就检查", WaitsFor: "job_output", JobID: "job-00000002", OutputContains: "50%", DeadlineAt: nowTestTime.Add(3 * time.Hour), CreatedAt: nowTestTime},
+	}
+	if !reflect.DeepEqual(got.FollowUps, wantFollowUps) {
+		t.Fatalf("follow-ups = %+v, want %+v", got.FollowUps, wantFollowUps)
+	}
+
+	store.sessions = map[string]string{"thread_books": "整理 Go 书"}
+	if rec := performClientRequest(newNowRouter(t, store), http.MethodGet, "/v1/now", ""); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("a follow-up whose conversation cannot be read must fail the page: status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// The owner stops a goal as stopped, with no run of its own, and cancels a
+// waiting follow-up of any conversation.
+func TestStopGoalAndCancelFollowUp(t *testing.T) {
+	store := &nowStoreFake{}
+	router := newNowRouter(t, store)
+	if rec := performClientRequest(router, http.MethodPost, "/v1/goals/3:stop", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("stop status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	want := core.Goal{ID: 3, State: core.GoalStopped, Result: "the owner stopped it", UpdatedAt: nowTestTime}
+	if len(store.ended) != 1 || !reflect.DeepEqual(store.ended[0], want) {
+		t.Fatalf("ended = %+v", store.ended)
+	}
+	if rec := performClientRequest(router, http.MethodPost, "/v1/follow-ups/7:cancel", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("cancel status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !reflect.DeepEqual(store.cancelled, []int64{7}) {
+		t.Fatalf("cancelled = %v", store.cancelled)
+	}
+
+	store.endErr, store.cancelErr = fmt.Errorf("%w: #3", core.ErrGoalNotFound), fmt.Errorf("%w: #7", core.ErrFollowUpNotFound)
+	for path, code := range map[string]string{"/v1/goals/3:stop": "goal_not_found", "/v1/follow-ups/7:cancel": "follow_up_not_found"} {
+		if rec := performClientRequest(router, http.MethodPost, path, ""); rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), code) {
+			t.Errorf("%s: status = %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+	store.endErr, store.cancelErr = fmt.Errorf("%w: #3 is done", core.ErrGoalEnded), fmt.Errorf("%w: #7 is fired", core.ErrFollowUpNotWaiting)
+	for path, code := range map[string]string{"/v1/goals/3:stop": "goal_ended", "/v1/follow-ups/7:cancel": "follow_up_not_waiting"} {
+		if rec := performClientRequest(router, http.MethodPost, path, ""); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), code) {
+			t.Errorf("%s: status = %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+	for _, path := range []string{"/v1/goals/x:stop", "/v1/follow-ups/0:cancel"} {
+		if rec := performClientRequest(router, http.MethodPost, path, ""); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d", path, rec.Code)
+		}
+	}
+	if rec := performClientRequestWithoutAuth(router, http.MethodPost, "/v1/goals/3:stop", ""); rec.Code != http.StatusUnauthorized {
 		t.Errorf("unauthenticated status = %d", rec.Code)
 	}
 }

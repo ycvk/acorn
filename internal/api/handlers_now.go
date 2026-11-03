@@ -26,6 +26,22 @@ func (s *Server) handleCancelCommitment(w http.ResponseWriter, r *http.Request) 
 	s.respondNowChange(w, r, s.now.CancelCommitment(r.Context(), id))
 }
 
+func (s *Server) handleStopGoal(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.pathID(w, r, "goal_id")
+	if !ok {
+		return
+	}
+	s.respondNowChange(w, r, s.now.StopGoal(r.Context(), id))
+}
+
+func (s *Server) handleCancelFollowUp(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.pathID(w, r, "follow_up_id")
+	if !ok {
+		return
+	}
+	s.respondNowChange(w, r, s.now.CancelFollowUp(r.Context(), id))
+}
+
 func (s *Server) handlePauseWatch(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.pathID(w, r, "watch_id")
 	if !ok {
@@ -127,6 +143,14 @@ func (s *Server) respondNowChange(w http.ResponseWriter, r *http.Request, err er
 		s.respondNotFound(w, r, "commitment_not_found", err.Error())
 	case errors.Is(err, core.ErrCommitmentEnded):
 		s.respondConflict(w, r, "commitment_ended", err.Error())
+	case errors.Is(err, core.ErrGoalNotFound):
+		s.respondNotFound(w, r, "goal_not_found", err.Error())
+	case errors.Is(err, core.ErrGoalEnded):
+		s.respondConflict(w, r, "goal_ended", err.Error())
+	case errors.Is(err, core.ErrFollowUpNotFound):
+		s.respondNotFound(w, r, "follow_up_not_found", err.Error())
+	case errors.Is(err, core.ErrFollowUpNotWaiting):
+		s.respondConflict(w, r, "follow_up_not_waiting", err.Error())
 	case errors.Is(err, core.ErrWatchNotFound):
 		s.respondNotFound(w, r, "watch_not_found", err.Error())
 	case errors.Is(err, core.ErrNewsStoryNotFound):
