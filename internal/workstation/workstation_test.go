@@ -183,6 +183,31 @@ func TestEditChangesPartsOfAFile(t *testing.T) {
 	}
 }
 
+// Paths starting with ~ name the home directory, as they do in the agent's
+// shell.
+func TestPathsWithTildeAreUnderTheHomeDirectory(t *testing.T) {
+	client, home := newTestClient(t)
+	written, err := client.WriteFile(t.Context(), WriteRequest{Path: "~/bin/fetch.sh", Content: "RATE=2M\n"})
+	if err != nil || written.Path != filepath.Join(home, "bin", "fetch.sh") {
+		t.Fatalf("write = %+v, %v", written, err)
+	}
+	read, err := client.ReadFile(t.Context(), ReadRequest{Path: "~/bin/fetch.sh", MaxBytes: 100})
+	if err != nil || read.Content != "RATE=2M\n" {
+		t.Fatalf("read = %+v, %v", read, err)
+	}
+	edited, err := client.EditFile(t.Context(), EditRequest{Path: "~/bin/fetch.sh", Edits: []textedit.Edit{{Old: "2M", New: "5M"}}})
+	if err != nil || edited.Path != written.Path {
+		t.Fatalf("edit = %+v, %v", edited, err)
+	}
+	if st, err := client.Stat(t.Context(), "~"); err != nil || st.Path != home || !st.Dir {
+		t.Fatalf("stat ~ = %+v, %v", st, err)
+	}
+	job, err := client.StartJob(t.Context(), JobStartRequest{Command: "pwd", Dir: "~/bin", WaitSeconds: 10, MaxOutputBytes: 1000})
+	if err != nil || job.Job.Dir != filepath.Join(home, "bin") || job.Job.State != JobExited || *job.Job.ExitCode != 0 {
+		t.Fatalf("job in ~/bin = %+v, %v", job, err)
+	}
+}
+
 func TestClientValidatesConfiguration(t *testing.T) {
 	for _, tc := range []struct{ url, token string }{
 		{"127.0.0.1:7810", testToken},

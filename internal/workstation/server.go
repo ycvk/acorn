@@ -582,9 +582,14 @@ func (s *Server) requirePath(path string) (string, error) {
 	return s.resolve(path), nil
 }
 
+// resolve reads path as a shell would for the agent: absolute, or under the
+// home directory when it is relative or starts with ~.
 func (s *Server) resolve(path string) string {
-	if path == "" {
+	if path == "" || path == "~" {
 		return s.home
+	}
+	if rest, ok := strings.CutPrefix(path, "~/"); ok {
+		return filepath.Join(s.home, rest)
 	}
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)
