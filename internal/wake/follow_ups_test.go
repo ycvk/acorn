@@ -200,8 +200,9 @@ func TestFollowUpsWithoutAWorkstationWaitForTheirDeadline(t *testing.T) {
 
 // A goal continues its conversation after each run until its runs run out,
 // waiting while a follow-up of the conversation waits. A goal that ended
-// done or blocked is pushed once its last run finished; a failed run blocks
-// the goal unless Acorn stopped it by restarting.
+// done or blocked is pushed once its last run finished, unless the agent
+// ended it in a run that told the owner itself; a failed run blocks the goal
+// unless Acorn stopped it by restarting.
 func TestGoalsContinueUntilTheyEnd(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t, 20)
@@ -237,6 +238,8 @@ func TestGoalsContinueUntilTheyEnd(t *testing.T) {
 	if got := h.lastStart(t, 2); !strings.Contains(got, "[goal #1, run 2 of 2]") {
 		t.Fatalf("start = %q", got)
 	}
+	// The scheduler's own ends are pushed even when the last run notified.
+	h.notifyFrom(t, "run_2")
 	h.finish(t, "run_2", core.RunStatusSucceeded, "")
 	h.tick(t)
 	h.lastStart(t, 2)
@@ -253,7 +256,7 @@ func TestGoalsContinueUntilTheyEnd(t *testing.T) {
 	}
 	h.tick(t)
 	h.lastStart(t, 3)
-	if _, err := h.data.EndGoal(ctx, done.ID, core.GoalDone, "整理好了，共 12 篇", h.now); err != nil {
+	if _, err := h.data.EndGoal(ctx, done.ID, core.GoalDone, "整理好了，共 12 篇", "run_3", h.now); err != nil {
 		t.Fatal(err)
 	}
 	h.tick(t)
@@ -283,5 +286,35 @@ func TestGoalsContinueUntilTheyEnd(t *testing.T) {
 	h.lastStart(t, 4)
 	if len(notifier.pushed) != 3 || notifier.pushed[2].Body != "run run_4 failed: model unavailable" {
 		t.Fatalf("pushed = %+v", notifier.pushed)
+	}
+
+	// A goal the agent ended in a run that told the owner itself is not
+	// pushed again.
+	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_told", SessionID: "chat", TurnIndex: 110, Input: "整理第四件"}); err != nil {
+		t.Fatal(err)
+	}
+	told, err := h.data.StartGoal(ctx, core.Goal{SessionID: "chat", SourceRunID: "run_told", Objective: "第四件", MaxRuns: 3, CreatedAt: h.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.notifyFrom(t, "run_told")
+	if _, err := h.data.EndGoal(ctx, told.ID, core.GoalDone, "第四件做完了", "run_told", h.now); err != nil {
+		t.Fatal(err)
+	}
+	h.finish(t, "run_told", core.RunStatusSucceeded, "")
+	h.tick(t)
+	if len(notifier.pushed) != 3 {
+		t.Fatalf("pushed after the agent told the owner = %+v", notifier.pushed)
+	}
+	if pending, err := h.data.UnannouncedGoals(ctx); err != nil || len(pending) != 0 {
+		t.Fatalf("unannounced = %+v, %v", pending, err)
+	}
+}
+
+// notifyFrom records a push the run sent the owner itself.
+func (h *harness) notifyFrom(t *testing.T, runID string) {
+	t.Helper()
+	if _, err := h.data.QueueNotification(context.Background(), core.Notification{Title: "进展", Body: "做完一部分了", ThreadID: "chat", RunID: runID, SendAfter: h.now, CreatedAt: h.now}); err != nil {
+		t.Fatal(err)
 	}
 }

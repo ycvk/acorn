@@ -30,7 +30,7 @@ type GoalInput struct {
 	Action    string `json:"action" jsonschema:"required,enum=start,enum=done,enum=blocked,enum=stop" jsonschema_description:"start sets this conversation's goal; done ends it reached; blocked ends it when you cannot go on without the owner; stop ends it quietly when the owner asks."`
 	Objective string `json:"objective,omitempty" jsonschema_description:"For start: the outcome and how to tell it is reached, written so that you understand it later without other context."`
 	MaxRuns   int    `json:"max_runs,omitempty" jsonschema_description:"For start: how many runs of your own you may take toward it, 1 to 50; defaults to 10."`
-	Result    string `json:"result,omitempty" jsonschema_description:"For done, blocked and stop: what was achieved, what you need from the owner, or why it stopped. The owner reads it in the push."`
+	Result    string `json:"result,omitempty" jsonschema_description:"For done, blocked and stop: what was achieved, what you need from the owner, or why it stopped, written to the owner; it is the text of the push they get."`
 }
 
 type GoalOutput struct {
@@ -42,7 +42,7 @@ type GoalOutput struct {
 
 func buildGoalTool(deps GoalToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool("goal",
-		"Work toward an outcome over several runs of your own in this conversation. After each run here ends you wake up here again to continue, until you end the goal with done or blocked or its runs run out; the owner gets a push when it ends that way. While a follow_up of this conversation waits, the goal waits with it. Use it when the owner hands you work that takes more than one sitting.",
+		"Work toward an outcome over several runs of your own in this conversation. After each run here ends you wake up here again to continue, until you end the goal with done or blocked or its runs run out; the owner then gets a push with the result, unless you already notified them in that run. While a follow_up of this conversation waits, the goal waits with it. Use it when the owner hands you work that takes more than one sitting.",
 		func(ctx context.Context, input GoalInput) (GoalOutput, error) {
 			sessionID := deps.Context.CurrentSessionID(ctx)
 			if sessionID == "" {
@@ -64,7 +64,7 @@ func buildGoalTool(deps GoalToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return GoalOutput{}, fmt.Errorf("goal: %w", err)
 			}
-			ended, err := deps.Store.EndGoal(ctx, active.ID, state, result, now)
+			ended, err := deps.Store.EndGoal(ctx, active.ID, state, result, deps.Context.CurrentRunID(ctx), now)
 			if err != nil {
 				return GoalOutput{}, fmt.Errorf("goal: %w", err)
 			}

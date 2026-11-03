@@ -83,7 +83,7 @@ func (s *Scheduler) continueGoal(ctx context.Context, g core.Goal, now time.Time
 }
 
 func (s *Scheduler) endGoal(ctx context.Context, g core.Goal, state, result string, now time.Time) error {
-	if _, err := s.cfg.Goals.EndGoal(ctx, g.ID, state, result, now); err != nil && !errors.Is(err, core.ErrGoalNotFound) {
+	if _, err := s.cfg.Goals.EndGoal(ctx, g.ID, state, result, "", now); err != nil && !errors.Is(err, core.ErrGoalNotFound) {
 		return err
 	}
 	return nil
@@ -91,7 +91,8 @@ func (s *Scheduler) endGoal(ctx context.Context, g core.Goal, state, result stri
 
 // announceGoals pushes each goal that ended done or blocked, once the run
 // that ended it has finished, so its reply is in the conversation the push
-// opens.
+// opens. A goal the agent ended in a run that already pushed to the owner
+// needs no second push.
 func (s *Scheduler) announceGoals(ctx context.Context, now time.Time) error {
 	goals, err := s.cfg.Goals.UnannouncedGoals(ctx)
 	if err != nil {
@@ -107,7 +108,14 @@ func (s *Scheduler) announceGoals(ctx context.Context, now time.Time) error {
 		if latest != nil && (latest.Status == core.RunStatusRunning || latest.Status == core.RunStatusInterrupted) {
 			continue
 		}
-		if s.notifier != nil {
+		notified := false
+		if g.EndRunID != "" {
+			if notified, err = s.cfg.RunRecords.RunNotifiedOwner(ctx, g.EndRunID); err != nil {
+				errs = append(errs, fmt.Errorf("goal #%d: %w", g.ID, err))
+				continue
+			}
+		}
+		if s.notifier != nil && !notified {
 			title := goalDonePushTitle
 			if g.State == core.GoalBlocked {
 				title = goalBlockedPushTitle

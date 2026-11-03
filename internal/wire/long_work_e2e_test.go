@@ -18,8 +18,8 @@ import (
 // The owner hands over work that outlasts a run. The agent sets a goal,
 // starts a download that keeps running as a job and sets a follow-up on the
 // file. Once the file is ready the agent wakes in the conversation; the goal
-// then continues it until the agent reports it done, and the owner gets one
-// push for the goal's end.
+// then continues it until the agent reports it done. The agent tells the
+// owner itself in that run, so the goal's end is not pushed again.
 func TestLongWorkContinuesUntilTheGoalIsDone(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
@@ -95,7 +95,8 @@ func TestLongWorkContinuesUntilTheGoalIsDone(t *testing.T) {
 	// The goal continues the conversation after the follow-up's run.
 	calls = provider.requestCount()
 	provider.add(
-		toolCallChunk("done", "goal", map[string]string{"action": "done", "result": "书已下好，整理成了笔记《第一章》"}),
+		toolCallChunk("tell", "notify_owner", map[string]string{"title": "书整理好了", "body": "笔记《第一章》写好了"}),
+		toolCallChunk("done", "goal", map[string]string{"action": "done", "result": "书下好了，笔记《第一章》也写好了"}),
 		textReply("整理好了。"),
 	)
 	if err := c.wake.Tick(ctx); err != nil {
@@ -112,14 +113,14 @@ func TestLongWorkContinuesUntilTheGoalIsDone(t *testing.T) {
 	}
 	sent := h.fcm.sent()
 	if len(sent) != 1 {
-		t.Fatalf("pushes = %v, want the goal's end once", sent)
+		t.Fatalf("pushes = %v, want only the agent's own", sent)
 	}
 	notification, _ := sent[0]["notification"].(map[string]any)
 	data, _ := sent[0]["data"].(map[string]any)
-	if notification["title"] != "目标完成" || notification["body"] != "书已下好，整理成了笔记《第一章》" || data["thread_id"] != thread.ID {
+	if notification["title"] != "书整理好了" || notification["body"] != "笔记《第一章》写好了" || data["thread_id"] != thread.ID {
 		t.Fatalf("push = %v", sent[0])
 	}
-	if provider.requestCount() != calls+2 {
+	if provider.requestCount() != calls+3 {
 		t.Fatalf("model requests = %d, want no run after the goal ended", provider.requestCount())
 	}
 	if wakes, err := c.store.CountWakesSince(ctx, time.Time{}); err != nil || wakes != 2 {
@@ -127,5 +128,8 @@ func TestLongWorkContinuesUntilTheGoalIsDone(t *testing.T) {
 	}
 	if _, err := c.store.ActiveGoal(ctx, thread.ID); err != core.ErrGoalNotFound {
 		t.Fatalf("active goal after done: %v", err)
+	}
+	if pending, err := c.store.UnannouncedGoals(ctx); err != nil || len(pending) != 0 {
+		t.Fatalf("unannounced goals = %+v, %v", pending, err)
 	}
 }

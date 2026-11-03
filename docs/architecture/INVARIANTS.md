@@ -271,7 +271,7 @@
   - `internal/tools/workstation_tools_test.go`
   - `internal/workstation/jobs_test.go`
   - `internal/wire/long_work_e2e_test.go`
-- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话最新的 run 结束、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束；轮数用完时转为 blocked。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果），stop 不推送。presence 列出当前对话的目标与等待中的跟进。
+- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话最新的 run 结束、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束；轮数用完时转为 blocked。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果）；agent 结束目标时记下这个 run，它已经给 owner 推送过（审批推送不算）就不再推送，调度器结束的目标照常推送；stop 不推送。presence 列出当前对话的目标与等待中的跟进。
   - `internal/store/store_follow_ups_test.go`
   - `internal/wake/follow_ups_test.go`
   - `internal/tools/goal_tool_test.go`
