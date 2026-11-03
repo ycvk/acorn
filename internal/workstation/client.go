@@ -47,6 +47,49 @@ func (c *Client) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) 
 	return out, c.call(ctx, http.MethodPost, "/v1/exec", req, &out)
 }
 
+// StartJob starts a command as a job and waits up to req.WaitSeconds for it.
+func (c *Client) StartJob(ctx context.Context, req JobStartRequest) (JobResult, error) {
+	var out JobResult
+	return out, c.call(ctx, http.MethodPost, "/v1/jobs", req, &out)
+}
+
+// Jobs lists the newest jobs first.
+func (c *Client) Jobs(ctx context.Context) ([]Job, error) {
+	var out []Job
+	return out, c.call(ctx, http.MethodGet, "/v1/jobs", nil, &out)
+}
+
+// Job reads a job's record.
+func (c *Client) Job(ctx context.Context, id string) (Job, error) {
+	var out Job
+	return out, c.call(ctx, http.MethodGet, "/v1/jobs/"+url.PathEscape(id), nil, &out)
+}
+
+// JobOutput reads up to limit bytes of a job's output from offset.
+func (c *Client) JobOutput(ctx context.Context, id string, offset int64, limit int) (JobOutput, error) {
+	var out JobOutput
+	query := url.Values{"offset": {strconv.FormatInt(offset, 10)}, "limit": {strconv.Itoa(limit)}}
+	return out, c.call(ctx, http.MethodGet, "/v1/jobs/"+url.PathEscape(id)+"/output?"+query.Encode(), nil, &out)
+}
+
+// FindJobOutput searches a job's output for text from offset on.
+func (c *Client) FindJobOutput(ctx context.Context, id, text string, offset int64) (JobFind, error) {
+	var out JobFind
+	return out, c.call(ctx, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/find", JobFindRequest{Text: text, Offset: offset}, &out)
+}
+
+// Stat reports what is at path on the workstation.
+func (c *Client) Stat(ctx context.Context, path string) (StatResult, error) {
+	var out StatResult
+	return out, c.call(ctx, http.MethodPost, "/v1/files/stat", StatRequest{Path: path}, &out)
+}
+
+// StopJob stops a running job; a job that ended comes back as it is.
+func (c *Client) StopJob(ctx context.Context, id string) (Job, error) {
+	var out Job
+	return out, c.call(ctx, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/stop", nil, &out)
+}
+
 func (c *Client) ReadFile(ctx context.Context, req ReadRequest) (ReadResult, error) {
 	var out ReadResult
 	return out, c.call(ctx, http.MethodPost, "/v1/files/read", req, &out)

@@ -16,16 +16,25 @@ import (
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
-// buildWorkstationTools connects the shell, files and send_file tools to the
-// configured workstation, or disables them with the reason when none is
-// configured.
-func buildWorkstationTools(cfg *config.Config, client *workstation.Client, files core.ThreadFiles, bridge core.ToolCallContextBridge) tools.WorkstationToolsConfig {
+// workstationStore is what the workstation tools keep in the database: the
+// files send_file sends and the follow-ups follow_up sets.
+type workstationStore interface {
+	core.ThreadFiles
+	core.FollowUpStore
+}
+
+// buildWorkstationTools connects the shell, job, follow_up, files and
+// send_file tools to the configured workstation, or disables them with the
+// reason when none is configured.
+func buildWorkstationTools(cfg *config.Config, client *workstation.Client, db workstationStore, bridge core.ToolCallContextBridge, settings core.SettingsReader, clock func() time.Time) tools.WorkstationToolsConfig {
 	out := tools.WorkstationToolsConfig{
-		Files:                 files,
-		Context:               bridge,
-		CommandTimeoutSeconds: workstation.CommandTimeoutSeconds,
-		MaxOutputBytes:        workstation.CommandOutputBytes,
-		MaxSendBytes:          cfg.Files.MaxSendBytes(),
+		Files:          db,
+		FollowUps:      db,
+		Context:        bridge,
+		Settings:       settings,
+		Clock:          clock,
+		MaxOutputBytes: workstation.CommandOutputBytes,
+		MaxSendBytes:   cfg.Files.MaxSendBytes(),
 	}
 	if client == nil {
 		out.DisabledReason = noWorkstation

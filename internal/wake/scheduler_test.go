@@ -49,12 +49,14 @@ func (s *memStore) AppendEvent(_ context.Context, runID, kind string, _ any) (co
 
 type fakeRuns struct {
 	commitments core.CommitmentStore
-	clock       func() time.Time
-	mu          sync.Mutex
-	starts      []string   // threadID|wake|input
-	standalone  []bool     // per start
-	sources     [][]string // per start
-	fail        error
+	// records, when set, gets a running run for each start.
+	records    *store.Store
+	clock      func() time.Time
+	mu         sync.Mutex
+	starts     []string   // threadID|wake|input
+	standalone []bool     // per start
+	sources    [][]string // per start
+	fail       error
 }
 
 func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, input string, wake core.ScheduledWake) (string, string, error) {
@@ -72,7 +74,7 @@ func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, input str
 	return threadID, fmt.Sprintf("run_%d", len(r.starts)), nil
 }
 
-func (r *fakeRuns) StartThreadRun(_ context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
+func (r *fakeRuns) StartThreadRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail != nil {
@@ -81,7 +83,17 @@ func (r *fakeRuns) StartThreadRun(_ context.Context, threadID, input string, wak
 	r.starts = append(r.starts, threadID+"|"+wake.Reason+"|"+input)
 	r.standalone = append(r.standalone, wake.Standalone)
 	r.sources = append(r.sources, wake.SourceIDs)
-	return fmt.Sprintf("run_%d", len(r.starts)), nil
+	runID := fmt.Sprintf("run_%d", len(r.starts))
+	return runID, r.record(ctx, runID, threadID, input)
+}
+
+// record creates the started run in records, after the runs a test created
+// itself.
+func (r *fakeRuns) record(ctx context.Context, runID, threadID, input string) error {
+	if r.records == nil {
+		return nil
+	}
+	return r.records.CreateRun(ctx, core.RunCreateParams{RunID: runID, SessionID: threadID, TurnIndex: 100 + len(r.starts), Input: input})
 }
 
 func (r *fakeRuns) StartWakeRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
@@ -98,7 +110,7 @@ func (r *fakeRuns) StartWakeRun(ctx context.Context, threadID, input string, wak
 			return "", err
 		}
 	}
-	return runID, nil
+	return runID, r.record(ctx, runID, threadID, input)
 }
 
 // memKnowledge lists notes straight from the store.
@@ -119,6 +131,8 @@ type harness struct {
 	panels  *fakePanels
 	news    *fakeNews
 	sorter  *fakeSorter
+	// workstation is where follow-ups are checked.
+	workstation *fakeWorkstation
 	// settings are what the owner saved; each tick reads them.
 	settings core.Settings
 }
@@ -136,7 +150,7 @@ func newHarnessWith(t *testing.T, limit int, briefing core.DailyTime) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), news: &fakeNews{}, now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC),
+	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), news: &fakeNews{}, workstation: newFakeWorkstation(), now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC),
 		settings: core.Settings{Location: loc, WakeDailyLimit: limit, WakeDailyTokens: 300000, Briefing: briefing}}
 	h.data, err = store.Open(t.TempDir())
 	if err != nil {
@@ -155,7 +169,7 @@ func newHarnessWith(t *testing.T, limit int, briefing core.DailyTime) *harness {
 	h.sched, err = NewScheduler(Config{
 		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Knowledge: memKnowledge{h.data}, RunRecords: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker, News: h.news, Sorter: h.sorter, Stories: h.data, Triggers: h.data,
 		Clock: func() time.Time { return h.now }, Settings: h, Interval: time.Second,
-		Routines: h.data, PhoneNotifications: h.data,
+		Routines: h.data, PhoneNotifications: h.data, FollowUps: h.data, Goals: h.data, Workstation: h.workstation,
 	})
 	if err != nil {
 		t.Fatal(err)

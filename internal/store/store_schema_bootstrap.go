@@ -168,6 +168,10 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + queuedMessagesTable + `
 
+` + followUpsTable + `
+
+` + goalsTable + `
+
 CREATE TABLE IF NOT EXISTS watch_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     watch_id INTEGER NOT NULL,

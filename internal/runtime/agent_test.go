@@ -120,6 +120,8 @@ func handlerTestDeps(cfg *config.Config) RuntimeDeps {
 		Activity:           newMemPresenceStore(),
 		MemoryStore:        newMemPresenceStore(),
 		Commitments:        newMemPresenceStore(),
+		FollowUps:          newMemPresenceStore(),
+		Goals:              newMemPresenceStore(),
 		PhoneNotifications: newMemPresenceStore(),
 		Clock:              time.Now,
 		Settings:           settings.Fixed(settings.Defaults()),

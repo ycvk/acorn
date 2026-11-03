@@ -15,6 +15,9 @@ import (
 	"github.com/ycvk/acorn/internal/views"
 )
 
+// stubGoalStore is never called while tools are registered.
+type stubGoalStore struct{ core.GoalStore }
+
 type stubOperatorStore struct{}
 
 func (stubOperatorStore) CreatePendingAction(context.Context, core.PendingActionInput) (*core.PendingActionRecord, error) {
@@ -25,7 +28,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "feed_discover", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "news_search", "news_sections", "news_source", "notify_owner", "recall", "schedule_wake", "settle", "show_view", "skill_import", "skill_inspect", "skill_retire", "skill_write", "think", "update_view", "watch_create", "watch_list", "watch_update"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "feed_discover", "goal", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "news_search", "news_sections", "news_source", "notify_owner", "recall", "schedule_wake", "settle", "show_view", "skill_import", "skill_inspect", "skill_retire", "skill_write", "think", "update_view", "watch_create", "watch_list", "watch_update"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()
@@ -41,6 +44,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		OperatorStore:   stubOperatorStore{},
 		OperatorContext: bridge,
 		Presence:        presenceDeps,
+		Goals:           GoalToolDeps{Store: stubGoalStore{}, Context: bridge, Clock: time.Now},
 		Notify:          NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
 		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
 		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},

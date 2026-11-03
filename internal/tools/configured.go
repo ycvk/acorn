@@ -19,6 +19,7 @@ var localToolNames = []string{
 	"think",
 	"schedule_wake",
 	"settle",
+	"goal",
 	"recall",
 	"memory_read",
 	"memory_correct",
@@ -46,6 +47,8 @@ var localToolNames = []string{
 	"web_fetch",
 	"web_search",
 	"shell",
+	"job",
+	"follow_up",
 	"files",
 	"send_file",
 }
@@ -55,7 +58,7 @@ var localToolNames = []string{
 // resolving it from wire-time dependencies.
 func runScopedTool(name string) bool {
 	switch name {
-	case "web_fetch", "web_search", "shell", "files", "send_file":
+	case "web_fetch", "web_search", "shell", "job", "follow_up", "files", "send_file":
 		return true
 	}
 	return false
@@ -94,13 +97,13 @@ func configuredLocalSpec(name string) core.ToolSpec {
 		spec.Category = core.ToolCategoryWrite
 	case "ask_operator", "notify_owner", "send_file":
 		spec.Category = core.ToolCategoryIntegration
-	case "keep", "think", "schedule_wake", "settle", "memory_correct", "memory_forget", "concern":
+	case "keep", "think", "schedule_wake", "settle", "goal", "memory_correct", "memory_forget", "concern":
 		spec.Category = core.ToolCategoryMemory
 	case "recall", "memory_read", "knowledge_read", "knowledge_search", "knowledge_list", "skill_inspect", "watch_list", "news_search", "feed_discover":
 		spec.Category = core.ToolCategoryRead
 	case "web_fetch", "web_search":
 		spec.Category = core.ToolCategoryRead
-	case "shell", "files":
+	case "shell", "job", "follow_up", "files":
 		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("workstation")
 	case "show_view", "update_view":

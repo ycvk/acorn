@@ -93,7 +93,7 @@ fun captureMessage(input: String, id: String = UUID.randomUUID().toString()): Ch
     return ChatMessage.Capture(text, image, id)
 }
 
-enum class WakeSource { Commitment, Watch, Briefing, Night, Wander }
+enum class WakeSource { Commitment, Watch, Briefing, Night, Wander, FollowUp, Goal }
 
 /** What woke a run, from the prefix the backend gives its input. */
 fun wakeSource(input: String): WakeSource = when {
@@ -101,6 +101,8 @@ fun wakeSource(input: String): WakeSource = when {
     input.startsWith("[wander ") -> WakeSource.Wander
     input.startsWith("[watch") -> WakeSource.Watch
     input.startsWith("[briefing") -> WakeSource.Briefing
+    input.startsWith("[follow_up ") -> WakeSource.FollowUp
+    input.startsWith("[goal ") -> WakeSource.Goal
     else -> WakeSource.Commitment
 }
 

@@ -22,6 +22,8 @@ class ChatMessageTest {
         assertEquals(WakeSource.Commitment, (chatMessageFrom(Message.Role.wake, "[commitment #1, made 2026-10-02 13:55] read X") as ChatMessage.Wake).source)
         assertEquals(WakeSource.Watch, (chatMessageFrom(Message.Role.wake, "[watch #2 phone price] 1 new") as ChatMessage.Wake).source)
         assertEquals(WakeSource.Briefing, (chatMessageFrom(Message.Role.wake, "[briefing 2026-10-04] morning briefing") as ChatMessage.Wake).source)
+        assertEquals(WakeSource.FollowUp, wakeSource("[follow_up #3, set 2026-11-03 16:20] 下载完就整理\nWhat happened: job job-ab12cd34 exited with code 0"))
+        assertEquals(WakeSource.Goal, wakeSource("[goal #2, run 1 of 10] Objective: 下完整本书"))
         assertEquals(WakeSource.Commitment, wakeSource("anything else"))
     }
 

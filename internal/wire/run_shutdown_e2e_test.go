@@ -134,8 +134,8 @@ func TestStartFailsRunsLeftRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load run: %v", err)
 	}
-	if record.Error != abandonedRunError {
-		t.Fatalf("run error = %q, want %q", record.Error, abandonedRunError)
+	if record.Error != core.AbandonedRunError {
+		t.Fatalf("run error = %q, want %q", record.Error, core.AbandonedRunError)
 	}
 	if err := c.threads.DeleteThread(ctx, "thread_left"); err != nil {
 		t.Fatalf("delete thread: %v", err)

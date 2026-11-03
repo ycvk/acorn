@@ -14,6 +14,7 @@ import (
 type RunReader interface {
 	// LoadLatestRunForSession is nil for a thread without runs.
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*core.RunRecord, error)
+	ListQueuedMessages(ctx context.Context, sessionID string) ([]core.QueuedMessage, error)
 }
 
 func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time, loc *time.Location) (routineInput, error) {

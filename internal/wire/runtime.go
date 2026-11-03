@@ -161,6 +161,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Clock:         options.clock,
 			Settings:      ownerSettings,
 		},
+		Goals:  tools.GoalToolDeps{Store: db, Context: ctxBridge, Clock: options.clock},
 		Notify: notifyDeps,
 		Knowledge: tools.KnowledgeToolDeps{
 			Vault:    &knowledge.MemoryView{Vault: vault, Store: db},
@@ -189,7 +190,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
 
-	workstationTools := buildWorkstationTools(cfg, workstationClient, db, ctxBridge)
+	workstationTools := buildWorkstationTools(cfg, workstationClient, db, ctxBridge, ownerSettings, options.clock)
 	var uploads runtime.UploadHost
 	var work runtime.WorkHost
 	if workstationClient != nil {
@@ -223,6 +224,8 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		MemoryStore:        db,
 		Memory:             memoryEngine,
 		Commitments:        db,
+		FollowUps:          db,
+		Goals:              db,
 		PhoneNotifications: db,
 		Workstation:        workstationTools,
 		Reviewer:           actionReviewer,

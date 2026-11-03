@@ -15,6 +15,11 @@ var (
 	// the failure of a run that Acorn stopped.
 	ErrShuttingDown = errors.New("acorn is shutting down")
 )
+
+// AbandonedRunError is the failure of a run whose process stopped before the
+// run ended.
+const AbandonedRunError = "Acorn stopped before this run finished"
+
 var (
 	ErrRunNotFound              = errors.New("run not found")
 	ErrSessionNotFound          = errors.New("session not found")

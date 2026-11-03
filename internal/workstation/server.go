@@ -34,6 +34,7 @@ type Server struct {
 	chromium    string
 	view        *View
 	mcp         *mcpHost
+	jobs        *jobs
 }
 
 // ServerConfig sets up a Server. Chromium is the browser that renders pages
@@ -72,11 +73,17 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		return nil, errors.New("workstation supervisor is required")
 	}
 	home = filepath.Clean(home)
-	return &Server{home: home, token: token, refuseLocal: cfg.RefuseLocal, chromium: cfg.Chromium, view: cfg.View, mcp: newMCPHost(home, cfg.Supervisor)}, nil
+	jobs, err := newJobs(home)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{home: home, token: token, refuseLocal: cfg.RefuseLocal, chromium: cfg.Chromium, view: cfg.View, mcp: newMCPHost(home, cfg.Supervisor), jobs: jobs}, nil
 }
 
-// Close stops the skill packages' MCP servers and waits for them to exit.
+// Close stops the running jobs and the skill packages' MCP servers and waits
+// for them to exit.
 func (s *Server) Close() {
+	s.jobs.close()
 	s.mcp.close()
 }
 
@@ -84,7 +91,14 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/status", s.authorized(s.status))
 	mux.HandleFunc("POST /v1/exec", s.authorized(s.exec))
+	mux.HandleFunc("POST /v1/jobs", s.authorized(s.startJob))
+	mux.HandleFunc("GET /v1/jobs", s.authorized(s.listJobs))
+	mux.HandleFunc("GET /v1/jobs/{id}", s.authorized(s.getJob))
+	mux.HandleFunc("GET /v1/jobs/{id}/output", s.authorized(s.readJob))
+	mux.HandleFunc("POST /v1/jobs/{id}/find", s.authorized(s.findJob))
+	mux.HandleFunc("POST /v1/jobs/{id}/stop", s.authorized(s.stopJob))
 	mux.HandleFunc("POST /v1/files/read", s.authorized(s.read))
+	mux.HandleFunc("POST /v1/files/stat", s.authorized(s.stat))
 	mux.HandleFunc("POST /v1/files/write", s.authorized(s.write))
 	mux.HandleFunc("POST /v1/files/package", s.authorized(s.readPackageHandler))
 	mux.HandleFunc("GET /v1/files/raw", s.authorized(s.rawFile))
@@ -254,6 +268,30 @@ func (s *Server) read(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 	default:
 		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+// stat reports whether something is at a path; a missing path is no error.
+func (s *Server) stat(w http.ResponseWriter, r *http.Request) {
+	var req StatRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	path, err := s.requirePath(req.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	info, err := os.Stat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		writeJSON(w, http.StatusOK, StatResult{Path: path})
+	case err != nil:
+		writeError(w, http.StatusBadRequest, err)
+	case info.IsDir():
+		writeJSON(w, http.StatusOK, StatResult{Path: path, Exists: true, Dir: true, ModifiedAt: info.ModTime().UTC()})
+	default:
+		writeJSON(w, http.StatusOK, StatResult{Path: path, Exists: true, Size: info.Size(), ModifiedAt: info.ModTime().UTC()})
 	}
 }
 
