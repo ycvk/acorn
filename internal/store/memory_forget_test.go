@@ -363,9 +363,9 @@ func TestMemoryFragmentExclusionSparesLaterDerivedSources(t *testing.T) {
 }
 
 // A forget lists the runs that read what it excludes before it was excluded,
-// for the watcher and barrier to cancel. A run that reads a message after a
-// fragment of it was forgotten sees it without that fragment, so a later
-// forget does not list it.
+// and their sub-runs, for the watcher and barrier to cancel. A run that reads
+// a message after a fragment of it was forgotten sees it without that
+// fragment, so a later forget does not list it.
 func TestMemoryExclusionsListOnlyRunsThatReadExcludedContent(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
@@ -382,12 +382,16 @@ func TestMemoryExclusionsListOnlyRunsThatReadExcludedContent(t *testing.T) {
 	if err := s.SaveMemorySnapshotRefs(ctx, "record", "recalled-record", nil, []string{records[0].ID}, 0); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "read-source", Input: "整理饮食偏好"}); err != nil {
+		t.Fatal(err)
+	}
+	startSubRun(t, s, core.SubRunStart{RunID: "read-source-sub", ParentRunID: "read-source", Brief: core.SubRunBrief{Objective: "找几家餐厅"}})
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记香菜偏好")
 	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slices.Sorted(slices.Values(forgotten.Exclusion.RunIDs)); !slices.Equal(got, []string{"read-source", "recalled-record"}) {
+	if got := slices.Sorted(slices.Values(forgotten.Exclusion.RunIDs)); !slices.Equal(got, []string{"read-source", "read-source-sub", "recalled-record"}) {
 		t.Fatalf("runs listed by the forget=%v", got)
 	}
 
@@ -402,7 +406,7 @@ func TestMemoryExclusionsListOnlyRunsThatReadExcludedContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slices.Sorted(slices.Values(later.Exclusion.RunIDs)); !slices.Equal(got, []string{"read-source", "read-tea", "recalled-record"}) {
+	if got := slices.Sorted(slices.Values(later.Exclusion.RunIDs)); !slices.Equal(got, []string{"read-source", "read-source-sub", "read-tea", "recalled-record"}) {
 		t.Fatalf("runs listed by the later forget=%v", got)
 	}
 }

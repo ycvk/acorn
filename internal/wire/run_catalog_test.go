@@ -31,7 +31,11 @@ func TestRunCatalogContainsEveryBuiltinTool(t *testing.T) {
 	if _, err := c.store.AppendSessionMessage(ctx, thread.ID, 1, "user", "probe", "run_catalog"); err != nil {
 		t.Fatal(err)
 	}
-	active, err := c.runnerFactory.New(ctx, runtime.RunnerBuildRequest{SessionID: thread.ID, RunID: "run_catalog"})
+	exec, err := runtime.NewExecutorWithRunRuntimeAndController(c.store, c.runnerFactory, c.runController)
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, err := c.runnerFactory.New(ctx, runtime.RunnerBuildRequest{SessionID: thread.ID, RunID: "run_catalog", SubRuns: exec})
 	if err != nil {
 		t.Fatalf("build runner: %v", err)
 	}
@@ -39,7 +43,7 @@ func TestRunCatalogContainsEveryBuiltinTool(t *testing.T) {
 	for _, spec := range active.ToolCatalog.EnabledSpecs() {
 		present[spec.Name] = true
 	}
-	for _, name := range []string{"ask_operator"} {
+	for _, name := range []string{"ask_operator", "delegate"} {
 		if !present[name] {
 			t.Errorf("built-in tool %s is missing from the run catalog", name)
 		}

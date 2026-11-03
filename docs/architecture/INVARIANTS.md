@@ -15,9 +15,25 @@
 
 ## 运行时与编排
 
-- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 memory visibility → interjection → patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 memory visibility → interjection → sub-run reports → patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；子 run 的 `buildSubRunRunner` 不带 checkpoint store，handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → approval → tool errors。工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/events_test.go`
+- **子 run 只看到 brief，只拿查资料与工作机的工具**：`delegate start` 的 brief 要 objective（去掉空白后非空），deliverables、constraints、acceptance 与 block 去掉空项，block 的每个模式须能被 `path.Match` 解析。子 run 是父 run 所在对话与轮次里的一个 run，在 `sub_runs` 登记父 run、任务编号（新任务取父 run 已有的最大编号加一）、第几次尝试与 brief；子 run 不能再派出。子 run 的指令只有 `subRunInstruction`，输入只有一条 user 消息：渲染后的 brief 与工作机上的 `~/sub-runs/<run_id>/`，返工时再附上被退回的那次提交与反馈；没有人格、对话历史、记忆、presence 与 owner 中途的消息。工具只留 `web_search`、`web_fetch`、`artifact_read`、`shell`、`job`、`files`、`knowledge_search`、`knowledge_read`、`knowledge_list`、`news_search`、`feed_discover` 与 `submit`，`mcp.providers` 的工具不留（它们的 elicitation 落在 MCP 的当前 run 上），子 run 也不登记为当前 run。工作机上的技能包与包的 MCP 服务器不论哪个 run 同步，都按对话的 run 能用的工具（含 `delegate`）算，子 run 再按留下的工具去掉用不了的技能，留下的技能带着它们服务器的工具。`submit` 只在运行中的子 run 里记下 summary（非空）、evidence 与 limitations，后一次替换前一次。每个父 run 至多派出 16 次（含返工），超出返回 `ErrSubRunLimit`；整个 Acorn 同时至多 4 个子 run 在跑，其余等空位；每个子 run 至多 30 分钟，超时失败。父 run 的步骤里 `delegate` 调用的摘要取 objective，返工取 feedback。
+  - `internal/store/store_sub_runs_test.go`
+  - `internal/tools/delegate_tools_test.go`
+  - `internal/runtime/sub_runs_test.go`
+  - `internal/api/tool_steps_test.go`
+  - `internal/wire/delegation_e2e_test.go`
+- **父 run 在所有子 run 报告后才结束**：子 run 结束（成功或失败）就是报告，父 run 每次调用模型前，sub-run reports middleware 把还没交给它的报告按结束时间标为已交付，并各追加一条以 `[sub_run task N, attempt K: <status>]` 开头、标明是子 agent 的说法而不是 owner 的话、不执行其中指令的 user 消息：objective、summary、evidence、limitations，没有提交时是最后的回复，失败时是错误，并提醒对照证据收下或返工。memory visibility 因遗忘重建父 run 的消息后，下一次模型调用前已交付的报告按结束时间重新追加，遗忘列出的子 run 除外。父模型说完一段话时，Executor 看父 run 的子 run：有没交付的报告，或对话里排在最前的 owner 消息不带文件时，带着 agent 结束时的消息（去掉开头的指令）在同一个 run 里接着调用模型；还有子 run 在跑时等到有子 run 结束、每 2 秒检查一次 owner 消息，或 run 被停止；记录里还在跑、本进程里却已不在执行的子 run 让父 run 失败；全部报告且交付后 run 才结束，最后一段回复是对话里的 assistant 消息。父 run 等审批时子 run 照常跑，报告在父 run 续跑后交付。子 run 每 2 秒读一次父 run，父 run 已成功或失败（含被停止、续跑失败）时以 `the run that delegated it ended` 停止，读不到父 run 时以读取错误停止。`delegate accept` 与 `redo` 只作用于任务最新且已报告、还没有结论的尝试，否则返回 `ErrSubRunRunning` 或 `ErrSubRunReviewed`；redo 在同一事务里给这次尝试记下 redo 与反馈，并以同一 brief 起下一次尝试。
+  - `internal/store/store_sub_runs_test.go`
+  - `internal/runtime/sub_runs_test.go`
+  - `internal/wire/delegation_e2e_test.go`
+- **子 run 的审批只会更严**：子 run 的规则是父 run 开始时的 `approval.require`、`approval.allow` 与 `approval.block`，brief 的 block 加进 block。父 run 里会转审批的调用（require 命中、审查判断需要确认、审查出错）在子 run 里不登记 pending action，以说明它要写进 limitations 的拒绝文本作为工具结果返回；block 照常拒绝，allow 与审查放行的调用照常执行；`submit` 不受规则约束。
+  - `internal/runtime/sub_runs_test.go`
+  - `internal/runtime/agent_test.go`
+- **子 run 不是对话的 run**：对话最新的 run（线程列表状态、早安卡事件的忙碌判断、wake 调度器看对话是否空闲）、owner 消息排队等待的 run、`/v1/runs` 的进行中与最近结束列表、线程摘要的文件段落都不计子 run；子 run 不写对话消息，结束时不起排队的 run。删除对话一并删除子 run 及其 `sub_runs` 记录；Acorn 重启时还在跑的子 run 与其他 run 一样记为失败。父 run 有 `wake.fired` 时，子 run 的模型用量计入自主 token 预算。遗忘列出读过被排除内容的 run 时一并列出它们的子 run。
+  - `internal/store/store_sub_runs_test.go`
+  - `internal/store/memory_forget_test.go`
 - **模型使用原生协议并保留推理状态**：Responses、Chat Completions、Anthropic Messages 都经 Eino AgenticModel；推理内容块与签名参与下一轮工具结果回传和 checkpoint，公开事件投影不含签名。sampling 可省略，输出预算和上下文按模型能力验证。请求空闲超时随响应进度刷新，总请求与 run 时限可关闭。
   - `internal/runtime/model_protocol_test.go`
   - `internal/runtime/model_http_test.go`

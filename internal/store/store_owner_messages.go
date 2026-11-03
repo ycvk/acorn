@@ -154,10 +154,10 @@ func (s *Store) ListQueuedSessions(ctx context.Context) ([]string, error) {
 }
 
 // activeRunOf names the newest run of the conversation that runs or waits
-// for the owner, else "".
+// for the owner, else "". Sub-runs belong to the run that delegated them.
 func activeRunOf(ctx context.Context, tx *sql.Tx, sessionID string) (string, error) {
 	var runID string
-	err := tx.QueryRowContext(ctx, `SELECT run_id FROM runs WHERE session_id = ? AND status IN (?, ?) ORDER BY created_at DESC, run_id DESC LIMIT 1`,
+	err := tx.QueryRowContext(ctx, `SELECT run_id FROM runs r WHERE session_id = ? AND status IN (?, ?) AND `+notSubRun+` ORDER BY created_at DESC, run_id DESC LIMIT 1`,
 		sessionID, string(core.RunStatusRunning), string(core.RunStatusInterrupted)).Scan(&runID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil

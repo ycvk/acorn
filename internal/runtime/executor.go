@@ -24,6 +24,7 @@ type Result struct {
 
 type Executor struct {
 	store      core.SessionStore
+	subRuns    core.SubRunStore
 	runRuntime *RunnerFactory
 	controller *RunController
 }
@@ -43,6 +44,7 @@ func NewExecutorWithRunRuntimeAndController(store core.SessionStore, runRuntime 
 	}
 	exec := &Executor{
 		store:      store,
+		subRuns:    runRuntime.deps.Store,
 		runRuntime: runRuntime,
 		controller: controller,
 	}
@@ -105,13 +107,15 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		RunID:      runID,
 		Wake:       req.Wake,
 		Standalone: req.Standalone,
+		Autonomous: req.Autonomous,
+		SubRuns:    e,
 	})
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
 	iter := active.Runner.Run(execCtx, active.Memory.messages(), adk.WithCheckPointID(runID))
-	return e.consume(ctx, runCtxBase, runID, iter, sink, active)
+	return e.consume(ctx, runCtxBase, execCtx, req.SessionID, runID, iter, sink, active)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -195,8 +199,10 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	}
 	runCtxBase = memoryScope(runCtxBase, runID, autonomous)
 	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID: run.SessionID,
-		RunID:     runID,
+		SessionID:  run.SessionID,
+		RunID:      runID,
+		Autonomous: autonomous,
+		SubRuns:    e,
 	})
 	if err != nil {
 		return nil, err
@@ -206,7 +212,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	if err != nil {
 		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
-	result, err := e.consume(ctx, runCtxBase, runID, iter, sink, active)
+	result, err := e.consume(ctx, runCtxBase, execCtx, run.SessionID, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
@@ -223,13 +229,40 @@ type RunState struct {
 }
 
 // consume records the run's events and its end. ctx carries the writes; runCtx
-// is the run's own context, whose cancellation cause explains a stopped run.
-func (e *Executor) consume(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
-	state, err := e.collectRunState(ctx, runCtx, runID, iter, sink, active)
+// is the run's own context, whose cancellation cause explains a stopped run,
+// and execCtx the one its agent runs in. When the agent ends while sub-runs
+// of the run still go, the run waits for them and the agent goes on from
+// its messages, so the run ends after every sub-run reported.
+func (e *Executor) consume(ctx, runCtx, execCtx context.Context, sessionID, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
+	defer e.controller.forgetSubRunSignal(runID)
+	state, err := e.collectUntilReported(ctx, runCtx, execCtx, sessionID, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
 	return e.finishCollectedRun(ctx, runID, state, sink)
+}
+
+// collectUntilReported collects the run's events until it fails, waits for
+// the owner, or ends with every sub-run reported.
+func (e *Executor) collectUntilReported(ctx, runCtx, execCtx context.Context, sessionID, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
+	state, err := e.collectRunState(ctx, runCtx, runID, iter, sink, active)
+	for err == nil && state.failure == nil && state.interrupt == nil {
+		var more bool
+		if more, err = e.awaitSubRuns(runCtx, runID, sessionID); err != nil {
+			state.failure, err = err, nil
+			break
+		}
+		if !more {
+			break
+		}
+		var messages []*schema.AgenticMessage
+		if messages, err = active.Reports.continuation(); err != nil {
+			break
+		}
+		iter = active.Runner.Run(execCtx, messages, adk.WithCheckPointID(runID))
+		state, err = e.collectRunState(ctx, runCtx, runID, iter, sink, active)
+	}
+	return state, err
 }
 
 func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {

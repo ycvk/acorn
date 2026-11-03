@@ -11,11 +11,16 @@ import (
 )
 
 // RunController tracks per-run cancellation functions so an in-flight run can
-// be interrupted by ID.
+// be interrupted by ID. It also hands out the slots sub-runs run in and tells
+// a run waiting for its sub-runs when one ends.
 type RunController struct {
 	activeMu      sync.Mutex
 	activeCancels map[string]*activeRun
 	stopped       bool
+
+	subRunSlots chan struct{}
+	endedMu     sync.Mutex
+	ended       map[string]chan struct{}
 }
 
 type activeRun struct {
@@ -24,7 +29,52 @@ type activeRun struct {
 }
 
 func NewRunController() *RunController {
-	return &RunController{activeCancels: make(map[string]*activeRun)}
+	return &RunController{
+		activeCancels: make(map[string]*activeRun),
+		subRunSlots:   make(chan struct{}, maxRunningSubRuns),
+		ended:         make(map[string]chan struct{}),
+	}
+}
+
+// acquireSubRunSlot waits until fewer than maxRunningSubRuns sub-runs run.
+// The returned function frees the slot.
+func (c *RunController) acquireSubRunSlot(ctx context.Context) (func(), error) {
+	select {
+	case c.subRunSlots <- struct{}{}:
+		return func() { <-c.subRunSlots }, nil
+	case <-ctx.Done():
+		return nil, context.Cause(ctx)
+	}
+}
+
+// subRunEnded is closed when a sub-run of parent ends after the call. A
+// waiter takes it before it reads the sub-runs, so no end is missed.
+func (c *RunController) subRunEnded(parent string) <-chan struct{} {
+	c.endedMu.Lock()
+	defer c.endedMu.Unlock()
+	ch, ok := c.ended[parent]
+	if !ok {
+		ch = make(chan struct{})
+		c.ended[parent] = ch
+	}
+	return ch
+}
+
+// signalSubRunEnded wakes whoever waits for the sub-runs of parent.
+func (c *RunController) signalSubRunEnded(parent string) {
+	c.endedMu.Lock()
+	defer c.endedMu.Unlock()
+	if ch, ok := c.ended[parent]; ok {
+		close(ch)
+		delete(c.ended, parent)
+	}
+}
+
+// forgetSubRunSignal drops the signal of a parent that no longer waits.
+func (c *RunController) forgetSubRunSignal(parent string) {
+	c.endedMu.Lock()
+	defer c.endedMu.Unlock()
+	delete(c.ended, parent)
 }
 
 // Register records cancel as the active cancellation for runID and returns a
@@ -65,6 +115,15 @@ func (c *RunController) Interrupt(runID string) error {
 	}
 	entry.cancel(nil)
 	return nil
+}
+
+// active says the run executes in this process. A run is registered before
+// it is recorded and stays registered until its end is recorded.
+func (c *RunController) active(runID string) bool {
+	c.activeMu.Lock()
+	defer c.activeMu.Unlock()
+	_, ok := c.activeCancels[runID]
+	return ok
 }
 
 // Stop refuses new runs, cancels the active ones with core.ErrShuttingDown,

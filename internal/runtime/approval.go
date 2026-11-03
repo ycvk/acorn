@@ -50,13 +50,15 @@ type ActionReviewer interface {
 // approvalMiddleware gates tool calls by the owner's rules and, for calls the
 // rules leave open, by review. A gated call records a tool_approval pending
 // action and interrupts; on resume an accepted call runs with the recorded
-// arguments and a declined call returns a notice to the model instead.
+// arguments and a declined call returns a notice to the model instead. In a
+// sub-run a gated call is refused: a sub-run cannot wait for the owner.
 type approvalMiddleware struct {
 	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
 	rules    core.ApprovalRules
 	reviewer ActionReviewer
 	describe ApprovalDescriber
 	store    approvalStore
+	subRun   bool
 
 	mu    sync.Mutex
 	pages map[pageKey]review.Page
@@ -141,6 +143,10 @@ func reviewed(name string) bool {
 }
 
 func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint adk.InvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {
+	// submit only hands the sub-run's result to the run that delegated it.
+	if m.subRun && tCtx.Name == "submit" {
+		return endpoint, nil
+	}
 	run := endpoint
 	if tCtx.Name == "shell" {
 		run = m.observing(endpoint)
@@ -215,6 +221,9 @@ func (m *approvalMiddleware) gated(endpoint adk.InvokableToolCallEndpoint, tCtx 
 			}
 			if request == nil {
 				return endpoint(ctx, args, opts...)
+			}
+			if m.subRun {
+				return fmt.Sprintf("This %s call needs the owner's approval, which a sub-agent cannot ask for. Do not retry it; name what you wanted to do under limitations when you submit, so the agent that delegated to you can do it.", tCtx.Name), nil
 			}
 			return "", m.requestApproval(ctx, tCtx, args, *request)
 		}

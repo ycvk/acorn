@@ -12,6 +12,8 @@ type SessionStore interface {
 	CreateSession(ctx context.Context, sessionID, title string) (*SessionRecord, error)
 	LoadSession(ctx context.Context, sessionID string) (*SessionRecord, error)
 	ListSessions(ctx context.Context, limit int) ([]SessionRecord, error)
+	// LoadLatestRunForSession and LoadLatestRunsForSessions read the
+	// conversation's own runs; the sub-runs they delegate are left out.
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*RunRecord, error)
 	LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*RunRecord, error)
 	LoadLatestRepliesForSessions(ctx context.Context, sessionIDs []string) (map[string]SessionMessageRecord, error)

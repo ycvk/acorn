@@ -65,13 +65,13 @@ func TestStableInstructionNamesTheOwner(t *testing.T) {
 
 func TestBuildAgentHandlersOrder(t *testing.T) {
 	deps := handlerTestDeps(config.DefaultConfig())
-	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Instruction: "You are Acorn.", Memory: &runMemory{}}
+	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Instruction: "You are Acorn.", Memory: &runMemory{}, Settings: settings.Defaults(), Reports: newSubRunReportMiddleware(nil, nil, &runMemory{}, "run_1")}
 
 	withoutDeferred, err := buildAgentHandlers(context.Background(), deps, req, nil)
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	want := []string{"memoryVisibilityMiddleware", "interjectionMiddleware", "patchtoolcalls", "summarization", "reduction", "skill", "presenceMiddleware", "approvalMiddleware", "toolErrorMiddleware"}
+	want := []string{"memoryVisibilityMiddleware", "interjectionMiddleware", "subRunReportMiddleware", "patchtoolcalls", "summarization", "reduction", "skill", "presenceMiddleware", "approvalMiddleware", "toolErrorMiddleware"}
 	if got := handlerKinds(withoutDeferred); !slices.Equal(got, want) {
 		t.Fatalf("handlers without deferred tools = %v, want %v", got, want)
 	}
@@ -80,9 +80,27 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	want = slices.Insert(want, 5, "toolsearch")
+	want = slices.Insert(want, 6, "toolsearch")
 	if got := handlerKinds(withDeferred); !slices.Equal(got, want) {
 		t.Fatalf("handlers with deferred tools = %v, want %v", got, want)
+	}
+}
+
+// A sub-run keeps the context handlers, skills, approval and tool errors,
+// with approval refusing what would wait for the owner.
+func TestBuildSubRunHandlersOrder(t *testing.T) {
+	deps := handlerTestDeps(config.DefaultConfig())
+	req := subRunRunnerRequest{ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Rules: core.ApprovalRules{Block: []string{"files"}}}
+	handlers, err := buildSubRunHandlers(context.Background(), deps, req, []einotool.BaseTool{namedTool{"shell"}})
+	if err != nil {
+		t.Fatalf("handlers: %v", err)
+	}
+	want := []string{"patchtoolcalls", "summarization", "reduction", "toolsearch", "skill", "approvalMiddleware", "toolErrorMiddleware"}
+	if got := handlerKinds(handlers); !slices.Equal(got, want) {
+		t.Fatalf("sub-run handlers = %v, want %v", got, want)
+	}
+	if approval := handlers[5].(*approvalMiddleware); !approval.subRun || !slices.Equal(approval.rules.Block, []string{"files"}) {
+		t.Fatalf("sub-run approval = %+v", approval)
 	}
 }
 
@@ -104,10 +122,9 @@ func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
 	deps := handlerTestDeps(config.DefaultConfig())
 	owner := settings.Defaults()
 	owner.Approval.Require = []string{"["}
-	deps.Settings = settings.Fixed(owner)
-	_, err := buildAgentHandlers(context.Background(), deps, agentRunnerRequest{ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Memory: &runMemory{}}, nil)
-	if err == nil {
-		t.Fatal("expected malformed approval pattern to fail handler assembly")
+	_, err := buildAgentHandlers(context.Background(), deps, agentRunnerRequest{ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Memory: &runMemory{}, Settings: owner, Reports: newSubRunReportMiddleware(nil, nil, &runMemory{}, "run_1")}, nil)
+	if err == nil || !strings.Contains(err.Error(), "approval pattern") {
+		t.Fatalf("malformed approval pattern err = %v", err)
 	}
 }
 

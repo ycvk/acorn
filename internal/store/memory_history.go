@@ -57,7 +57,8 @@ func (s *Store) MemoryMessages(ctx context.Context, session string, after, throu
 }
 
 // ThreadToolCalls reads the successful calls of tools in the succeeded or
-// failed runs of the session's turns through a message. Each call pairs its
+// failed runs of the session's turns through a message, leaving out
+// sub-runs. Each call pairs its
 // result event, which is the call's memory source, with the arguments of the
 // call that started it.
 func (s *Store) ThreadToolCalls(ctx context.Context, session string, through int64, tools []string) ([]core.ToolCallRecord, error) {
@@ -72,7 +73,7 @@ func (s *Store) ThreadToolCalls(ctx context.Context, session string, through int
  CASE WHEN json_valid(json_extract(r.payload_json,'$.output')) THEN json_type(json_extract(r.payload_json,'$.output'))='object' ELSE 0 END
  FROM runs u JOIN events r ON r.run_id=u.run_id AND r.kind='tool.call.succeeded'
  JOIN memory_sources m ON m.id='event:'||r.sequence
- WHERE u.session_id=? AND u.status IN ('succeeded','failed')
+ WHERE u.session_id=? AND u.status IN ('succeeded','failed') AND NOT EXISTS(SELECT 1 FROM sub_runs WHERE sub_runs.run_id=u.run_id)
  AND u.turn_index IN (SELECT turn_index FROM session_messages WHERE session_id=? AND id<=?)
  AND json_extract(r.payload_json,'$.tool_name') IN (`+marks+`)
  AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=m.id)
