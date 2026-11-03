@@ -20,6 +20,15 @@ func topLevelString(payload map[string]any, key string) string {
 	return strings.TrimSpace(value)
 }
 
+// topLevelInt reads a whole number, which JSON decoding leaves a float64.
+func topLevelInt(payload map[string]any, key string) int {
+	value, ok := payload[key].(float64)
+	if !ok || value != float64(int(value)) {
+		return 0
+	}
+	return int(value)
+}
+
 func topLevelBool(payload map[string]any, key string) bool {
 	value, ok := payload[key].(bool)
 	return ok && value

@@ -1,6 +1,8 @@
 package io.ycvk.acorn.core.sse
 
+import io.ycvk.acorn.api.models.SubRunData
 import io.ycvk.acorn.api.models.View
+import io.ycvk.acorn.feature.chat.withSubRun
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -137,6 +139,8 @@ class RunEventProjection @Inject constructor() {
                 state.copy(views = state.views.map { if (it.id == view.id) view else it })
             }
 
+            is RunEventPacket.SubRunUpdated -> state.copy(subRuns = withSubRun(state.subRuns, packet.event.`data`))
+
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }
@@ -179,6 +183,8 @@ data class ChatState(
     val steps: List<ToolStep> = emptyList(),
     /** Views the current run showed, in order. */
     val views: List<View> = emptyList(),
+    /** Tasks the current run handed to sub-agents, each at its latest attempt, in task order. */
+    val subRuns: List<SubRunData> = emptyList(),
 )
 
 enum class RunStatus { Idle, Running, Completed, Failed, Interrupted }

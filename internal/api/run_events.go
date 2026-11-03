@@ -91,6 +91,18 @@ type ToolCallData struct {
 	Error      string `json:"error,omitempty"`
 }
 
+// SubRunData carries sub_run.updated and lists a reply's delegated tasks:
+// the latest attempt at a task the run handed a sub-agent, where it stands
+// and, once it reported, what it handed back, clipped.
+type SubRunData struct {
+	Task      int    `json:"task"`
+	Attempt   int    `json:"attempt"`
+	State     string `json:"state"`
+	Objective string `json:"objective"`
+	Summary   string `json:"summary,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
 // ToolApprovalData carries a tool_approval.pending (tool name and arguments)
 // or tool_approval.decided (decision) event.
 type ToolApprovalData struct {

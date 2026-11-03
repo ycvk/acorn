@@ -115,9 +115,19 @@ func (s *Store) EndGoal(ctx context.Context, id int64, state, result, endRunID s
 	}
 	var g core.Goal
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		changed, err := tx.ExecContext(ctx, `UPDATE goals SET state = ?, result = ?, end_run_id = ?, announced = ?, updated_at = ? WHERE id = ? AND state = ?`,
-			state, result, endRunID, state == core.GoalStopped, formatTimestamp(now), id, core.GoalActive)
-		if err := goalChanged(changed, err, core.ErrGoalNotFound); err != nil {
+		var current string
+		err := tx.QueryRowContext(ctx, `SELECT state FROM goals WHERE id = ?`, id).Scan(&current)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: #%d", core.ErrGoalNotFound, id)
+		}
+		if err != nil {
+			return err
+		}
+		if current != core.GoalActive {
+			return fmt.Errorf("%w: #%d is %s", core.ErrGoalEnded, id, current)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE goals SET state = ?, result = ?, end_run_id = ?, announced = ?, updated_at = ? WHERE id = ?`,
+			state, result, endRunID, state == core.GoalStopped, formatTimestamp(now), id); err != nil {
 			return err
 		}
 		g, err = scanGoal(tx.QueryRowContext(ctx, `SELECT `+goalColumns+` FROM goals WHERE id = ?`, id))

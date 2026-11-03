@@ -54,7 +54,7 @@ SQLite 增加 `sub_runs`:子 run、父 run、任务编号、第几次尝试、br
 
 ### App
 
-这次 App 不变：父 run 的步骤里显示 `delegate` 调用与它的 objective,子 run 的事件存在后端，可经 `/v1/runs/{run_id}/detail` 读取。
+父 run 的步骤里显示 `delegate` 调用与它的 objective。起一次尝试、报告交给父 run 与收下结果时，父 run 记 `sub_run.updated`;App 在回复下按任务列出每个任务最新的一次尝试：进行中、已交回、失败或已收下，交回的 summary 可展开，父 run 等子 run 时显示正在等几个子任务。子 run 自己的事件存在后端，可经 `/v1/runs/{run_id}/detail` 读取。
 
 ## 边界变化
 

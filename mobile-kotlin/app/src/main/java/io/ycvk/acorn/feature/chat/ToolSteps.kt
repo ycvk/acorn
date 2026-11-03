@@ -74,6 +74,10 @@ fun toolLabel(name: String): String = when (name) {
     "web_fetch" -> "读取网页"
     "browser" -> "用浏览器打开"
     "shell" -> "运行命令"
+    "job" -> "查看后台任务"
+    "follow_up" -> "安排跟进"
+    "goal" -> "更新目标"
+    "delegate" -> "调度子任务"
     "files" -> "读写文件"
     "send_file" -> "发送文件"
     "show_view" -> "整理成视图"
@@ -98,7 +102,7 @@ fun toolOrb(name: String): OrbState = when {
         "web_search", "web_fetch", "artifact_read", "artifact_list", "tool_search" -> OrbState.Searching
         "shell", "files", "browser", "send_file", "skill_inspect" -> OrbState.Working
         "skill", "skill_write", "skill_import", "skill_retire", "watch_create", "watch_update", "news_sections", "news_source" -> OrbState.Connecting
-        "think", "concern", "settle", "schedule_wake", "ask_operator", "notify_owner" -> OrbState.Solving
+        "think", "concern", "settle", "schedule_wake", "ask_operator", "notify_owner", "follow_up", "goal", "delegate" -> OrbState.Solving
         "keep", "memory_correct", "memory_forget", "knowledge_write", "knowledge_edit", "artifact_write", "show_view", "update_view" -> OrbState.Weaving
         else -> OrbState.Working
     }

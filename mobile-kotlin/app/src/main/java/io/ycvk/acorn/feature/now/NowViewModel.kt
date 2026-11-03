@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.models.NowBriefingStory
+import io.ycvk.acorn.api.models.NowFollowUp
+import io.ycvk.acorn.api.models.NowGoal
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.api.models.StoryMessageResponse
@@ -71,6 +73,10 @@ class NowViewModel @Inject constructor(
     }
 
     fun cancelCommitment(id: Long) = change { repository.cancelCommitment(it, id) }
+
+    fun stopGoal(id: Long) = change { repository.stopGoal(it, id) }
+
+    fun cancelFollowUp(id: Long) = change { repository.cancelFollowUp(it, id) }
 
     fun pauseWatch(id: Long) = change { repository.pauseWatch(it, id) }
 
@@ -171,6 +177,22 @@ data class WakeTime(val day: String, val time: String)
 
 fun wakeTime(at: OffsetDateTime, today: LocalDate, zone: ZoneId): WakeTime =
     WakeTime(dayLabel(at.atZoneSameInstant(zone).toLocalDate(), today), clockTime(at, zone))
+
+/** How far a goal got: the runs it took of the most it may take, "已用 4/10 轮". */
+fun goalProgress(goal: NowGoal): String = "已用 ${goal.runs}/${goal.maxRuns} 轮"
+
+/** What a follow-up waits for: a job to end or print a text, or a path to be ready. */
+fun followUpCondition(followUp: NowFollowUp): String = when (followUp.waitsFor) {
+    NowFollowUp.WaitsFor.job_end -> "等任务 ${followUp.jobId.orEmpty()} 结束"
+    NowFollowUp.WaitsFor.job_output -> "等任务 ${followUp.jobId.orEmpty()} 输出「${followUp.outputContains.orEmpty()}」"
+    NowFollowUp.WaitsFor.path -> "等 ${followUp.path.orEmpty()} 就绪"
+}
+
+/** When a follow-up wakes the agent regardless, in the phone's time zone: "最晚明天 14:00". */
+fun followUpDeadline(followUp: NowFollowUp, today: LocalDate, zone: ZoneId): String {
+    val at = wakeTime(followUp.deadlineAt, today, zone)
+    return "最晚${at.day} ${at.time}"
+}
 
 /** Under a panel's title: its conversation and when its content last changed, "仓库版本 · 3 分钟前更新". */
 fun panelMeta(panel: NowPanel, now: OffsetDateTime): String = "${panel.threadTitle} · ${ago(panel.updatedAt, now)}更新"

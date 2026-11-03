@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -117,6 +119,28 @@ func TestSubRunsReportOnceAndAreReviewed(t *testing.T) {
 	}
 	if all[0].RunID != "sub_1" || all[0].Verdict != core.SubRunRedo || all[0].Feedback != "缺出处" || all[1].RunID != "sub_1b" || all[2].RunID != "sub_2" || all[2].Reported() {
 		t.Fatalf("sub-runs by task and attempt = %+v", all)
+	}
+	if latest := core.LatestSubRuns(all); len(latest) != 2 || latest[0].RunID != "sub_1b" || latest[0].State() != core.SubRunStateAccepted || latest[1].State() != core.SubRunStateRunning {
+		t.Fatalf("latest attempts = %+v", latest)
+	}
+
+	// The parent records each start, delivered report and acceptance; the
+	// refused starts record nothing.
+	events, err := s.LoadEvents(ctx, "parent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updates []string
+	for _, event := range events {
+		if event.Kind != core.EventSubRunUpdated {
+			continue
+		}
+		p := event.Payload.(map[string]any)
+		updates = append(updates, fmt.Sprintf("%v/%v %v %v %v", p["task"], p["attempt"], p["state"], p["objective"], p["summary"]))
+	}
+	want := []string{"1/1 running 读第一篇 <nil>", "2/1 running 读第二篇 <nil>", "1/1 reported 读第一篇 三条要点", "1/2 running 读第一篇 <nil>", "1/2 accepted 读第一篇 done"}
+	if !slices.Equal(updates, want) {
+		t.Fatalf("sub_run.updated on the parent = %q, want %q", updates, want)
 	}
 }
 

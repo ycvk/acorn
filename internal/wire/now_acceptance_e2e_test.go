@@ -2,6 +2,7 @@ package wire
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -61,7 +62,22 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 		t.Fatalf("forget: %v", err)
 	}
 
+	goal, err := c.store.StartGoal(ctx, core.Goal{SessionID: "thread_goals", Objective: "整理完 Go 面试题", MaxRuns: 5, CreatedAt: start})
+	if err != nil {
+		t.Fatalf("start goal: %v", err)
+	}
+	followUp, err := c.store.AddFollowUp(ctx, core.FollowUp{SessionID: "thread_goals", Task: "题库下完就整理", JobID: "job-00000001", CreatedAt: start, DeadlineAt: start.Add(24 * time.Hour)})
+	if err != nil {
+		t.Fatalf("add follow-up: %v", err)
+	}
+
 	now := loadNow(t, client)
+	if len(now.Goals) != 1 || now.Goals[0].ID != goal.ID || now.Goals[0].ThreadTitle != "goals" || now.Goals[0].MaxRuns != 5 {
+		t.Fatalf("goals = %+v", now.Goals)
+	}
+	if len(now.FollowUps) != 1 || now.FollowUps[0].ID != followUp.ID || now.FollowUps[0].WaitsFor != "job_end" || now.FollowUps[0].ThreadTitle != "goals" {
+		t.Fatalf("follow-ups = %+v", now.FollowUps)
+	}
 	if now.Briefing == nil || now.Briefing.ThreadID != "thread_briefings" || now.Briefing.Date != "2026-10-11" || now.Briefing.Body != "## 今天\n有一个约定。" {
 		t.Fatalf("briefing = %+v", now.Briefing)
 	}
@@ -89,9 +105,27 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 		t.Fatalf("paused watch is due: %+v err=%v", due, err)
 	}
 	client.do(t, httptest.NewRequest(http.MethodPost, watchPath+":resume", nil), http.StatusNoContent, nil)
+
+	stop := "/v1/goals/" + strconv.FormatInt(goal.ID, 10) + ":stop"
+	client.do(t, httptest.NewRequest(http.MethodPost, stop, nil), http.StatusNoContent, nil)
+	client.do(t, httptest.NewRequest(http.MethodPost, stop, nil), http.StatusConflict, nil)
+	client.do(t, httptest.NewRequest(http.MethodPost, "/v1/goals/999:stop", nil), http.StatusNotFound, nil)
+	if _, err := c.store.ActiveGoal(ctx, "thread_goals"); !errors.Is(err, core.ErrGoalNotFound) {
+		t.Fatalf("stopped goal still active: %v", err)
+	}
+	if pending, err := c.store.UnannouncedGoals(ctx); err != nil || len(pending) != 0 {
+		t.Fatalf("a goal the owner stopped is never announced: %+v, %v", pending, err)
+	}
+	cancelFollowUp := "/v1/follow-ups/" + strconv.FormatInt(followUp.ID, 10) + ":cancel"
+	client.do(t, httptest.NewRequest(http.MethodPost, cancelFollowUp, nil), http.StatusNoContent, nil)
+	client.do(t, httptest.NewRequest(http.MethodPost, cancelFollowUp, nil), http.StatusConflict, nil)
+
 	now = loadNow(t, client)
 	if len(now.Commitments) != 0 || now.Watches[0].Status != "active" || !now.Watches[0].NextCheckAt.Equal(clock.Now()) {
 		t.Fatalf("after changes: commitments %+v watches %+v", now.Commitments, now.Watches)
+	}
+	if len(now.Goals) != 0 || len(now.FollowUps) != 0 {
+		t.Fatalf("after changes: goals %+v follow-ups %+v", now.Goals, now.FollowUps)
 	}
 }
 

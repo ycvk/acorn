@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -27,6 +28,7 @@ var liveRunEventKinds = []string{
 	"tool.call.failed",
 	"view.shown",
 	"view.updated",
+	core.EventSubRunUpdated,
 }
 
 // IsLiveRunEventKind reports whether kind is part of the /v1 mobile live contract.
@@ -117,9 +119,45 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 			return nil, projectionError("%s view: %v", kind, err)
 		}
 		return core.ViewShownData{View: view}, nil
+	case core.EventSubRunUpdated:
+		update := core.SubRunUpdate{
+			Task: topLevelInt(payload, "task"), Attempt: topLevelInt(payload, "attempt"), State: topLevelString(payload, "state"),
+			Objective: topLevelString(payload, "objective"), Summary: topLevelString(payload, "summary"), Error: topLevelString(payload, "error"),
+		}
+		if update.Task < 1 || update.Attempt < 1 || !slices.Contains(subRunStates, update.State) {
+			return nil, projectionError("%s payload needs a task, an attempt and a state: %v", kind, payload)
+		}
+		return projectSubRun(update), nil
 	default:
 		return nil, projectionError("unsupported live run event kind %q", kind)
 	}
+}
+
+var subRunStates = []string{core.SubRunStateRunning, core.SubRunStateReported, core.SubRunStateFailed, core.SubRunStateAccepted}
+
+const (
+	subRunObjectiveRunes = 120
+	subRunSummaryRunes   = 600
+)
+
+// projectSubRun clips what a delegated task is about and handed back to
+// what a reply shows.
+func projectSubRun(update core.SubRunUpdate) SubRunData {
+	return SubRunData{
+		Task: update.Task, Attempt: update.Attempt, State: update.State,
+		Objective: clip(compactWhitespace(update.Objective), subRunObjectiveRunes),
+		Summary:   clip(strings.TrimSpace(update.Summary), subRunSummaryRunes),
+		Error:     clip(update.Error, toolCallErrorRunes),
+	}
+}
+
+// projectSubRuns lists the latest attempt of each task a run delegated.
+func projectSubRuns(attempts []core.SubRun) []SubRunData {
+	var out []SubRunData
+	for _, sub := range core.LatestSubRuns(attempts) {
+		out = append(out, projectSubRun(core.SubRunUpdateOf(sub)))
+	}
+	return out
 }
 
 func projectOperatorQuestionData(payload map[string]any) OperatorQuestionData {

@@ -76,6 +76,8 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"/v1/inbox",
 		"/v1/now",
 		"/v1/commitments/{commitment_id}:cancel",
+		"/v1/goals/{goal_id}:stop",
+		"/v1/follow-ups/{follow_up_id}:cancel",
 		"/v1/watches/{watch_id}:pause",
 		"/v1/watches/{watch_id}:resume",
 		"/v1/news/stories/{story_id}/reaction",
@@ -113,6 +115,9 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"NowResponse",
 		"NowPanel",
 		"NowBriefingStory",
+		"NowGoal",
+		"NowFollowUp",
+		"SubRunData",
 		"StoryReactionRequest",
 		"RunSummary",
 		"PendingActionSummary",
@@ -466,6 +471,29 @@ func TestProjectViewShownEvent(t *testing.T) {
 	}
 	if _, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 6, Kind: "view.shown", Payload: map[string]any{}}); !errors.Is(err, ErrClientProjectionFailed) {
 		t.Fatalf("view.shown without a view err = %v", err)
+	}
+}
+
+func TestProjectSubRunUpdatedEvent(t *testing.T) {
+	long := strings.Repeat("要点", 400)
+	updated, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 7, Kind: core.EventSubRunUpdated, Payload: map[string]any{
+		"task": float64(2), "attempt": float64(1), "state": "reported", "objective": "读 B:\n https://example.com/b", "summary": long,
+	}})
+	if err != nil {
+		t.Fatalf("project sub_run.updated: %v", err)
+	}
+	got := updated.Data.(SubRunData)
+	if got.Task != 2 || got.Attempt != 1 || got.State != "reported" || got.Objective != "读 B: https://example.com/b" || got.Summary != clip(long, subRunSummaryRunes) || got.Error != "" {
+		t.Fatalf("sub-run = %+v", got)
+	}
+	for _, payload := range []map[string]any{
+		{"attempt": float64(1), "state": "running", "objective": "x"},
+		{"task": float64(1), "attempt": float64(1), "state": "redo", "objective": "x"},
+		{"task": 1.5, "attempt": float64(1), "state": "running", "objective": "x"},
+	} {
+		if _, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 8, Kind: core.EventSubRunUpdated, Payload: payload}); !errors.Is(err, ErrClientProjectionFailed) {
+			t.Fatalf("payload %v err = %v", payload, err)
+		}
 	}
 }
 

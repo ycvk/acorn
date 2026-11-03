@@ -57,6 +57,8 @@ import io.ycvk.acorn.api.models.NowBriefing
 import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowCommitment
 import io.ycvk.acorn.api.models.NowConcern
+import io.ycvk.acorn.api.models.NowFollowUp
+import io.ycvk.acorn.api.models.NowGoal
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.api.models.NowWatch
@@ -123,6 +125,8 @@ fun NowScreen(
     val approvalError by approvals.error.collectAsStateWithLifecycle()
     val askingStory by viewModel.askingStory.collectAsStateWithLifecycle()
     var cancelling by remember { mutableStateOf<NowCommitment?>(null) }
+    var stoppingGoal by remember { mutableStateOf<NowGoal?>(null) }
+    var cancellingFollowUp by remember { mutableStateOf<NowFollowUp?>(null) }
 
     val refresh = {
         viewModel.refresh()
@@ -199,6 +203,8 @@ fun NowScreen(
                         ),
                         onUnpin = viewModel::unpinView,
                         onCancel = { cancelling = it },
+                        onStopGoal = { stoppingGoal = it },
+                        onCancelFollowUp = { cancellingFollowUp = it },
                         onPause = viewModel::pauseWatch,
                         onResume = viewModel::resumeWatch,
                     )
@@ -231,6 +237,36 @@ fun NowScreen(
                 viewModel.cancelCommitment(commitment.id)
             },
             onDismiss = { cancelling = null },
+        )
+    }
+
+    stoppingGoal?.let { goal ->
+        AcornDialog(
+            title = "停止这个目标？",
+            body = "Acorn 不会再为「${goal.objective}」接着跑，已经做完的留在对话里。",
+            confirm = "停止目标",
+            dismiss = "保留",
+            destructive = true,
+            onConfirm = {
+                stoppingGoal = null
+                viewModel.stopGoal(goal.id)
+            },
+            onDismiss = { stoppingGoal = null },
+        )
+    }
+
+    cancellingFollowUp?.let { followUp ->
+        AcornDialog(
+            title = "取消这次等待？",
+            body = "Acorn 不会再为「${followUp.task}」醒来。",
+            confirm = "取消等待",
+            dismiss = "保留",
+            destructive = true,
+            onConfirm = {
+                cancellingFollowUp = null
+                viewModel.cancelFollowUp(followUp.id)
+            },
+            onDismiss = { cancellingFollowUp = null },
         )
     }
 }
@@ -276,18 +312,20 @@ private fun LazyListScope.nowSections(
     stories: StoryActions,
     onUnpin: (NowPanel) -> Unit,
     onCancel: (NowCommitment) -> Unit,
+    onStopGoal: (NowGoal) -> Unit,
+    onCancelFollowUp: (NowFollowUp) -> Unit,
     onPause: (Long) -> Unit,
     onResume: (Long) -> Unit,
 ) {
     val briefing = now.briefing
     val nothing = briefing == null && pending.isEmpty() && now.panels.isEmpty() && now.commitments.isEmpty() &&
-        now.concerns.isEmpty() && now.watches.isEmpty()
+        now.concerns.isEmpty() && now.goals.isEmpty() && now.followUps.isEmpty() && now.watches.isEmpty()
     if (nothing) {
         item(key = "empty") {
             EmptyState(
                 icon = AcornIcons.Today,
                 title = "今天很清静",
-                body = "约定、追踪和每天的简报会出现在这里。想让 Acorn 做什么，直接在下面告诉它。",
+                body = "约定、目标、追踪和每天的简报会出现在这里。想让 Acorn 做什么，直接在下面告诉它。",
             )
         }
         return
@@ -321,6 +359,31 @@ private fun LazyListScope.nowSections(
             Column(Modifier.animateItem().groupItem(index, now.concerns.size)) {
                 ConcernRow(concern, onClick = { onThreadClick(concern.threadId) })
                 if (index < now.concerns.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
+            }
+        }
+    }
+
+    if (now.goals.isNotEmpty()) {
+        item(key = "goals:label") { SectionLabel("目标", count = now.goals.size) }
+        itemsIndexed(now.goals, key = { _, it -> "goal:${it.id}" }) { index, goal ->
+            Column(Modifier.animateItem().groupItem(index, now.goals.size)) {
+                GoalRow(goal, onClick = { onThreadClick(goal.threadId) }, onStop = { onStopGoal(goal) })
+                if (index < now.goals.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
+            }
+        }
+    }
+
+    if (now.followUps.isNotEmpty()) {
+        item(key = "follow_ups:label") { SectionLabel("等结果", count = now.followUps.size) }
+        itemsIndexed(now.followUps, key = { _, it -> "follow_up:${it.id}" }) { index, followUp ->
+            Column(Modifier.animateItem().groupItem(index, now.followUps.size)) {
+                FollowUpRow(
+                    followUp,
+                    deadline = followUpDeadline(followUp, today, zone),
+                    onClick = { onThreadClick(followUp.threadId) },
+                    onCancel = { onCancelFollowUp(followUp) },
+                )
+                if (index < now.followUps.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
             }
         }
     }
@@ -550,6 +613,41 @@ private fun ConcernRow(concern: NowConcern, onClick: () -> Unit) {
         if (concern.reason.isNotBlank()) {
             Text(concern.reason, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
+    }
+}
+
+/** A goal Acorn keeps working on: its objective, how many runs it took and its conversation. A tap opens the conversation. */
+@Composable
+private fun GoalRow(goal: NowGoal, onClick: () -> Unit, onStop: () -> Unit) {
+    val colors = AcornTheme.colors
+    var menu by remember { mutableStateOf(false) }
+    ListRow(
+        onClick = onClick,
+        onLongClick = { menu = true },
+        verticalAlignment = Alignment.Top,
+        leading = { StatusGlyph(Status.Running, Modifier.padding(top = 3.dp)) },
+        trailing = { RowMenu(menu, { menu = it }) { MenuItem("停止目标", danger = true) { menu = false; onStop() } } },
+    ) {
+        Text(goal.objective, style = AcornTheme.type.body, color = colors.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Text("${goalProgress(goal)} · ${goal.threadTitle}", style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** A follow-up that wakes Acorn: its task, what it waits for, its deadline and its conversation. A tap opens the conversation. */
+@Composable
+private fun FollowUpRow(followUp: NowFollowUp, deadline: String, onClick: () -> Unit, onCancel: () -> Unit) {
+    val colors = AcornTheme.colors
+    var menu by remember { mutableStateOf(false) }
+    ListRow(
+        onClick = onClick,
+        onLongClick = { menu = true },
+        verticalAlignment = Alignment.Top,
+        leading = { StatusGlyph(Status.Waiting, Modifier.padding(top = 3.dp)) },
+        trailing = { RowMenu(menu, { menu = it }) { MenuItem("取消等待", danger = true) { menu = false; onCancel() } } },
+    ) {
+        Text(followUp.task, style = AcornTheme.type.body, color = colors.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Text(followUpCondition(followUp), style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text("$deadline · ${followUp.threadTitle}", style = AcornTheme.type.footnote, color = colors.inkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

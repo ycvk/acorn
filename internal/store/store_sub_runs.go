@@ -117,7 +117,8 @@ func (s *Store) StartSubRun(ctx context.Context, start core.SubRunStart) (core.S
 			RunID: start.RunID, ParentRunID: start.ParentRunID, Task: task, Attempt: attempt, Brief: start.Brief,
 			Status: core.RunStatusRunning, CreatedAt: start.CreatedAt.UTC(),
 		}
-		return nil
+		_, err = appendEvent(ctx, tx, start.ParentRunID, core.EventSubRunUpdated, core.SubRunUpdateOf(out))
+		return err
 	})
 	if err != nil {
 		return core.SubRun{}, fmt.Errorf("start sub-run of %s: %w", start.ParentRunID, err)
@@ -152,7 +153,8 @@ func (s *Store) AcceptSubRun(ctx context.Context, parentRunID string, task int) 
 		}
 		latest.Verdict = core.SubRunAccepted
 		out = latest
-		return nil
+		_, err = appendEvent(ctx, tx, parentRunID, core.EventSubRunUpdated, core.SubRunUpdateOf(out))
+		return err
 	})
 	if err != nil {
 		return core.SubRun{}, fmt.Errorf("accept task %d of %s: %w", task, parentRunID, err)
@@ -197,6 +199,24 @@ func (s *Store) SubRuns(ctx context.Context, parentRunID string) ([]core.SubRun,
 	return runs, nil
 }
 
+// SubRunsOf lists the attempts each of parentRunIDs delegated, by task and
+// attempt.
+func (s *Store) SubRunsOf(ctx context.Context, parentRunIDs []string) (map[string][]core.SubRun, error) {
+	out := map[string][]core.SubRun{}
+	placeholders, args := inClause(parentRunIDs)
+	if len(args) == 0 {
+		return out, nil
+	}
+	runs, err := querySubRuns(ctx, s.db, `WHERE s.parent_run_id IN (`+placeholders+`) ORDER BY s.parent_run_id, s.task, s.attempt`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("sub-runs of %d runs: %w", len(parentRunIDs), err)
+	}
+	for _, sub := range runs {
+		out[sub.ParentRunID] = append(out[sub.ParentRunID], sub)
+	}
+	return out, nil
+}
+
 // LatestSubRun implements core.SubRunStore.
 func (s *Store) LatestSubRun(ctx context.Context, parentRunID string, task int) (core.SubRun, error) {
 	latest, err := latestSubRun(ctx, s.db, parentRunID, task)
@@ -220,6 +240,9 @@ func (s *Store) TakeSubRunReports(ctx context.Context, parentRunID string) ([]co
 				return err
 			}
 			taken[i].Delivered = true
+			if _, err := appendEvent(ctx, tx, parentRunID, core.EventSubRunUpdated, core.SubRunUpdateOf(taken[i])); err != nil {
+				return err
+			}
 		}
 		return nil
 	})

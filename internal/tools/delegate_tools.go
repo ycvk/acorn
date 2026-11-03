@@ -146,31 +146,18 @@ func delegateResult(ctx context.Context, deps DelegateToolDeps, sub core.SubRun,
 // latestTasks keeps the latest attempt of each task, in task order.
 func latestTasks(attempts []core.SubRun) []DelegateTask {
 	tasks := []DelegateTask{}
-	for _, sub := range attempts {
-		if n := len(tasks); n > 0 && tasks[n-1].Task == sub.Task {
-			tasks[n-1] = delegateTask(sub)
-			continue
-		}
+	for _, sub := range core.LatestSubRuns(attempts) {
 		tasks = append(tasks, delegateTask(sub))
 	}
 	return tasks
 }
 
 func delegateTask(sub core.SubRun) DelegateTask {
-	state := "running"
-	switch {
-	case sub.Verdict == core.SubRunAccepted:
-		state = "accepted"
-	case sub.Status == core.RunStatusFailed:
-		state = "failed"
-	case sub.Reported():
-		state = "reported"
-	}
 	objective := []rune(sub.Brief.Objective)
 	if len(objective) > 120 {
 		objective = append(objective[:120], '…')
 	}
-	return DelegateTask{Task: sub.Task, Attempt: sub.Attempt, State: state, Objective: string(objective)}
+	return DelegateTask{Task: sub.Task, Attempt: sub.Attempt, State: sub.State(), Objective: string(objective)}
 }
 
 // SubmitToolDeps configure submit.

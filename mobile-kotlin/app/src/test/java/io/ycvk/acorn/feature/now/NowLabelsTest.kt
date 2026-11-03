@@ -1,6 +1,8 @@
 package io.ycvk.acorn.feature.now
 
 import io.ycvk.acorn.api.models.NowBriefingStory
+import io.ycvk.acorn.api.models.NowFollowUp
+import io.ycvk.acorn.api.models.NowGoal
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowWatch
 import io.ycvk.acorn.api.models.View
@@ -21,6 +23,24 @@ class NowLabelsTest {
         assertEquals(WakeTime("明天", "07:30"), wakeTime(OffsetDateTime.parse("2026-10-11T23:30:00Z"), today, shanghai))
         assertEquals(WakeTime("10月14日", "09:00"), wakeTime(OffsetDateTime.parse("2026-10-14T01:00:00Z"), today, shanghai))
         assertEquals(WakeTime("10月10日", "23:00"), wakeTime(OffsetDateTime.parse("2026-10-10T15:00:00Z"), today, shanghai))
+    }
+
+    @Test
+    fun `a goal shows the runs it took of the most it may take`() {
+        val goal = NowGoal(id = 3, threadId = "thread_books", threadTitle = "整理 Go 书", objective = "下完整本书", runs = 4, maxRuns = 10, createdAt = OffsetDateTime.parse("2026-10-11T01:00:00Z"))
+        assertEquals("已用 4/10 轮", goalProgress(goal))
+    }
+
+    @Test
+    fun `a follow-up says what it waits for and when it wakes regardless`() {
+        val followUp = NowFollowUp(
+            id = 7, threadId = "thread_build", threadTitle = "编译 acorn", task = "编译完看结果", waitsFor = NowFollowUp.WaitsFor.job_end,
+            deadlineAt = OffsetDateTime.parse("2026-10-12T06:00:00Z"), createdAt = OffsetDateTime.parse("2026-10-11T01:00:00Z"), jobId = "job-0a1b2c3d",
+        )
+        assertEquals("等任务 job-0a1b2c3d 结束", followUpCondition(followUp))
+        assertEquals("等任务 job-0a1b2c3d 输出「50%」", followUpCondition(followUp.copy(waitsFor = NowFollowUp.WaitsFor.job_output, outputContains = "50%")))
+        assertEquals("等 books/go.epub 就绪", followUpCondition(followUp.copy(waitsFor = NowFollowUp.WaitsFor.path, jobId = null, path = "books/go.epub")))
+        assertEquals("最晚明天 14:00", followUpDeadline(followUp, today, shanghai))
     }
 
     @Test

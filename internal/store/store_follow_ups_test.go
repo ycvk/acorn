@@ -11,7 +11,8 @@ import (
 
 // A follow-up waits until a tick claims it, and fires once its run started;
 // a claim whose run did not start, or that was left, waits again. Only a
-// waiting follow-up of its own conversation can be cancelled.
+// waiting follow-up can be cancelled, within its own conversation or from
+// any.
 func TestFollowUpsWaitThenFireOnce(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(t.TempDir())
@@ -105,8 +106,14 @@ func TestFollowUpsWaitThenFireOnce(t *testing.T) {
 	if err := s.CancelFollowUp(ctx, "chat", file.ID, now); !errors.Is(err, core.ErrFollowUpNotFound) {
 		t.Fatalf("cancel another conversation's follow-up = %v", err)
 	}
-	if err := s.CancelFollowUp(ctx, "other", file.ID, now); err != nil {
-		t.Fatalf("cancel a recovered follow-up: %v", err)
+	if err := s.CancelFollowUp(ctx, "", file.ID, now); err != nil {
+		t.Fatalf("cancel a recovered follow-up from any conversation: %v", err)
+	}
+	if err := s.CancelFollowUp(ctx, "", file.ID, now); !errors.Is(err, core.ErrFollowUpNotWaiting) {
+		t.Fatalf("cancel a cancelled follow-up = %v", err)
+	}
+	if err := s.CancelFollowUp(ctx, "", 99, now); !errors.Is(err, core.ErrFollowUpNotFound) {
+		t.Fatalf("cancel a missing follow-up = %v", err)
 	}
 	if left, err := s.WaitingFollowUps(ctx, ""); err != nil || len(left) != 0 {
 		t.Fatalf("left waiting = %+v, %v", left, err)
@@ -161,8 +168,11 @@ func TestGoalsRunWithinTheirBudget(t *testing.T) {
 	if err != nil || ended.State != core.GoalDone || ended.Announced || ended.EndRunID != "run_end" {
 		t.Fatalf("ended = %+v, %v", ended, err)
 	}
-	if _, err := s.EndGoal(ctx, g.ID, core.GoalBlocked, "again", "", now); !errors.Is(err, core.ErrGoalNotFound) {
+	if _, err := s.EndGoal(ctx, g.ID, core.GoalBlocked, "again", "", now); !errors.Is(err, core.ErrGoalEnded) {
 		t.Fatalf("end an ended goal = %v", err)
+	}
+	if _, err := s.EndGoal(ctx, 99, core.GoalStopped, "the owner stopped it", "", now); !errors.Is(err, core.ErrGoalNotFound) {
+		t.Fatalf("end a missing goal = %v", err)
 	}
 	pending, err := s.UnannouncedGoals(ctx)
 	if err != nil || len(pending) != 1 || pending[0].Result != "全书 12 章已入库" || pending[0].EndRunID != "run_end" {

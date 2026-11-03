@@ -24,6 +24,7 @@
 package io.ycvk.acorn.api.models
 
 import io.ycvk.acorn.api.models.MessageContent
+import io.ycvk.acorn.api.models.SubRunData
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.ToolStep
 import io.ycvk.acorn.api.models.View
@@ -43,6 +44,7 @@ import com.squareup.moshi.JsonClass
  * @param steps Tool calls the run behind an assistant message made, in the order they started.
  * @param files Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files or showed views but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id. 
  * @param views Views the run behind an assistant message showed the owner, oldest first.
+ * @param subRuns Tasks the run behind an assistant message handed to sub-agents, by task number, each at its latest attempt.
  */
 
 
@@ -77,7 +79,11 @@ data class Message (
 
     /* Views the run behind an assistant message showed the owner, oldest first. */
     @Json(name = "views")
-    val views: kotlin.collections.List<View>? = null
+    val views: kotlin.collections.List<View>? = null,
+
+    /* Tasks the run behind an assistant message handed to sub-agents, by task number, each at its latest attempt. */
+    @Json(name = "sub_runs")
+    val subRuns: kotlin.collections.List<SubRunData>? = null
 
 ) {
 

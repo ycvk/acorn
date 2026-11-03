@@ -64,5 +64,7 @@ type FollowUpStore interface {
 	// RecoverFollowUpClaims returns the follow-ups claimed more than five
 	// minutes ago without a run.
 	RecoverFollowUpClaims(ctx context.Context, now time.Time) error
+	// CancelFollowUp cancels a waiting follow-up of sessionID, or of any
+	// conversation when it is empty.
 	CancelFollowUp(ctx context.Context, sessionID string, id int64, now time.Time) error
 }

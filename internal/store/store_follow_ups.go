@@ -169,7 +169,7 @@ func (s *Store) RecoverFollowUpClaims(ctx context.Context, now time.Time) error 
 func (s *Store) CancelFollowUp(ctx context.Context, sessionID string, id int64, now time.Time) error {
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		var state string
-		err := tx.QueryRowContext(ctx, `SELECT state FROM follow_ups WHERE id = ? AND session_id = ?`, id, sessionID).Scan(&state)
+		err := tx.QueryRowContext(ctx, `SELECT state FROM follow_ups WHERE id = ? AND (? = '' OR session_id = ?)`, id, sessionID, sessionID).Scan(&state)
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: #%d", core.ErrFollowUpNotFound, id)
 		}

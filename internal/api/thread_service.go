@@ -26,8 +26,14 @@ type ThreadService struct {
 	files     core.ThreadFiles
 	views     threadViewStore
 	stories   threadStoryStore
+	subRuns   threadSubRunStore
 	forgetter threadForgetter
 	barrier   func(context.Context, core.MemoryExclusion, string) error
+}
+
+// threadSubRunStore reads the tasks the runs of a thread delegated.
+type threadSubRunStore interface {
+	SubRunsOf(ctx context.Context, parentRunIDs []string) (map[string][]core.SubRun, error)
 }
 
 // threadViewStore keeps the views runs showed in a thread and the actions
@@ -49,18 +55,19 @@ type threadStoryStore interface {
 }
 
 // NewThreadService constructs a ThreadService backed by the given store and
-// the files, views and story messages of its threads. Deleting a thread
-// forgets it through forgetter, then waits at barrier for the executions
-// that saw it to stop.
-func NewThreadService(store core.SessionStore, files core.ThreadFiles, views threadViewStore, stories threadStoryStore, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
-	if store == nil || files == nil || views == nil || stories == nil || forgetter == nil || barrier == nil {
-		return nil, errors.New("thread service: store, files, views, stories, forgetter and barrier are required")
+// the files, views, story messages and delegated tasks of its threads.
+// Deleting a thread forgets it through forgetter, then waits at barrier for
+// the executions that saw it to stop.
+func NewThreadService(store core.SessionStore, files core.ThreadFiles, views threadViewStore, stories threadStoryStore, subRuns threadSubRunStore, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
+	if store == nil || files == nil || views == nil || stories == nil || subRuns == nil || forgetter == nil || barrier == nil {
+		return nil, errors.New("thread service: store, files, views, stories, sub-runs, forgetter and barrier are required")
 	}
 	return &ThreadService{
 		store:     store,
 		files:     files,
 		views:     views,
 		stories:   stories,
+		subRuns:   subRuns,
 		forgetter: forgetter,
 		barrier:   barrier,
 	}, nil
@@ -243,6 +250,10 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 	if err != nil {
 		return nil, err
 	}
+	delegated, err := s.subRuns.SubRunsOf(ctx, runIDs)
+	if err != nil {
+		return nil, err
+	}
 	files, err := s.files.ThreadFiles(ctx, threadID)
 	if err != nil {
 		return nil, err
@@ -277,6 +288,7 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 			}
 			message.Files = sent[record.RunID]
 			message.Views = shown[record.RunID]
+			message.SubRuns = projectSubRuns(delegated[record.RunID])
 		case "user":
 			message.Files = attached[record.ID]
 		}
@@ -508,6 +520,8 @@ type Message struct {
 	Files []ThreadFileInfo
 	// Views are what the run behind an assistant message showed the owner.
 	Views []core.ViewData
+	// SubRuns are the tasks the run behind an assistant message delegated.
+	SubRuns []SubRunData
 }
 
 // QueuedMessage is an owner message that waits for the thread's run.
