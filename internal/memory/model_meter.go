@@ -30,12 +30,11 @@ func (m *compactionModel) Generate(ctx context.Context, messages []*schema.Agent
 	if err != nil {
 		return nil, err
 	}
-	const maxOutput = 4096
-	usage, err := m.engine.reserve(ctx, "context_compaction", m.engine.cfg.ModelName, n, maxOutput)
+	usage, err := m.engine.reserve(ctx, "context_compaction", m.engine.cfg.ModelName, n, compactionOutputTokens)
 	if err != nil {
 		return nil, err
 	}
-	opts := append(append([]einomodel.Option(nil), options...), einomodel.WithMaxTokens(maxOutput))
+	opts := append(append([]einomodel.Option(nil), options...), einomodel.WithMaxTokens(compactionOutputTokens))
 	reply, callErr := m.AgenticModel.Generate(ctx, messages, opts...)
 	if callErr == nil && reply != nil {
 		if reply.ResponseMeta != nil && reply.ResponseMeta.TokenUsage != nil {

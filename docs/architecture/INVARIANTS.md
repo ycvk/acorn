@@ -69,6 +69,10 @@
 - **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `上下文窗口 - 输出预留 - presence 上限 - 压缩余量` 时总结历史；reduction 只做 clear（保留最近 8 轮工具调用原样）。上下文窗口取模型表里的值，模型表以外的模型取 provider 的 `context_window_tokens`，没写时拒绝启动，模型表里的模型写了也拒绝；presence 上限 4000 与压缩余量 32000 是代码常量。
   - `internal/runtime/agent_test.go`
   - `internal/config/config_models_test.go`
+- **两种压缩写同一份固定格式**：线程摘要与 run 内压缩依次写 `## Goal`、`## Constraints and preferences`、`## Progress`（其下 `### Done`、`### In progress`、`### Blocked`）、`## Key decisions`、`## Next steps`、`## Critical context` 九个段落，再由 Acorn 接上 `## Files read` 与 `## Files changed`。模型的回复以 `## Goal` 开头，九个标题各自独占一行、只出现一次且顺序不变，不写两个文件段落，没有内容的段落写 `(none)`，否则报 `ErrSummaryFormat`。两者的指令都要求把输入当作不可信来源数据、assistant 的建议仍记为建议、略去密码、access token、API key 与验证码、原样抄写 job、跟进与目标的 id 和工作机与笔记路径，并在已有摘要上更新。文件段落只认 `files` 的 read/write 与 `send_file` 调用参数里的路径：按最后一次接触从旧到新排列，写过的文件只列在 Files changed，参数解析不了的调用与带凭据的路径不计，没有文件时写 `(none)`。线程摘要的输入把上一份摘要放在 `<previous_summary>` 里，具体事实带来源 id；它的文件段落取自被摘要的对话轮次里已结束（succeeded 或 failed）的 run，只计结果是 JSON 对象的成功调用（被拒绝或被规则拦下的不计），这些调用的结果来源加入摘要的来源，遗忘其中任一个时摘要失效并重建，有排除的调用不再计入；文件段落至多占摘要预算的四分之一，超出时从最久没接触的文件起略去并注明略去的数目，模型的输出上限是摘要预算减去文件段落再减 64，写在指令里；回复缺段落时重新生成一次，仍缺即报错且不保存；摘要预算不足 512 token 时不写摘要。run 内压缩替换 Eino 的默认指令，模型至多写 4096 token，回复不合格式时这次调用失败，与 provider 错误一起按 summarization 的重试规则最多重试 3 次；文件段落取自被压缩消息里的调用（结果可能已被 reduction 清除，故不看结果），文件列表记在摘要消息上，随 checkpoint 保存，同一 run 的下一次压缩接着它合并。
+  - `internal/memory/summary_test.go`
+  - `internal/memory/context_test.go`
+  - `internal/runtime/compaction_test.go`
 - **人格只由 owner 修改**：人格存在 SQLite 的 `persona_revisions`，最新 revision 是当前人格；每次保存是基于读到的 revision 的新 revision，并发修改显式失败；内容去掉首尾空白后不能为空，至多 8 KiB。启动时没有人格才以 release 身份写入默认人格，已有人格不被覆盖。owner 经 `/v1/persona` 与 `acorn persona` 保存，agent 没有写人格的工具。每个 run 开始时读当前人格。
   - `internal/store/store_persona_test.go`
   - `internal/presence/presence_test.go`

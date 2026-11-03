@@ -10,7 +10,6 @@ import (
 	"github.com/cloudwego/eino/adk/middlewares/dynamictool/toolsearch"
 	"github.com/cloudwego/eino/adk/middlewares/patchtoolcalls"
 	"github.com/cloudwego/eino/adk/middlewares/reduction"
-	"github.com/cloudwego/eino/adk/middlewares/summarization"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
@@ -132,15 +131,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, fmt.Errorf("patchtoolcalls middleware: %w", err)
 	}
-	summarize, err := summarization.NewTyped[*schema.AgenticMessage](ctx, &summarization.TypedConfig[*schema.AgenticMessage]{
-		Model:   deps.Memory.MeterCompaction(req.ChatModel),
-		Trigger: &summarization.TriggerCondition{ContextTokens: inputBudget},
-		TokenCounter: func(ctx context.Context, in *summarization.TypedTokenCounterInput[*schema.AgenticMessage]) (int, error) {
-			return counter.CountMessages(ctx, in.Messages, in.Tools)
-		},
-		// A transient provider error while summarizing would otherwise fail the run.
-		Retry: &summarization.TypedRetryConfig[*schema.AgenticMessage]{},
-	})
+	summarize, err := newCompactionMiddleware(ctx, deps.Memory.MeterCompaction(req.ChatModel), inputBudget, counter)
 	if err != nil {
 		return nil, fmt.Errorf("summarization middleware: %w", err)
 	}

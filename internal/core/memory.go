@@ -272,6 +272,10 @@ type MemoryStore interface {
 	MemoryVectorSketches(context.Context, int64, string, int, time.Time) ([]MemoryVectorSketch, error)
 	MemoryVectorsByIDs(context.Context, int64, []string, time.Time) ([]MemoryVector, error)
 	SaveMemorySnapshotRefs(context.Context, string, string, []string, []string, int64) error
+	// ThreadToolCalls lists, in result order, the successful calls of the named
+	// tools in the finished runs of a session's turns through a message,
+	// leaving out calls whose result source has an exclusion.
+	ThreadToolCalls(ctx context.Context, session string, through int64, tools []string) ([]ToolCallRecord, error)
 	SaveThreadSummary(context.Context, ThreadSummary) error
 	LoadThreadSummary(context.Context, string) (*ThreadSummary, error)
 	RecordMemoryUsage(context.Context, MemoryUsage) error

@@ -56,6 +56,42 @@ func (s *Store) MemoryMessages(ctx context.Context, session string, after, throu
 	return out, cursor, nil
 }
 
+// ThreadToolCalls reads the successful calls of tools in the succeeded or
+// failed runs of the session's turns through a message. Each call pairs its
+// result event, which is the call's memory source, with the arguments of the
+// call that started it.
+func (s *Store) ThreadToolCalls(ctx context.Context, session string, through int64, tools []string) ([]core.ToolCallRecord, error) {
+	marks, names := inClause(tools)
+	if session == "" || through <= 0 || len(names) == 0 {
+		return nil, errors.New("thread tool calls require session, through and tools")
+	}
+	args := append([]any{session, session, through}, names...)
+	rows, err := s.db.QueryContext(ctx, `SELECT 'event:'||r.sequence, json_extract(r.payload_json,'$.tool_name'),
+ COALESCE((SELECT json_extract(c.payload_json,'$.arguments') FROM events c WHERE c.run_id=r.run_id AND c.kind='tool.call.started' AND c.sequence<r.sequence
+  AND json_extract(c.payload_json,'$.tool_call_id')=json_extract(r.payload_json,'$.tool_call_id') ORDER BY c.sequence DESC LIMIT 1),''),
+ CASE WHEN json_valid(json_extract(r.payload_json,'$.output')) THEN json_type(json_extract(r.payload_json,'$.output'))='object' ELSE 0 END
+ FROM runs u JOIN events r ON r.run_id=u.run_id AND r.kind='tool.call.succeeded'
+ JOIN memory_sources m ON m.id='event:'||r.sequence
+ WHERE u.session_id=? AND u.status IN ('succeeded','failed')
+ AND u.turn_index IN (SELECT turn_index FROM session_messages WHERE session_id=? AND id<=?)
+ AND json_extract(r.payload_json,'$.tool_name') IN (`+marks+`)
+ AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=m.id)
+ ORDER BY r.sequence`, args...)
+	if err != nil {
+		return nil, err
+	}
+	var calls []core.ToolCallRecord
+	err = scanRows(rows, func(scan func(...any) error) error {
+		var call core.ToolCallRecord
+		if err := scan(&call.SourceID, &call.Name, &call.Arguments, &call.ObjectResult); err != nil {
+			return err
+		}
+		calls = append(calls, call)
+		return nil
+	})
+	return calls, err
+}
+
 // SaveMemoryCheckpoint fences checkpoint persistence with the same transaction
 // that reads the exclusion epoch, including a forget concurrent with a pause.
 func (s *Store) SaveMemoryCheckpoint(ctx context.Context, id string, data []byte, epoch int64, now time.Time) error {
