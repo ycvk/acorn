@@ -62,7 +62,7 @@ backup:
 
 workstation:
   # The agent's own Linux computer, served by acorn-workstation.service.
-  # Empty url turns the shell, job and files tools off.
+  # Empty url turns the shell, job, follow_up, files and send_file tools off.
   url: ""
   token: ${ACORN_WORKSTATION_TOKEN}
 

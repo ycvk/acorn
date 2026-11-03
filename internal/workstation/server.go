@@ -23,6 +23,8 @@ import (
 	"syscall"
 	"time"
 	"unicode/utf8"
+
+	"github.com/ycvk/acorn/internal/textedit"
 )
 
 // Server executes requests inside the workstation. Every request needs the
@@ -100,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/files/read", s.authorized(s.read))
 	mux.HandleFunc("POST /v1/files/stat", s.authorized(s.stat))
 	mux.HandleFunc("POST /v1/files/write", s.authorized(s.write))
+	mux.HandleFunc("POST /v1/files/edit", s.authorized(s.edit))
 	mux.HandleFunc("POST /v1/files/package", s.authorized(s.readPackageHandler))
 	mux.HandleFunc("GET /v1/files/raw", s.authorized(s.rawFile))
 	mux.HandleFunc("GET /v1/uploads", s.authorized(s.uploads))
@@ -342,6 +345,72 @@ func (s *Server) write(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, WriteResult{Path: path, Bytes: len(req.Content)})
+}
+
+// edit changes parts of a UTF-8 text file and replaces it whole, keeping its
+// permissions; either every edit applies or the file stays as it was.
+func (s *Server) edit(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxWriteBytes)
+	var req EditRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	path, err := s.requirePath(req.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	info, err := os.Stat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		writeError(w, http.StatusNotFound, err)
+		return
+	case err != nil:
+		writeError(w, http.StatusBadRequest, err)
+		return
+	case info.IsDir():
+		writeError(w, http.StatusBadRequest, fmt.Errorf("%s is a directory", path))
+		return
+	case info.Size() > maxWriteBytes:
+		writeError(w, http.StatusBadRequest, fmt.Errorf("%s is %d bytes, over the %d bytes edit takes; change it with shell", path, info.Size(), maxWriteBytes))
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if !utf8.Valid(data) {
+		writeError(w, http.StatusUnprocessableEntity, fmt.Errorf("%s: %w; change it with shell", path, ErrNotText))
+		return
+	}
+	text, lines, err := textedit.Apply(string(data), req.Edits)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("%s: %w", path, err))
+		return
+	}
+	if err := replaceFile(path, []byte(text), info.Mode().Perm()); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, EditResult{Path: path, Bytes: len(text), Lines: lines})
+}
+
+// replaceFile writes data next to path and renames it over path.
+func replaceFile(path string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return fmt.Errorf("replace %s: %w", path, err)
+	}
+	_, err = tmp.Write(data)
+	err = errors.Join(err, tmp.Chmod(perm), tmp.Close())
+	if err == nil {
+		err = os.Rename(tmp.Name(), path)
+	}
+	if err != nil {
+		return errors.Join(fmt.Errorf("replace %s: %w", path, err), os.Remove(tmp.Name()))
+	}
+	return nil
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request) {

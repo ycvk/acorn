@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/ycvk/acorn/internal/textedit"
 )
 
 // TokenEnv names the environment variable that carries the shared bearer
@@ -101,6 +103,20 @@ type WriteRequest struct {
 type WriteResult struct {
 	Path  string `json:"path"`
 	Bytes int    `json:"bytes"`
+}
+
+// EditRequest changes parts of the text file at Path in place.
+type EditRequest struct {
+	Path  string          `json:"path"`
+	Edits []textedit.Edit `json:"edits"`
+}
+
+// EditResult reports the edited file and the line at which each edit's new
+// text starts.
+type EditResult struct {
+	Path  string `json:"path"`
+	Bytes int    `json:"bytes"`
+	Lines []int  `json:"lines"`
 }
 
 type RenderRequest struct {

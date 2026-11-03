@@ -14,7 +14,7 @@ import (
 // lower layer. This prevents architectural drift.
 //
 // Layer 0: core (domain types, contracts, ports, tool registry interfaces)
-// Layer 2: store, redact, presence, memory, news, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, workstation, views, settings, config
+// Layer 2: store, redact, presence, memory, news, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, workstation, views, settings, config, textedit
 // Layer 3: runtime (executor, per-run assembly, middleware, projection)
 // Layer 4: api
 // Layer 5: wire
@@ -39,6 +39,7 @@ var layerRank = map[string]int{
 	"workstation": 2,
 	"views":       2,
 	"settings":    2,
+	"textedit":    2,
 	"runtime":     3,
 	"api":         4,
 	"wire":        5,

@@ -42,7 +42,7 @@ type GoalOutput struct {
 
 func buildGoalTool(deps GoalToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool("goal",
-		"Work toward an outcome over several runs of your own in this conversation. After each run here ends you wake up here again to continue, until you end the goal with done or blocked or its runs run out; the owner then gets a push with the result, unless you already notified them in that run. While a follow_up of this conversation waits, the goal waits with it. Use it when the owner hands you work that takes more than one sitting.",
+		"Work toward an outcome over several runs of your own in this conversation. After each run here ends you wake up here again to continue, until you end the goal with done or blocked or its runs run out; the owner then gets a push with the result, unless you already notified them in that run. While a follow_up of this conversation waits, the goal waits with it. Use it when the owner hands you work that takes more than one sitting, in place of a concern for the same outcome.",
 		func(ctx context.Context, input GoalInput) (GoalOutput, error) {
 			sessionID := deps.Context.CurrentSessionID(ctx)
 			if sessionID == "" {

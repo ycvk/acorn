@@ -278,5 +278,6 @@ func normalizeContentType(header string, body []byte) string {
 	if mediaType, _, err := mime.ParseMediaType(header); err == nil && strings.TrimSpace(mediaType) != "" {
 		return strings.ToLower(strings.TrimSpace(mediaType))
 	}
-	return strings.ToLower(http.DetectContentType(body))
+	detected, _, _ := strings.Cut(http.DetectContentType(body), ";")
+	return strings.ToLower(detected)
 }

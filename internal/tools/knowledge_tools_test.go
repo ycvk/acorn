@@ -13,6 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
 	"github.com/ycvk/acorn/internal/settings"
+	"github.com/ycvk/acorn/internal/textedit"
 )
 
 // fakeVault records calls and returns canned notes.
@@ -32,8 +33,8 @@ func (v *fakeVault) Write(_ context.Context, n knowledge.WriteNote) (core.Knowle
 	return core.KnowledgeNote{Path: n.Path, Title: n.Title, UpdatedAt: knowledgeTestTime, Revision: 3}, v.err
 }
 
-func (v *fakeVault) Edit(_ context.Context, path, old, replacement, runID string) (core.KnowledgeNote, error) {
-	v.editArgs = []string{path, old, replacement, runID}
+func (v *fakeVault) Edit(_ context.Context, path string, edits []textedit.Edit, runID string) (core.KnowledgeNote, error) {
+	v.editArgs = []string{path, fmt.Sprint(edits), runID}
 	return core.KnowledgeNote{Path: path, Title: "T", UpdatedAt: knowledgeTestTime, Revision: 4}, v.err
 }
 
@@ -91,10 +92,10 @@ func TestKnowledgeWriteAndEditCarryTheRun(t *testing.T) {
 	if !strings.Contains(out, `"revision":3`) || !strings.Contains(out, "2026-10-03 Sat 09:00") {
 		t.Fatalf("write output = %s", out)
 	}
-	if _, err := runPresenceTool(t, tools["knowledge_edit"], `{"path":"a.md","old":"x","new":"y"}`); err != nil {
+	if _, err := runPresenceTool(t, tools["knowledge_edit"], `{"path":"a.md","edits":[{"old":"x","new":"y"},{"old":"z","new":""}]}`); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
-	if fmt.Sprint(vault.editArgs) != "[a.md x y run_9]" {
+	if fmt.Sprint(vault.editArgs) != "[a.md [{x y} {z }] run_9]" {
 		t.Fatalf("edit args = %v", vault.editArgs)
 	}
 }

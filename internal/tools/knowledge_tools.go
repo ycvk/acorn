@@ -11,12 +11,13 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/textedit"
 )
 
 // KnowledgeVault is the knowledge base as the knowledge tools use it.
 type KnowledgeVault interface {
 	Write(ctx context.Context, note knowledge.WriteNote) (core.KnowledgeNote, error)
-	Edit(ctx context.Context, path, old, replacement, runID string) (core.KnowledgeNote, error)
+	Edit(ctx context.Context, path string, edits []textedit.Edit, runID string) (core.KnowledgeNote, error)
 	Read(ctx context.Context, path string) (core.KnowledgeNote, error)
 	Search(ctx context.Context, query string, limit int) ([]core.KnowledgeHit, error)
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
@@ -45,9 +46,8 @@ type KnowledgeWriteInput struct {
 
 // KnowledgeEditInput is the input of knowledge_edit.
 type KnowledgeEditInput struct {
-	Path string `json:"path" jsonschema_description:"Path of an existing note."`
-	Old  string `json:"old" jsonschema_description:"Exact text in the body to replace; it must occur exactly once."`
-	New  string `json:"new" jsonschema_description:"Replacement text."`
+	Path  string     `json:"path" jsonschema_description:"Path of an existing note."`
+	Edits []TextEdit `json:"edits" jsonschema:"required" jsonschema_description:"The changes to the body, all made against the note as it is now. Each old text must occur exactly once, and edits must not overlap; either all apply or none does."`
 }
 
 // KnowledgeWriteOutput reports the stored revision of a note.
@@ -125,9 +125,9 @@ func buildKnowledgeWriteTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) 
 
 func buildKnowledgeEditTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool("knowledge_edit",
-		"Change part of an existing note by replacing one exact piece of its body. Use it to add to or correct a note without rewriting it.",
+		"Change parts of an existing note by replacing pieces of its body. Use it to add to or correct a note without rewriting it.",
 		func(ctx context.Context, input KnowledgeEditInput) (KnowledgeWriteOutput, error) {
-			note, err := deps.Vault.Edit(ctx, input.Path, input.Old, input.New, deps.Context.CurrentRunID(ctx))
+			note, err := deps.Vault.Edit(ctx, input.Path, textEdits(input.Edits), deps.Context.CurrentRunID(ctx))
 			if err != nil {
 				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_edit: %w", err)
 			}

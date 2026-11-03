@@ -100,6 +100,23 @@ func TestFetchServiceRejectsUnsupportedContentType(t *testing.T) {
 	}
 }
 
+// A response without a Content-Type is read by the type its bytes show, as
+// Debian serves its SHA256SUMS.
+func TestFetchServiceReadsUntypedText(t *testing.T) {
+	sums := "a7ef94ac2fb9a7fec454552abd629b7cc9d5155c886165a45649f5ce6167e355  debian-13.7.0-amd64-netinst.iso\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header()["Content-Type"] = nil
+		_, _ = w.Write([]byte(sums))
+	}))
+	defer server.Close()
+
+	service := newTestFetchService(t, server, 1024*1024)
+	got, err := service.Fetch(context.Background(), FetchRequest{URL: "http://example.com/SHA256SUMS"})
+	if err != nil || got.Extracted.Markdown != strings.TrimSpace(sums) || got.ContentType != "text/plain" {
+		t.Fatalf("Fetch untyped text = %+v, %v", got, err)
+	}
+}
+
 func TestFetchServiceDecodesDeclaredCharsetBeforeExtraction(t *testing.T) {
 	page := `<!doctype html>
 <html>
