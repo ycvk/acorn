@@ -20,6 +20,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | [0014](0014-owner-settings-in-app.md) | owner 的设置存进 SQLite，在 App 里修改 | Proposed | 2026-10-22 |
 | [0015](0015-briefing-news-reactions.md) | owner 对早安卡新闻的反馈 | Proposed | 2026-10-24 |
 | [0016](0016-briefing-story-follow.md) | 从早安卡的事件进入对话与跟进 | Proposed | 2026-10-29 |
+| [0017](0017-delegation-to-sub-runs.md) | agent 把一部分工作交给自己的子 run | Proposed | 2026-11-03 |
 
 ## Status 约定
 

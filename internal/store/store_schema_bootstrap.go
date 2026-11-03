@@ -172,6 +172,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + goalsTable + `
 
+` + subRunsTable + `
+
 CREATE TABLE IF NOT EXISTS watch_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     watch_id INTEGER NOT NULL,

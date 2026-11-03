@@ -47,6 +47,8 @@ func TestToolCallSummaryPicksTheTellingArgument(t *testing.T) {
 		{`{"path":"inbox/rust.md","query":"rust"}`, "rust"},
 		{`{"url":"https://go.dev/blog"}`, "https://go.dev/blog"},
 		{`{"path":"briefings/2026-10-11.md"}`, "briefings/2026-10-11.md"},
+		{`{"action":"start","objective":"读 A","acceptance":["三条要点"]}`, "读 A"},
+		{`{"action":"redo","task":2,"feedback":"要对照原文"}`, "要对照原文"},
 		{`{"limit":3}`, ""},
 		{``, ""},
 		{`{"content":"` + strings.Repeat("长", 100) + `"}`, strings.Repeat("长", toolCallSummaryRunes) + "…"},

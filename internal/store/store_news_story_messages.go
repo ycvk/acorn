@@ -113,7 +113,7 @@ func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite)
 			return err
 		default:
 			var status string
-			err := tx.QueryRowContext(ctx, `SELECT status FROM runs WHERE session_id = ? ORDER BY turn_index DESC, finished_at DESC LIMIT 1`, message.SessionID).Scan(&status)
+			err := tx.QueryRowContext(ctx, `SELECT status FROM runs r WHERE session_id = ? AND `+notSubRun+` ORDER BY turn_index DESC, finished_at DESC LIMIT 1`, message.SessionID).Scan(&status)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}

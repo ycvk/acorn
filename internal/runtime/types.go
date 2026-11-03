@@ -31,9 +31,11 @@ func RegisterTypes() {
 }
 
 // RuntimeStore is the store contract required by the runtime.
-// It composes session persistence with artifact and OAuth token storage.
+// It composes session persistence with sub-runs, artifact and OAuth token
+// storage.
 type RuntimeStore interface {
 	core.SessionStore
+	core.SubRunStore
 	core.ArtifactStore
 }
 

@@ -68,17 +68,22 @@ type mcpManagerCache struct {
 }
 
 func bootstrapRunMCP(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, req RunnerBuildRequest) (*mcpprovider.Manager, error) {
-	providerConfigs := mcpprovider.ProviderConfigsFromConfig(deps.Config.MCP.Providers)
-	if !hasEnabledProviders(providerConfigs) {
-		return nil, nil
-	}
-
-	manager, err := getOrCreateMCPManager(ctx, deps, cache, providerConfigs)
-	if err != nil {
+	manager, err := runMCPManager(ctx, deps, cache)
+	if err != nil || manager == nil {
 		return nil, err
 	}
 	manager.SetActiveRunID(req.RunID)
 	return manager, nil
+}
+
+// runMCPManager is the shared manager of the configured MCP providers, nil
+// when none is enabled.
+func runMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache) (*mcpprovider.Manager, error) {
+	providerConfigs := mcpprovider.ProviderConfigsFromConfig(deps.Config.MCP.Providers)
+	if !hasEnabledProviders(providerConfigs) {
+		return nil, nil
+	}
+	return getOrCreateMCPManager(ctx, deps, cache, providerConfigs)
 }
 
 func getOrCreateMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig) (*mcpprovider.Manager, error) {

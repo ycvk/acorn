@@ -3,11 +3,13 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
@@ -101,34 +103,90 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 	return out, nil
 }
 
-// buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
-// and resolves a stable skill snapshot for capability eligibility. The tools
-// of the skills' own MCP servers join the catalog once the servers serve.
-func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
+// buildRunCapabilities builds the run's tool catalog (local tools + MCP specs
+// + the run's own tools) and resolves a stable skill snapshot for capability
+// eligibility. The tools of the skills' own MCP servers join the catalog once
+// the servers serve. A non-nil keep leaves out the tools it does not name,
+// then the skills that need them, with their servers' tools.
+func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, mcpManager *mcpprovider.Manager, own []core.ToolSpec, keep func(name string) bool) (*runCapabilities, error) {
 	toolset, err := buildToolset(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := assembleRunCapabilitiesCatalog(ctx, deps, toolset, mcpManager)
+	base, err := assembleRunCapabilitiesCatalog(ctx, deps, toolset, mcpManager)
 	if err != nil {
 		return nil, err
 	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, deps.Skills, tools.EligibilityContext(catalog))
+	// The workstation holds the packages and runs the servers of what a run
+	// of the conversation can use, delegate included, whichever run syncs
+	// them; a sub-run keeping fewer tools leaves them in place.
+	eligibility := tools.EligibilityContext(base)
+	eligibility.AvailableTools = append(eligibility.AvailableTools, "delegate")
+	skillSnapshot, err := loadStableSkillSnapshot(ctx, deps.Skills, eligibility)
 	if err != nil {
 		return nil, err
 	}
 	skillDir, synced := syncSkillPackages(ctx, deps.Skills, deps.SkillPackages, *skillSnapshot)
 	served, skillTools := serveSkillTools(ctx, deps, synced)
-	if len(skillTools) > 0 {
-		if catalog, err = tools.NewCatalog(ctx, append(catalog.Specs(), skillTools...)); err != nil {
-			return nil, fmt.Errorf("add skill tools: %w", err)
+	specs := keptSpecs(append(base.Specs(), own...), keep)
+	if keep != nil {
+		kept, err := tools.NewCatalog(ctx, specs)
+		if err != nil {
+			return nil, fmt.Errorf("keep the run's tools: %w", err)
 		}
+		served = narrowSkills(served, tools.EligibilityContext(kept))
+		skillTools = toolsOfEligibleSkills(skillTools, served)
+	}
+	catalog, err := tools.NewCatalog(ctx, append(specs, skillTools...))
+	if err != nil {
+		return nil, fmt.Errorf("add the run's own and skill tools: %w", err)
 	}
 	return &runCapabilities{
 		catalog:       catalog,
 		skillSnapshot: &served,
 		skillDir:      skillDir,
 	}, nil
+}
+
+// narrowSkills takes out of a snapshot the skills a run lacks tools for.
+func narrowSkills(snapshot skills.Snapshot, eligibility skills.EligibilityContext) skills.Snapshot {
+	out := skills.CopySnapshot(snapshot)
+	for i, view := range out.Skills {
+		if !view.Eligible {
+			continue
+		}
+		if narrowed := skills.Evaluate(view.Spec, eligibility); !narrowed.Eligible {
+			out.Skills[i] = skills.Disable(view, strings.Join(narrowed.DisabledReasons, ";"))
+		}
+	}
+	return out
+}
+
+// toolsOfEligibleSkills keeps the server tools of the skills still in the
+// run.
+func toolsOfEligibleSkills(specs []core.ToolSpec, snapshot skills.Snapshot) []core.ToolSpec {
+	var out []core.ToolSpec
+	for _, spec := range specs {
+		if slices.ContainsFunc(snapshot.Skills, func(view skills.View) bool {
+			return view.Eligible && view.MCP != nil && strings.HasPrefix(spec.Name, skills.MCPToolPrefix(view.Name))
+		}) {
+			out = append(out, spec)
+		}
+	}
+	return out
+}
+
+func keptSpecs(specs []core.ToolSpec, keep func(name string) bool) []core.ToolSpec {
+	if keep == nil {
+		return specs
+	}
+	var out []core.ToolSpec
+	for _, spec := range specs {
+		if keep(spec.Name) {
+			out = append(out, spec)
+		}
+	}
+	return out
 }
 
 // assembleRunCapabilitiesCatalog builds the final run capability catalog by

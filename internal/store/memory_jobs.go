@@ -291,7 +291,7 @@ func (s *Store) ReserveMemoryUsage(ctx context.Context, u core.MemoryUsage, limi
 		}
 		if u.Budget == "autonomous" {
 			var runTokens int
-			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(json_extract(payload_json,'$.total_tokens')),0) FROM events e WHERE kind=? AND created_at>=? AND EXISTS(SELECT 1 FROM events w WHERE w.run_id=e.run_id AND w.kind=?)`, core.EventModelUsage, formatTimestamp(since), core.EventWakeFired).Scan(&runTokens); err != nil {
+			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(json_extract(payload_json,'$.total_tokens')),0) FROM events e WHERE kind=? AND created_at>=? AND `+wokenRun("e"), core.EventModelUsage, formatTimestamp(since), core.EventWakeFired).Scan(&runTokens); err != nil {
 				return err
 			}
 			total += runTokens

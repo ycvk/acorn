@@ -51,14 +51,16 @@ var localToolNames = []string{
 	"follow_up",
 	"files",
 	"send_file",
+	"delegate",
+	"submit",
 }
 
 // runScopedTool reports whether the runtime toolset builds the tool for each
-// run from live services (web access, workstation) instead of the registry
-// resolving it from wire-time dependencies.
+// run from live services (web access, workstation, the run's sub-runs)
+// instead of the registry resolving it from wire-time dependencies.
 func runScopedTool(name string) bool {
 	switch name {
-	case "web_fetch", "web_search", "shell", "job", "follow_up", "files", "send_file":
+	case "web_fetch", "web_search", "shell", "job", "follow_up", "files", "send_file", "delegate", "submit":
 		return true
 	}
 	return false
@@ -95,7 +97,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 		spec.Category = core.ToolCategoryRead
 	case "artifact_write", "knowledge_write", "knowledge_edit", "skill_write", "skill_retire", "skill_import", "watch_create", "watch_update", "news_sections", "news_source":
 		spec.Category = core.ToolCategoryWrite
-	case "ask_operator", "notify_owner":
+	case "ask_operator", "notify_owner", "delegate", "submit":
 		spec.Category = core.ToolCategoryIntegration
 	case "keep", "think", "schedule_wake", "settle", "goal", "memory_correct", "memory_forget", "concern":
 		spec.Category = core.ToolCategoryMemory
