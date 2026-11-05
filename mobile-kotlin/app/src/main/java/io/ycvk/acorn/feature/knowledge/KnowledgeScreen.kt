@@ -97,7 +97,7 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
             KnowledgeContent.Empty -> EmptyState(
                 icon = AcornIcons.Knowledge,
                 title = "知识库还是空的",
-                body = "在任意应用里点「分享」并选择 Acorn，链接、文字和图片都会整理成笔记放在这里。",
+                body = "在对话里让 Acorn 记下文章、计划或资料，它会整理成笔记放在这里。",
             )
             KnowledgeContent.NoMatches -> EmptyState(
                 icon = AcornIcons.Search,

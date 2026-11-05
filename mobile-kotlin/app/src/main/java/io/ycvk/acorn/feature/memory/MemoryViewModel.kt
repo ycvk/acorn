@@ -43,10 +43,21 @@ sealed interface MemoryListContent {
     data class Items(val memories: List<MemorySummary>, val canLoadMore: Boolean) : MemoryListContent
 }
 
-fun memoryListContent(load: Load<MemoryListResponse>, query: String, kind: MemorySummary.Kind?, limit: Int): MemoryListContent = when (load) {
+/**
+ * The unfiltered list waits for the portrait that sits above it, so the portrait is in place
+ * before the first memory and the list opens at its top.
+ */
+fun memoryListContent(
+    load: Load<MemoryListResponse>,
+    portrait: Load<Portrait>,
+    query: String,
+    kind: MemorySummary.Kind?,
+    limit: Int,
+): MemoryListContent = when (load) {
     Load.Loading -> MemoryListContent.Loading
     is Load.Failed -> MemoryListContent.Failed(load.message)
     is Load.Loaded -> when {
+        portrait is Load.Loading && query.isBlank() && kind == null -> MemoryListContent.Loading
         load.value.memories.isNotEmpty() -> MemoryListContent.Items(load.value.memories, load.value.hasMore && limit < MAX_LIMIT)
         query.isBlank() && kind == null -> MemoryListContent.Empty
         else -> MemoryListContent.NoMatches
