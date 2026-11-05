@@ -376,6 +376,45 @@ func TestSeedWritesBuiltInsOnceAndReleaseChangesOnTop(t *testing.T) {
 	}
 }
 
+func TestSeedRetiresBuiltInsTheReleaseNoLongerShips(t *testing.T) {
+	ctx := context.Background()
+	library, store := newTestLibrary(t)
+	at := time.Date(2026, 11, 5, 8, 0, 0, 0, time.UTC)
+	write := func(w core.SkillWrite) {
+		t.Helper()
+		w.Markdown, w.At = "---\nname: "+w.ID+"\ndescription: d\n---\nbody\n", at
+		if _, err := store.WriteSkill(ctx, w); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(core.SkillWrite{ID: "capture-to-note", Author: core.SkillAuthorRelease, SeedSHA256: "an older release"})
+	write(core.SkillWrite{ID: "owned", Author: core.SkillAuthorRelease, SeedSHA256: "an older release"})
+	write(core.SkillWrite{ID: "owned", Author: core.SkillAuthorOwner, BaseRevision: 1})
+	write(core.SkillWrite{ID: "adopted", Author: core.SkillAuthorRelease})
+	write(core.SkillWrite{ID: "gone", Author: core.SkillAuthorRelease, SeedSHA256: "an older release", Retired: true})
+
+	if err := library.Seed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	dropped, _ := store.current("capture-to-note")
+	if dropped.skill.Revision != 2 || !dropped.skill.Retired || dropped.skill.Author != core.SkillAuthorRelease {
+		t.Fatalf("dropped built-in = %+v", dropped.skill)
+	}
+	for id, revision := range map[string]int64{"owned": 2, "adopted": 1, "gone": 1} {
+		current, _ := store.current(id)
+		if current.skill.Revision != revision {
+			t.Errorf("%s = %+v, want revision %d untouched", id, current.skill, revision)
+		}
+	}
+	if current, _ := store.current("owned"); current.skill.Retired {
+		t.Fatal("a built-in the owner wrote over must stay in use")
+	}
+	writes := len(store.writes)
+	if err := library.Seed(ctx); err != nil || len(store.writes) != writes {
+		t.Fatalf("second seed wrote %d more, %v", len(store.writes)-writes, err)
+	}
+}
+
 type fakeHost struct {
 	held    map[string]string
 	put     map[string]int

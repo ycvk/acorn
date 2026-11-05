@@ -221,7 +221,7 @@
   - `internal/workstation/skills_test.go`
   - `internal/runtime/skill_backend_test.go`
   - `internal/tools/web_skill_eligibility_test.go`
-- **内置技能随二进制发布**：`internal/skills/seed` 编进二进制；启动时缺少的内置技能写入 revision 1，内容与上次 release 写入的哈希不同时在当前 revision 之上写新 revision 并保留停用状态，相同则不写。
+- **内置技能随二进制发布**：`internal/skills/seed` 编进二进制；启动时缺少的内置技能写入 revision 1，内容与上次 release 写入的哈希不同时在当前 revision 之上写新 revision 并保留停用状态，相同则不写。二进制不再带的内置技能，当前 revision 仍是 release 写入的就写一个 release 的停用 revision；owner 或 agent 写过的保持原样。
   - `internal/skills/library_test.go`
 - **owner 的改动基于读到的 revision**：App 的回滚把选中 revision 的 `SKILL.md` 与附带文件写成在用的新 revision，恢复把停用技能的当前内容写成在用的新 revision，停用写一个停用 revision；作者都是 owner，不经审批。三者都带 base revision，不等于当前 revision 时以 `ErrSkillConflict` 失败（409 `skill_changed`），什么也不写；回滚与恢复的内容经过与其他写入相同的检查（frontmatter、附带文件、清单、MCP 服务器与 provider 重名），状态不对（停用已停用的、恢复在用的）或检查不过以 `ErrSkillInvalid` 拒绝（400 `skill_change_invalid`）。下一次 run 用写入后的内容。
   - `internal/skills/owner_test.go`
