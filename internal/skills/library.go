@@ -140,13 +140,17 @@ func (l *Library) CheckProviders(ctx context.Context) error {
 
 // Seed writes every built-in skill whose shipped package differs from what a
 // release last wrote, as a new revision on top of the current one. A skill
-// keeps its retired state.
+// keeps its retired state. A built-in skill the binary no longer ships is
+// retired while its current revision is the one a release wrote; a revision
+// the owner or the agent wrote keeps it as they left it.
 func (l *Library) Seed(ctx context.Context) error {
 	builtIn, err := BuiltIn()
 	if err != nil {
 		return err
 	}
+	shipped := make(map[string]bool, len(builtIn))
 	for _, pkg := range builtIn {
+		shipped[pkg.Spec.Name] = true
 		seed := PackageHash(pkg.Markdown, pkg.Files)
 		write := core.SkillWrite{ID: pkg.Spec.Name, Markdown: pkg.Markdown, Files: pkg.Files, Author: core.SkillAuthorRelease, SeedSHA256: seed, At: l.clock()}
 		current, err := l.store.Skill(ctx, pkg.Spec.Name)
@@ -160,6 +164,18 @@ func (l *Library) Seed(ctx context.Context) error {
 			write.BaseRevision, write.Retired = current.Revision, current.Retired
 		}
 		if _, err := l.store.WriteSkill(ctx, write); err != nil {
+			return err
+		}
+	}
+	stored, err := l.store.Skills(ctx)
+	if err != nil {
+		return err
+	}
+	for _, skill := range stored {
+		if shipped[skill.ID] || skill.Retired || skill.SeedSHA256 == "" || skill.Author != core.SkillAuthorRelease {
+			continue
+		}
+		if _, err := l.retire(ctx, skill.ID, skill.Revision, core.SkillAuthorRelease, ""); err != nil {
 			return err
 		}
 	}
