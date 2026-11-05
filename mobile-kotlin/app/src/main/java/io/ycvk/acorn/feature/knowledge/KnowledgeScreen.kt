@@ -158,7 +158,7 @@ private fun NoteRow(note: KnowledgeNoteSummary, time: String, onClick: () -> Uni
             Spacer(Modifier.width(10.dp))
             Text(time, style = AcornTheme.type.mono.copy(fontSize = 12.sp), color = colors.inkFaint)
         }
-        val snippet = plainSnippet(snippetText(note.snippet), note.title)
+        val snippet = plainSnippet(note.snippet, note.title)
         if (snippet.isNotBlank()) {
             Text(snippet, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }

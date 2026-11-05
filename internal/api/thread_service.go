@@ -331,7 +331,7 @@ func queuedMessage(message core.QueuedMessage, files []core.ThreadFile) QueuedMe
 
 func isRunInput(record core.SessionMessageRecord) bool {
 	switch record.Role {
-	case "user", core.MessageRoleWake, core.MessageRoleCapture:
+	case "user", core.MessageRoleWake:
 		return record.RunID != ""
 	}
 	return false
@@ -453,10 +453,10 @@ func toolSteps(events []core.EventRecord) ([]ToolStep, error) {
 	return steps, nil
 }
 
-// createInputMessage records the input of a run Acorn starts itself, a wake
-// (role wake) or a capture (role capture), and returns the stored record
-// (including its id and turn index) so the run can bind to that exact id.
-func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, content string) (*core.SessionMessageRecord, error) {
+// createWakeMessage records the input of a run Acorn starts itself (role
+// wake) and returns the stored record (including its id and turn index) so the
+// run can bind to that exact id.
+func (s *ThreadService) createWakeMessage(ctx context.Context, threadID, content string) (*core.SessionMessageRecord, error) {
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
 		return nil, err
 	}
@@ -465,7 +465,7 @@ func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, 
 		return nil, err
 	}
 	trimmed := strings.TrimSpace(content)
-	record, err := s.store.AppendSessionMessage(ctx, threadID, turnIndex, role, trimmed, "")
+	record, err := s.store.AppendSessionMessage(ctx, threadID, turnIndex, core.MessageRoleWake, trimmed, "")
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +477,7 @@ func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, 
 
 func projectMessage(record core.SessionMessageRecord) (Message, error) {
 	switch record.Role {
-	case "user", core.MessageRoleWake, core.MessageRoleCapture, "assistant", "system", "tool":
+	case "user", core.MessageRoleWake, "assistant", "system", "tool":
 	default:
 		return Message{}, projectionError("message %d has unsupported role %q", record.ID, record.Role)
 	}

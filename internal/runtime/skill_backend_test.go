@@ -17,7 +17,7 @@ import (
 
 func testSkillSnapshot() *skills.Snapshot {
 	return &skills.Snapshot{Skills: []skills.View{
-		{Spec: skills.Spec{Name: "capture-to-note", Description: "Turn a capture into a note. Use when the owner shares a link.", Instruction: "Fetch the link, then knowledge_write.", Revision: 3, Markdown: "---\nname: capture-to-note\n---\nFetch the link, then knowledge_write.\n"}, Eligible: true},
+		{Spec: skills.Spec{Name: "link-to-note", Description: "Turn a link into a note. Use when the owner shares a link.", Instruction: "Fetch the link, then knowledge_write.", Revision: 3, Markdown: "---\nname: link-to-note\n---\nFetch the link, then knowledge_write.\n"}, Eligible: true},
 		{Spec: skills.Spec{Name: "pdf", Description: "Fill PDF forms.", Instruction: "Run scripts/fill.py.", Revision: 2, Markdown: "---\nname: pdf\n---\nRun scripts/fill.py.\n", Files: []core.SkillFileInfo{{Path: "references/forms.md"}, {Path: "scripts/fill.py"}}}, Eligible: true},
 		{Spec: skills.Spec{Name: "web-browser-research", Description: "Browse.", Instruction: "Use the browser."}, Eligible: false},
 	}}
@@ -27,10 +27,10 @@ func TestSkillBackendServesEligibleSkills(t *testing.T) {
 	ctx := context.Background()
 	backend := newSkillBackend(testSkillSnapshot(), "/home/agent/skills")
 	matters, err := backend.List(ctx)
-	if err != nil || len(matters) != 2 || matters[0].Name != "capture-to-note" || matters[1].Name != "pdf" {
+	if err != nil || len(matters) != 2 || matters[0].Name != "link-to-note" || matters[1].Name != "pdf" {
 		t.Fatalf("list = %+v, %v", matters, err)
 	}
-	if matters[0].Description != "Turn a capture into a note. Use when the owner shares a link." {
+	if matters[0].Description != "Turn a link into a note. Use when the owner shares a link." {
 		t.Fatalf("description = %q", matters[0].Description)
 	}
 	if _, err := backend.Get(ctx, "web-browser-research"); err == nil {
@@ -55,7 +55,7 @@ func TestSkillToolLoadsSkillsThroughTheToolChain(t *testing.T) {
 	}
 	present := newTestPresenceMiddleware(t, store)
 	model := &scriptedModel{replies: []*schema.AgenticMessage{
-		toolCallReply("call_0", "skill", `{"skill":"capture-to-note"}`),
+		toolCallReply("call_0", "skill", `{"skill":"link-to-note"}`),
 		toolCallReply("call_1", "skill", `{"skill":"made-up"}`),
 		assistantMessage("done", nil),
 	}}
@@ -76,7 +76,7 @@ func TestSkillToolLoadsSkillsThroughTheToolChain(t *testing.T) {
 		t.Fatalf("agent: %v", err)
 	}
 	runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent})
-	if _, err := drainEvents(t, runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("[capture] https://example.com")})); err != nil {
+	if _, err := drainEvents(t, runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("https://example.com")})); err != nil {
 		t.Fatalf("an unknown skill failed the run: %v", err)
 	}
 
@@ -86,7 +86,7 @@ func TestSkillToolLoadsSkillsThroughTheToolChain(t *testing.T) {
 			loaded = messageText(msg)
 		}
 	}
-	if !strings.Contains(loaded, "Skill capture-to-note, revision 3.\n\n---\nname: capture-to-note\n---\nFetch the link, then knowledge_write.") {
+	if !strings.Contains(loaded, "Skill link-to-note, revision 3.\n\n---\nname: link-to-note\n---\nFetch the link, then knowledge_write.") {
 		t.Fatalf("skill tool result = %q", loaded)
 	}
 	assertLastToolMessage(t, model, `skill "made-up" is not available`)

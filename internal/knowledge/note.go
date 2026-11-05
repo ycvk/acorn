@@ -7,7 +7,7 @@ import (
 )
 
 // CleanNotePath validates a note path: slash-separated, relative, no "..",
-// no hidden segments, outside attachments/, ending in ".md".
+// no hidden segments, ending in ".md".
 func CleanNotePath(p string) (string, error) {
 	p = strings.TrimSpace(p)
 	if err := checkRelativePath(p); err != nil {
@@ -15,9 +15,6 @@ func CleanNotePath(p string) (string, error) {
 	}
 	if !strings.HasSuffix(p, ".md") {
 		return "", fmt.Errorf("%w: %q must end in .md", ErrInvalidPath, p)
-	}
-	if strings.HasPrefix(p, attachmentsDir+"/") {
-		return "", fmt.Errorf("%w: %q is under %s/, which holds attachments only", ErrInvalidPath, p, attachmentsDir)
 	}
 	return p, nil
 }

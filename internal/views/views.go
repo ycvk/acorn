@@ -44,8 +44,8 @@ var ErrInvalidView = errors.New("the view was not shown")
 type References interface {
 	// Link returns why the owner should not be sent to url, or nil.
 	Link(ctx context.Context, url string) error
-	// Image returns why ref, a file id of this conversation or a knowledge
-	// attachment path, cannot be shown, or nil.
+	// Image returns why ref, a file id of this conversation, cannot be shown,
+	// or nil.
 	Image(ctx context.Context, ref string) error
 }
 
@@ -68,7 +68,7 @@ const (
 	propItems                    // a path to the array a List repeats over
 	propPoints                   // chart points {label, value}, written out or a path
 	propURL                      // a web address, or a path to one
-	propImage                    // a file id or attachment path, or a path to one
+	propImage                    // a file id, or a path to one
 	propAction                   // what pressing a button or choosing sends: {name, context}
 	propOptions                  // choices {id, label}, written out or a path
 	propBool                     // true or false, written out

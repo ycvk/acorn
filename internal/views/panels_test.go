@@ -40,12 +40,6 @@ type noFiles struct{}
 
 func (noFiles) ThreadFiles(context.Context, string) ([]core.ThreadFile, error) { return nil, nil }
 
-type noAttachments struct{}
-
-func (noAttachments) ReadAttachment(context.Context, string) (core.Attachment, error) {
-	return core.Attachment{}, errors.New("no attachments")
-}
-
 type httpsOnly struct{}
 
 func (httpsOnly) Validate(_ context.Context, raw string) (webaccess.ValidatedURL, error) {
@@ -67,7 +61,7 @@ func TestFeedReplacesTheDataOfThePanelsItFits(t *testing.T) {
 	moved := core.ThreadView{ID: "view_moved", SessionID: "repos", Title: "刚改过",
 		Components: json.RawMessage(`[{"id":"root","component":"Text","text":{"path":"/latest"}}]`)}
 	store := &panelStoreFake{panels: map[string][]core.ThreadView{"repo-releases/check": {latest, table, moved}}, fed: map[string]string{}, gone: map[string]bool{"view_moved": true}}
-	feeder, err := NewFeeder(store, Sources{Files: noFiles{}, Attachments: noAttachments{}, Links: httpsOnly{}})
+	feeder, err := NewFeeder(store, Sources{Files: noFiles{}, Links: httpsOnly{}})
 	if err != nil {
 		t.Fatal(err)
 	}

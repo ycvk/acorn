@@ -156,8 +156,8 @@ func TestRenderDoctorProviderLineDoesNotPrintCircuitState(t *testing.T) {
 }
 
 func TestRenderDoctorKnowledge(t *testing.T) {
-	got := renderDoctorKnowledge(knowledge.Status{Notes: 12, Attachments: "/root/.acorn/attachments"})
-	for _, want := range []string{"Knowledge base", "Notes: 12", "Attachments: /root/.acorn/attachments"} {
+	got := renderDoctorKnowledge(knowledge.Status{Notes: 12})
+	for _, want := range []string{"Knowledge base", "Notes: 12"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("knowledge section lacks %q:\n%s", want, got)
 		}

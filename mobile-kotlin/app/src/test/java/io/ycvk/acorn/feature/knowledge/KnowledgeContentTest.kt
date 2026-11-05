@@ -34,21 +34,4 @@ class KnowledgeContentTest {
         assertEquals(Load.Loaded(listOf(other)), withoutNote(Load.Loaded(listOf(note, other)), "inbox/tokio.md"))
         assertEquals(Load.Loading, withoutNote(Load.Loading, "inbox/tokio.md"))
     }
-
-    @Test
-    fun `note body splits around attachment embeds`() {
-        assertEquals(
-            listOf(
-                NoteSegment.Markdown("Photo:"),
-                NoteSegment.Image("attachments/2026/10/ab12.png", "whiteboard"),
-                NoteSegment.Markdown("end ![logo](https://example.com/logo.png)"),
-            ),
-            noteSegments("Photo:\n![whiteboard](attachments/2026/10/ab12.png)\nend ![logo](https://example.com/logo.png)"),
-        )
-        assertEquals(
-            listOf(NoteSegment.Image("attachments/2026/10/ab12.png", "ab12.png")),
-            noteSegments("![](attachments/2026/10/ab12.png)"),
-        )
-        assertEquals("photo [whiteboard]", snippetText("photo ![whiteboard](attachments/2026/10/ab12.png)"))
-    }
 }

@@ -49,7 +49,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
 		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
 		Watch:           WatchToolDeps{Store: &toolWatchStore{}, News: &toolNewsSearcher{}, Feeds: &toolFeedDiscoverer{}, Triggers: triggersFake{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Settings: settings.Fixed(core.Settings{Location: time.UTC})},
-		Views:           ViewToolDeps{Store: &viewStoreFake{}, Sources: views.Sources{Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: bridge},
+		Views:           ViewToolDeps{Store: &viewStoreFake{}, Sources: views.Sources{Files: viewFilesFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: bridge},
 	}
 }
 

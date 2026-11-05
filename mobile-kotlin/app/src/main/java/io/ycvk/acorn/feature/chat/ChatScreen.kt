@@ -58,7 +58,6 @@ import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.NotificationsNone
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
@@ -131,7 +130,6 @@ import io.ycvk.acorn.data.repository.pendingAttachment
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
-import io.ycvk.acorn.feature.knowledge.AttachmentImage
 import io.ycvk.acorn.feature.views.ViewActions
 import io.ycvk.acorn.feature.views.ViewCards
 import kotlinx.coroutines.launch
@@ -298,13 +296,6 @@ fun ChatScreen(
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, Modifier.padding(top = 8.dp))
                         }
                         is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier, summary = message.summary)
-                        is ChatMessage.Capture -> InputNote("从手机分享", Icons.Outlined.Share, message.text, itemModifier) {
-                            val profile = viewModel.connection()
-                            if (message.image != null && profile != null) {
-                                Spacer(Modifier.height(8.dp))
-                                AttachmentImage(message.image, "分享的图片", profile)
-                            }
-                        }
                     }
                 }
                 if (streaming || chatState.assistantText.isNotBlank() || chatState.steps.isNotEmpty() || chatState.views.isNotEmpty() || chatState.subRuns.isNotEmpty()) {
@@ -634,9 +625,9 @@ private fun Reasoning(reasoning: String) {
 }
 
 /**
- * What started a run when the owner didn't type it: a wake, or something
- * shared from the phone. A wake with a [summary] shows it in place of the
- * input; a tap shows the whole input the agent got, and another folds it.
+ * What started a run when the owner didn't type it: a wake. A wake with a
+ * [summary] shows it in place of the input; a tap shows the whole input the
+ * agent got, and another folds it.
  */
 @Composable
 private fun InputNote(
@@ -645,7 +636,6 @@ private fun InputNote(
     text: String,
     modifier: Modifier = Modifier,
     summary: WakeSummary? = null,
-    attachment: @Composable () -> Unit = {},
 ) {
     val colors = AcornTheme.colors
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -682,7 +672,6 @@ private fun InputNote(
                     Icon(AcornIcons.ChevronDown, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(14.dp).rotate(rotation))
                 }
             }
-            attachment()
         }
     }
 }

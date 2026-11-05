@@ -47,7 +47,6 @@
   - `internal/store/store_thread_steps_test.go`
 - **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再在同一事务里记下 `run.completed`/`run.failed` 与结束状态；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
-  - `internal/wire/capture_acceptance_e2e_test.go`
   - `internal/store/store_runs_test.go`
 - **run 进行中 owner 发的话交给这个 run**：`POST /v1/threads/{id}/runs` 在同一事务里判断对话：有 run 在运行或等待审批时，消息存进 `queued_messages` 并返回 202 与这个 run；否则在队列里剩下的消息之后写下这条消息并建 run，返回 201。排队的消息不是对话消息，也不是记忆来源。interjection middleware 在 run 每次调用模型前把队列里的文字消息按发送顺序写进对话、绑定到这个 run（取 run 的 turn）并追加到 agent state 与 run 的历史，每条记一个 `run.input` 事件；带文件的消息与它之后的留到下一个 run。run 结束时，若对话里没有别的 run 在运行或等待审批，同一事务把剩下的消息写在回复之后、建下一个 run 并把它写进终止事件的 `next_run_id`，随后执行它。终止前没能接手的路径（setup 失败、Acorn 停止）留下的消息由 `serve` 的续跑扫描在启动时与每分钟起 run，owner 的下一条消息也会先带上它们。队列随对话删除。
   - `internal/store/store_owner_messages_test.go`
@@ -72,7 +71,7 @@
   - `tests/architecture/dependency_direction_test.go`
 - **数据库结构有版本**：`PRAGMA user_version` 记录结构版本。空库在一个事务里按当前结构建好并写入版本；旧版本库在独占存储锁下按顺序迁移，每一步与版本号在同一事务提交，外键在迁移期间关闭、每一步结束时不得有失效外键；没有版本号或版本更新的库拒绝打开。每个版本的结构记录在 `internal/store/testdata/schema/vN.sql`，从任一记录版本升级的结果必须与新建库的结构完全一致。
   - `internal/store/schema_version_test.go`
-- **备份不打断运行，恢复要求停机**：`acorn backup` 写入 `backup.dir`（为空表示关闭备份）、保留最新 `backup.keep` 份快照，经只读连接 `VACUUM INTO` 生成数据库快照，校验完整性与结构版本后以原子重命名发布；附件与产出文件在快照之后镜像，只增不删，快照引用的文件都在镜像里。`acorn restore` 持有独占存储锁，Acorn 运行时拒绝执行，先校验快照再替换数据库并清除 WAL。
+- **备份不打断运行，恢复要求停机**：`acorn backup` 写入 `backup.dir`（为空表示关闭备份）、保留最新 `backup.keep` 份快照，经只读连接 `VACUUM INTO` 生成数据库快照，校验完整性与结构版本后以原子重命名发布；产出文件与对话文件在快照之后镜像，只增不删，快照引用的文件都在镜像里。`acorn restore` 持有独占存储锁，Acorn 运行时拒绝执行，先校验快照再替换数据库并清除 WAL。
   - `internal/wire/backup_test.go`
 - **写入单连接，记忆读取并行**：所有写入与事务经一个 SQLite 连接串行执行；记忆召回与整合候选的读取走 `query_only` 的 WAL 只读连接池，写事务进行中也能读到已提交的数据，只读池拒绝写入。
   - `internal/store/store_read_pool_test.go`
@@ -174,22 +173,16 @@
 - **知识记忆绑定不可变版本**：每个笔记 revision 在写入事务里登记为记忆来源，展开读取对应 revision 的正文；agent 写入保留来源关系，后续派生输出继承已提交的遗忘。agent 知识工具过滤排除，owner 的原文读取保留。
   - `internal/knowledge/memory_sources_test.go`
 
-## 知识库与 Capture
+## 知识库
 
-- **笔记的每次写入是一个 revision**：笔记只经 `knowledge.Vault` 写入 SQLite；`knowledge_write`/`knowledge_edit` 各产生一个新 revision，保留创建时间、正文哈希与写入它的 run。编辑基于读到的 revision，期间被改过或笔记已删除则以 `ErrKnowledgeConflict` 失败。同一路径在删除后重建，revision 接着该路径已登记来源的最大版本编号，来源 ID 不复用。搜索与列表读当前 revision。笔记路径必须是相对 `.md` 路径，不能含 `..`、隐藏段或位于 `attachments/`。
+- **笔记的每次写入是一个 revision**：笔记只经 `knowledge.Vault` 写入 SQLite；`knowledge_write`/`knowledge_edit` 各产生一个新 revision，保留创建时间、正文哈希与写入它的 run。编辑基于读到的 revision，期间被改过或笔记已删除则以 `ErrKnowledgeConflict` 失败。同一路径在删除后重建，revision 接着该路径已登记来源的最大版本编号，来源 ID 不复用。搜索与列表读当前 revision。笔记路径必须是相对 `.md` 路径，不能含 `..` 或隐藏段。
   - `internal/knowledge/knowledge_test.go`
   - `internal/store/store_knowledge_test.go`
   - `internal/tools/knowledge_tools_test.go`
-  - `internal/wire/capture_acceptance_e2e_test.go`
-- **删除笔记是 owner 的遗忘请求**：`DELETE /v1/knowledge/note` 先读出当前 revision，以 owner 请求排除该路径每个 revision 的记忆来源及其派生记录，经遗忘屏障等用过它们的 run 结束，再按读到的 revision 删除笔记、全部 revision 与搜索索引；期间笔记被改过则以 409 失败，再删一次会连新 revision 一起遗忘。记忆来源保留，排除持续生效；笔记引用的附件保留。agent 没有删除笔记的工具。
-  - `internal/api/capture_knowledge_test.go`
+- **删除笔记是 owner 的遗忘请求**：`DELETE /v1/knowledge/note` 先读出当前 revision，以 owner 请求排除该路径每个 revision 的记忆来源及其派生记录，经遗忘屏障等用过它们的 run 结束，再按读到的 revision 删除笔记、全部 revision 与搜索索引；期间笔记被改过则以 409 失败，再删一次会连新 revision 一起遗忘。记忆来源保留，排除持续生效。agent 没有删除笔记的工具。
+  - `internal/api/handlers_knowledge_test.go`
   - `internal/store/store_knowledge_test.go`
   - `internal/wire/note_delete_e2e_test.go`
-- **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `{storage_dir}/attachments/`，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。历史里的 capture 消息把 `Image:` 行指向的附件作为图片输入随消息交给模型，附件读取失败则 run 失败；token 预算按每张 `core.ImageInputTokens` 计。`GET /v1/knowledge/attachment` 只返回符合 `attachments/YYYY/MM/<16 位 hex>.<jpg|png|webp|gif>` 的文件，其他路径按无效请求拒绝；笔记以 `![描述](attachments/...)` 引用图片。
-  - `internal/knowledge/knowledge_test.go`
-  - `internal/api/capture_knowledge_test.go`
-  - `internal/runtime/tokens_test.go`
-  - `internal/wire/capture_acceptance_e2e_test.go`
 
 ## 技能
 
@@ -265,7 +258,7 @@
   - `internal/store/thread_files_test.go`
   - `internal/core/thread_file_test.go`
   - `internal/wire/thread_files_e2e_test.go`
-- **视图经后端校验后挂在回复上**：`show_view` 经 toolsearch 按需加载，`internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里的 Markdown 链接）、不是本对话图片文件或知识库图片附件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
+- **视图经后端校验后挂在回复上**：`show_view` 经 toolsearch 按需加载，`internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里的 Markdown 链接）、不是本对话图片文件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
   - `internal/views/views_test.go`
   - `internal/tools/views_tool_test.go`
   - `internal/store/thread_views_test.go`
@@ -438,6 +431,7 @@
 - **文件经工作机往返**：每次 run 前，对话里已发送的 owner 文件按 id 复制到工作机 `~/uploads/<file_id>/<文件名>`（写在旁边再整体换入），不再属于任何对话的副本被删除；复制失败时 run 继续，模型从消息附注里得知原因。模型看到每条 owner 消息附带的文件名、类型、大小与工作机路径，≤10 MiB 的 JPEG/PNG/WebP/GIF 作为图片输入随消息交给模型并按 `core.ImageInputTokens` 计入输入预算。`send_file` 是 eager 工具，经工作机 `/v1/files/raw` 读取文件，超过 `files.max_send_mib` 时失败，存为本 run 的 agent 文件。对话的消息把 agent 文件列在本 run 的回复下；run 没有回复时，列在它的输入之后一条以 run id 为 id 的无文本 assistant 消息里。
   - `internal/workstation/files_test.go`
   - `internal/tools/workstation_tools_test.go`
+  - `internal/runtime/tokens_test.go`
   - `internal/wire/thread_files_e2e_test.go`
 - **伴随进程常驻**：`acorn workstation serve --keep` 的每个伴随进程在独立进程组里运行，退出后按退避重启，serve 停止时连同其子进程一起结束；日志按名字加前缀并去掉终端颜色码。
   - `internal/workstation/supervisor_test.go`

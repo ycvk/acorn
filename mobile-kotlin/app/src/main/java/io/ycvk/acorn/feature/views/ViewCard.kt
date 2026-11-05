@@ -61,7 +61,6 @@ import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.authorizedImage
 import io.ycvk.acorn.core.ui.hairline
 import io.ycvk.acorn.data.repository.threadFileUrl
-import io.ycvk.acorn.feature.knowledge.AttachmentImage
 
 /**
  * How a view's buttons and choices reach the server. [idle] is false while a
@@ -403,10 +402,6 @@ private fun ViewLink(label: String, url: String) {
 @Composable
 private fun ViewImage(ref: String, alt: String, drawing: Drawing) {
     val profile = drawing.profile ?: return
-    if (ref.startsWith("attachments/")) {
-        AttachmentImage(ref, alt, profile)
-        return
-    }
     val threadId = drawing.threadId ?: return
     val context = LocalContext.current
     val request = remember(threadId, ref, profile) {

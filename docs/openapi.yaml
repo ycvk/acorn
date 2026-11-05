@@ -18,7 +18,6 @@ tags:
   - name: sessions
   - name: runs
   - name: client
-  - name: captures
   - name: knowledge
   - name: memories
   - name: portrait
@@ -1404,41 +1403,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /v1/captures:
-    post:
-      tags: [captures]
-      summary: Hand the agent something shared from the phone
-      description: |
-        Starts a run in a new thread whose input (role `capture`) lists the
-        shared subject, text and image. An image is stored under
-        `attachments/` in the storage directory before the run starts. Text or an image is
-        required.
-      operationId: clientCreateCapture
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CaptureRequest'
-      responses:
-        '202':
-          description: Capture accepted; the run has started
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CaptureAccepted'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/DeviceRevoked'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '503':
-          $ref: '#/components/responses/ExecutionNotReady'
-        '500':
-          $ref: '#/components/responses/InternalError'
   /v1/knowledge/notes:
     get:
       tags: [knowledge]
@@ -1536,41 +1500,6 @@ paths:
           $ref: '#/components/responses/KnowledgeNoteNotFound'
         '409':
           $ref: '#/components/responses/KnowledgeNoteChanged'
-        '500':
-          $ref: '#/components/responses/InternalError'
-  /v1/knowledge/attachment:
-    get:
-      tags: [knowledge]
-      summary: Read an image stored by a capture
-      description: |
-        Returns the image bytes. Notes embed attachments as
-        `![alt](attachments/...)`, and a capture input names its image on an
-        `Image:` line. Attachment paths never change content, so responses
-        may be cached indefinitely.
-      operationId: clientGetKnowledgeAttachment
-      parameters:
-        - name: path
-          in: query
-          required: true
-          description: Attachment path relative to the storage directory, e.g. attachments/2026/10/0123456789abcdef.png.
-          schema:
-            type: string
-      responses:
-        '200':
-          description: The image
-          content:
-            image/*:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/DeviceRevoked'
-        '404':
-          $ref: '#/components/responses/KnowledgeAttachmentNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -2284,18 +2213,6 @@ components:
                 error:
                   code: persona_not_found
                   message: 'persona not found: revision 9'
-    KnowledgeAttachmentNotFound:
-      description: Attachment not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            knowledgeAttachmentNotFound:
-              value:
-                error:
-                  code: knowledge_attachment_not_found
-                  message: 'attachment not found: attachments/2026/10/0123456789abcdef.png'
     CommitmentNotFound:
       description: Commitment not found
       content:
@@ -3455,12 +3372,10 @@ components:
           type: string
         role:
           type: string
-          enum: [user, wake, capture, assistant, system, tool]
+          enum: [user, wake, assistant, system, tool]
           description: |
             `wake` is the input of a run started by one of the agent's
-            commitments, not something the owner wrote. `capture` is the
-            input of a run started by something the owner shared from their
-            phone.
+            commitments, not something the owner wrote.
         content:
           $ref: '#/components/schemas/MessageContent'
         created_at:
@@ -4054,31 +3969,6 @@ components:
           pattern: '^[cdef][A-Za-z0-9_-]{21}$'
           description: Firebase installation ID the app registered with FCM.
 
-    CaptureRequest:
-      type: object
-      properties:
-        text:
-          type: string
-          maxLength: 16384
-          description: Shared text, often a link, plus the owner's note.
-        subject:
-          type: string
-          description: Title the sharing app gave, such as a page title.
-        image:
-          type: string
-          format: binary
-          description: JPEG, PNG, WebP or GIF, at most 10 MiB.
-
-    CaptureAccepted:
-      type: object
-      additionalProperties: false
-      required: [thread_id, run_id]
-      properties:
-        thread_id:
-          type: string
-        run_id:
-          type: string
-
     BrowserTab:
       type: object
       required: [id, title, url]
@@ -4628,7 +4518,7 @@ components:
           description: The source as memory reads it, whitespace collapsed and clipped to 120 characters.
         source_kind:
           type: string
-          description: message, capture, or another kind of the owner's own source.
+          description: message, or another kind of the owner's own source.
         thread_id:
           type: string
           description: The conversation the source belongs to, when it has one.

@@ -102,7 +102,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if notifier != nil {
 		notifyDeps.Notifier = notifier
 	}
-	vault, err := knowledge.NewVault(knowledge.VaultConfig{Store: db, StorageDir: cfg.Runtime.StorageDir, Clock: options.clock, Settings: ownerSettings})
+	vault, err := knowledge.NewVault(knowledge.VaultConfig{Store: db, Clock: options.clock})
 	if err != nil {
 		return nil, fmt.Errorf("knowledge base: %w", err)
 	}
@@ -142,7 +142,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	viewSources := views.Sources{Files: db, Attachments: vault, Links: webaccess.URLPolicy{AllowPrivateNetworks: cfg.WebAccess.AllowPrivateNetworks}}
+	viewSources := views.Sources{Files: db, Links: webaccess.URLPolicy{AllowPrivateNetworks: cfg.WebAccess.AllowPrivateNetworks}}
 	panels, err := views.NewFeeder(db, viewSources)
 	if err != nil {
 		return nil, err
@@ -207,7 +207,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	runnerFactory, err := runtime.NewRunnerFactory(runtime.RuntimeDeps{
 		Config:             cfg,
 		Store:              db,
-		Attachments:        vault,
 		Files:              db,
 		Views:              db,
 		Stories:            db,

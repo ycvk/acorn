@@ -194,33 +194,15 @@ func (s *RunService) CreateScheduledRun(ctx context.Context, threadID, input str
 	if strings.TrimSpace(wake.Reason) == "" {
 		return nil, errors.New("scheduled run requires wake reason")
 	}
-	return s.createRun(ctx, threadID, input, wake.Reason, core.MessageRoleWake, &wake)
-}
-
-// captureWake describes what wakes a capture run.
-const captureWake = "owner shared something"
-
-// CreateCaptureRun starts a run in threadID on something the owner shared.
-// Captures are the owner's doing and do not count as autonomous wakes.
-func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input string) (*Run, error) {
-	if strings.TrimSpace(input) == "" {
-		return nil, errors.New("capture run requires input")
-	}
-	return s.createRun(ctx, threadID, input, captureWake, core.MessageRoleCapture, nil)
-}
-
-// createRun records input under role and starts the run on it. wake tells the
-// agent what woke it.
-func (s *RunService) createRun(ctx context.Context, threadID, input, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
 	threadID = strings.TrimSpace(threadID)
 	if strings.TrimSpace(input) == "" {
-		return nil, fmt.Errorf("%s run in %s requires input", role, threadID)
+		return nil, fmt.Errorf("scheduled run in %s requires input", threadID)
 	}
-	message, err := s.threads.createInputMessage(ctx, threadID, role, input)
+	message, err := s.threads.createWakeMessage(ctx, threadID, input)
 	if err != nil {
 		return nil, err
 	}
-	return s.startRun(ctx, threadID, message, wake, scheduled)
+	return s.startRun(ctx, threadID, message, wake.Reason, &wake)
 }
 
 // SendViewAction sends what the owner pressed or chose in a view of the

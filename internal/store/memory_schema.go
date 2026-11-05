@@ -160,19 +160,23 @@ CREATE TABLE IF NOT EXISTS memory_vector_sketches (
 );
 `
 
-const memorySourceTriggers = memorySourceLinkTrigger + memoryWatchTrigger + memoryTriggerEventTrigger + `
-
+// memoryMessageTrigger records each session message as a memory source; what
+// the owner wrote is queued for extraction.
+const memoryMessageTrigger = `
 CREATE TRIGGER IF NOT EXISTS memory_message_ai AFTER INSERT ON session_messages BEGIN
  INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,run_id,recorded_at)
  VALUES('message:'||new.id,'message',CAST(new.id AS TEXT),'1',
- CASE WHEN new.role IN ('user','capture') THEN 'owner' WHEN new.role='assistant' THEN 'assistant' ELSE 'system' END,
+ CASE WHEN new.role='user' THEN 'owner' WHEN new.role='assistant' THEN 'assistant' ELSE 'system' END,
  new.session_id,new.run_id,new.created_at);
  INSERT OR IGNORE INTO memory_jobs(operation,object_id,version,available_at,created_at)
- SELECT 'extract','message:'||new.id,'1',new.created_at,new.created_at WHERE new.role IN ('user','capture');
+ SELECT 'extract','message:'||new.id,'1',new.created_at,new.created_at WHERE new.role='user';
  INSERT OR IGNORE INTO memory_source_links(source_id,parent_id)
  SELECT 'message:'||new.id,ref.source_id FROM context_snapshot_refs ref
  WHERE new.role='assistant' AND ref.run_id=new.run_id AND ref.source_id<>'';
 END;
+`
+
+const memorySourceTriggers = memorySourceLinkTrigger + memoryWatchTrigger + memoryTriggerEventTrigger + memoryMessageTrigger + `
 CREATE TRIGGER IF NOT EXISTS memory_message_run_au AFTER UPDATE OF run_id ON session_messages BEGIN
  UPDATE memory_sources SET run_id=new.run_id WHERE id='message:'||new.id;
 END;

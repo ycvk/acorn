@@ -29,7 +29,7 @@ func TestDeletingANoteForgetsIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.vault.Write(ctx, knowledge.WriteNote{Path: "inbox/smol.md", Title: "smol", Body: "smol 是一个小运行时。", RunID: "run-capture"}); err != nil {
+	if _, err := c.vault.Write(ctx, knowledge.WriteNote{Path: "inbox/smol.md", Title: "smol", Body: "smol 是一个小运行时。", RunID: "run-note"}); err != nil {
 		t.Fatal(err)
 	}
 	records, err := c.store.CommitMemory(ctx, core.MemoryMutation{Now: time.Now(), Changes: []core.MemoryChange{{

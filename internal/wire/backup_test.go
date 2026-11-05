@@ -50,8 +50,8 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	if err := running.SetSkillSecret(ctx, "github", "GITHUB_TOKEN", "ghp_backup", time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	attachment := filepath.Join("attachments", "2026", "10", "0123456789abcdef.png")
-	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, attachment), "png bytes")
+	threadFile := filepath.Join("files", "thread_1", "photo.png")
+	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, threadFile), "png bytes")
 	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, "artifacts", "run_1", "report.md"), "report")
 
 	dir := t.TempDir()
@@ -104,8 +104,8 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	if secrets, err := db.SkillSecrets(ctx, "github"); err != nil || secrets["GITHUB_TOKEN"] != "ghp_backup" {
 		t.Fatalf("restored secrets %v: %v", secrets, err)
 	}
-	if data, err := os.ReadFile(filepath.Join(target.Runtime.StorageDir, attachment)); err != nil || string(data) != "png bytes" {
-		t.Fatalf("restored attachment %q: %v", data, err)
+	if data, err := os.ReadFile(filepath.Join(target.Runtime.StorageDir, threadFile)); err != nil || string(data) != "png bytes" {
+		t.Fatalf("restored thread file %q: %v", data, err)
 	}
 }
 
@@ -140,15 +140,15 @@ func TestFailedBackupRemovesItsPartialSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer running.Close()
-	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, "attachments", "a.png"), "png bytes")
+	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, "files", "thread_1", "a.png"), "png bytes")
 	dir := t.TempDir()
 	source.Backup.Dir, source.Backup.Keep = dir, 3
-	// A file where the attachments mirror belongs makes mirroring fail after
+	// A file where the thread files mirror belongs makes mirroring fail after
 	// the database snapshot is written.
-	writeTestFile(t, filepath.Join(dir, "attachments"), "in the way")
+	writeTestFile(t, filepath.Join(dir, "files"), "in the way")
 
 	if _, err := Backup(ctx, source, time.Date(2026, 10, 11, 4, 30, 0, 0, time.UTC)); err == nil {
-		t.Fatal("backup succeeded with its attachments mirror blocked")
+		t.Fatal("backup succeeded with its thread files mirror blocked")
 	}
 	entries, err := os.ReadDir(filepath.Join(dir, "snapshots"))
 	if err != nil {

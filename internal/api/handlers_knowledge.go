@@ -2,85 +2,11 @@ package api
 
 import (
 	"errors"
-	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
-	"strconv"
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
 )
-
-func (s *Server) handleCreateCapture(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxCaptureBodyBytes)
-	if err := r.ParseMultipartForm(maxCaptureBodyBytes); err != nil {
-		s.respondCaptureError(w, r, captureBodyError(err))
-		return
-	}
-	defer func() {
-		if err := r.MultipartForm.RemoveAll(); err != nil {
-			s.logInternalError(r, "capture_multipart_cleanup_failed", err)
-		}
-	}()
-	image, err := readCaptureImage(r)
-	if err != nil {
-		s.respondCaptureError(w, r, err)
-		return
-	}
-	accepted, err := s.captures.Capture(r.Context(), CaptureInput{
-		Text:    r.FormValue("text"),
-		Subject: r.FormValue("subject"),
-		Image:   image,
-	})
-	if err != nil {
-		s.respondCaptureError(w, r, err)
-		return
-	}
-	s.respondJSON(w, r, http.StatusAccepted, accepted)
-}
-
-func readCaptureImage(r *http.Request) ([]byte, error) {
-	file, _, err := r.FormFile("image")
-	if errors.Is(err, http.ErrMissingFile) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("%w: image: %w", ErrInvalidCapture, err)
-	}
-	defer func() { _ = file.Close() }()
-	data, err := io.ReadAll(io.LimitReader(file, maxCaptureImageBytes+1))
-	if err != nil {
-		return nil, fmt.Errorf("read image: %w", err)
-	}
-	if len(data) > maxCaptureImageBytes {
-		return nil, fmt.Errorf("%w: image is larger than 10 MiB", ErrCaptureTooLarge)
-	}
-	return data, nil
-}
-
-func captureBodyError(err error) error {
-	var tooLarge *http.MaxBytesError
-	switch {
-	case errors.As(err, &tooLarge):
-		return fmt.Errorf("%w: request body is larger than %d bytes", ErrCaptureTooLarge, maxCaptureBodyBytes)
-	case errors.Is(err, http.ErrNotMultipart), errors.Is(err, multipart.ErrMessageTooLarge):
-		return fmt.Errorf("%w: send multipart/form-data: %w", ErrInvalidCapture, err)
-	default:
-		return fmt.Errorf("%w: %w", ErrInvalidCapture, err)
-	}
-}
-
-func (s *Server) respondCaptureError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, ErrCaptureTooLarge):
-		s.respondError(w, r, http.StatusRequestEntityTooLarge, "payload_too_large", err.Error())
-	case errors.Is(err, ErrInvalidCapture):
-		s.respondBadRequest(w, r, err.Error())
-	default:
-		s.respondClientKnownError(w, r, err)
-	}
-}
 
 func (s *Server) handleListKnowledgeNotes(w http.ResponseWriter, r *http.Request) {
 	limit, err := parseBoundedLimit(r.URL.Query().Get("limit"), defaultKnowledgeListLimit, maxKnowledgeListLimit)
@@ -114,24 +40,6 @@ func (s *Server) handleDeleteKnowledgeNote(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleGetKnowledgeAttachment serves a stored image. Attachment paths carry a
-// random ID and are never rewritten, so clients may cache them indefinitely.
-func (s *Server) handleGetKnowledgeAttachment(w http.ResponseWriter, r *http.Request) {
-	attachment, err := s.knowledge.GetAttachment(r.Context(), r.URL.Query().Get("path"))
-	if err != nil {
-		s.respondKnowledgeError(w, r, err)
-		return
-	}
-	w.Header().Set("Content-Type", attachment.MIME)
-	w.Header().Set("Content-Length", strconv.Itoa(len(attachment.Data)))
-	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(attachment.Data); err != nil {
-		s.logInternalError(r, "knowledge_attachment_write_failed", err)
-	}
-}
-
 func (s *Server) respondKnowledgeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, knowledge.ErrInvalidPath):
@@ -140,8 +48,6 @@ func (s *Server) respondKnowledgeError(w http.ResponseWriter, r *http.Request, e
 		s.respondNotFound(w, r, "knowledge_note_not_found", err.Error())
 	case errors.Is(err, core.ErrKnowledgeConflict):
 		s.respondConflict(w, r, "knowledge_note_conflict", err.Error())
-	case errors.Is(err, knowledge.ErrAttachmentNotFound):
-		s.respondNotFound(w, r, "knowledge_attachment_not_found", err.Error())
 	default:
 		s.respondKnownError(w, r, err)
 	}

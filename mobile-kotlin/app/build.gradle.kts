@@ -133,7 +133,7 @@ dependencies {
     implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.30.1")
     implementation("org.commonmark:commonmark-ext-autolink:0.30.1")
 
-    // Shared images in notes and capture cards.
+    // Images in conversations and views.
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
 

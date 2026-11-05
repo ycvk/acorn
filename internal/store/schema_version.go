@@ -19,7 +19,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 35
+const schemaVersion = 36
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -57,6 +57,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	addGoalEndRuns,
 	addSubRuns,
 	addPortrait,
+	ownerSourcesFromUserMessages,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -481,5 +482,12 @@ func extractOwnerSourcesOnly(ctx context.Context, tx *sql.Tx) error {
 // when its run read that parent before the fragment was excluded.
 func inheritFragmentExclusionsByEpoch(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, `DROP TRIGGER memory_source_link_ai;`+memorySourceLinkTrigger)
+	return err
+}
+
+// ownerSourcesFromUserMessages (35 to 36) recreates memory_message_ai so only
+// what the owner wrote is an owner source.
+func ownerSourcesFromUserMessages(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `DROP TRIGGER memory_message_ai;`+memoryMessageTrigger)
 	return err
 }

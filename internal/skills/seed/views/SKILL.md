@@ -35,7 +35,7 @@ A view is a small screen under your reply, drawn by the app from a fixed catalog
 | `Text` | `text` required, inline Markdown links allowed; `variant`: `body` (default), `title`, `caption` |
 | `Badge` | `text` required; `tone`: `neutral` (default), `accent`, `success`, `warning`, `danger` |
 | `Link` | `label` and `url`, both required; http(s) addresses the web policy allows |
-| `Image` | `file` required: a file id of this conversation (`file_…`) or a knowledge attachment path (`attachments/…`); `alt` |
+| `Image` | `file` required: a file id of this conversation (`file_…`); `alt` |
 | `Table` | `columns`: 1 to 8 headings, written out; `rows`: an array of rows, each with one cell per column (string, number or null) |
 | `List` | `items`: `{"path": …}` to an array; `template`: id of the component drawn for each item |
 | `Chart` | `variant`: `line` or `bar`, required; `points`: `[{"label": "…", "value": number}]`; `unit` |
