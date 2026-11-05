@@ -94,14 +94,14 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, onOp
                 FilterPill(kindLabel(option), kind == option, { viewModel.selectKind(option) })
             }
         }
-        when (val content = memoryListContent(load, query, kind, limit)) {
+        when (val content = memoryListContent(load, portraitLoad, query, kind, limit)) {
             MemoryListContent.Loading -> SkeletonRows()
             is MemoryListContent.Failed -> ErrorState(content.message, onRetry = viewModel::refresh)
             MemoryListContent.Empty -> if (portrait is PortraitSection.Hidden) {
                 EmptyState(
                     icon = Icons.Outlined.Psychology,
                     title = "还没有记忆",
-                    body = "和 Acorn 聊天、分享内容后，它会把关于你的事实和由此得出的推断整理在这里，每一条都能追溯到原话。",
+                    body = "和 Acorn 聊天后，它会把关于你的事实和由此得出的推断整理在这里，每一条都能追溯到原话。",
                 )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
