@@ -46,6 +46,7 @@ type Container struct {
 	vault              *knowledge.Vault
 	knowledge          *api.KnowledgeService
 	memories           *api.MemoryService
+	portrait           *api.PortraitService
 	persona            *api.PersonaService
 	owner              *api.OwnerService
 	settings           *settings.Service
@@ -133,6 +134,7 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		Inbox:              c.inbox,
 		Knowledge:          c.knowledge,
 		Memories:           c.memories,
+		Portrait:           c.portrait,
 		Persona:            c.persona,
 		Owner:              c.owner,
 		Settings:           c.settings,
@@ -275,6 +277,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		return nil, err
 	}
 	container.memories = memories
+	if container.portrait, err = api.NewPortraitService(db, clock); err != nil {
+		return nil, err
+	}
 	if container.persona, err = api.NewPersonaService(db, clock); err != nil {
 		return nil, err
 	}

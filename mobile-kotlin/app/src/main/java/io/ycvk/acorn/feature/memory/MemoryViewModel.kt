@@ -7,12 +7,15 @@ import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.MemoryDetail
 import io.ycvk.acorn.api.models.MemoryListResponse
 import io.ycvk.acorn.api.models.MemorySummary
+import io.ycvk.acorn.api.models.Portrait
+import io.ycvk.acorn.api.models.PortraitLine
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.MemoryRepository
+import io.ycvk.acorn.data.repository.PortraitRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -50,13 +53,28 @@ fun memoryListContent(load: Load<MemoryListResponse>, query: String, kind: Memor
     }
 }
 
-/** A change the owner is making to the open memory. */
+/** What the memory list shows of the portrait above the memories. */
+sealed interface PortraitSection {
+    data object Hidden : PortraitSection
+    data class Failed(val message: String) : PortraitSection
+    data class Lines(val lines: List<PortraitLine>) : PortraitSection
+}
+
+/** The portrait shows on the unfiltered list only, and only once it has lines. */
+fun portraitSection(load: Load<Portrait>, query: String, kind: MemorySummary.Kind?): PortraitSection = when {
+    query.isNotBlank() || kind != null -> PortraitSection.Hidden
+    load is Load.Failed -> PortraitSection.Failed(load.message)
+    load is Load.Loaded && load.value.lines.isNotEmpty() -> PortraitSection.Lines(load.value.lines)
+    else -> PortraitSection.Hidden
+}
+
 /** Backs the memory list in the knowledge tab and the memory page. */
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class MemoryViewModel @Inject constructor(
     private val authController: AuthController,
     private val repository: MemoryRepository,
+    private val portraitRepository: PortraitRepository,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
@@ -77,8 +95,15 @@ class MemoryViewModel @Inject constructor(
     private val _change = MutableStateFlow<Save>(Save.Idle)
     val change: StateFlow<Save> = _change.asStateFlow()
 
+    private val _portrait = MutableStateFlow<Load<Portrait>>(Load.Loading)
+    val portrait: StateFlow<Load<Portrait>> = _portrait.asStateFlow()
+
+    private val _portraitError = MutableStateFlow<String?>(null)
+    val portraitError: StateFlow<String?> = _portraitError.asStateFlow()
+
     private var listJob: Job? = null
     private var memoryJob: Job? = null
+    private var portraitJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -102,6 +127,31 @@ class MemoryViewModel @Inject constructor(
 
     fun refresh() {
         loadList(showLoading = _list.value !is Load.Loaded)
+        loadPortrait()
+    }
+
+    /** Takes a line off the portrait; later refreshes do not write it again. */
+    fun removePortraitLine(id: Long) {
+        val profile = profile() ?: return
+        _portraitError.value = null
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { portraitRepository.removeLine(profile, id) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _portraitError.value = if (e is ClientException && e.statusCode == 404) {
+                    "这一条已经不在画像里了，已重新载入"
+                } else {
+                    "没能删掉：${userMessage(e)}"
+                }
+            }
+            loadPortrait()
+        }
+    }
+
+    fun dismissPortraitError() {
+        _portraitError.value = null
     }
 
     fun loadMore() {
@@ -181,6 +231,17 @@ class MemoryViewModel @Inject constructor(
         listJob?.cancel()
         listJob = viewModelScope.launch {
             _list.value = loadOf { repository.list(profile, kind, query, limit) }
+        }
+    }
+
+    private fun loadPortrait() {
+        val profile = profile() ?: run {
+            _portrait.value = Load.Failed("还没有连接服务器")
+            return
+        }
+        portraitJob?.cancel()
+        portraitJob = viewModelScope.launch {
+            _portrait.value = loadOf { portraitRepository.get(profile) }
         }
     }
 

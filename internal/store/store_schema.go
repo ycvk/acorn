@@ -19,6 +19,7 @@ func createSchema(ctx context.Context, db *sql.DB) (err error) {
 	for _, step := range []struct{ name, ddl string }{
 		{"tables", storeBootstrapTables},
 		{"memory tables", memorySchema},
+		{"portrait", portraitSchema},
 		{"memory indexes", memoryQueryIndexes},
 		{"memory triggers", memorySourceTriggers},
 		{"indexes", storeBootstrapIndexes},

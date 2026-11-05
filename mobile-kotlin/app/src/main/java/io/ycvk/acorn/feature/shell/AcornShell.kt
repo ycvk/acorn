@@ -220,6 +220,7 @@ private fun Pages(shellViewModel: ShellViewModel) {
                             memoryViewModel = memoryViewModel,
                             onNoteClick = { shellViewModel.open(Page.Note(it)) },
                             onMemoryClick = { shellViewModel.open(Page.Memory(it)) },
+                            onOpenThread = { shellViewModel.open(Page.Chat(it)) },
                             bottomInset = barInset,
                         )
                     }

@@ -18,8 +18,15 @@ func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (co
 	var forgotten core.MemoryForgotten
 	if err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		var err error
-		forgotten, err = forgetMemory(ctx, tx, request)
-		return err
+		if forgotten, err = forgetMemory(ctx, tx, request); err != nil {
+			return err
+		}
+		// Upgrades replay forgetMemory on tables older than the portrait.
+		epoch, err := memoryEpoch(ctx, tx)
+		if err != nil {
+			return err
+		}
+		return forgetPortrait(ctx, tx, epoch, request.Now)
 	}); err != nil {
 		return core.MemoryForgotten{}, err
 	}

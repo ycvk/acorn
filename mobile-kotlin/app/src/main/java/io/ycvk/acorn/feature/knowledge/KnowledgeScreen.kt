@@ -58,6 +58,7 @@ fun KnowledgeScreen(
     memoryViewModel: MemoryViewModel,
     onNoteClick: (String) -> Unit,
     onMemoryClick: (String) -> Unit,
+    onOpenThread: (String) -> Unit,
     bottomInset: Dp,
 ) {
     var section by rememberSaveable { mutableIntStateOf(0) }
@@ -71,7 +72,7 @@ fun KnowledgeScreen(
         )
         when (section) {
             0 -> NoteList(viewModel, onNoteClick, bottomInset)
-            else -> MemoryList(memoryViewModel, onMemoryClick, bottomInset)
+            else -> MemoryList(memoryViewModel, onMemoryClick, onOpenThread, bottomInset)
         }
     }
 }

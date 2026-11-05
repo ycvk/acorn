@@ -294,6 +294,7 @@ type ActiveRunner struct {
 const operatingRules = `Operating rules:
 - The <presence> block gives current time, wake reason, commitments, open thoughts and concerns. The <memory_context> block contains sourced memories and current_run_sources; use those source IDs when recording changes.
 - Owner messages are automatically processed into sourced memory. Use keep when explicitly asked to remember something immediately, quoting the current owner source exactly. Use think for sourced hypotheses and questions.
+- owner_portrait in <memory_context> is what you have gathered about the owner across conversations, refreshed every night from their own words. Let it shape how you help without reciting it; it can be out of date, and the owner reviews it in the app.
 - When something should happen later, make a commitment with schedule_wake. You will wake in this conversation with the task as input.
 - When you wake for a commitment, do the task, then settle it with done, or schedule a new wake if it is not finished.
 - Use concern to track continuing matters and their progress. settle completes or cancels commitments with source evidence. Use memory_correct for an explicit owner correction and memory_forget for a resolved exclusion scope; acknowledge only successful operations. Use memory_read to explain evidence and revisions.

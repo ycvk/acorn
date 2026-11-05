@@ -13,6 +13,39 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
+func TestThePortraitIsQueuedOnceADayAtTheNightTime(t *testing.T) {
+	h := newHarness(t, 20)
+	local := h.now.In(h.settings.Location)
+	h.settings.Night = core.DailyTime{At: time.Duration(local.Hour()+1) * time.Hour}
+	queued := func() []string {
+		t.Helper()
+		jobs, err := h.data.ReadyMemoryJobs(context.Background(), h.now, core.PortraitOperation, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var versions []string
+		for _, job := range jobs {
+			versions = append(versions, job.Version)
+		}
+		return versions
+	}
+	if err := h.sched.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := queued(); len(got) != 0 {
+		t.Fatalf("portrait queued before the night time: %v", got)
+	}
+	h.now = h.now.Add(time.Hour)
+	for range 2 {
+		if err := h.sched.Tick(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := queued(); !slices.Equal(got, []string{"day:" + local.Format("2006-01-02")}) {
+		t.Fatalf("portrait refreshes queued with night reflection off = %v", got)
+	}
+}
+
 func oldThought(t *testing.T, h *harness) {
 	t.Helper()
 	ctx := context.Background()

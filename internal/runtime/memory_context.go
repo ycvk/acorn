@@ -208,6 +208,17 @@ func (m *runMemory) render(ctx context.Context) (string, error) {
 	for _, s := range m.recall.Sources {
 		sourceIDs = append(sourceIDs, s.ID)
 	}
+	lines, err := m.store.Portrait(ctx)
+	if err != nil {
+		return "", err
+	}
+	var portrait []string
+	for _, line := range lines {
+		if line.State == core.PortraitLineShown {
+			portrait = append(portrait, line.Content)
+			sourceIDs = append(sourceIDs, line.SourceIDs...)
+		}
+	}
 	// Publish current-run source IDs for synchronous keep/correct/settle calls.
 	current, err := m.store.RunMemorySources(ctx, m.runID)
 	if err != nil {
@@ -224,9 +235,10 @@ func (m *runMemory) render(ctx context.Context) (string, error) {
 		sourceIDs = append(sourceIDs, s.ID)
 	}
 	value := struct {
-		Recall  core.MemoryRecall `json:"recall"`
-		Current []sourceRef       `json:"current_run_sources"`
-	}{m.recall, refs}
+		Portrait []string          `json:"owner_portrait,omitempty"`
+		Recall   core.MemoryRecall `json:"recall"`
+		Current  []sourceRef       `json:"current_run_sources"`
+	}{portrait, m.recall, refs}
 	data, err := json.Marshal(value)
 	if err != nil {
 		return "", err
@@ -243,6 +255,8 @@ func (m *runMemory) render(ctx context.Context) (string, error) {
 			value.Recall.Hits = value.Recall.Hits[:len(value.Recall.Hits)-1]
 		} else if len(value.Recall.Sources) > 0 {
 			value.Recall.Sources = value.Recall.Sources[:len(value.Recall.Sources)-1]
+		} else if len(value.Portrait) > 0 {
+			value.Portrait = value.Portrait[:len(value.Portrait)-1]
 		} else {
 			return "", fmt.Errorf("memory source references exceed %d-token budget", m.budget)
 		}

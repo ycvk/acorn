@@ -60,6 +60,8 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"/v1/devices/{device_id}",
 		"/v1/devices/self/push-installation",
 		"/v1/settings",
+		"/v1/portrait",
+		"/v1/portrait/lines/{line_id}",
 		"/v1/threads",
 		"/v1/threads/{thread_id}",
 		"/v1/threads/{thread_id}/messages",

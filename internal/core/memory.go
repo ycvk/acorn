@@ -278,6 +278,18 @@ type MemoryStore interface {
 	ThreadToolCalls(ctx context.Context, session string, through int64, tools []string) ([]ToolCallRecord, error)
 	SaveThreadSummary(context.Context, ThreadSummary) error
 	LoadThreadSummary(context.Context, string) (*ThreadSummary, error)
+	// Portrait lists the shown and removed portrait lines in order, leaving
+	// out lines whose sources were forgotten.
+	Portrait(context.Context) ([]PortraitLine, error)
+	// QueuePortrait queues a portrait refresh once per version.
+	QueuePortrait(context.Context, string, time.Time) error
+	// PortraitRefreshedAt is when the last portrait refresh finished, zero
+	// before the first.
+	PortraitRefreshedAt(context.Context) (time.Time, error)
+	CommitPortrait(context.Context, PortraitMutation) error
+	// OwnerMemorySources lists, newest first, the owner's sources recorded at
+	// or after since, as memory sees them; requests are left out.
+	OwnerMemorySources(context.Context, time.Time, int) ([]MemorySource, error)
 	RecordMemoryUsage(context.Context, MemoryUsage) error
 	ReserveMemoryUsage(context.Context, MemoryUsage, int, time.Time) error
 	MemoryUsageSince(context.Context, time.Time, string) (int, error)

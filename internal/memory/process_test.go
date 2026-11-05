@@ -30,6 +30,8 @@ type protocolModel struct {
 	// then a summary with every section the model writes.
 	summaries []string
 	summary   string
+	// portrait answers portrait refreshes from their input.
+	portrait func(input string) string
 }
 
 func (m *protocolModel) GenerateMemory(ctx context.Context, instruction, input string, maxOutput int) (Generation, error) {
@@ -55,6 +57,9 @@ func (m *protocolModel) GenerateMemory(ctx context.Context, instruction, input s
 		}
 		reply, err := json.Marshal(map[string]any{"records": []core.MemoryDraft{{Kind: "fact", Content: in.Source.Content, Entities: []string{"饮食"}, Evidence: []core.MemoryEvidence{{SourceID: in.Source.ID, Quote: in.Source.Content, Relation: "supports"}}}}})
 		return Generation{Text: string(reply), InputTokens: 100, OutputTokens: 30, Reported: true}, err
+	}
+	if strings.HasPrefix(instruction, "Maintain a short portrait") && m.portrait != nil {
+		return Generation{Text: m.portrait(input), InputTokens: 100, OutputTokens: 20, Reported: true}, nil
 	}
 	if strings.HasPrefix(instruction, "Summarize the supplied thread") {
 		m.instructions = append(m.instructions, instruction)
