@@ -184,3 +184,23 @@ func TestPortraitInputFitsOneMemoryCall(t *testing.T) {
 		t.Fatalf("cites = L1 %v S1 %v R1 %v", cites["L1"], cites["S1"], cites["R1"])
 	}
 }
+
+func TestPortraitMessagesCarryTheirConversation(t *testing.T) {
+	e, _ := testEngine(t, &protocolModel{}, 100000)
+	now := time.Now()
+	var messages []core.MemorySource
+	for i, session := range []string{"session_go", "session_news", "session_go", ""} {
+		messages = append(messages, core.MemorySource{ID: fmt.Sprintf("owner:%d", i), SessionID: session, Content: "话", RecordedAt: now})
+	}
+	in, _, err := e.portraitInput(context.Background(), "ycvk", "2026-11-05", nil, nil, messages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range in.Messages {
+		got = append(got, m.Conversation)
+	}
+	if !slices.Equal(got, []string{"C1", "C2", "C1", ""}) {
+		t.Fatalf("conversations = %q", got)
+	}
+}

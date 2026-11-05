@@ -120,7 +120,7 @@
   - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`
   - `internal/memory/context_test.go`
-- **画像每晚从 owner 的话里整理，每次模型调用都带上**：画像是若干行，每行至少引用一个来源，存在 `portrait_lines` 与 `portrait_line_sources`。wake 调度器每天到夜思时间（不论夜思是否开启）排一次 `portrait` 记忆任务，版本 `day:<本地日期>` 让它一天只排一次；升级到 v35 时 owner 说过话就排一次 `bootstrap`。刷新读当前行、owner 删掉的行、current fact 与 insight、近 30 天 owner 的来源（记忆视图，每条截 400 字），装进一次记忆调用；`day:` 刷新在上次刷新后既没有新来源也没有记录变化时不调用模型，什么都没有时写空画像。模型输出至多 20 行，每行单行、至多 200 字，只能引用给过的标签，全部至多 1024 token，否则任务失败；提交时校验租约与 epoch、每个来源未被整体排除、不含凭据，替换 shown 行，removed 行保留。每次模型调用的 `<memory_context>` 带 shown 行（`owner_portrait`），它们的来源写进快照引用，超预算时先裁 recall 再裁画像尾行。遗忘在同一事务删掉引用被排除来源的行（含 removed），删掉了 shown 行就立即排一次 `forget:<epoch>` 刷新；读取时晚于行写入的片段排除同样隐藏该行。owner 经 `GET /v1/portrait` 看每行与依据摘录，经 `DELETE /v1/portrait/lines/{line_id}` 把行标为 removed，之后的刷新不再写它。
+- **画像每晚从 owner 的话里整理，每次模型调用都带上**：画像是若干行，每行至少引用一个来源，存在 `portrait_lines` 与 `portrait_line_sources`。wake 调度器每天到夜思时间（不论夜思是否开启）排一次 `portrait` 记忆任务，版本 `day:<本地日期>` 让它一天只排一次；升级到 v35 时 owner 说过话就排一次 `bootstrap`。刷新读当前行、owner 删掉的行、current fact 与 insight、近 30 天 owner 的来源（记忆视图，每条截 400 字，带所在对话的标签，同一对话同一标签），装进一次记忆调用；`day:` 刷新在上次刷新后既没有新来源也没有记录变化时不调用模型，什么都没有时写空画像。模型输出至多 20 行，每行单行、至多 200 字，只能引用给过的标签，全部至多 1024 token，否则任务失败；提交时校验租约与 epoch、每个来源未被整体排除、不含凭据，替换 shown 行，removed 行保留。每次模型调用的 `<memory_context>` 带 shown 行（`owner_portrait`），它们的来源写进快照引用，超预算时先裁 recall 再裁画像尾行。遗忘在同一事务删掉引用被排除来源的行（含 removed），删掉了 shown 行就立即排一次 `forget:<epoch>` 刷新；读取时晚于行写入的片段排除同样隐藏该行。owner 经 `GET /v1/portrait` 看每行与依据摘录，经 `DELETE /v1/portrait/lines/{line_id}` 把行标为 removed，之后的刷新不再写它。
   - `internal/store/memory_portrait_test.go`
   - `internal/memory/portrait_test.go`
   - `internal/wake/thinking_test.go`
