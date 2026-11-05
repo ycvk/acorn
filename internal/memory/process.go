@@ -71,6 +71,8 @@ func (e *Engine) processOne(ctx context.Context, operation string) (bool, error)
 		err = e.embedRecord(callCtx, *job)
 	case "consolidate":
 		err = e.consolidate(callCtx, *job)
+	case core.PortraitOperation:
+		err = e.refreshPortrait(callCtx, *job)
 	default:
 		err = fmt.Errorf("unknown memory operation %q", job.Operation)
 	}

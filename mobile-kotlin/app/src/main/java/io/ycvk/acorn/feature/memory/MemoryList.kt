@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Psychology
@@ -18,6 +19,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.MemorySummary
+import io.ycvk.acorn.api.models.PortraitLine
+import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornIcons
@@ -43,15 +50,35 @@ import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneId
 
-/** What Acorn remembers about the owner: search, a kind filter and the list. */
+/** What Acorn remembers about the owner: search, a kind filter, the portrait and the list. */
 @Composable
-fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, bottomInset: Dp) {
+fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, onOpenThread: (String) -> Unit, bottomInset: Dp) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val kind by viewModel.kind.collectAsStateWithLifecycle()
     val limit by viewModel.limit.collectAsStateWithLifecycle()
     val load by viewModel.list.collectAsStateWithLifecycle()
+    val portraitLoad by viewModel.portrait.collectAsStateWithLifecycle()
+    val portraitError by viewModel.portraitError.collectAsStateWithLifecycle()
+    val portrait = portraitSection(portraitLoad, query, kind)
+    var expanded by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingRemove by remember { mutableStateOf<PortraitLine?>(null) }
+    val now = OffsetDateTime.now()
+    val portraitAbove: LazyListScope.() -> Unit = {
+        portraitItems(
+            section = portrait,
+            error = portraitError,
+            expanded = expanded,
+            now = now,
+            onToggle = { id -> expanded = if (expanded == id) null else id },
+            onRemove = { pendingRemove = it },
+            onOpenThread = onOpenThread,
+            onDismissError = viewModel::dismissPortraitError,
+            onRetry = viewModel::refresh,
+        )
+    }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
     OnReturnToForeground { viewModel.refresh() }
@@ -70,11 +97,25 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, bott
         when (val content = memoryListContent(load, query, kind, limit)) {
             MemoryListContent.Loading -> SkeletonRows()
             is MemoryListContent.Failed -> ErrorState(content.message, onRetry = viewModel::refresh)
-            MemoryListContent.Empty -> EmptyState(
-                icon = Icons.Outlined.Psychology,
-                title = "还没有记忆",
-                body = "和 Acorn 聊天、分享内容后，它会把关于你的事实和由此得出的推断整理在这里，每一条都能追溯到原话。",
-            )
+            MemoryListContent.Empty -> if (portrait is PortraitSection.Hidden) {
+                EmptyState(
+                    icon = Icons.Outlined.Psychology,
+                    title = "还没有记忆",
+                    body = "和 Acorn 聊天、分享内容后，它会把关于你的事实和由此得出的推断整理在这里，每一条都能追溯到原话。",
+                )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
+                    portraitAbove()
+                    item(key = "no_memories") {
+                        Text(
+                            "还没有整理出的记忆。",
+                            style = AcornTheme.type.caption,
+                            color = AcornTheme.colors.inkSoft,
+                            modifier = Modifier.padding(horizontal = ScreenPadding),
+                        )
+                    }
+                }
+            }
             MemoryListContent.NoMatches -> EmptyState(
                 icon = AcornIcons.Search,
                 title = "没有找到相关记忆",
@@ -84,6 +125,7 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, bott
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now(zone)
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
+                    portraitAbove()
                     itemsIndexed(content.memories, key = { _, it -> it.id }) { index, memory ->
                         Column(Modifier.animateItem().groupItem(index, content.memories.size)) {
                             MemoryRow(memory, listTime(memory.updatedAt, today, zone), onClick = { onMemoryClick(memory.id) })
@@ -100,6 +142,21 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, bott
                 }
             }
         }
+    }
+
+    pendingRemove?.let { line ->
+        AcornDialog(
+            title = "删掉这一条？",
+            body = "「${line.content}」会从画像里拿掉，Acorn 以后不再这样写，除非你之后亲口说过。它依据的记忆会保留。",
+            confirm = "删掉",
+            destructive = true,
+            onConfirm = {
+                viewModel.removePortraitLine(line.id)
+                if (expanded == line.id) expanded = null
+                pendingRemove = null
+            },
+            onDismiss = { pendingRemove = null },
+        )
     }
 }
 

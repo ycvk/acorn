@@ -29,6 +29,13 @@ func (s *Scheduler) runRoutines(ctx context.Context, now time.Time, settings cor
 		return !local.Before(scheduled)
 	}
 	var errs []error
+	// The portrait is refreshed at the night time whether or not night
+	// reflection runs; the version keeps it to once a day.
+	if due(settings.Night.At) {
+		if err := s.cfg.Memory.QueuePortrait(ctx, "day:"+day, now); err != nil {
+			errs = append(errs, fmt.Errorf("queue portrait refresh: %w", err))
+		}
+	}
 	if settings.Briefing.Enabled && due(settings.Briefing.At) {
 		errs = append(errs, s.runRoutine(ctx, "briefing", day, "Briefings", false, now, settings, func() (routineInput, error) { return s.prepareBriefing(ctx, day, now, settings.Location) }))
 	}

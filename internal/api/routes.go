@@ -41,6 +41,9 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Memories == nil {
 		return nil, errors.New("web memory service is required")
 	}
+	if deps.Portrait == nil {
+		return nil, errors.New("web portrait service is required")
+	}
 	if deps.Persona == nil {
 		return nil, errors.New("web persona service is required")
 	}
@@ -79,6 +82,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		inbox:              deps.Inbox,
 		knowledge:          deps.Knowledge,
 		memories:           deps.Memories,
+		portrait:           deps.Portrait,
 		persona:            deps.Persona,
 		owner:              deps.Owner,
 		settings:           deps.Settings,
@@ -161,6 +165,8 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/memories/{memory_id}", s.handleGetMemory)
 			r.Post("/memories/{memory_id}:forget", s.handleForgetMemory)
 			r.Post("/memories/{memory_id}:correct", s.handleCorrectMemory)
+			r.Get("/portrait", s.handleGetPortrait)
+			r.Delete("/portrait/lines/{line_id}", s.handleRemovePortraitLine)
 			r.Get("/persona", s.handleGetPersona)
 			r.Put("/persona", s.handleSavePersona)
 			r.Get("/persona/revisions", s.handleListPersonaRevisions)

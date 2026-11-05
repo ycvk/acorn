@@ -18,6 +18,7 @@ type Dependencies struct {
 	Inbox              *InboxService
 	Knowledge          *KnowledgeService
 	Memories           *MemoryService
+	Portrait           *PortraitService
 	Persona            *PersonaService
 	Owner              *OwnerService
 	Settings           *settings.Service
@@ -41,6 +42,7 @@ type Server struct {
 	inbox              *InboxService
 	knowledge          *KnowledgeService
 	memories           *MemoryService
+	portrait           *PortraitService
 	persona            *PersonaService
 	owner              *OwnerService
 	settings           *settings.Service

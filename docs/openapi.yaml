@@ -21,6 +21,7 @@ tags:
   - name: captures
   - name: knowledge
   - name: memories
+  - name: portrait
   - name: persona
   - name: owner
   - name: settings
@@ -1709,6 +1710,52 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/portrait:
+    get:
+      tags: [portrait]
+      summary: Read what Acorn has gathered about the owner
+      description: |
+        The portrait every run carries, refreshed each night from the owner's
+        own words and what memory holds. Each line lists the sources it rests
+        on, clipped; sources the owner forgot are left out, and a line whose
+        source was forgotten is gone. `updated_at` is when the newest line was
+        written and is absent while the portrait is empty.
+      operationId: clientGetPortrait
+      responses:
+        '200':
+          description: The portrait
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Portrait'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/portrait/lines/{line_id}:
+    delete:
+      tags: [portrait]
+      summary: Remove a line from the portrait
+      description: The line leaves the portrait, and later refreshes do not write it again unless the owner says it outright afterwards. The memories it rests on stay.
+      operationId: clientRemovePortraitLine
+      parameters:
+        - $ref: '#/components/parameters/PortraitLineID'
+      responses:
+        '204':
+          description: Line removed
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/PortraitLineNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/persona:
     get:
       tags: [persona]
@@ -2043,6 +2090,14 @@ components:
       required: true
       schema:
         type: string
+    PortraitLineID:
+      name: line_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
     PersonaRevision:
       name: revision
       in: path
@@ -2133,6 +2188,18 @@ components:
                 error:
                   code: knowledge_note_conflict
                   message: 'knowledge note changed concurrently: inbox/tokio.md is at revision 4, not 3'
+    PortraitLineNotFound:
+      description: The line is not on the portrait, because it was removed or a refresh replaced it
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            portraitLineNotFound:
+              value:
+                error:
+                  code: portrait_line_not_found
+                  message: the line is no longer on the portrait; reload it
     MemoryNotFound:
       description: Memory not found or forgotten
       content:
@@ -4522,6 +4589,52 @@ components:
         tool_name:
           type: string
           description: Set on tool results.
+
+    Portrait:
+      type: object
+      additionalProperties: false
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortraitLine'
+        updated_at:
+          type: string
+          format: date-time
+
+    PortraitLine:
+      type: object
+      additionalProperties: false
+      required: [id, content, evidence]
+      properties:
+        id:
+          type: integer
+          format: int64
+        content:
+          type: string
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortraitEvidence'
+
+    PortraitEvidence:
+      type: object
+      additionalProperties: false
+      required: [excerpt, source_kind, recorded_at]
+      properties:
+        excerpt:
+          type: string
+          description: The source as memory reads it, whitespace collapsed and clipped to 120 characters.
+        source_kind:
+          type: string
+          description: message, capture, or another kind of the owner's own source.
+        thread_id:
+          type: string
+          description: The conversation the source belongs to, when it has one.
+        recorded_at:
+          type: string
+          format: date-time
 
     MemoryEarlier:
       type: object
