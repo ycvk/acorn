@@ -62,16 +62,6 @@ func (f viewFilesFake) ThreadFiles(context.Context, string) ([]core.ThreadFile, 
 	return f.files, nil
 }
 
-type attachmentsFake map[string]string
-
-func (f attachmentsFake) ReadAttachment(_ context.Context, rel string) (core.Attachment, error) {
-	mime, ok := f[rel]
-	if !ok {
-		return core.Attachment{}, errors.New("no such attachment")
-	}
-	return core.Attachment{MIME: mime}, nil
-}
-
 type triggersFake []skills.PackageTrigger
 
 func (f triggersFake) Triggers(context.Context) ([]skills.PackageTrigger, error) {
@@ -96,8 +86,7 @@ func showViewTool(t *testing.T, store *viewStoreFake, runID string) einotool.Inv
 				{ID: "file_0123456789abcdef0123456789abcdef", MIME: "image/png"},
 				{ID: "file_ffffffffffffffffffffffffffffffff", MIME: "text/plain"},
 			}},
-			Attachments: attachmentsFake{"attachments/2026/cover.jpg": "image/jpeg"},
-			Links:       linkPolicyFake{},
+			Links: linkPolicyFake{},
 		},
 		Triggers: triggersFake{{Trigger: skills.Trigger{Name: "check"}, Skill: "repo-releases"}},
 		Context:  fixedArtifactContext{runID: runID, sessionID: "thread_eino", callID: "call_1"},
@@ -113,10 +102,9 @@ func TestShowViewStoresACheckedViewAndAnnouncesIt(t *testing.T) {
 	out, err := showViewTool(t, store, "run_eino").InvokableRun(context.Background(), `{
 	  "title": "eino 最近五个版本",
 	  "components": [
-	    {"id": "root", "component": "Column", "children": ["table", "shot", "cover", "src"]},
+	    {"id": "root", "component": "Column", "children": ["table", "shot", "src"]},
 	    {"id": "table", "component": "Table", "columns": ["版本", "要点"], "rows": {"path": "/releases"}},
 	    {"id": "shot", "component": "Image", "file": "file_0123456789abcdef0123456789abcdef"},
-	    {"id": "cover", "component": "Image", "file": "attachments/2026/cover.jpg", "alt": "封面"},
 	    {"id": "src", "component": "Link", "label": "发布页", "url": "https://github.com/cloudwego/eino/releases"}
 	  ],
 	  "data": {"releases": [["v0.9.21", "…"]]}
@@ -140,8 +128,7 @@ func TestShowViewRejectsWhatItCannotDraw(t *testing.T) {
 	cases := map[string]struct{ components, want string }{
 		"invalid view":         {`[{"id": "root", "component": "Slider"}]`, `"Slider" is not in the catalog`},
 		"text file as image":   {`[{"id": "root", "component": "Image", "file": "file_ffffffffffffffffffffffffffffffff"}]`, "is text/plain, not an image"},
-		"missing attachment":   {`[{"id": "root", "component": "Image", "file": "attachments/none.png"}]`, "knowledge attachment attachments/none.png cannot be read"},
-		"neither":              {`[{"id": "root", "component": "Image", "file": "https://example.com/a.png"}]`, "neither a file id of this conversation"},
+		"not a file id":        {`[{"id": "root", "component": "Image", "file": "https://example.com/a.png"}]`, "is not a file id of this conversation"},
 		"link the policy bars": {`[{"id": "root", "component": "Link", "label": "router", "url": "http://192.168.1.1"}]`, "private_address: blocked"},
 	}
 	for name, tc := range cases {
@@ -165,7 +152,7 @@ func TestUpdateViewReplacesWhatItIsGivenAndChecksTheWhole(t *testing.T) {
 		Data:       json.RawMessage(`{"releases":[["v0.9.21"]]}`),
 		Actions:    []core.ViewAction{{Key: "save", ComponentID: "save"}},
 	}}}
-	tool, err := buildUpdateViewTool(ViewToolDeps{Store: store, Sources: views.Sources{Files: viewFilesFake{}, Attachments: attachmentsFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: fixedArtifactContext{runID: "run_2", sessionID: "thread_eino"}})
+	tool, err := buildUpdateViewTool(ViewToolDeps{Store: store, Sources: views.Sources{Files: viewFilesFake{}, Links: linkPolicyFake{}}, Triggers: triggersFake{}, Context: fixedArtifactContext{runID: "run_2", sessionID: "thread_eino"}})
 	if err != nil {
 		t.Fatal(err)
 	}

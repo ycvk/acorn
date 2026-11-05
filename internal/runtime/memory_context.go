@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -87,7 +86,6 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, err
 	}
-	inputTokens += core.ImageInputTokens * len(core.CaptureImagePaths(current[0].Content))
 	for _, file := range owner.byMessage[through] {
 		if file.InlineImage() {
 			inputTokens += core.ImageInputTokens
@@ -106,16 +104,9 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, fmt.Errorf("thread history: %w", err)
 	}
-	images, err := captureImages(ctx, deps.Attachments, history.Messages)
+	images, err := ownerFileImages(ctx, deps.Files, req.SessionID, owner, history.Messages)
 	if err != nil {
 		return nil, err
-	}
-	fileImages, err := ownerFileImages(ctx, deps.Files, req.SessionID, owner, history.Messages)
-	if err != nil {
-		return nil, err
-	}
-	for id, list := range fileImages {
-		images[id] = append(images[id], list...)
 	}
 	query := current[0].Content
 	// The names of the files the owner sent are part of what they asked about,
@@ -154,7 +145,7 @@ func (m *runMemory) messages() []*schema.AgenticMessage {
 		messages = append(messages, msg)
 	}
 	for _, item := range m.history.Messages {
-		if item.Role != "user" && item.Role != "assistant" && item.Role != core.MessageRoleWake && item.Role != core.MessageRoleCapture {
+		if item.Role != "user" && item.Role != "assistant" && item.Role != core.MessageRoleWake {
 			continue
 		}
 		text := item.Content
@@ -172,25 +163,6 @@ func (m *runMemory) messages() []*schema.AgenticMessage {
 		messages = append(messages, msg)
 	}
 	return messages
-}
-
-// captureImages loads the images that capture messages in history name, so
-// the model sees what the owner shared on every turn of the thread.
-func captureImages(ctx context.Context, attachments core.AttachmentReader, messages []core.SessionMessageRecord) (map[int64][]*schema.UserInputImage, error) {
-	images := map[int64][]*schema.UserInputImage{}
-	for _, msg := range messages {
-		if msg.Role != core.MessageRoleCapture {
-			continue
-		}
-		for _, path := range core.CaptureImagePaths(msg.Content) {
-			attachment, err := attachments.ReadAttachment(ctx, path)
-			if err != nil {
-				return nil, fmt.Errorf("capture image for message %d: %w", msg.ID, err)
-			}
-			images[msg.ID] = append(images[msg.ID], &schema.UserInputImage{Base64Data: base64.StdEncoding.EncodeToString(attachment.Data), MIMEType: attachment.MIME})
-		}
-	}
-	return images, nil
 }
 
 func (m *runMemory) render(ctx context.Context) (string, error) {

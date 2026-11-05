@@ -50,7 +50,6 @@ type Container struct {
 	persona            *api.PersonaService
 	owner              *api.OwnerService
 	settings           *settings.Service
-	captures           *api.CaptureService
 	phoneNotifications *api.PhoneNotificationService
 	now                *api.NowService
 	wake               *wake.Scheduler
@@ -138,7 +137,6 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		Persona:            c.persona,
 		Owner:              c.owner,
 		Settings:           c.settings,
-		Captures:           c.captures,
 		PhoneNotifications: c.phoneNotifications,
 		Now:                c.now,
 		Browser:            browser,
@@ -271,7 +269,6 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	if container.knowledge, err = api.NewKnowledgeService(deps.vault, deps.memory, forgetBarrier); err != nil {
 		return nil, err
 	}
-	container.captures = api.NewCaptureService(deps.vault, container.threads, container.runs)
 	memories, err := api.NewMemoryService(db, deps.memory, forgetBarrier)
 	if err != nil {
 		return nil, err

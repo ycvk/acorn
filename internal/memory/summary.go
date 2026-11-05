@@ -60,7 +60,7 @@ const summaryRules = `Rules:
 
 // threadSummaryInstruction asks for a thread summary of at most limit tokens.
 func threadSummaryInstruction(limit int) string {
-	return `Summarize the supplied thread as a checkpoint the next run continues from. The input may begin with the previous summary inside <previous_summary>; each message after it starts with source=message:<id> speaker=<role>, where speaker user is the owner, wake is an input Acorn woke itself with and capture is something the owner shared. ` + filesNote + `
+	return `Summarize the supplied thread as a checkpoint the next run continues from. The input may begin with the previous summary inside <previous_summary>; each message after it starts with source=message:<id> speaker=<role>, where speaker user is the owner and wake is an input Acorn woke itself with. ` + filesNote + `
 
 ` + summaryRules + fmt.Sprintf("\n- Include source IDs for concrete facts, as (message:12).\n- Write at most %d tokens.", limit) + `
 

@@ -2,7 +2,6 @@ package io.ycvk.acorn.feature.knowledge
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,7 +33,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.KnowledgeNote
-import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
@@ -102,7 +100,6 @@ fun NoteScreen(
             is Load.Failed -> ErrorState(current.message, onRetry = { viewModel.openNote(path) })
             is Load.Loaded -> NoteBody(
                 note = current.value,
-                profile = viewModel.connection(),
                 modifier = Modifier.verticalScroll(scroll),
             )
         }
@@ -131,7 +128,7 @@ fun bodyWithoutTitle(body: String, title: String): String {
 }
 
 @Composable
-private fun NoteBody(note: KnowledgeNote, profile: ConnectionProfile?, modifier: Modifier = Modifier) {
+private fun NoteBody(note: KnowledgeNote, modifier: Modifier = Modifier) {
     val colors = AcornTheme.colors
     val uriHandler = LocalUriHandler.current
     Column(
@@ -172,13 +169,7 @@ private fun NoteBody(note: KnowledgeNote, profile: ConnectionProfile?, modifier:
             }
         }
         Spacer(Modifier.height(24.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            noteSegments(bodyWithoutTitle(note.body, note.title)).forEach { segment ->
-                when (segment) {
-                    is NoteSegment.Markdown -> SelectionContainer { Markdown(segment.text) }
-                    is NoteSegment.Image -> if (profile != null) AttachmentImage(segment.path, segment.description, profile)
-                }
-            }
-        }
+        val body = bodyWithoutTitle(note.body, note.title).trim()
+        if (body.isNotEmpty()) SelectionContainer { Markdown(body) }
     }
 }

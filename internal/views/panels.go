@@ -23,8 +23,8 @@ type Feeder struct {
 }
 
 func NewFeeder(store PanelStore, sources Sources) (*Feeder, error) {
-	if store == nil || sources.Files == nil || sources.Attachments == nil || sources.Links == nil {
-		return nil, errors.New("view feeder: store, files, attachments and link policy are required")
+	if store == nil || sources.Files == nil || sources.Links == nil {
+		return nil, errors.New("view feeder: store, files and link policy are required")
 	}
 	return &Feeder{store: store, sources: sources}, nil
 }

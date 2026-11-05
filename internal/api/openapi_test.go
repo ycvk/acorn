@@ -101,7 +101,6 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"/v1/skills/{name}/secrets/{secret}",
 		"skill_changed",
 		"skill_change_invalid",
-		"/v1/captures",
 		"/v1/knowledge/notes",
 		"/v1/knowledge/note",
 		"Client `/v1` run event endpoints stream the mobile live `RunEvent`",

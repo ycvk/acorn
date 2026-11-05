@@ -19,7 +19,6 @@ type knowledgeVault interface {
 	Search(ctx context.Context, query string, limit int) ([]core.KnowledgeHit, error)
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
 	Read(ctx context.Context, path string) (core.KnowledgeNote, error)
-	ReadAttachment(ctx context.Context, path string) (core.Attachment, error)
 	Delete(ctx context.Context, path string, revision int64) error
 }
 
@@ -132,11 +131,6 @@ func (s *KnowledgeService) DeleteNote(ctx context.Context, path string) error {
 		return err
 	}
 	return s.vault.Delete(ctx, note.Path, note.Revision)
-}
-
-// GetAttachment reads one image a capture stored.
-func (s *KnowledgeService) GetAttachment(ctx context.Context, path string) (core.Attachment, error) {
-	return s.vault.ReadAttachment(ctx, path)
 }
 
 func nonNilTags(tags []string) []string {

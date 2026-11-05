@@ -186,7 +186,7 @@ func TestRunWokenTellsWakeInputsFromTheOwners(t *testing.T) {
 	if _, err := s.CreateSession(ctx, "thread_1", "chat"); err != nil {
 		t.Fatal(err)
 	}
-	for _, run := range []struct{ id, role string }{{"run_owner", "user"}, {"run_capture", core.MessageRoleCapture}, {"run_night", core.MessageRoleWake}} {
+	for _, run := range []struct{ id, role string }{{"run_owner", "user"}, {"run_night", core.MessageRoleWake}} {
 		if err := s.CreateRun(ctx, core.RunCreateParams{RunID: run.id, SessionID: "thread_1", Input: "x"}); err != nil {
 			t.Fatal(err)
 		}
@@ -194,7 +194,7 @@ func TestRunWokenTellsWakeInputsFromTheOwners(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for runID, want := range map[string]bool{"run_owner": false, "run_capture": false, "run_night": true, "run_missing": false} {
+	for runID, want := range map[string]bool{"run_owner": false, "run_night": true, "run_missing": false} {
 		if got, err := s.RunWoken(ctx, runID); err != nil || got != want {
 			t.Errorf("%s woken = %t, %v", runID, got, err)
 		}

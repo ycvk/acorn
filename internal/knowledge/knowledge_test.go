@@ -3,19 +3,14 @@ package knowledge
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/textedit"
 )
-
-var shanghai = time.FixedZone("CST", 8*3600)
 
 type testVault struct {
 	*Vault
@@ -33,7 +28,7 @@ func openTestVault(t *testing.T) *testVault {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	tv.db = db
-	v, err := NewVault(VaultConfig{Store: db, StorageDir: tv.dir, Clock: func() time.Time { return tv.now }, Settings: settings.Fixed(core.Settings{Location: shanghai})})
+	v, err := NewVault(VaultConfig{Store: db, Clock: func() time.Time { return tv.now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +37,7 @@ func openTestVault(t *testing.T) *testVault {
 }
 
 func TestCleanNotePath(t *testing.T) {
-	for _, bad := range []string{"", "../x.md", "/abs.md", ".git/config", "a.txt", "notes/../x.md", "./x.md", `a\b.md`, ".obsidian/x.md", "attachments/x.md", "a//b.md"} {
+	for _, bad := range []string{"", "../x.md", "/abs.md", ".git/config", "a.txt", "notes/../x.md", "./x.md", `a\b.md`, ".obsidian/x.md", "a//b.md"} {
 		if _, err := CleanNotePath(bad); !errors.Is(err, ErrInvalidPath) {
 			t.Errorf("CleanNotePath(%q) err = %v, want ErrInvalidPath", bad, err)
 		}
@@ -130,50 +125,7 @@ func TestSearchAndRecentCarryRevisions(t *testing.T) {
 		t.Fatalf("recent = %+v, %v", recent, err)
 	}
 	status, err := v.Status(ctx)
-	if err != nil || status.Notes != 1 || status.Attachments != filepath.Join(v.dir, "attachments") {
+	if err != nil || status.Notes != 1 {
 		t.Fatalf("status = %+v, %v", status, err)
-	}
-}
-
-func TestSaveAttachment(t *testing.T) {
-	ctx := context.Background()
-	v := openTestVault(t)
-	rel, err := v.SaveAttachment(ctx, "image/png", []byte("\x89PNG fake"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(rel, "attachments/2026/10/") || !strings.HasSuffix(rel, ".png") {
-		t.Fatalf("path = %q", rel)
-	}
-	if data, err := os.ReadFile(filepath.Join(v.dir, filepath.FromSlash(rel))); err != nil || string(data) != "\x89PNG fake" {
-		t.Fatalf("stored attachment = %q, %v", data, err)
-	}
-	if _, err := v.SaveAttachment(ctx, "application/pdf", []byte("x")); err == nil {
-		t.Fatal("unsupported type must be rejected")
-	}
-}
-
-func TestReadAttachmentServesOnlySavedImages(t *testing.T) {
-	ctx := context.Background()
-	v := openTestVault(t)
-	rel, err := v.SaveAttachment(ctx, "image/jpeg", []byte("\xff\xd8 fake"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := v.ReadAttachment(ctx, rel)
-	if err != nil || got.MIME != "image/jpeg" || string(got.Data) != "\xff\xd8 fake" {
-		t.Fatalf("read = %+v, %v", got, err)
-	}
-	missing := strings.Replace(rel, rel[len("attachments/2026/10/"):len("attachments/2026/10/")+16], "0123456789abcdef", 1)
-	if _, err := v.ReadAttachment(ctx, missing); !errors.Is(err, ErrAttachmentNotFound) {
-		t.Fatalf("missing attachment: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(v.dir, "acorn.secret"), []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	for _, bad := range []string{"acorn.secret", "attachments/../acorn.secret", "attachments/2026/10/" + "0123456789abcdef.md", "/" + rel, rel + "/"} {
-		if _, err := v.ReadAttachment(ctx, bad); !errors.Is(err, ErrInvalidPath) {
-			t.Fatalf("ReadAttachment(%q) = %v, want invalid path", bad, err)
-		}
 	}
 }

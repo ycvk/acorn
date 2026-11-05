@@ -42,13 +42,6 @@ sealed class ChatMessage {
         val summary: WakeSummary? = wakeSummary(source, text),
         override val id: String = "wake_${UUID.randomUUID()}",
     ) : ChatMessage()
-
-    /** Something the owner shared from their phone; text is ready to show, image is an attachment path. */
-    data class Capture(
-        val text: String,
-        val image: String? = null,
-        override val id: String = "capture_${UUID.randomUUID()}",
-    ) : ChatMessage()
 }
 
 /**
@@ -74,7 +67,6 @@ fun chatMessageFrom(
 ): ChatMessage = when (role) {
     Message.Role.user -> ChatMessage.User(text, files.map(::fileView), id = id)
     Message.Role.wake -> ChatMessage.Wake(text, wakeSource(text), id = id)
-    Message.Role.capture -> captureMessage(text, id)
     Message.Role.assistant -> ChatMessage.Assistant(
         text,
         steps = steps.mapIndexed { index, step -> toolStep(index, step) },
@@ -95,18 +87,6 @@ fun withView(messages: List<ChatMessage>, view: View): List<ChatMessage> = messa
     } else {
         message
     }
-}
-
-/**
- * Turns a capture run input into a card: drops the "[capture]" header line and
- * takes the attachment path out of the "Image:" line.
- */
-fun captureMessage(input: String, id: String = UUID.randomUUID().toString()): ChatMessage.Capture {
-    val lines = input.lines().dropWhile { it.startsWith("[capture]") }
-    val imageLine = lines.indexOfFirst { it.startsWith("Image: ") }
-    val image = lines.getOrNull(imageLine)?.removePrefix("Image: ")?.substringBefore(" (")
-    val text = lines.filterIndexed { index, _ -> index != imageLine }.joinToString("\n").trim()
-    return ChatMessage.Capture(text, image, id)
 }
 
 enum class WakeSource { Commitment, Watch, Briefing, Night, Wander, FollowUp, Goal }

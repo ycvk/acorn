@@ -22,7 +22,6 @@ type Dependencies struct {
 	Persona            *PersonaService
 	Owner              *OwnerService
 	Settings           *settings.Service
-	Captures           *CaptureService
 	PhoneNotifications *PhoneNotificationService
 	Now                *NowService
 	// Browser is nil when no workstation is configured.
@@ -46,7 +45,6 @@ type Server struct {
 	persona            *PersonaService
 	owner              *OwnerService
 	settings           *settings.Service
-	captures           *CaptureService
 	phoneNotifications *PhoneNotificationService
 	now                *NowService
 	browser            BrowserView

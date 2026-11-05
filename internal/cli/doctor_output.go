@@ -19,7 +19,6 @@ func renderDoctorKnowledge(status knowledge.Status) string {
 		"",
 		"Knowledge base",
 		fmt.Sprintf("  Notes: %d", status.Notes),
-		fmt.Sprintf("  Attachments: %s", status.Attachments),
 	}, "\n")
 }
 

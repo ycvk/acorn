@@ -20,12 +20,10 @@ type LinkPolicy interface {
 }
 
 // Sources are what a view may point to outside itself: the files of its
-// conversation, the knowledge attachments, and the web addresses the link
-// policy allows.
+// conversation and the web addresses the link policy allows.
 type Sources struct {
-	Files       FileLister
-	Attachments core.AttachmentReader
-	Links       LinkPolicy
+	Files FileLister
+	Links LinkPolicy
 }
 
 // For returns the References of a view in the conversation sessionID.
@@ -34,7 +32,7 @@ func (s Sources) For(sessionID string) References {
 }
 
 // conversationReferences checks a view's links with the link policy and its
-// images against the conversation's files and the knowledge attachments.
+// images against the conversation's files.
 type conversationReferences struct {
 	sources   Sources
 	sessionID string
@@ -47,35 +45,25 @@ func (r *conversationReferences) Link(ctx context.Context, url string) error {
 }
 
 func (r *conversationReferences) Image(ctx context.Context, ref string) error {
-	var mime string
-	switch {
-	case strings.HasPrefix(ref, "file_"):
-		if r.files == nil {
-			files, err := r.sources.Files.ThreadFiles(ctx, r.sessionID)
-			if err != nil {
-				return err
-			}
-			r.files = make(map[string]core.ThreadFile, len(files))
-			for _, file := range files {
-				r.files[file.ID] = file
-			}
-		}
-		file, ok := r.files[ref]
-		if !ok {
-			return fmt.Errorf("%s is not a file of this conversation", ref)
-		}
-		mime = file.MIME
-	case strings.HasPrefix(ref, "attachments/"):
-		attachment, err := r.sources.Attachments.ReadAttachment(ctx, ref)
-		if err != nil {
-			return fmt.Errorf("knowledge attachment %s cannot be read: %w", ref, err)
-		}
-		mime = attachment.MIME
-	default:
-		return fmt.Errorf("%q is neither a file id of this conversation (file_...) nor a knowledge attachment path (attachments/...)", ref)
+	if !strings.HasPrefix(ref, "file_") {
+		return fmt.Errorf("%q is not a file id of this conversation (file_...)", ref)
 	}
-	if !strings.HasPrefix(mime, "image/") {
-		return fmt.Errorf("%s is %s, not an image", ref, mime)
+	if r.files == nil {
+		files, err := r.sources.Files.ThreadFiles(ctx, r.sessionID)
+		if err != nil {
+			return err
+		}
+		r.files = make(map[string]core.ThreadFile, len(files))
+		for _, file := range files {
+			r.files[file.ID] = file
+		}
+	}
+	file, ok := r.files[ref]
+	if !ok {
+		return fmt.Errorf("%s is not a file of this conversation", ref)
+	}
+	if !strings.HasPrefix(file.MIME, "image/") {
+		return fmt.Errorf("%s is %s, not an image", ref, file.MIME)
 	}
 	return nil
 }

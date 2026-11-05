@@ -162,7 +162,7 @@ The installed service uses:
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
-- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories, knowledge notes, skills, the persona and your settings, and images shared from the phone under `attachments/`.
+- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories, knowledge notes, skills, the persona and your settings.
 - `127.0.0.1:8080` for the HTTP listener.
 
 The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn skills`, `acorn settings` and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
@@ -403,7 +403,7 @@ After pairing, allow notifications when the app asks. Settings (the gear on the 
 
 ### Runs in progress
 
-A run you start from the phone shows as a silent ongoing notification while it runs: a message, a view's button or choice, something shared from another app, or a run that continues after you approve or answer on the phone. It names the conversation and the current step and has 停止 to stop the run. On Android 16 QPR1 and later the system promotes it to a Live Update, with a status bar chip such as 搜索中 or 回复中 and a card at the top of the shade and on the lock screen; on older Android, or with Live Updates for Acorn turned off in system settings, it stays an ordinary ongoing notification. It goes away when the run ends or stops to wait for you, in which case the approval notification arrives as usual. When the app is not in front at the end, a notification with the opening of the reply, or the reason the run failed, takes its place; a run you stopped leaves none. Runs the agent starts on its own and runs started from other devices show no progress. This works without Firebase: the app reads the run's events in a data sync foreground service, which Android 15 and later limit to six hours a day.
+A run you start from the phone shows as a silent ongoing notification while it runs: a message, a view's button or choice, or a run that continues after you approve or answer on the phone. It names the conversation and the current step and has 停止 to stop the run. On Android 16 QPR1 and later the system promotes it to a Live Update, with a status bar chip such as 搜索中 or 回复中 and a card at the top of the shade and on the lock screen; on older Android, or with Live Updates for Acorn turned off in system settings, it stays an ordinary ongoing notification. It goes away when the run ends or stops to wait for you, in which case the approval notification arrives as usual. When the app is not in front at the end, a notification with the opening of the reply, or the reason the run failed, takes its place; a run you stopped leaves none. Runs the agent starts on its own and runs started from other devices show no progress. This works without Firebase: the app reads the run's events in a data sync foreground service, which Android 15 and later limit to six hours a day.
 
 ## 11. Config Migration
 
@@ -441,9 +441,9 @@ The same goes for `persona.md` in a snapshot made before this upgrade, after res
 
 ## 12. Knowledge Base and Sharing
 
-The agent keeps longer material in a knowledge base of markdown notes stored in the SQLite database. Every write keeps a new revision with the run that made it, and personal memory cites the exact revision it learned from. `acorn doctor` shows the note count and where shared images are kept.
+The agent keeps longer material in a knowledge base of markdown notes stored in the SQLite database. Every write keeps a new revision with the run that made it, and personal memory cites the exact revision it learned from. `acorn doctor` shows the note count.
 
-Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the storage directory, and the agent sees the picture itself whenever that conversation is in its context; the app shows them in the shared conversation and inside the notes that embed them. The app's 知识 tab lists recent notes, searches them, and opens a note to read. Delete a note by swiping it left in the list or from its ⋯ menu: like deleting a conversation, it makes Acorn forget every revision of the note and what was drawn from it. Images the note embeds stay with the conversation that shared them.
+Ask in any conversation to keep an article, a plan or other reference material, and the agent writes it as a note. The app's 知识 tab lists recent notes, searches them, and opens a note to read. Delete a note by swiping it left in the list or from its ⋯ menu: like deleting a conversation, it makes Acorn forget every revision of the note and what was drawn from it.
 
 ### Files in Conversations
 
@@ -506,7 +506,7 @@ Pick sources someone already ranked: top stories, front pages and daily digests.
 
 ## 14. Backup and Restore
 
-The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Shared images, run artifacts and the files of conversations never change once written, so they are mirrored once into `<backup.dir>/attachments/`, `<backup.dir>/artifacts/` and `<backup.dir>/files/`. The newest `backup.keep` snapshots are kept (14 by default):
+The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Run artifacts and the files of conversations never change once written, so they are mirrored once into `<backup.dir>/artifacts/` and `<backup.dir>/files/`. The newest `backup.keep` snapshots are kept (14 by default):
 
 ```yaml
 backup:
@@ -653,7 +653,7 @@ The calls you are asked about, their target and page, and your request go to Sub
 - The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
 - Autonomous wakes share the daily count and optional token limits in the settings.
 - Watches cannot follow pages that need a login. GitHub watches cover releases and newly opened issues only.
-- Knowledge search matches words (full-text); there is no semantic search yet. The text of a note describes a shared image; search and memory read that text, not the picture.
+- Knowledge search matches words (full-text); there is no semantic search yet.
 - Mobile is a remote control surface. It does not execute runs locally, own runtime truth, or merge offline runtime state.
 
 ## Idle Thinking and Phone Notifications
@@ -664,7 +664,7 @@ A story you follow from the briefing card is checked the same way, one slot at a
 
 When you ask for something to be made, such as a document of a project's recent changes, the concern records its outcome: what you get and how to tell it is done. Idle thought then works on it on the workstation, in `~/work/<concern id>/`, and revises the concern after each step; a call that needs your approval waits for it and continues once you approve. The result arrives in the conversation where you asked, with one push, and the concern waits for you. Only your confirmation in that conversation resolves it. Deleting that conversation also removes the concern's directory from the workstation before the next run.
 
-Set a positive `wake.daily_tokens` to impose a token budget on autonomous wakes. The budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages, captures and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
+Set a positive `wake.daily_tokens` to impose a token budget on autonomous wakes. The budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
 
 In the app's settings, under **手机通知**, read the data destination, grant notification access, and choose individual apps under **转发哪些应用**. The selection starts empty. Acorn captures ordinary notifications from those apps while paired, stores at most 500 on the device, and starts uploading within one minute of the first arrival. Each request contains at most 100 entries. Failed requests retain their batch and show an error with **重新上传**. Disconnecting or pairing another identity clears waiting notifications; turning an app off removes its waiting entries. Android notification access remains under your control in system settings.
 

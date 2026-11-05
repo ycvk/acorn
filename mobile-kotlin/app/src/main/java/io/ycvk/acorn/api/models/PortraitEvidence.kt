@@ -31,7 +31,7 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param excerpt The source as memory reads it, whitespace collapsed and clipped to 120 characters.
- * @param sourceKind message, capture, or another kind of the owner's own source.
+ * @param sourceKind message, or another kind of the owner's own source.
  * @param recordedAt 
  * @param threadId The conversation the source belongs to, when it has one.
  */
@@ -43,7 +43,7 @@ data class PortraitEvidence (
     @Json(name = "excerpt")
     val excerpt: kotlin.String,
 
-    /* message, capture, or another kind of the owner's own source. */
+    /* message, or another kind of the owner's own source. */
     @Json(name = "source_kind")
     val sourceKind: kotlin.String,
 

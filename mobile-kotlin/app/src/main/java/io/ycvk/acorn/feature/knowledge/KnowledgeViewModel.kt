@@ -9,7 +9,6 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
-import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.data.repository.KnowledgeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -134,39 +133,5 @@ class KnowledgeViewModel @Inject constructor(
         }
     }
 
-    /** The paired server, for loading attachments. */
-    fun connection(): ConnectionProfile? = profile()
-
     private fun profile() = authController.profile
 }
-
-private val attachmentEmbed = Regex("""!\[([^\]\n]*)]\((attachments/[^)\s]+)\)""")
-
-/** A note body split around the images it embeds. */
-sealed interface NoteSegment {
-    data class Markdown(val text: String) : NoteSegment
-    data class Image(val path: String, val description: String) : NoteSegment
-}
-
-/** Splits a note body at its `![description](attachments/...)` embeds. */
-fun noteSegments(body: String): List<NoteSegment> {
-    val segments = mutableListOf<NoteSegment>()
-    var start = 0
-    fun text(end: Int) {
-        body.substring(start, end).trim().takeIf { it.isNotEmpty() }?.let { segments += NoteSegment.Markdown(it) }
-    }
-    for (match in attachmentEmbed.findAll(body)) {
-        text(match.range.first)
-        segments += NoteSegment.Image(match.groupValues[2], attachmentDescription(match))
-        start = match.range.last + 1
-    }
-    text(body.length)
-    return segments
-}
-
-/** Shows embeds in plain-text snippets as their description. */
-fun snippetText(snippet: String): String =
-    attachmentEmbed.replace(snippet) { match -> "[${attachmentDescription(match)}]" }
-
-private fun attachmentDescription(match: MatchResult) =
-    match.groupValues[1].trim().ifEmpty { match.groupValues[2].substringAfterLast('/') }

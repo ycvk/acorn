@@ -71,6 +71,10 @@ const MaxInlineImageBytes = 10 << 20
 // inlineImageTypes are the image types models take as input.
 var inlineImageTypes = map[string]bool{"image/jpeg": true, "image/png": true, "image/webp": true, "image/gif": true}
 
+// ImageInputTokens approximates what a model bills for one image input; token
+// budgets count each image as this many tokens.
+const ImageInputTokens = 1600
+
 // InlineImage reports whether the model sees f as an image.
 func (f ThreadFile) InlineImage() bool {
 	return inlineImageTypes[f.MIME] && f.Size <= MaxInlineImageBytes

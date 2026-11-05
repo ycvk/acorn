@@ -81,7 +81,6 @@ type RuntimeDeps struct {
 	Commitments        core.CommitmentStore
 	FollowUps          core.FollowUpStore
 	Goals              core.GoalStore
-	Attachments        core.AttachmentReader
 	Files              core.ThreadFiles
 	Views              ThreadViewLister
 	Stories            core.StoryMessageLister

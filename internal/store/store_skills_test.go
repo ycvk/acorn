@@ -64,7 +64,7 @@ func TestSkillLoadsSinceCountsSkillToolCalls(t *testing.T) {
 	for _, payload := range []map[string]any{
 		{"tool_name": "skill", "arguments": `{"skill":"orders"}`},
 		{"tool_name": "skill", "arguments": `{"skill":"orders"}`},
-		{"tool_name": "skill", "arguments": `{"skill":"capture-to-note"}`},
+		{"tool_name": "skill", "arguments": `{"skill":"link-to-note"}`},
 		{"tool_name": "skill", "arguments": `not json`},
 		{"tool_name": "shell", "arguments": `{"skill":"orders"}`},
 	} {
@@ -73,7 +73,7 @@ func TestSkillLoadsSinceCountsSkillToolCalls(t *testing.T) {
 		}
 	}
 	loads, err := s.SkillLoadsSince(ctx, before)
-	if err != nil || len(loads) != 2 || loads["orders"] != 2 || loads["capture-to-note"] != 1 {
+	if err != nil || len(loads) != 2 || loads["orders"] != 2 || loads["link-to-note"] != 1 {
 		t.Fatalf("loads = %v, %v", loads, err)
 	}
 	if later, err := s.SkillLoadsSince(ctx, time.Now().UTC().Add(time.Second)); err != nil || len(later) != 0 {
