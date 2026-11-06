@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/core"
@@ -25,7 +26,6 @@ type WebSearchOutput struct {
 	Results         []webaccess.SearchResultItem     `json:"results"`
 	FilteredResults []webaccess.FilteredSearchResult `json:"filtered_results,omitempty"`
 	RawArtifactID   string                           `json:"raw_artifact_id"`
-	RawArtifact     ArtifactSummary                  `json:"raw_artifact"`
 }
 
 func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
@@ -71,7 +71,6 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 			Results:         append([]webaccess.SearchResultItem(nil), result.Results...),
 			FilteredResults: append([]webaccess.FilteredSearchResult(nil), result.FilteredResults...),
 			RawArtifactID:   rawRecord.ArtifactID,
-			RawArtifact:     artifactSummaryFromRecord(rawRecord),
 		}, nil
 	})
 	if err != nil {
@@ -80,34 +79,35 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 	return tool, nil
 }
 
-const defaultWebFetchPreviewBytes = 4000
+// webFetchInlineBytes is how much of a page's Markdown web_fetch returns in
+// its result. Most article pages fit, so answering from a page seldom takes
+// another step with artifact_read.
+const webFetchInlineBytes = 16000
 
 type WebFetchInput struct {
 	URL         string `json:"url" jsonschema:"required" jsonschema_description:"HTTP or HTTPS URL to fetch through Acorn's outbound web policy."`
-	ExtractMode string `json:"extract_mode,omitempty" jsonschema_description:"Extraction mode: auto, readability, full_page_markdown, or visible_text. Defaults to auto."`
+	ExtractMode string `json:"extract_mode,omitempty" jsonschema_description:"Extraction mode: auto, readability, full_page_markdown, or visible_text. Defaults to auto, the article with its links; full_page_markdown keeps the whole page, navigation included."`
 }
 
 type WebFetchOutput struct {
-	URL                string               `json:"url"`
-	FinalURL           string               `json:"final_url"`
-	Status             int                  `json:"status"`
-	ContentType        string               `json:"content_type"`
-	ContentLength      int64                `json:"content_length"`
-	FetchedAt          string               `json:"fetched_at"`
-	Redirects          []string             `json:"redirects,omitempty"`
-	Title              string               `json:"title,omitempty"`
-	SiteName           string               `json:"site_name,omitempty"`
-	PublishedTime      string               `json:"published_time,omitempty"`
-	ExtractionMethod   string               `json:"extraction_method"`
-	ExtractionWarning  string               `json:"extraction_warning,omitempty"`
-	MarkdownPreview    string               `json:"markdown_preview"`
-	MarkdownTruncated  bool                 `json:"markdown_truncated,omitempty"`
-	RawSHA256          string               `json:"raw_sha256"`
-	RawArtifactID      string               `json:"raw_artifact_id"`
-	MarkdownArtifactID string               `json:"markdown_artifact_id"`
-	RawArtifact        ArtifactSummary      `json:"raw_artifact"`
-	MarkdownArtifact   ArtifactSummary      `json:"markdown_artifact"`
-	Links              []webaccess.PageLink `json:"links,omitempty"`
+	URL                string   `json:"url"`
+	FinalURL           string   `json:"final_url"`
+	Status             int      `json:"status"`
+	ContentType        string   `json:"content_type"`
+	ContentLength      int64    `json:"content_length"`
+	FetchedAt          string   `json:"fetched_at"`
+	Redirects          []string `json:"redirects,omitempty"`
+	Title              string   `json:"title,omitempty"`
+	SiteName           string   `json:"site_name,omitempty"`
+	PublishedTime      string   `json:"published_time,omitempty"`
+	ExtractionMethod   string   `json:"extraction_method"`
+	ExtractionWarning  string   `json:"extraction_warning,omitempty"`
+	Markdown           string   `json:"markdown"`
+	MarkdownBytes      int      `json:"markdown_bytes"`
+	NextOffset         int      `json:"next_offset,omitempty"`
+	RawSHA256          string   `json:"raw_sha256"`
+	RawArtifactID      string   `json:"raw_artifact_id"`
+	MarkdownArtifactID string   `json:"markdown_artifact_id"`
 }
 
 func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
@@ -120,7 +120,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required for web_fetch")
 	}
-	tool, err := inferLocalTool("web_fetch", "Fetch a public HTTP(S) URL (HTML, plain text, XML or JSON), extract Markdown, and persist raw/Markdown artifacts. An RSS, Atom or JSON feed comes back as its entries with title, link, date and summary.", func(ctx context.Context, input WebFetchInput) (WebFetchOutput, error) {
+	tool, err := inferLocalTool("web_fetch", "Fetch a public HTTP(S) URL (HTML, plain text, XML or JSON) and return it as Markdown, the first 16000 bytes in the result. A longer page sets next_offset: artifact_read on markdown_artifact_id from that offset reads the rest. An RSS, Atom or JSON feed comes back as its entries with title, link, date and summary.", func(ctx context.Context, input WebFetchInput) (WebFetchOutput, error) {
 		runID, sourceRef, err := toolResultRef(ctx, bridge, "web_fetch")
 		if err != nil {
 			return WebFetchOutput{}, err
@@ -157,7 +157,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 		if err != nil {
 			return WebFetchOutput{}, err
 		}
-		preview, truncated := previewBytes([]byte(result.Extracted.Markdown), defaultWebFetchPreviewBytes)
+		markdown, nextOffset := inlineMarkdown(result.Extracted.Markdown, webFetchInlineBytes)
 		return WebFetchOutput{
 			URL:                result.URL,
 			FinalURL:           result.FinalURL,
@@ -171,14 +171,12 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 			PublishedTime:      result.Extracted.PublishedTime,
 			ExtractionMethod:   result.Extracted.Method,
 			ExtractionWarning:  result.Extracted.Warning,
-			MarkdownPreview:    preview,
-			MarkdownTruncated:  truncated,
+			Markdown:           markdown,
+			MarkdownBytes:      len(result.Extracted.Markdown),
+			NextOffset:         nextOffset,
 			RawSHA256:          result.RawSHA256,
 			RawArtifactID:      rawRecord.ArtifactID,
 			MarkdownArtifactID: markdownRecord.ArtifactID,
-			RawArtifact:        artifactSummaryFromRecord(rawRecord),
-			MarkdownArtifact:   artifactSummaryFromRecord(markdownRecord),
-			Links:              append([]webaccess.PageLink(nil), result.Extracted.Links...),
 		}, nil
 	})
 	if err != nil {
@@ -198,10 +196,16 @@ func artifactTitle(prefix, title, fallbackURL string) string {
 	return prefix + ": " + title
 }
 
-// previewBytes returns at most limit bytes of body and whether it was cut.
-func previewBytes(body []byte, limit int) (string, bool) {
-	if limit <= 0 || len(body) <= limit {
-		return string(body), false
+// inlineMarkdown returns at most limit bytes of markdown, cut before a
+// character, and the byte offset where the rest begins, zero when nothing was
+// cut.
+func inlineMarkdown(markdown string, limit int) (string, int) {
+	if len(markdown) <= limit {
+		return markdown, 0
 	}
-	return string(body[:limit]), true
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(markdown[cut]) {
+		cut--
+	}
+	return markdown[:cut], cut
 }

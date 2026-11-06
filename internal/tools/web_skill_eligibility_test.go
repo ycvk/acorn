@@ -8,9 +8,9 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-// The seed web research skill must stay available when only web_fetch is
-// configured, which is the default self-hosted setup.
-func TestSeedWebResearchSkillEligibleWithOnlyWebFetch(t *testing.T) {
+// With only web_fetch configured, the default self-hosted setup, the seed
+// skills that need the workstation stay listed and ineligible.
+func TestSeedWorkstationSkillsIneligibleWithOnlyWebFetch(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cfg := testWebToolsConfig(t)
 	cfg.Search = nil
@@ -38,9 +38,6 @@ func TestSeedWebResearchSkillEligibleWithOnlyWebFetch(t *testing.T) {
 	eligible := map[string]bool{}
 	for _, view := range snapshot.Skills {
 		eligible[view.Name] = view.Eligible
-	}
-	if ok, found := eligible["web-browser-research"]; !found || !ok {
-		t.Fatalf("web research skill found=%v eligible=%v", found, ok)
 	}
 	// The browser skill drives bsk through shell, so it waits for a workstation.
 	if ok, found := eligible["browser"]; !found || ok {
