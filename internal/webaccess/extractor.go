@@ -23,11 +23,6 @@ const (
 	ExtractionModeVisibleText      ExtractionMode = "visible_text"
 )
 
-type PageLink struct {
-	Text string
-	URL  string
-}
-
 type ExtractRequest struct {
 	URL  string
 	HTML []byte
@@ -42,7 +37,6 @@ type ExtractResult struct {
 	PublishedTime string
 	Method        string
 	Warning       string
-	Links         []PageLink
 }
 
 func ExtractHTML(req ExtractRequest) (ExtractResult, error) {
@@ -174,7 +168,6 @@ func withCommonPageMetadata(result ExtractResult, raw []byte, pageURL *url.URL) 
 		result.Title = extractHTMLTitle(raw)
 	}
 	result.URL = pageURL.String()
-	result.Links = extractHTMLLinks(raw, pageURL, 100)
 	return result
 }
 
@@ -206,42 +199,6 @@ func extractHTMLTitle(raw []byte) string {
 		return ""
 	}
 	return walk(doc)
-}
-
-func extractHTMLLinks(raw []byte, pageURL *url.URL, limit int) []PageLink {
-	if limit <= 0 {
-		return nil
-	}
-	doc, err := html.Parse(bytes.NewReader(raw))
-	if err != nil {
-		return nil
-	}
-	links := make([]PageLink, 0)
-	var walk func(*html.Node)
-	walk = func(node *html.Node) {
-		if node == nil || len(links) >= limit {
-			return
-		}
-		if node.Type == html.ElementNode && strings.EqualFold(node.Data, "a") {
-			if href := attrValue(node, "href"); href != "" {
-				resolved := resolveLink(pageURL, href)
-				if resolved != "" {
-					links = append(links, PageLink{
-						Text: strings.TrimSpace(nodeText(node)),
-						URL:  resolved,
-					})
-				}
-			}
-		}
-		for child := node.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
-			if len(links) >= limit {
-				return
-			}
-		}
-	}
-	walk(doc)
-	return links
 }
 
 func collectVisibleText(node *html.Node, suppressed bool, out *[]string) {
@@ -278,22 +235,4 @@ func attrValue(node *html.Node, key string) string {
 		}
 	}
 	return ""
-}
-
-func resolveLink(pageURL *url.URL, raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil {
-		return ""
-	}
-	if pageURL != nil {
-		parsed = pageURL.ResolveReference(parsed)
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return ""
-	}
-	return parsed.String()
 }

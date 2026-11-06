@@ -31,8 +31,8 @@ func TestExtractHTMLFullPageMarkdownResolvesLinks(t *testing.T) {
 	if !strings.Contains(result.Markdown, "Read the docs") {
 		t.Fatalf("markdown = %q", result.Markdown)
 	}
-	if len(result.Links) != 1 || result.Links[0].URL != "https://example.com/install" {
-		t.Fatalf("links = %+v", result.Links)
+	if !strings.Contains(result.Markdown, "[Install](https://example.com/install)") {
+		t.Fatalf("markdown = %q, want the link resolved against the page", result.Markdown)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -129,11 +130,26 @@ func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
 	if decoded.RawArtifactID == "" || decoded.MarkdownArtifactID == "" {
 		t.Fatalf("missing artifact ids: %+v", decoded)
 	}
-	if !strings.Contains(decoded.MarkdownPreview, "Persist this page") {
-		t.Fatalf("markdown preview = %q", decoded.MarkdownPreview)
+	if !strings.Contains(decoded.Markdown, "Persist this page") || decoded.NextOffset != 0 || decoded.MarkdownBytes != len(decoded.Markdown) {
+		t.Fatalf("markdown = %q, bytes %d, next offset %d", decoded.Markdown, decoded.MarkdownBytes, decoded.NextOffset)
 	}
 	if len(store.records) != 2 {
 		t.Fatalf("stored artifacts = %d, want 2", len(store.records))
+	}
+}
+
+func TestInlineMarkdownCutsBeforeACharacterAndPointsAtTheRest(t *testing.T) {
+	page := strings.Repeat("厄尔尼诺", 2000)
+	inline, next := inlineMarkdown(page, webFetchInlineBytes)
+	if !utf8.ValidString(inline) || next != len(inline) || next > webFetchInlineBytes || next < webFetchInlineBytes-utf8.UTFMax {
+		t.Fatalf("inline %d bytes, valid %v, next offset %d", len(inline), utf8.ValidString(inline), next)
+	}
+	if inline+page[next:] != page {
+		t.Fatal("inline part and the rest from next offset do not make the page")
+	}
+	short := "# 标题\n正文"
+	if got, next := inlineMarkdown(short, webFetchInlineBytes); got != short || next != 0 {
+		t.Fatalf("short page = %q, next offset %d", got, next)
 	}
 }
 

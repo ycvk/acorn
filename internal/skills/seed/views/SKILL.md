@@ -1,6 +1,6 @@
 ---
 name: views
-description: Show results the owner reads better as a table, list, chart or cards than as prose, and offer next steps as buttons or choices; the app draws the view under your reply, and the owner can pin it to the now page as a panel a package trigger keeps current. Use for comparisons, version changes, reading lists, timelines, numbers over time, "what next" choices and live panels (表格, 对比, 列表, 图表, 按钮, 选项, 面板, 固定到今天).
+description: Show an answer that is a list or a comparison, several items with the same fields, as a table, list, chart or cards, and offer next steps as buttons or choices; the app draws the view under your reply, and the owner can pin it to the now page as a panel a package trigger keeps current. Use for comparing options or versions, reading lists, numbers over time, "what next" choices and live panels (表格, 对比, 列表, 图表, 按钮, 选项, 面板, 固定到今天). An explanation of one story or topic stays prose.
 metadata:
   acorn-requires-tools: show_view
 ---

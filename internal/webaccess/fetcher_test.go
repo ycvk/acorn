@@ -51,8 +51,8 @@ func TestFetchServiceFetchesHTMLAndExtractsMarkdown(t *testing.T) {
 	if !strings.Contains(result.Extracted.Markdown, "Acorn can fetch public web pages") {
 		t.Fatalf("markdown = %q", result.Extracted.Markdown)
 	}
-	if len(result.Extracted.Links) != 1 || result.Extracted.Links[0].URL != "http://example.com/docs" {
-		t.Fatalf("links = %+v", result.Extracted.Links)
+	if !strings.Contains(result.Extracted.Markdown, "(http://example.com/docs)") {
+		t.Fatalf("markdown = %q, want the link resolved against the page", result.Extracted.Markdown)
 	}
 	if result.RawSHA256 == "" {
 		t.Fatal("raw sha256 is empty")
