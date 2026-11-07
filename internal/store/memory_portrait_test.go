@@ -243,3 +243,52 @@ func TestV35UpgradeQueuesTheFirstPortraitWhenTheOwnerHasSpoken(t *testing.T) {
 		})
 	}
 }
+
+func TestV37UpgradeDropsTheReferencesARunDidNotRead(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	// run_a in thread s1 read its history and one recalled source; the
+	// portrait's source reached its snapshot references without being read.
+	if _, err := raw.Exec(readLayout(t, 36) + `PRAGMA user_version = 36;
+		INSERT INTO runs(run_id, session_id, status, input_text, created_at) VALUES('run_a', 's1', 'succeeded', 'hi', '2026-11-05T02:00:00.000000000Z');
+		INSERT INTO memory_sources(id, kind, object_id, version, speaker, session_id, run_id, recorded_at) VALUES
+		 ('history', 'fixture', 'history', '1', 'owner', 's1', '', '2026-11-05T01:00:00.000000000Z'),
+		 ('recalled', 'fixture', 'recalled', '1', 'owner', 's2', '', '2026-11-05T01:00:00.000000000Z'),
+		 ('portrayed', 'fixture', 'portrayed', '1', 'owner', 's3', '', '2026-11-05T01:00:00.000000000Z'),
+		 ('input', 'fixture', 'input', '1', 'system', 's1', 'run_a', '2026-11-05T02:00:00.000000000Z'),
+		 ('reply', 'fixture', 'reply', '1', 'assistant', 's1', 'run_a', '2026-11-05T02:01:00.000000000Z'),
+		 ('result', 'fixture', 'result', '1', 'tool', 's1', 'run_a', '2026-11-05T02:01:00.000000000Z');
+		INSERT INTO context_snapshots(hash, content, created_at) VALUES('h1', '<memory_context>{"owner_portrait":["在做 Acorn"],"recall":{"unprocessed_sources":[{"id":"recalled"}]}}</memory_context>', '2026-11-05T02:00:00.000000000Z');
+		INSERT INTO context_snapshot_refs(hash, run_id, source_id, epoch) VALUES('h1', 'run_a', 'history', 0), ('h1', 'run_a', 'recalled', 0), ('h1', 'run_a', 'portrayed', 0);
+		INSERT INTO memory_source_links(source_id, parent_id) VALUES
+		 ('reply', 'history'), ('reply', 'recalled'), ('reply', 'portrayed'), ('result', 'portrayed'), ('input', 'portrayed');`); err != nil {
+		t.Fatalf("build v36: %v", err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	strs := func(query string) []string {
+		t.Helper()
+		rows, err := s.db.Query(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := memoryStringRows(rows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if refs := strs(`SELECT source_id FROM context_snapshot_refs ORDER BY source_id`); !slices.Equal(refs, []string{"history", "recalled"}) {
+		t.Fatalf("snapshot references after upgrade = %v", refs)
+	}
+	// The run's input keeps the provenance its scheduler linked.
+	if links := strs(`SELECT source_id||'<'||parent_id FROM memory_source_links ORDER BY 1`); !slices.Equal(links, []string{"input<portrayed", "reply<history", "reply<recalled"}) {
+		t.Fatalf("source links after upgrade = %v", links)
+	}
+}

@@ -96,3 +96,80 @@ func TestEveryModelCallCarriesTheShownPortrait(t *testing.T) {
 		t.Fatalf("portrait after removing a line = %v", got)
 	}
 }
+
+func TestForgettingReachesTheRepliesOfRunsThatReadTheSource(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	now := time.Now()
+	register := func(id, speaker, runID, body string) core.MemorySource {
+		t.Helper()
+		source, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: id, Kind: "fixture", ObjectID: id, Version: "1", Speaker: speaker, RunID: runID, Body: body, RecordedAt: now})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return source
+	}
+	portrayed := register("owner:portrayed", "owner", "", "我在做 Acorn")
+	recalled := register("owner:recalled", "owner", "", "早安卡要中新网要闻")
+	trimmed := register("owner:trimmed", "owner", "", "以后经常丢 CSV 链接给你，按某一列统计每组多少行")
+	if err := db.QueuePortrait(ctx, "day:1", now); err != nil {
+		t.Fatal(err)
+	}
+	job, err := db.ClaimMemoryJob(ctx, now, time.Minute, core.PortraitOperation)
+	if err != nil || job == nil {
+		t.Fatalf("claim = %+v, %v", job, err)
+	}
+	if err := db.CommitPortrait(ctx, core.PortraitMutation{Lease: *job, Now: now, Lines: []core.PortraitDraft{{Content: "在做个人 agent Acorn", SourceIDs: []string{portrayed.ID}}}}); err != nil {
+		t.Fatal(err)
+	}
+	counter, err := NewTokenCounter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recall := core.MemoryRecall{Sources: []core.MemorySource{recalled, trimmed}}
+	measure := &runMemory{store: db, activity: db, service: unchangedRecall{}, counter: counter, budget: 4096, runID: "run_measure", recall: recall}
+	rendered, err := measure.render(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full, err := counter.CountText(ctx, strings.TrimSuffix(strings.TrimPrefix(rendered, "<memory_context>\n"), "\n</memory_context>"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Within this budget the model reads the portrait and the first recalled
+	// source, without the second.
+	mem := &runMemory{store: db, activity: db, service: unchangedRecall{}, counter: counter, budget: full - 1, runID: "run_read", recall: recall}
+	if rendered, err = mem.render(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(rendered, trimmed.ID) || !strings.Contains(rendered, recalled.ID) || len(renderedPortrait(t, rendered)) != 1 {
+		t.Fatalf("memory context within budget = %s", rendered)
+	}
+	reply := register("reply:read", "assistant", "run_read", "按你的要求排好了")
+	request := register("request:forget", "owner", "", "忘掉这些")
+	forget := func(id string) core.MemoryExclusion {
+		t.Helper()
+		forgotten, err := db.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{id}, RequestSourceID: request.ID, Reason: "owner asked", Now: now})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return forgotten.Exclusion
+	}
+	// The run saw one source only through the portrait and never read the
+	// other; forgetting them leaves its reply, and the portrait line goes.
+	for _, id := range []string{portrayed.ID, trimmed.ID} {
+		if exclusion := forget(id); slices.Contains(exclusion.SourceIDs, reply.ID) || slices.Contains(exclusion.RunIDs, "run_read") {
+			t.Fatalf("forgetting %s reached the run: %+v", id, exclusion)
+		}
+	}
+	if lines, err := db.Portrait(ctx); err != nil || len(lines) != 0 {
+		t.Fatalf("portrait after forgetting its source = %+v, %v", lines, err)
+	}
+	if exclusion := forget(recalled.ID); !slices.Contains(exclusion.SourceIDs, reply.ID) || !slices.Contains(exclusion.RunIDs, "run_read") {
+		t.Fatalf("forgetting the recalled source = %+v", exclusion)
+	}
+}
