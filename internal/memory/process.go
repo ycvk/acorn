@@ -44,8 +44,13 @@ func (e *Engine) Run(ctx context.Context) {
 	}
 }
 
-// memoryJobLease is how long a worker holds a claimed job.
-const memoryJobLease = 3 * time.Minute
+// memoryCallTimeout bounds one job's work. A reasoning model can think for
+// minutes over the largest input, a portrait refresh, before it replies.
+const memoryCallTimeout = 5 * time.Minute
+
+// memoryJobLease is how long a worker holds a claimed job. It outlasts
+// memoryCallTimeout, so work that finishes in time still commits.
+const memoryJobLease = memoryCallTimeout + time.Minute
 
 // ProcessOne claims and advances one durable stage. Large sources retain a
 // cursor after each committed batch, so restarts continue at the next batch.
@@ -62,7 +67,7 @@ func (e *Engine) processOne(ctx context.Context, operation string) (bool, error)
 		return false, err
 	}
 	scoped := context.WithValue(ctx, scopeKey{}, callScope{budget: "memory", jobID: job.ID})
-	callCtx, cancel := context.WithTimeout(scoped, 2*time.Minute)
+	callCtx, cancel := context.WithTimeout(scoped, memoryCallTimeout)
 	defer cancel()
 	switch job.Operation {
 	case "extract":

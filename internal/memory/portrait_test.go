@@ -204,3 +204,41 @@ func TestPortraitMessagesCarryTheirConversation(t *testing.T) {
 		t.Fatalf("conversations = %q", got)
 	}
 }
+
+// A refresh over a month of the owner's messages took grok-4.7 163 s and
+// 9263 output tokens of reasoning; one memory call holds a refresh that size.
+func TestPortraitRefreshLeavesAReasoningModelTimeAndRoom(t *testing.T) {
+	now := time.Now()
+	var left time.Duration
+	model := &protocolModel{portrait: func(string) string { return `{"lines":[{"text":"每天早上跑步","cites":["S1"]}]}` }}
+	e, db := testEngine(t, model, 100000)
+	ctx := context.Background()
+	registerOwnerWords(t, db, "owner:run", "我每天早上跑五公里", now.Add(-time.Hour))
+	drainMemory(t, e)
+	model.maxOutputs = nil
+	model.fail = func(ctx context.Context) error {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Fatal("the portrait call has no deadline")
+		}
+		left = time.Until(deadline)
+		return nil
+	}
+	if err := db.QueuePortrait(ctx, "forget:1", now); err != nil {
+		t.Fatal(err)
+	}
+	drainMemory(t, e)
+
+	if lines, err := db.Portrait(ctx); err != nil || len(lines) != 1 {
+		t.Fatalf("portrait = %+v, %v", lines, err)
+	}
+	if left < 163*time.Second {
+		t.Fatalf("the portrait call had %s to reply", left)
+	}
+	if len(model.maxOutputs) != 1 || model.maxOutputs[0] < 9263 {
+		t.Fatalf("portrait output limits = %v", model.maxOutputs)
+	}
+	if memoryJobLease <= memoryCallTimeout {
+		t.Fatalf("lease %s ends before the call deadline %s", memoryJobLease, memoryCallTimeout)
+	}
+}

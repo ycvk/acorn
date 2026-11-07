@@ -23,7 +23,9 @@ const (
 	portraitLineRunes    = 200
 	// portraitRemovedLines bounds the removed lines a refresh is shown.
 	portraitRemovedLines = 40
-	portraitOutputTokens = 2048
+	// portraitOutputTokens leaves a reasoning model room to weigh a month of
+	// messages beside the lines it writes.
+	portraitOutputTokens = 16384
 )
 
 type portraitInput struct {
