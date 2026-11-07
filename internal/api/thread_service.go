@@ -246,7 +246,7 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 			replied[record.RunID] = true
 		}
 	}
-	toolEvents, err := s.store.LoadToolCallEvents(ctx, runIDs)
+	stepEvents, err := s.store.LoadStepEvents(ctx, runIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +283,10 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 		}
 		switch record.Role {
 		case "assistant":
-			if message.Steps, err = toolSteps(toolEvents[record.RunID]); err != nil {
+			if message.Steps, err = toolSteps(stepEvents[record.RunID]); err != nil {
+				return nil, err
+			}
+			if message.Plan, err = latestPlan(stepEvents[record.RunID]); err != nil {
 				return nil, err
 			}
 			message.Files = sent[record.RunID]
@@ -415,13 +418,33 @@ func threadPreview(content string) string {
 	return clip(compactWhitespace(content), threadPreviewRunes)
 }
 
+// latestPlan is the plan the last plan.updated among a run's step events
+// wrote, nil when the run wrote none.
+func latestPlan(events []core.EventRecord) ([]PlanStepData, error) {
+	for _, event := range slices.Backward(events) {
+		if event.Kind != core.EventPlanUpdated {
+			continue
+		}
+		payload, ok := event.Payload.(map[string]any)
+		if !ok {
+			return nil, projectionError("plan event payload must be object: run_id=%s sequence=%d", event.RunID, event.Sequence)
+		}
+		return projectPlan(payload)
+	}
+	return nil, nil
+}
+
 // toolSteps folds a run's tool.call.* events into the calls it made, in the
-// order they started. Runs recorded before tool.call.started existed only
-// have results, which become steps without a summary.
+// order they started, leaving out the plan and the calls that wrote it. Runs
+// recorded before tool.call.started existed only have results, which become
+// steps without a summary.
 func toolSteps(events []core.EventRecord) ([]ToolStep, error) {
 	steps := []ToolStep{}
 	index := map[string]int{}
 	for _, event := range events {
+		if event.Kind == core.EventPlanUpdated || planToolCall(event) {
+			continue
+		}
 		payload, ok := event.Payload.(map[string]any)
 		if !ok {
 			return nil, projectionError("tool call event payload must be object: run_id=%s sequence=%d", event.RunID, event.Sequence)
@@ -515,6 +538,8 @@ type Message struct {
 	CreatedAt time.Time
 	RunID     string
 	Steps     []ToolStep
+	// Plan is the latest plan the run behind an assistant message wrote.
+	Plan []PlanStepData
 	// Files are what an owner message sent, or what the run behind an
 	// assistant message sent the owner.
 	Files []ThreadFileInfo

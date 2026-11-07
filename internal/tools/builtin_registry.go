@@ -19,6 +19,7 @@ type NativeToolDeps struct {
 	ArtifactContext core.ToolCallContextBridge
 	OperatorStore   OperatorQuestionStore
 	OperatorContext core.ToolCallContextBridge
+	Plan            PlanToolDeps
 	Presence        PresenceToolDeps
 	Goals           GoalToolDeps
 	Notify          NotifyToolDeps
@@ -89,6 +90,12 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		build = func() (einotool.BaseTool, error) {
 			return buildAskOperatorTool(deps.OperatorStore, deps.OperatorContext)
 		}
+	case "plan":
+		needs = []nativeToolDep{
+			{"Plan.Store", deps.Plan.Store != nil},
+			{"Plan.Context", deps.Plan.Context != nil},
+		}
+		build = func() (einotool.BaseTool, error) { return buildPlanTool(deps.Plan) }
 	case "keep":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) { return buildKeepTool(deps.Presence) }

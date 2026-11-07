@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -279,5 +280,64 @@ func TestNewsSourceApprovalNamesTheSource(t *testing.T) {
 	}, core.RunRecord{RunID: "run_1", SessionID: "thread_1"})
 	if err != nil || summary.ToolSummary != "把新闻源「知乎热榜」（板块：热榜）转正" {
 		t.Fatalf("summary = %+v, %v", summary, err)
+	}
+}
+
+// A plan reaches clients as plan.updated; the calls that wrote it stay out of
+// the live events and of the reply's steps, and the reply keeps the latest plan.
+func TestPlanReachesClientsInPlaceOfItsCalls(t *testing.T) {
+	plan := func(seq int64, steps ...any) core.EventRecord {
+		return core.EventRecord{RunID: "run_1", Sequence: seq, Kind: core.EventPlanUpdated, Payload: map[string]any{"steps": steps}}
+	}
+	step := func(label, status string) map[string]any { return map[string]any{"label": label, "status": status} }
+	events := []core.EventRecord{
+		{RunID: "run_1", Sequence: 1, Kind: "tool.call.started", Payload: map[string]any{"tool_call_id": "p1", "tool_name": core.PlanToolName, "arguments": `{"steps":[]}`}},
+		plan(2, step("读三篇文章", "running"), step("写汇总", "pending")),
+		{RunID: "run_1", Sequence: 3, Kind: "tool.call.succeeded", Payload: map[string]any{"tool_call_id": "p1", "tool_name": core.PlanToolName}},
+		{RunID: "run_1", Sequence: 4, Kind: "tool.call.started", Payload: map[string]any{"tool_call_id": "w1", "tool_name": "web_fetch", "arguments": `{"url":"https://a.dev"}`}},
+		{RunID: "run_1", Sequence: 5, Kind: "tool.call.succeeded", Payload: map[string]any{"tool_call_id": "w1", "tool_name": "web_fetch"}},
+		{RunID: "run_1", Sequence: 6, Kind: "tool.call.failed", Payload: map[string]any{"tool_call_id": "p2", "tool_name": core.PlanToolName, "error": "2 steps are running"}},
+		plan(7, map[string]any{"label": "读三篇文章", "status": "done", "note": "3/3"}, step("写汇总", "running")),
+	}
+
+	live, err := projectLiveEvents(events)
+	if err != nil {
+		t.Fatalf("project live events: %v", err)
+	}
+	var kinds []string
+	for _, event := range live {
+		kinds = append(kinds, event.Type)
+	}
+	if want := []string{core.EventPlanUpdated, "tool.call.started", "tool.call.succeeded", core.EventPlanUpdated}; fmt.Sprint(kinds) != fmt.Sprint(want) {
+		t.Fatalf("live kinds = %v, want %v", kinds, want)
+	}
+	if got := live[3].Data.(PlanData); fmt.Sprint(got.Steps) != fmt.Sprint([]PlanStepData{{Label: "读三篇文章", Status: "done", Note: "3/3"}, {Label: "写汇总", Status: "running"}}) {
+		t.Fatalf("latest live plan = %+v", got)
+	}
+
+	steps, err := toolSteps(events)
+	if err != nil {
+		t.Fatalf("toolSteps: %v", err)
+	}
+	if len(steps) != 1 || steps[0] != (ToolStep{ToolName: "web_fetch", Summary: "https://a.dev", Outcome: ToolStepSucceeded}) {
+		t.Fatalf("steps = %+v", steps)
+	}
+	latest, err := latestPlan(events)
+	if err != nil || fmt.Sprint(latest) != fmt.Sprint(live[3].Data.(PlanData).Steps) {
+		t.Fatalf("latest plan = %+v, %v", latest, err)
+	}
+	if none, err := latestPlan(events[3:5]); none != nil || err != nil {
+		t.Fatalf("plan of a run without one = %+v, %v", none, err)
+	}
+
+	for _, payload := range []map[string]any{
+		{"steps": []any{}},
+		{"steps": []any{step("", "running")}},
+		{"steps": []any{step("读", "in_progress")}},
+		{"steps": "读"},
+	} {
+		if _, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 9, Kind: core.EventPlanUpdated, Payload: payload}); !errors.Is(err, ErrClientProjectionFailed) {
+			t.Fatalf("payload %v err = %v", payload, err)
+		}
 	}
 }

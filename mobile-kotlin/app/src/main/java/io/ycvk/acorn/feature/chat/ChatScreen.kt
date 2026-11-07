@@ -96,6 +96,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.ycvk.acorn.api.models.PlanStep
 import io.ycvk.acorn.api.models.SubRunData
 import io.ycvk.acorn.core.sse.ActivityItem
 import io.ycvk.acorn.core.sse.ActivityKind
@@ -291,18 +292,19 @@ fun ChatScreen(
                         is ChatMessage.User -> UserBubble(message.text, itemModifier) {
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
                         }
-                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, message.subRuns, streaming = false, modifier = itemModifier) {
+                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.plan, message.steps, message.subRuns, streaming = false, modifier = itemModifier) {
                             ViewCards(message.views, currentThread, viewModel.connection(), viewActions, Modifier.padding(top = 10.dp))
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, Modifier.padding(top = 8.dp))
                         }
                         is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier, summary = message.summary)
                     }
                 }
-                if (streaming || chatState.assistantText.isNotBlank() || chatState.steps.isNotEmpty() || chatState.views.isNotEmpty() || chatState.subRuns.isNotEmpty()) {
+                if (streaming || chatState.assistantText.isNotBlank() || chatState.plan.isNotEmpty() || chatState.steps.isNotEmpty() || chatState.views.isNotEmpty() || chatState.subRuns.isNotEmpty()) {
                     item(key = "__streaming__") {
                         AssistantMessage(
                             text = chatState.assistantText,
                             reasoning = chatState.assistantReasoning.ifBlank { null },
+                            plan = chatState.plan,
                             steps = chatState.steps,
                             subRuns = chatState.subRuns,
                             streaming = streaming,
@@ -526,6 +528,7 @@ private fun QueuedBubble(text: String, note: String, modifier: Modifier = Modifi
 private fun AssistantMessage(
     text: String,
     reasoning: String?,
+    plan: List<PlanStep>,
     steps: List<ToolStep>,
     subRuns: List<SubRunData>,
     streaming: Boolean,
@@ -535,6 +538,10 @@ private fun AssistantMessage(
     val colors = AcornTheme.colors
     val copy = rememberCopy()
     Column(modifier = modifier.fillMaxWidth().padding(end = 8.dp)) {
+        if (plan.isNotEmpty()) {
+            RunPlan(plan, streaming)
+            Spacer(Modifier.height(8.dp))
+        }
         if (steps.isNotEmpty()) {
             ToolSteps(steps, streaming)
             Spacer(Modifier.height(8.dp))

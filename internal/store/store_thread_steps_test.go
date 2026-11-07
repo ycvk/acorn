@@ -8,7 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func TestLatestRepliesAndToolCallEvents(t *testing.T) {
+func TestLatestRepliesAndStepEvents(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
@@ -51,17 +51,19 @@ func TestLatestRepliesAndToolCallEvents(t *testing.T) {
 		{"tool.call.started", map[string]any{"tool_call_id": "call_1", "tool_name": "web_search", "arguments": `{"query":"go 1.28"}`}},
 		{"assistant.delta", map[string]any{"assistant_delta": map[string]any{"delta": "x"}}},
 		{"tool.call.succeeded", map[string]any{"tool_call_id": "call_1", "tool_name": "web_search", "output": "results"}},
+		{"model.usage", map[string]any{"total_tokens": 10}},
+		{core.EventPlanUpdated, map[string]any{"steps": []any{map[string]any{"label": "找", "status": "done"}, map[string]any{"label": "答", "status": "running"}}}},
 	} {
 		if _, err := store.AppendEvent(ctx, "run_a", e.kind, e.payload); err != nil {
 			t.Fatalf("append %s: %v", e.kind, err)
 		}
 	}
-	events, err := store.LoadToolCallEvents(ctx, []string{"run_a", "run_missing"})
+	events, err := store.LoadStepEvents(ctx, []string{"run_a", "run_missing"})
 	if err != nil {
-		t.Fatalf("tool call events: %v", err)
+		t.Fatalf("step events: %v", err)
 	}
 	got := events["run_a"]
-	if len(events) != 1 || len(got) != 2 || got[0].Kind != "tool.call.started" || got[1].Kind != "tool.call.succeeded" || got[0].RunID != "run_a" {
+	if len(events) != 1 || len(got) != 3 || got[0].Kind != "tool.call.started" || got[1].Kind != "tool.call.succeeded" || got[2].Kind != core.EventPlanUpdated || got[0].RunID != "run_a" {
 		t.Fatalf("events = %+v", events)
 	}
 }

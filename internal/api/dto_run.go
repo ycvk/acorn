@@ -146,6 +146,7 @@ type MessageDTO struct {
 	CreatedAt time.Time         `json:"created_at"`
 	RunID     string            `json:"run_id,omitempty"`
 	Steps     []ToolStepDTO     `json:"steps,omitempty"`
+	Plan      []PlanStepData    `json:"plan,omitempty"`
 	Files     []ThreadFileDTO   `json:"files,omitempty"`
 	Views     []core.ViewData   `json:"views,omitempty"`
 	SubRuns   []SubRunData      `json:"sub_runs,omitempty"`

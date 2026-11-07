@@ -71,7 +71,7 @@ type SessionStore interface {
 	AppendEvent(ctx context.Context, runID, kind string, payload any) (EventRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]EventRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]EventRecord, error)
-	LoadToolCallEvents(ctx context.Context, runIDs []string) (map[string][]EventRecord, error)
+	LoadStepEvents(ctx context.Context, runIDs []string) (map[string][]EventRecord, error)
 
 	// --- Pending actions ---
 	CreatePendingAction(ctx context.Context, input PendingActionInput) (*PendingActionRecord, error)

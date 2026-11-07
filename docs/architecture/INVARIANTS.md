@@ -41,7 +41,7 @@
 - **工具失败可见，主模型调用有界重试**：tool error middleware 把错误转成结果文本时按 call id 记录，projector 对这些调用发 `tool.call.failed`（其余发 `tool.call.succeeded`）。主模型调用失败最多重试 3 次，context 取消不重试；被重试的失败流不记 run 失败，只有成功那次的输出成为 assistant 消息；3 次重试都失败时 run 失败。
   - `internal/runtime/tool_errors_test.go`
   - `internal/runtime/model_retry_test.go`
-- **工具调用对客户端只露出名字和摘要**：assistant 消息里的每个工具调用在消息之后发 `tool.call.started`。`tool.call.started`/`succeeded`/`failed` 进入 live 契约，客户端只拿到工具名、取自参数的一行摘要（至多 80 字）和截断到 300 字的错误，工具输出留在服务端。消息列表把 run 的这些事件按开始顺序折叠成 assistant 消息的 `steps`。
+- **工具调用对客户端只露出名字和摘要**：assistant 消息里的每个工具调用在消息之后发 `tool.call.started`。`tool.call.started`/`succeeded`/`failed` 进入 live 契约，客户端只拿到工具名、取自参数的一行摘要（至多 80 字）和截断到 300 字的错误，工具输出留在服务端。消息列表把 run 的这些事件按开始顺序折叠成 assistant 消息的 `steps`。`plan` 工具的调用不进 live 事件，也不进 `steps`。
   - `internal/runtime/events_test.go`
   - `internal/api/tool_steps_test.go`
   - `internal/store/store_thread_steps_test.go`
@@ -244,6 +244,11 @@
   - `internal/api/openapi_test.go`
   - `internal/wire/delegation_e2e_test.go`
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/chat/SubRunsTest.kt`
+- **run 的计划随事件到达客户端**：`plan` 是对话 run 的本地工具，子 run 没有；每次调用整份替换计划：2 到 12 步，每步 label 压成一行、非空、至多 60 字，note 至多 20 字，状态是 pending、running、done、failed 之一，至多一步 running，不合要求的调用返回错误、不记事件。合要求的调用在当前 run 上记 `plan.updated`，它进入 live 契约，没有步骤、缺 label 或状态不对的载荷投影失败。线程消息把 run 最后一次 `plan.updated` 的步骤放在其 assistant 消息的 `plan` 上。
+  - `internal/tools/plan_tool_test.go`
+  - `internal/api/tool_steps_test.go`
+  - `internal/wire/plan_e2e_test.go`
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/chat/RunPlanTest.kt`
 - **Pending action 对客户端可达**：action ID 由 `core.NewActionID()` 生成，只含 `[a-z0-9_]`，能直接放进 `/v1/pending-actions/{action_id}:decide`。每种 pending action kind 都以 `<kind>.pending` / `<kind>.decided` 进入 live RunEvent，且 live 事件集合与 OpenAPI `RunEvent` discriminator 一致。
   - `internal/core/core_test.go`
   - `internal/api/openapi_test.go`
