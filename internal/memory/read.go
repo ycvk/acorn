@@ -174,6 +174,9 @@ func (e *Engine) Concern(ctx context.Context, runID, threadID string, in Concern
 	if in.Action == "list" {
 		return e.cfg.Store.ListConcerns(ctx, false)
 	}
+	if strings.TrimSpace(in.SourceID) == "" {
+		return nil, errors.New("concern changes need source_id, a source from this run that shows the change")
+	}
 	source, err := e.cfg.Store.LoadMemorySource(ctx, in.SourceID)
 	if err != nil {
 		return nil, err

@@ -91,10 +91,13 @@ func TestOwnerReadsCorrectsAndForgetsMemoriesFromTheApp(t *testing.T) {
 
 	var forgotten api.MemoryForgetResponse
 	client.do(t, httptest.NewRequest(http.MethodPost, "/v1/memories/"+corrected.ID+":forget", nil), http.StatusOK, &forgotten)
-	if !slices.Contains(forgotten.ForgottenIDs, corrected.ID) {
+	if !slices.Equal(forgotten.ForgottenIDs, []string{corrected.ID}) {
 		t.Fatalf("forgotten = %v", forgotten.ForgottenIDs)
 	}
-	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/memories/"+corrected.ID, nil), http.StatusNotFound, nil)
+	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/memories/"+corrected.ID, nil), http.StatusOK, &detail)
+	if detail.Memory.State != "retracted" {
+		t.Fatalf("forgotten memory state = %q", detail.Memory.State)
+	}
 	client.do(t, httptest.NewRequest(http.MethodPost, "/v1/memories/"+corrected.ID+":forget", nil), http.StatusNotFound, nil)
 	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/memories?q=喝茶", nil), http.StatusOK, &list)
 	if len(list.Memories) != 0 {
@@ -104,8 +107,8 @@ func TestOwnerReadsCorrectsAndForgetsMemoriesFromTheApp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exclusion.Epoch == 0 || !slices.ContainsFunc(exclusion.SourceIDs, func(id string) bool { return strings.HasPrefix(id, "request:") }) {
-		t.Fatalf("the owner's correction and forget request must be excluded with the memory: %+v", exclusion)
+	if exclusion.Epoch != 0 || len(exclusion.SourceIDs) != 0 {
+		t.Fatalf("forgetting a memory in the app excluded sources: %+v", exclusion)
 	}
 }
 

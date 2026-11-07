@@ -269,7 +269,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	if container.knowledge, err = api.NewKnowledgeService(deps.vault, deps.memory, forgetBarrier); err != nil {
 		return nil, err
 	}
-	memories, err := api.NewMemoryService(db, deps.memory, forgetBarrier)
+	memories, err := api.NewMemoryService(db, deps.memory)
 	if err != nil {
 		return nil, err
 	}

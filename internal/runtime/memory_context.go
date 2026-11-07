@@ -171,15 +171,6 @@ func (m *runMemory) render(ctx context.Context) (string, error) {
 		return "", err
 	}
 	m.recall = refreshed
-	var sourceIDs, recordIDs []string
-	sourceIDs = append(sourceIDs, m.history.SourceIDs...)
-	for _, hit := range m.recall.Hits {
-		sourceIDs = append(sourceIDs, hit.Record.SourceIDs...)
-		recordIDs = append(recordIDs, hit.Record.ID)
-	}
-	for _, s := range m.recall.Sources {
-		sourceIDs = append(sourceIDs, s.ID)
-	}
 	lines, err := m.store.Portrait(ctx)
 	if err != nil {
 		return "", err
@@ -188,7 +179,6 @@ func (m *runMemory) render(ctx context.Context) (string, error) {
 	for _, line := range lines {
 		if line.State == core.PortraitLineShown {
 			portrait = append(portrait, line.Content)
-			sourceIDs = append(sourceIDs, line.SourceIDs...)
 		}
 	}
 	// Publish current-run source IDs for synchronous keep/correct/settle calls.
@@ -204,7 +194,6 @@ func (m *runMemory) render(ctx context.Context) (string, error) {
 	refs := make([]sourceRef, 0, len(current))
 	for _, s := range current {
 		refs = append(refs, sourceRef{s.ID, s.Speaker, s.ToolName})
-		sourceIDs = append(sourceIDs, s.ID)
 	}
 	value := struct {
 		Portrait []string          `json:"owner_portrait,omitempty"`
@@ -236,6 +225,21 @@ func (m *runMemory) render(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", err
 		}
+	}
+	// The run's replies and tool results derive from what the model reads:
+	// history, the recall kept within budget and the run's own sources.
+	// Forgetting rewrites the portrait itself, so its sources stay out.
+	sourceIDs := append([]string{}, m.history.SourceIDs...)
+	var recordIDs []string
+	for _, hit := range value.Recall.Hits {
+		sourceIDs = append(sourceIDs, hit.Record.SourceIDs...)
+		recordIDs = append(recordIDs, hit.Record.ID)
+	}
+	for _, s := range value.Recall.Sources {
+		sourceIDs = append(sourceIDs, s.ID)
+	}
+	for _, s := range current {
+		sourceIDs = append(sourceIDs, s.ID)
 	}
 	rendered := "<memory_context>\n" + string(data) + "\n</memory_context>"
 	sum := sha256.Sum256([]byte(rendered))

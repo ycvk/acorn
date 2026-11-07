@@ -61,12 +61,15 @@ func addConcernOutcomes(ctx context.Context, tx *sql.Tx) error {
 // SaveConcern writes a concern's next revision. A new concern belongs to
 // concern.ThreadID, which must exist; a revision keeps the stored thread and
 // fails with core.ErrMemoryExcluded once that conversation was deleted. A
-// revision without an outcome keeps the stored one. Resolving needs the
-// owner's confirmation or a tool result as source, and only the owner's
-// confirmation for a concern with an outcome.
+// revision without a title, outcome or record links keeps the stored ones.
+// Resolving needs the owner's confirmation or a tool result as source, and
+// only the owner's confirmation for a concern with an outcome.
 func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, expected int64) (core.MemoryConcern, error) {
-	if strings.TrimSpace(concern.Title) == "" || strings.TrimSpace(concern.Reason) == "" || concern.SourceID == "" || concern.UpdatedAt.IsZero() {
-		return core.MemoryConcern{}, errors.New("concern requires title, reason, source_id and updated_at")
+	if strings.TrimSpace(concern.Reason) == "" || concern.SourceID == "" || concern.UpdatedAt.IsZero() {
+		return core.MemoryConcern{}, errors.New("concern requires reason, source_id and updated_at")
+	}
+	if concern.ID == "" && strings.TrimSpace(concern.Title) == "" {
+		return core.MemoryConcern{}, errors.New("new concern requires title")
 	}
 	if !slices.Contains([]string{"active", "waiting", "resolved", "released"}, concern.State) {
 		return core.MemoryConcern{}, errors.New("concern state must be active, waiting, resolved or released")
@@ -81,8 +84,8 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			concern.ID = memoryID("concern", concern.Title, concern.SourceID)
 		}
 		var revision int64
-		var created, thread, outcome string
-		err = tx.QueryRowContext(ctx, `SELECT revision,created_at,thread_id,outcome FROM memory_concerns WHERE id=?`, concern.ID).Scan(&revision, &created, &thread, &outcome)
+		var title, created, thread, outcome string
+		err = tx.QueryRowContext(ctx, `SELECT title,revision,created_at,thread_id,outcome FROM memory_concerns WHERE id=?`, concern.ID).Scan(&title, &revision, &created, &thread, &outcome)
 		switch {
 		case err == nil:
 			if expected != revision {
@@ -93,12 +96,27 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			}
 			concern.Revision = revision + 1
 			concern.ThreadID = thread
+			if strings.TrimSpace(concern.Title) == "" {
+				concern.Title = title
+			}
 			if concern.Outcome == "" {
 				concern.Outcome = outcome
+			}
+			if len(concern.RecordIDs) == 0 {
+				rows, err := tx.QueryContext(ctx, `SELECT record_id FROM memory_concern_records WHERE concern_id=? AND revision=? ORDER BY rowid`, concern.ID, revision)
+				if err != nil {
+					return err
+				}
+				if concern.RecordIDs, err = memoryStringRows(rows); err != nil {
+					return err
+				}
 			}
 		case errors.Is(err, sql.ErrNoRows):
 			if expected != 0 {
 				return core.ErrMemoryConflict
+			}
+			if strings.TrimSpace(concern.Title) == "" {
+				return errors.New("new concern requires title")
 			}
 			if concern.ThreadID == "" {
 				return errors.New("new concern requires thread_id")

@@ -33,7 +33,7 @@ fun evidenceSource(evidence: MemoryEvidence): String {
 
 /** What forgetting does to this kind of memory, for the confirmation. */
 fun forgetConsequence(kind: MemorySummary.Kind): String = when (kind) {
-    MemorySummary.Kind.fact -> "Acorn 之后不会再用到这条事实、它依据的原话，以及由此得出的推断。原来的对话和笔记还在。"
+    MemorySummary.Kind.fact -> "Acorn 之后不会再用到这条事实，由它得出的推断会重新核对。原来的对话和笔记还在。"
     MemorySummary.Kind.insight -> "Acorn 之后不会再用到这条推断，它依据的事实会保留。"
     MemorySummary.Kind.thought -> "Acorn 之后不会再用到这个想法。"
 }

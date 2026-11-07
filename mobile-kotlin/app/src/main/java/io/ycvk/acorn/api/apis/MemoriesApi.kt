@@ -138,7 +138,7 @@ open class MemoriesApi(basePath: kotlin.String = defaultBasePath, client: Call.F
     /**
      * POST /v1/memories/{memory_id}:forget
      * Forget a memory
-     * Excludes the memory from everything Acorn uses from now on. Forgetting a fact also excludes the quotes it rests on and every memory drawn from them; forgetting an insight or thought withdraws only that memory. Runs that saw the memory are stopped before the response. The original messages and notes stay where they are. 
+     * Withdraws the memory: a fact or insight is retracted and a thought released, so Acorn no longer uses it. Memories drawn from it are marked for review, and portrait lines citing what it rests on are deleted. The messages and notes it rests on, and the replies and tool results of runs that read it, stay as they are. A memory no longer current, disputed or open is not found. 
      * @param memoryId 
      * @return MemoryForgetResponse
      * @throws IllegalStateException If the request is not correctly configured
@@ -170,7 +170,7 @@ open class MemoriesApi(basePath: kotlin.String = defaultBasePath, client: Call.F
     /**
      * POST /v1/memories/{memory_id}:forget
      * Forget a memory
-     * Excludes the memory from everything Acorn uses from now on. Forgetting a fact also excludes the quotes it rests on and every memory drawn from them; forgetting an insight or thought withdraws only that memory. Runs that saw the memory are stopped before the response. The original messages and notes stay where they are. 
+     * Withdraws the memory: a fact or insight is retracted and a thought released, so Acorn no longer uses it. Memories drawn from it are marked for review, and portrait lines citing what it rests on are deleted. The messages and notes it rests on, and the replies and tool results of runs that read it, stay as they are. A memory no longer current, disputed or open is not found. 
      * @param memoryId 
      * @return ApiResponse<MemoryForgetResponse?>
      * @throws IllegalStateException If the request is not correctly configured

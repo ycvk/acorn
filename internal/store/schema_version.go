@@ -19,7 +19,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 36
+const schemaVersion = 37
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -58,6 +58,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	addSubRuns,
 	addPortrait,
 	ownerSourcesFromUserMessages,
+	dropUnreadSnapshotRefs,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -489,5 +490,22 @@ func inheritFragmentExclusionsByEpoch(ctx context.Context, tx *sql.Tx) error {
 // what the owner wrote is an owner source.
 func ownerSourcesFromUserMessages(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, `DROP TRIGGER memory_message_ai;`+memoryMessageTrigger)
+	return err
+}
+
+// dropUnreadSnapshotRefs (36 to 37) drops the snapshot references to sources
+// a run's model did not read, the portrait's sources among them, and the
+// links its replies and tool results took from them. A run reads its own
+// thread's sources as history and the others through the recall and run
+// sources its snapshot names.
+func dropUnreadSnapshotRefs(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM context_snapshot_refs WHERE rowid IN (
+		SELECT r.rowid FROM context_snapshot_refs r JOIN runs u ON u.run_id=r.run_id JOIN memory_sources s ON s.id=r.source_id JOIN context_snapshots c ON c.hash=r.hash
+		WHERE s.session_id<>u.session_id AND instr(c.content,'"'||r.source_id||'"')=0)`); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM memory_source_links WHERE rowid IN (
+		SELECT l.rowid FROM memory_source_links l JOIN memory_sources s ON s.id=l.source_id JOIN runs u ON u.run_id=s.run_id
+		WHERE s.speaker IN ('assistant','tool') AND NOT EXISTS(SELECT 1 FROM context_snapshot_refs r WHERE r.run_id=s.run_id AND r.source_id=l.parent_id))`)
 	return err
 }

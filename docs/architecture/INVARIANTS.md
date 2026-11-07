@@ -119,25 +119,27 @@
   - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`
   - `internal/memory/context_test.go`
-- **画像每晚从 owner 的话里整理，每次模型调用都带上**：画像是若干行，每行至少引用一个来源，存在 `portrait_lines` 与 `portrait_line_sources`。wake 调度器每天到夜思时间（不论夜思是否开启）排一次 `portrait` 记忆任务，版本 `day:<本地日期>` 让它一天只排一次；升级到 v35 时 owner 说过话就排一次 `bootstrap`。刷新读当前行、owner 删掉的行、current fact 与 insight、近 30 天 owner 的来源（记忆视图，每条截 400 字，带所在对话的标签，同一对话同一标签），装进一次记忆调用；`day:` 刷新在上次刷新后既没有新来源也没有记录变化时不调用模型，什么都没有时写空画像。模型输出至多 20 行，每行单行、至多 200 字，只能引用给过的标签，全部至多 1024 token，否则任务失败；提交时校验租约与 epoch、每个来源未被整体排除、不含凭据，替换 shown 行，removed 行保留。每次模型调用的 `<memory_context>` 带 shown 行（`owner_portrait`），它们的来源写进快照引用，超预算时先裁 recall 再裁画像尾行。遗忘在同一事务删掉引用被排除来源的行（含 removed），删掉了 shown 行就立即排一次 `forget:<epoch>` 刷新；读取时晚于行写入的片段排除同样隐藏该行。owner 经 `GET /v1/portrait` 看每行与依据摘录，经 `DELETE /v1/portrait/lines/{line_id}` 把行标为 removed，之后的刷新不再写它。
+- **画像每晚从 owner 的话里整理，每次模型调用都带上**：画像是若干行，每行至少引用一个来源，存在 `portrait_lines` 与 `portrait_line_sources`。wake 调度器每天到夜思时间（不论夜思是否开启）排一次 `portrait` 记忆任务，版本 `day:<本地日期>` 让它一天只排一次；升级到 v35 时 owner 说过话就排一次 `bootstrap`。刷新读当前行、owner 删掉的行、current fact 与 insight、近 30 天 owner 的来源（记忆视图，每条截 400 字，带所在对话的标签，同一对话同一标签），装进一次记忆调用；`day:` 刷新在上次刷新后既没有新来源也没有记录变化时不调用模型，什么都没有时写空画像。模型输出至多 20 行，每行单行、至多 200 字，只能引用给过的标签，全部至多 1024 token，否则任务失败；提交时校验租约与 epoch、每个来源未被整体排除、不含凭据，替换 shown 行，removed 行保留。每次模型调用的 `<memory_context>` 带 shown 行（`owner_portrait`），超预算时先裁 recall 再裁画像尾行。画像的来源不进快照引用：遗忘在同一事务删掉引用被排除来源的行（含 removed），删掉了 shown 行就立即排一次 `forget:<epoch>` 刷新，只经画像见过这些来源的 run 写下的回复与工具结果照常可读；读取时晚于行写入的片段排除同样隐藏该行。v37 迁移删掉此前写进快照引用的画像来源和由它们建的来源链接。owner 经 `GET /v1/portrait` 看每行与依据摘录，经 `DELETE /v1/portrait/lines/{line_id}` 把行标为 removed，之后的刷新不再写它。
   - `internal/store/memory_portrait_test.go`
   - `internal/memory/portrait_test.go`
   - `internal/wake/thinking_test.go`
   - `internal/runtime/portrait_context_test.go`
   - `internal/api/handlers_portrait_test.go`
-- **事实修订保留历史，来源排除约束所有读取**：精确证据引用、revision CAS、known_at 与 as_of 分离；更正使派生认识待复核。遗忘按独立证据判断：当前 revision 引用被排除来源（整体或片段匹配）的记录，去掉这些证据后仍有未排除的支持证据时写一个新 revision（证据、只由被排除证据提及的实体与别名、根来源重算，reason 为 `evidence excluded by owner`，入队 embed），否则整条排除并沿 derives_from 级联；被剥离的存活记录不级联，其派生认识标 needs_review 并入队 consolidate。旧 revision 仍引用被排除来源，`memoryRevisionVisibility` 让历史读取、向量与别名看不到它；整合经记忆视图读来源，无法把剥离的证据加回来。遗忘事务同时处理来源片段、向量和摘要。来源的整体排除传给由它派生的全部来源；片段排除只传给在排除之前读过它的 run 派生的来源，之后写成的派生来源与线程摘要读到的是去掉片段的正文，照常可读。旧 worker、checkpoint 与模型输入受 epoch 约束。确认前等待在排除之前读过被排除内容的在途 run 退出。
+- **事实修订保留历史，来源排除约束所有读取**：精确证据引用、revision CAS、known_at 与 as_of 分离；更正使派生认识待复核。遗忘按独立证据判断：当前 revision 引用被排除来源（整体或片段匹配）的记录，去掉这些证据后仍有未排除的支持证据时写一个新 revision（证据、只由被排除证据提及的实体与别名、根来源重算，reason 为 `evidence excluded by owner`，入队 embed），否则整条排除并沿 derives_from 级联；被剥离的存活记录不级联，其派生认识标 needs_review 并入队 consolidate。旧 revision 仍引用被排除来源，`memoryRevisionVisibility` 让历史读取、向量与别名看不到它；整合经记忆视图读来源，无法把剥离的证据加回来。遗忘事务同时处理来源片段、向量和摘要。run 的回复与工具结果派生自模型读到的来源：本对话的历史、预算内留下的 recall 与本 run 的来源，它们写进快照引用。来源的整体排除传给由它派生的全部来源；片段排除只传给在排除之前读过它的 run 派生的来源，之后写成的派生来源与线程摘要读到的是去掉片段的正文，照常可读。旧 worker、checkpoint 与模型输入受 epoch 约束。确认前等待在排除之前读过被排除内容的在途 run 退出。
   - `internal/store/memory_contract_test.go`
   - `internal/store/memory_state_test.go`
   - `internal/store/memory_forget_test.go`
   - `internal/store/memory_merge_test.go`
   - `internal/runtime/memory_visibility_test.go`
+  - `internal/runtime/portrait_context_test.go`
 - **记忆只读脱敏后的来源**：store 解析来源时有两个视图。记忆视图把 `internal/redact` 识别的凭据替换为 `[REDACTED:<类型>]`，抽取输入、证据校验、召回里的未整理来源、`memory_read` 与 App 的记忆详情都用它；线程视图只应用排除，供线程历史、线程摘要输入与当前输入使用。遗忘的引用在脱敏正文里定位后映射回原文，两个视图排除同一段话，排除范围碰到的凭据整段排除。记录的正文、条件或实体带凭据时以 `ErrMemoryCredential` 拒绝提交。
   - `internal/redact/redact_test.go`
   - `internal/store/memory_redaction_test.go`
   - `internal/memory/redaction_test.go`
-- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
+- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改登记一个 `request` 来源（speaker 为 owner、从不抽取），以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision。在 App 里忘掉一条记忆是撤回：同一事务里给它写一个新 revision，fact 与 insight 为 `retracted`、thought 为 `released`，由它派生的记录标 needs_review 并入队 consolidate，引用它根来源的 shown 画像行删除并排一次画像刷新；不登记排除、不升 epoch、不打断 run，它的来源和读过它的 run 写下的回复、工具结果与想法照常可读。不再是 current、disputed 或 open 的记录撤回时返回 `ErrMemoryNotFound`。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
+  - `internal/store/memory_withdraw_test.go`
 - **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、跟进、目标、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
@@ -392,7 +394,7 @@
   - `internal/wake/thinking_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
   - `internal/wire/story_follow_acceptance_e2e_test.go`
-- **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome 时沿用当前的。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
+- **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome、标题或关联记录时沿用当前的，新关切必须有标题。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
   - `internal/store/memory_state_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
 - **原始通知只有一个写入入口**：鉴权设备身份与服务器 received_at 由 API 决定;批次全量校验后事务写入,按 (device,key,posted_at) 去重,不修改调用方输入。

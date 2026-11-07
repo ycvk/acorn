@@ -309,7 +309,50 @@ func supersedeMemory(ctx context.Context, q memorySQL, c core.MemoryChange, now 
 	if err := persistMemoryRecord(ctx, q, old, c.Reason); err != nil {
 		return err
 	}
-	rows, err := q.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT from_id FROM memory_links WHERE to_id=? AND relation='derives_from' UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from') SELECT a.id FROM affected a JOIN memory_records r ON r.id=a.id WHERE r.excluded=0`, old.ID)
+	return reviewDerivedMemories(ctx, q, old.ID, "supporting fact revised", now)
+}
+
+// WithdrawMemory takes back a memory the owner no longer wants Acorn to use:
+// a new revision retracts it, or releases it when it is a thought. What was
+// drawn from it is marked for review, and the shown portrait lines citing its
+// sources go with a refresh queued. Its sources, the runs that read it and
+// what they wrote stay as they are. A memory no longer current, disputed or
+// open has nothing to withdraw.
+func (s *Store) WithdrawMemory(ctx context.Context, id string, now time.Time) (core.MemoryRecord, error) {
+	var out core.MemoryRecord
+	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		r, err := loadMemoryRecord(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if r.State != "current" && r.State != "disputed" && r.State != "open" {
+			return fmt.Errorf("%w: record %s is %s", core.ErrMemoryNotFound, id, r.State)
+		}
+		r.State = "retracted"
+		if r.Kind == "thought" {
+			r.State = "released"
+		}
+		r.Revision++
+		r.UpdatedAt = now
+		if err := persistMemoryRecord(ctx, tx, r, "owner withdrew it in the app"); err != nil {
+			return err
+		}
+		if err := reviewDerivedMemories(ctx, tx, r.ID, "supporting memory withdrawn", now); err != nil {
+			return err
+		}
+		if err := withdrawPortraitLines(ctx, tx, r, now); err != nil {
+			return err
+		}
+		out = r
+		return nil
+	})
+	return out, err
+}
+
+// reviewDerivedMemories marks every memory drawn from id, directly or
+// through others, for review and queues its consolidation.
+func reviewDerivedMemories(ctx context.Context, q memorySQL, id, reason string, now time.Time) error {
+	rows, err := q.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT from_id FROM memory_links WHERE to_id=? AND relation='derives_from' UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from') SELECT a.id FROM affected a JOIN memory_records r ON r.id=a.id WHERE r.excluded=0`, id)
 	if err != nil {
 		return err
 	}
@@ -317,18 +360,18 @@ func supersedeMemory(ctx context.Context, q memorySQL, c core.MemoryChange, now 
 	if err != nil {
 		return err
 	}
-	for _, id := range ids {
-		parent, err := loadMemoryRecord(ctx, q, id)
+	for _, derived := range ids {
+		r, err := loadMemoryRecord(ctx, q, derived)
 		if err != nil {
 			return err
 		}
-		parent.NeedsReview = true
-		parent.Revision++
-		parent.UpdatedAt = now
-		if err := persistMemoryRecord(ctx, q, parent, "supporting fact revised"); err != nil {
+		r.NeedsReview = true
+		r.Revision++
+		r.UpdatedAt = now
+		if err := persistMemoryRecord(ctx, q, r, reason); err != nil {
 			return err
 		}
-		if err := enqueueMemoryJob(ctx, q, "consolidate", id, fmt.Sprint(parent.Revision), now); err != nil {
+		if err := enqueueMemoryJob(ctx, q, "consolidate", derived, fmt.Sprint(r.Revision), now); err != nil {
 			return err
 		}
 	}
