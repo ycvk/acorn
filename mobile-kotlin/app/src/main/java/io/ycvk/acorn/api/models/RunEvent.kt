@@ -28,6 +28,7 @@ import io.ycvk.acorn.api.models.ClientElicitationDecidedEvent
 import io.ycvk.acorn.api.models.ClientElicitationPendingEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionPendingEvent
+import io.ycvk.acorn.api.models.ClientPlanUpdatedEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
 import io.ycvk.acorn.api.models.ClientRunInputEvent
@@ -42,7 +43,7 @@ import io.ycvk.acorn.api.models.ClientToolCallStartedEvent
 import io.ycvk.acorn.api.models.ClientToolCallSucceededEvent
 import io.ycvk.acorn.api.models.ClientViewShownEvent
 import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
-import io.ycvk.acorn.api.models.SubRunData
+import io.ycvk.acorn.api.models.PlanData
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -72,7 +73,7 @@ interface RunEvent {
     @Json(name = "type")
     val type: kotlin.Any?
     @Json(name = "data")
-    val `data`: SubRunData
+    val `data`: PlanData
 
 }
 

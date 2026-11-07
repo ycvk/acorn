@@ -153,6 +153,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		ArtifactContext: ctxBridge,
 		OperatorStore:   db,
 		OperatorContext: ctxBridge,
+		Plan:            tools.PlanToolDeps{Store: db, Context: ctxBridge},
 		Presence: tools.PresenceToolDeps{
 			Store:         db,
 			Memory:        memoryEngine,

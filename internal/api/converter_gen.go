@@ -55,6 +55,13 @@ func (c *ConverterImpl) apiPendingActionSummaryToApiPendingActionSummaryDTO(sour
 	apiPendingActionSummaryDTO.AllowFreeform = source.AllowFreeform
 	return apiPendingActionSummaryDTO
 }
+func (c *ConverterImpl) apiPlanStepDataToApiPlanStepData(source PlanStepData) PlanStepData {
+	var apiPlanStepData PlanStepData
+	apiPlanStepData.Label = source.Label
+	apiPlanStepData.Status = source.Status
+	apiPlanStepData.Note = source.Note
+	return apiPlanStepData
+}
 func (c *ConverterImpl) apiProviderReadinessSummaryToApiProviderReadinessDTO(source ProviderReadinessSummary) ProviderReadinessDTO {
 	var apiProviderReadinessDTO ProviderReadinessDTO
 	apiProviderReadinessDTO.Scope = source.Scope
@@ -212,22 +219,28 @@ func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 			apiMessageDTO.Steps[i] = c.apiToolStepToApiToolStepDTO(source.Steps[i])
 		}
 	}
+	if source.Plan != nil {
+		apiMessageDTO.Plan = make([]PlanStepData, len(source.Plan))
+		for j := 0; j < len(source.Plan); j++ {
+			apiMessageDTO.Plan[j] = c.apiPlanStepDataToApiPlanStepData(source.Plan[j])
+		}
+	}
 	if source.Files != nil {
 		apiMessageDTO.Files = make([]ThreadFileDTO, len(source.Files))
-		for j := 0; j < len(source.Files); j++ {
-			apiMessageDTO.Files[j] = c.threadFileDTOFromDomain(source.Files[j])
+		for k := 0; k < len(source.Files); k++ {
+			apiMessageDTO.Files[k] = c.threadFileDTOFromDomain(source.Files[k])
 		}
 	}
 	if source.Views != nil {
 		apiMessageDTO.Views = make([]core.ViewData, len(source.Views))
-		for k := 0; k < len(source.Views); k++ {
-			apiMessageDTO.Views[k] = c.coreViewDataToCoreViewData(source.Views[k])
+		for l := 0; l < len(source.Views); l++ {
+			apiMessageDTO.Views[l] = c.coreViewDataToCoreViewData(source.Views[l])
 		}
 	}
 	if source.SubRuns != nil {
 		apiMessageDTO.SubRuns = make([]SubRunData, len(source.SubRuns))
-		for l := 0; l < len(source.SubRuns); l++ {
-			apiMessageDTO.SubRuns[l] = c.apiSubRunDataToApiSubRunData(source.SubRuns[l])
+		for m := 0; m < len(source.SubRuns); m++ {
+			apiMessageDTO.SubRuns[m] = c.apiSubRunDataToApiSubRunData(source.SubRuns[m])
 		}
 	}
 	return apiMessageDTO

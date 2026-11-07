@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.chat
 
 import io.ycvk.acorn.api.models.Message
+import io.ycvk.acorn.api.models.PlanStep
 import io.ycvk.acorn.api.models.SubRunData
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.View
@@ -28,6 +29,8 @@ sealed class ChatMessage {
         val views: List<View> = emptyList(),
         /** Tasks the run handed to sub-agents, each at its latest attempt. */
         val subRuns: List<SubRunData> = emptyList(),
+        /** The run's latest plan. */
+        val plan: List<PlanStep> = emptyList(),
         override val id: String = "assistant_${UUID.randomUUID()}",
     ) : ChatMessage()
 
@@ -63,6 +66,7 @@ fun chatMessageFrom(
     files: List<ThreadFile> = emptyList(),
     views: List<View> = emptyList(),
     subRuns: List<SubRunData> = emptyList(),
+    plan: List<PlanStep> = emptyList(),
     id: String = UUID.randomUUID().toString(),
 ): ChatMessage = when (role) {
     Message.Role.user -> ChatMessage.User(text, files.map(::fileView), id = id)
@@ -73,6 +77,7 @@ fun chatMessageFrom(
         files = files.map(::fileView),
         views = views,
         subRuns = subRuns,
+        plan = plan,
         id = id,
     )
     // System / tool messages render as assistant bubbles so the

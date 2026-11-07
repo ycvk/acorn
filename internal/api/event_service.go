@@ -80,11 +80,12 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 	}, nil
 }
 
-// projectLiveEvents projects the records of the kinds clients are shown.
+// projectLiveEvents projects the records of the kinds clients are shown,
+// leaving out the calls of the plan tool, whose plans they get instead.
 func projectLiveEvents(records []core.EventRecord) ([]RunEvent, error) {
 	events := make([]RunEvent, 0, len(records))
 	for _, record := range records {
-		if !IsLiveRunEventKind(record.Kind) {
+		if !IsLiveRunEventKind(record.Kind) || planToolCall(record) {
 			continue
 		}
 		event, err := ProjectRunEvent(record)

@@ -24,6 +24,7 @@
 package io.ycvk.acorn.api.models
 
 import io.ycvk.acorn.api.models.MessageContent
+import io.ycvk.acorn.api.models.PlanStep
 import io.ycvk.acorn.api.models.SubRunData
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.ToolStep
@@ -41,7 +42,8 @@ import com.squareup.moshi.JsonClass
  * @param content 
  * @param createdAt 
  * @param runId 
- * @param steps Tool calls the run behind an assistant message made, in the order they started.
+ * @param steps Tool calls the run behind an assistant message made, in the order they started, without the calls that wrote its plan.
+ * @param plan The latest plan the run behind an assistant message wrote, in order; absent when it wrote none.
  * @param files Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files or showed views but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id. 
  * @param views Views the run behind an assistant message showed the owner, oldest first.
  * @param subRuns Tasks the run behind an assistant message handed to sub-agents, by task number, each at its latest attempt.
@@ -69,9 +71,13 @@ data class Message (
     @Json(name = "run_id")
     val runId: kotlin.String? = null,
 
-    /* Tool calls the run behind an assistant message made, in the order they started. */
+    /* Tool calls the run behind an assistant message made, in the order they started, without the calls that wrote its plan. */
     @Json(name = "steps")
     val steps: kotlin.collections.List<ToolStep>? = null,
+
+    /* The latest plan the run behind an assistant message wrote, in order; absent when it wrote none. */
+    @Json(name = "plan")
+    val plan: kotlin.collections.List<PlanStep>? = null,
 
     /* Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files or showed views but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id.  */
     @Json(name = "files")

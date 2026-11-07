@@ -29,6 +29,7 @@ var liveRunEventKinds = []string{
 	"view.shown",
 	"view.updated",
 	core.EventSubRunUpdated,
+	core.EventPlanUpdated,
 }
 
 // IsLiveRunEventKind reports whether kind is part of the /v1 mobile live contract.
@@ -128,6 +129,12 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 			return nil, projectionError("%s payload needs a task, an attempt and a state: %v", kind, payload)
 		}
 		return projectSubRun(update), nil
+	case core.EventPlanUpdated:
+		steps, err := projectPlan(payload)
+		if err != nil {
+			return nil, err
+		}
+		return PlanData{Steps: steps}, nil
 	default:
 		return nil, projectionError("unsupported live run event kind %q", kind)
 	}
@@ -158,6 +165,40 @@ func projectSubRuns(attempts []core.SubRun) []SubRunData {
 		out = append(out, projectSubRun(core.SubRunUpdateOf(sub)))
 	}
 	return out
+}
+
+// projectPlan reads the steps of a plan.updated payload; a plan without
+// steps, or a step without a label or with an unknown status, fails.
+func projectPlan(payload map[string]any) ([]PlanStepData, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, projectionError("%s payload: %v", core.EventPlanUpdated, err)
+	}
+	var update core.PlanUpdate
+	if err := json.Unmarshal(raw, &update); err != nil {
+		return nil, projectionError("%s payload: %v", core.EventPlanUpdated, err)
+	}
+	if len(update.Steps) == 0 {
+		return nil, projectionError("%s payload has no steps", core.EventPlanUpdated)
+	}
+	steps := make([]PlanStepData, 0, len(update.Steps))
+	for i, step := range update.Steps {
+		if step.Label == "" || !slices.Contains(core.PlanStepStatuses, step.Status) {
+			return nil, projectionError("%s step %d needs a label and a status: %+v", core.EventPlanUpdated, i, step)
+		}
+		steps = append(steps, PlanStepData{Label: step.Label, Status: step.Status, Note: step.Note})
+	}
+	return steps, nil
+}
+
+// planToolCall reports whether record is a call of the plan tool, which
+// reaches clients as the plan itself.
+func planToolCall(record core.EventRecord) bool {
+	if !strings.HasPrefix(record.Kind, "tool.call.") {
+		return false
+	}
+	payload, ok := record.Payload.(map[string]any)
+	return ok && topLevelString(payload, "tool_name") == core.PlanToolName
 }
 
 func projectOperatorQuestionData(payload map[string]any) OperatorQuestionData {

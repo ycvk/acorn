@@ -103,6 +103,19 @@ type SubRunData struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// PlanData carries plan.updated: the run's whole plan as it now stands.
+type PlanData struct {
+	Steps []PlanStepData `json:"steps"`
+}
+
+// PlanStepData is one step of a run's plan: what it does, where it stands
+// and its short note.
+type PlanStepData struct {
+	Label  string `json:"label"`
+	Status string `json:"status"`
+	Note   string `json:"note,omitempty"`
+}
+
 // ToolApprovalData carries a tool_approval.pending (tool name and arguments)
 // or tool_approval.decided (decision) event.
 type ToolApprovalData struct {

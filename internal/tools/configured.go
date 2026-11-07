@@ -15,6 +15,7 @@ var localToolNames = []string{
 	"artifact_read",
 	"artifact_list",
 	"ask_operator",
+	"plan",
 	"keep",
 	"think",
 	"schedule_wake",

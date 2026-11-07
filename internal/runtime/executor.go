@@ -459,6 +459,9 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 
 func (e *Executor) finishSucceededRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := context.WithoutCancel(ctx)
+	if err := e.closePlan(durableCtx, runID); err != nil {
+		return nil, err
+	}
 	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusSucceeded); err != nil {
 		return nil, err
 	}

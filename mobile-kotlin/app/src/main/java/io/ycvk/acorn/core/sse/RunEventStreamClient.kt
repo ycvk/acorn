@@ -18,6 +18,7 @@ import io.ycvk.acorn.api.models.ClientRunInputEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
 import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
+import io.ycvk.acorn.api.models.ClientPlanUpdatedEvent
 import io.ycvk.acorn.api.models.ClientSubRunUpdatedEvent
 import io.ycvk.acorn.api.models.ClientViewShownEvent
 import io.ycvk.acorn.api.models.ClientViewUpdatedEvent
@@ -71,6 +72,7 @@ class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
         "view.shown" to ClientViewShownEvent::class.java,
         "view.updated" to ClientViewUpdatedEvent::class.java,
         "sub_run.updated" to ClientSubRunUpdatedEvent::class.java,
+        "plan.updated" to ClientPlanUpdatedEvent::class.java,
     )
 
     private val eventAdapters = ConcurrentHashMap<String, JsonAdapter<*>>()
@@ -150,6 +152,7 @@ class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
             "view.shown" -> RunEventPacket.ViewShown(parsed as ClientViewShownEvent)
             "view.updated" -> RunEventPacket.ViewUpdated(parsed as ClientViewUpdatedEvent)
             "sub_run.updated" -> RunEventPacket.SubRunUpdated(parsed as ClientSubRunUpdatedEvent)
+            "plan.updated" -> RunEventPacket.PlanUpdated(parsed as ClientPlanUpdatedEvent)
             else -> RunEventPacket.Unknown
         }
     }
@@ -186,6 +189,9 @@ sealed class RunEventPacket(val eventId: String, val seq: Long) {
 
     /** A task the run handed to a sub-agent started an attempt, reported or was accepted. */
     data class SubRunUpdated(val event: ClientSubRunUpdatedEvent) : RunEventPacket(event.eventId, event.seq)
+
+    /** The run wrote its whole plan again. */
+    data class PlanUpdated(val event: ClientPlanUpdatedEvent) : RunEventPacket(event.eventId, event.seq)
 
     data object Unknown : RunEventPacket("", 0L)
 }

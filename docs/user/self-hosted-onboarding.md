@@ -361,6 +361,10 @@ A list takes any number of values, and none empties it; quiet hours take a start
 
 When you ask for something later ("remind me in three days to read X"), the agent makes a commitment with `schedule_wake`. The backend wakes it at that time in the same thread, also after a restart. These wakes count toward `wake.daily_limit` and `wake.daily_tokens`.
 
+### Plans
+
+When a request takes three or more steps, such as reading several pages and comparing them, the agent writes a plan with `plan` as it starts and updates it as each step ends. Above the reply the app shows the plan as a checklist: each step waiting, under way, done or failed, with a short note such as a count, and how many steps are done. Steps the agent works on at once are under way together, and the last step stays under way until the reply is written. While the run goes on, only the steps under way move; once the reply is in, the plan folds into one line that opens on a tap. A question a search or two answers gets no plan, and neither do the morning briefing, reflections, watches and triggers.
+
 ### Long Work
 
 Work that takes hours, such as finding, downloading and sorting a series of books, does not need you to keep the conversation going. The agent starts a download as a job on its [workstation](#15-agent-workstation) and sets a follow-up with `follow_up`: when the job ends, prints a line it waits for, or a file it waits for stops growing, the agent wakes in the same conversation and goes on. A follow-up waits at most a day unless the agent sets a longer one, up to a week, and then wakes the agent anyway with how things stand.

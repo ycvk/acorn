@@ -514,7 +514,7 @@ class ChatViewModel @Inject constructor(
                     }
                 } ?: return@launch
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty(), msg.subRuns.orEmpty(), msg.id) }
+                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty(), msg.subRuns.orEmpty(), msg.plan.orEmpty(), msg.id) }
                 // Messages still on their way are not on the server's list yet.
                 val shown = _queued.value
                 _queued.value = response.queued.filterNot { it.id in taken }.map { waiting ->

@@ -3386,9 +3386,14 @@ components:
           type: string
         steps:
           type: array
-          description: Tool calls the run behind an assistant message made, in the order they started.
+          description: Tool calls the run behind an assistant message made, in the order they started, without the calls that wrote its plan.
           items:
             $ref: '#/components/schemas/ToolStep'
+        plan:
+          type: array
+          description: The latest plan the run behind an assistant message wrote, in order; absent when it wrote none.
+          items:
+            $ref: '#/components/schemas/PlanStep'
         files:
           type: array
           description: |
@@ -3556,6 +3561,7 @@ components:
         - $ref: '#/components/schemas/ClientViewShownEvent'
         - $ref: '#/components/schemas/ClientViewUpdatedEvent'
         - $ref: '#/components/schemas/ClientSubRunUpdatedEvent'
+        - $ref: '#/components/schemas/ClientPlanUpdatedEvent'
       discriminator:
         propertyName: type
         mapping:
@@ -3578,6 +3584,7 @@ components:
           view.shown: '#/components/schemas/ClientViewShownEvent'
           view.updated: '#/components/schemas/ClientViewUpdatedEvent'
           sub_run.updated: '#/components/schemas/ClientSubRunUpdatedEvent'
+          plan.updated: '#/components/schemas/ClientPlanUpdatedEvent'
 
     RunEventBase:
       type: object
@@ -3809,6 +3816,23 @@ components:
               const: sub_run.updated
             data:
               $ref: '#/components/schemas/SubRunData'
+
+    ClientPlanUpdatedEvent:
+      description: |
+        The run wrote its plan for the owner's request again; `data` is the
+        whole plan as it now stands and replaces the one before. The calls
+        that write a plan send no tool.call events. When the run succeeds
+        with its last step running and every step before it done or failed,
+        a last plan.updated before run.completed marks that step done.
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: plan.updated
+            data:
+              $ref: '#/components/schemas/PlanData'
 
     RunStartedData:
       type: object
@@ -4937,6 +4961,34 @@ components:
         error:
           type: string
           description: Why a failed attempt failed; at most 300 characters.
+
+    PlanData:
+      type: object
+      additionalProperties: false
+      required: [steps]
+      properties:
+        steps:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PlanStep'
+
+    PlanStep:
+      type: object
+      additionalProperties: false
+      description: One step of the plan a run works through.
+      required: [label, status]
+      properties:
+        label:
+          type: string
+          description: What the step does, on one line, at most 60 characters.
+        status:
+          type: string
+          enum: [pending, running, done, failed]
+          description: Steps whose calls run at once are all `running`.
+        note:
+          type: string
+          description: A short note for the end of the row, such as a count; at most 20 characters.
 
     ViewShownData:
       type: object
