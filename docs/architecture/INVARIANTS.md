@@ -135,9 +135,10 @@
   - `internal/redact/redact_test.go`
   - `internal/store/memory_redaction_test.go`
   - `internal/memory/redaction_test.go`
-- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
+- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改登记一个 `request` 来源（speaker 为 owner、从不抽取），以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision。在 App 里忘掉一条记忆是撤回：同一事务里给它写一个新 revision，fact 与 insight 为 `retracted`、thought 为 `released`，由它派生的记录标 needs_review 并入队 consolidate，引用它根来源的 shown 画像行删除并排一次画像刷新；不登记排除、不升 epoch、不打断 run，它的来源和读过它的 run 写下的回复、工具结果与想法照常可读。不再是 current、disputed 或 open 的记录撤回时返回 `ErrMemoryNotFound`。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
+  - `internal/store/memory_withdraw_test.go`
 - **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、跟进、目标、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
@@ -392,7 +393,7 @@
   - `internal/wake/thinking_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
   - `internal/wire/story_follow_acceptance_e2e_test.go`
-- **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome 时沿用当前的。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
+- **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome、标题或关联记录时沿用当前的，新关切必须有标题。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
   - `internal/store/memory_state_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
 - **原始通知只有一个写入入口**：鉴权设备身份与服务器 received_at 由 API 决定;批次全量校验后事务写入,按 (device,key,posted_at) 去重,不修改调用方输入。

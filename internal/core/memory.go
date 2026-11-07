@@ -241,6 +241,9 @@ type MemoryStore interface {
 	SearchMemoryText(context.Context, MemoryQuery) ([]MemoryRecord, error)
 	MemoryNeighbors(context.Context, []string, int) ([]MemoryRecord, error)
 	ForgetMemory(context.Context, MemoryForget) (MemoryForgotten, error)
+	// WithdrawMemory retracts a memory the owner took back in the app, leaving
+	// its sources and everything derived from them in place.
+	WithdrawMemory(ctx context.Context, id string, now time.Time) (MemoryRecord, error)
 	MemoryExclusions(context.Context) (MemoryExclusion, error)
 	// ThreadMemorySourceIDs lists the sources of a thread's messages and tool
 	// results.

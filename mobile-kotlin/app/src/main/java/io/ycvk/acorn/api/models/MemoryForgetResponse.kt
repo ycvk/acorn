@@ -30,13 +30,13 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param forgottenIds Every memory excluded, the requested one and those drawn from what it rests on.
+ * @param forgottenIds The memory withdrawn.
  */
 
 
 data class MemoryForgetResponse (
 
-    /* Every memory excluded, the requested one and those drawn from what it rests on. */
+    /* The memory withdrawn. */
     @Json(name = "forgotten_ids")
     val forgottenIds: kotlin.collections.List<kotlin.String>
 

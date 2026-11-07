@@ -551,3 +551,38 @@ func TestForgetEvidenceRequeuesSurvivingParentsForConsolidation(t *testing.T) {
 		t.Fatalf("surviving fact lost: %v", err)
 	}
 }
+
+// A revision that leaves out the title or the record links keeps the stored
+// ones, so updating only the reason and review time does not fail or drop
+// links.
+func TestConcernRevisionKeepsTheTitleAndLinksItLeavesOut(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if _, err := s.CreateSession(ctx, "thread_1", "停火"); err != nil {
+		t.Fatal(err)
+	}
+	asked := seedMemorySource(t, s, "owner:follow", "owner", "持续跟进：停火扩大")
+	facts, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{memoryFact(asked, "owner 要求持续跟进停火")}, Now: memoryTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "持续跟进停火", Reason: "从简报卡片要求跟进", SourceID: asked.ID, State: "active", ThreadID: "thread_1", RecordIDs: []string{facts[0].ID}, UpdatedAt: memoryTestNow}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := seedMemorySource(t, s, "event:2", "tool", "近 7 天两条")
+	revised, err := s.SaveConcern(ctx, core.MemoryConcern{ID: created.ID, Reason: "近 7 天仍是两条", SourceID: checked.ID, State: "active", ReviewAt: memoryTestNow.Add(48 * time.Hour), UpdatedAt: memoryTestNow.Add(24 * time.Hour)}, created.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revised.Title != "持续跟进停火" || !slices.Equal(revised.RecordIDs, []string{facts[0].ID}) || revised.Revision != 2 {
+		t.Fatalf("revised = %+v", revised)
+	}
+	listed, err := s.ListConcerns(ctx, true)
+	if err != nil || len(listed) != 1 || listed[0].Title != "持续跟进停火" || !slices.Equal(listed[0].RecordIDs, []string{facts[0].ID}) {
+		t.Fatalf("listed = %+v, %v", listed, err)
+	}
+	if _, err := s.SaveConcern(ctx, core.MemoryConcern{Reason: "没有标题", SourceID: checked.ID, State: "active", ThreadID: "thread_1", UpdatedAt: memoryTestNow}, 0); err == nil {
+		t.Fatal("a new concern without a title was saved")
+	}
+}

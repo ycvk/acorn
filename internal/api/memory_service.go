@@ -25,25 +25,22 @@ type memoryReader interface {
 
 // memoryOwner applies the changes the owner makes in the app.
 type memoryOwner interface {
-	ForgetForOwner(ctx context.Context, id string) (core.MemoryForgotten, error)
+	WithdrawForOwner(ctx context.Context, id string) (core.MemoryRecord, error)
 	CorrectForOwner(ctx context.Context, id string, revision int64, content string) (core.MemoryRecord, error)
 }
 
 // MemoryService lets the owner see what Acorn remembers, trace it to its
 // sources, correct facts and forget memories.
 type MemoryService struct {
-	reader  memoryReader
-	owner   memoryOwner
-	barrier func(context.Context, core.MemoryExclusion, string) error
+	reader memoryReader
+	owner  memoryOwner
 }
 
-// NewMemoryService takes barrier to wait until executions that saw a
-// forgotten memory have stopped before a forget is acknowledged.
-func NewMemoryService(reader memoryReader, owner memoryOwner, barrier func(context.Context, core.MemoryExclusion, string) error) (*MemoryService, error) {
-	if reader == nil || owner == nil || barrier == nil {
-		return nil, errors.New("memory service: reader, owner and barrier are required")
+func NewMemoryService(reader memoryReader, owner memoryOwner) (*MemoryService, error) {
+	if reader == nil || owner == nil {
+		return nil, errors.New("memory service: reader and owner are required")
 	}
-	return &MemoryService{reader: reader, owner: owner, barrier: barrier}, nil
+	return &MemoryService{reader: reader, owner: owner}, nil
 }
 
 // MemorySummaryDTO is one memory in a listing.
@@ -183,17 +180,14 @@ func (s *MemoryService) Get(ctx context.Context, id string) (MemoryDetailDTO, er
 	return out, nil
 }
 
-// Forget excludes the memory and everything derived from it, and returns
-// once executions that saw it have stopped.
+// Forget withdraws the memory: Acorn stops using it, and what was drawn from
+// it is reviewed. Its sources and the runs that read it are left alone.
 func (s *MemoryService) Forget(ctx context.Context, id string) (MemoryForgetResponse, error) {
-	forgotten, err := s.owner.ForgetForOwner(ctx, id)
+	withdrawn, err := s.owner.WithdrawForOwner(ctx, id)
 	if err != nil {
 		return MemoryForgetResponse{}, err
 	}
-	if err := s.barrier(ctx, forgotten.Exclusion, ""); err != nil {
-		return MemoryForgetResponse{}, err
-	}
-	return MemoryForgetResponse{ForgottenIDs: nonNilTags(forgotten.RecordIDs)}, nil
+	return MemoryForgetResponse{ForgottenIDs: []string{withdrawn.ID}}, nil
 }
 
 // Correct replaces a fact with the owner's wording and returns the new fact.

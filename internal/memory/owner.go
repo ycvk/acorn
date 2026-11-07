@@ -12,23 +12,11 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// ForgetForOwner excludes a memory the owner chose to forget in the app. The
-// request is recorded as the owner's source and excluded with the memory.
-func (e *Engine) ForgetForOwner(ctx context.Context, id string) (core.MemoryForgotten, error) {
-	read, err := e.cfg.Store.ReadMemory(ctx, id)
-	if err != nil {
-		return core.MemoryForgotten{}, err
-	}
-	request, err := e.ownerRequest(ctx, "Forget: "+read.Record.Content)
-	if err != nil {
-		return core.MemoryForgotten{}, err
-	}
-	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
-		RecordIDs:       []string{id},
-		RequestSourceID: request.ID,
-		Reason:          "owner forgot it in the app",
-		Now:             e.cfg.Clock(),
-	})
+// WithdrawForOwner takes back a memory the owner forgets in the app. Only the
+// memory goes: what it was drawn from, and the replies, tool results and
+// thoughts of the runs that read it, stay.
+func (e *Engine) WithdrawForOwner(ctx context.Context, id string) (core.MemoryRecord, error) {
+	return e.cfg.Store.WithdrawMemory(ctx, id, e.cfg.Clock())
 }
 
 // ForgetThreadForOwner forgets the conversation the owner deletes: every

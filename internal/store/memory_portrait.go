@@ -172,6 +172,43 @@ func (s *Store) OwnerMemorySources(ctx context.Context, since time.Time, limit i
 	return resolveMemorySources(ctx, s.read, ids, sourceMemory)
 }
 
+// withdrawPortraitLines deletes the shown lines that cite a source of the
+// withdrawn memory r and queues a refresh without them. Lines the owner
+// removed stay removed.
+func withdrawPortraitLines(ctx context.Context, tx *sql.Tx, r core.MemoryRecord, now time.Time) error {
+	sources, err := json.Marshal(r.SourceIDs)
+	if err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT l.id FROM portrait_lines l JOIN portrait_line_sources s ON s.line_id=l.id
+ WHERE l.state='shown' AND s.source_id IN(SELECT value FROM json_each(?))`, string(sources))
+	if err != nil {
+		return err
+	}
+	var lines []int64
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var id int64
+		if err := scan(&id); err != nil {
+			return err
+		}
+		lines = append(lines, id)
+		return nil
+	}); err != nil || len(lines) == 0 {
+		return err
+	}
+	ids, err := json.Marshal(lines)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM portrait_line_sources WHERE line_id IN(SELECT value FROM json_each(?))`, string(ids)); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM portrait_lines WHERE id IN(SELECT value FROM json_each(?))`, string(ids)); err != nil {
+		return err
+	}
+	return enqueueMemoryJob(ctx, tx, core.PortraitOperation, core.PortraitObject, fmt.Sprintf("withdraw:%s:%d", r.ID, r.Revision), now)
+}
+
 // forgetPortrait deletes the lines, removed ones included, that cite a source
 // excluded at epoch, and queues a refresh without them when a shown line goes.
 func forgetPortrait(ctx context.Context, tx *sql.Tx, epoch int64, now time.Time) error {

@@ -47,7 +47,7 @@ func buildRecallTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildMemoryReadTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferLocalTool("memory_read", "Expand a memory's evidence, revisions and related records. Continue through source text with next_cursor.", func(ctx context.Context, in memory.ReadInput) (memory.ReadPage, error) {
+	return inferLocalTool("memory_read", "Expand a fact, insight or thought: its evidence, revisions and related records. Continue through source text with next_cursor. Concerns are not memories here; concern list shows them.", func(ctx context.Context, in memory.ReadInput) (memory.ReadPage, error) {
 		return deps.Memory.Read(ctx, in)
 	})
 }
@@ -73,7 +73,7 @@ func buildMemoryForgetTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildConcernTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferLocalTool("concern", "Track a continuing matter or open issue that idle thought keeps advancing over the coming days. List before creating a related concern; update with its revision, reason, source and complete title/record links. When the owner asks you to make something over the coming days, give the concern an outcome; for work you go on with right away over several runs in this conversation, set a goal instead. Resolve when supported by owner confirmation or observed results; a concern with an outcome is resolved only by the owner's confirmation, cited as source.", func(ctx context.Context, in memory.ConcernInput) ([]core.MemoryConcern, error) {
+	return inferLocalTool("concern", "Track a continuing matter or open issue that idle thought keeps advancing over the coming days. List before creating a related concern; update with its revision, a reason and a source from this run, and the title and record links you leave out stay as they are. When the owner asks you to make something over the coming days, give the concern an outcome; for work you go on with right away over several runs in this conversation, set a goal instead. Resolve when supported by owner confirmation or observed results; a concern with an outcome is resolved only by the owner's confirmation, cited as source.", func(ctx context.Context, in memory.ConcernInput) ([]core.MemoryConcern, error) {
 		return deps.Memory.Concern(ctx, deps.Context.CurrentRunID(ctx), deps.Context.CurrentSessionID(ctx), in)
 	})
 }
