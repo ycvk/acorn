@@ -115,7 +115,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 	}
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
 	iter := active.Runner.Run(execCtx, active.Memory.messages(), adk.WithCheckPointID(runID))
-	return e.consume(ctx, runCtxBase, execCtx, req.SessionID, runID, iter, sink, active)
+	return e.consume(ctx, runCtxBase, execCtx, req.SessionID, runID, "", iter, sink, active)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -212,7 +212,8 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	if err != nil {
 		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
-	result, err := e.consume(ctx, runCtxBase, execCtx, run.SessionID, runID, iter, sink, active)
+	// An interrupted run's output is what its agent replied before it waited.
+	result, err := e.consume(ctx, runCtxBase, execCtx, run.SessionID, runID, run.Output, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
@@ -223,19 +224,37 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 }
 
 type RunState struct {
+	// replied is what the agent replied each time it ended before the
+	// current stretch of the run, in order.
+	replied string
+	// lastOutput is the current stretch's latest assistant text.
 	lastOutput string
 	interrupt  map[string]any
 	failure    error
 }
 
+// output is the run's reply: every reply its agent ended with and the
+// current stretch's latest text, in order.
+func (s RunState) output() string {
+	switch {
+	case strings.TrimSpace(s.replied) == "":
+		return s.lastOutput
+	case strings.TrimSpace(s.lastOutput) == "":
+		return s.replied
+	default:
+		return strings.TrimRight(s.replied, "\n") + "\n\n" + strings.TrimLeft(s.lastOutput, "\n")
+	}
+}
+
 // consume records the run's events and its end. ctx carries the writes; runCtx
 // is the run's own context, whose cancellation cause explains a stopped run,
-// and execCtx the one its agent runs in. When the agent ends while sub-runs
+// and execCtx the one its agent runs in. replied is what the agent replied
+// before the run waited for the owner. When the agent ends while sub-runs
 // of the run still go, the run waits for them and the agent goes on from
 // its messages, so the run ends after every sub-run reported.
-func (e *Executor) consume(ctx, runCtx, execCtx context.Context, sessionID, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
+func (e *Executor) consume(ctx, runCtx, execCtx context.Context, sessionID, runID, replied string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
 	defer e.controller.forgetSubRunSignal(runID)
-	state, err := e.collectUntilReported(ctx, runCtx, execCtx, sessionID, runID, iter, sink, active)
+	state, err := e.collectUntilReported(ctx, runCtx, execCtx, sessionID, runID, replied, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
@@ -243,9 +262,11 @@ func (e *Executor) consume(ctx, runCtx, execCtx context.Context, sessionID, runI
 }
 
 // collectUntilReported collects the run's events until it fails, waits for
-// the owner, or ends with every sub-run reported.
-func (e *Executor) collectUntilReported(ctx, runCtx, execCtx context.Context, sessionID, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
-	state, err := e.collectRunState(ctx, runCtx, runID, iter, sink, active)
+// the owner, or ends with every sub-run reported. Each reply the agent ended
+// with stays in the run's reply: the owner has seen it, and the agent goes
+// on from it.
+func (e *Executor) collectUntilReported(ctx, runCtx, execCtx context.Context, sessionID, runID, replied string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
+	state, err := e.collectRunState(ctx, runCtx, runID, replied, iter, sink, active)
 	for err == nil && state.failure == nil && state.interrupt == nil {
 		var more bool
 		if more, err = e.awaitSubRuns(runCtx, runID, sessionID); err != nil {
@@ -260,13 +281,13 @@ func (e *Executor) collectUntilReported(ctx, runCtx, execCtx context.Context, se
 			break
 		}
 		iter = active.Runner.Run(execCtx, messages, adk.WithCheckPointID(runID))
-		state, err = e.collectRunState(ctx, runCtx, runID, iter, sink, active)
+		state, err = e.collectRunState(ctx, runCtx, runID, state.output(), iter, sink, active)
 	}
 	return state, err
 }
 
-func (e *Executor) collectRunState(ctx, runCtx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
-	state := RunState{}
+func (e *Executor) collectRunState(ctx, runCtx context.Context, runID, replied string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
+	state := RunState{replied: replied}
 	projector := newAgentEventProjector(runID, active.FailedCalls)
 	emit := func(item core.StreamItem) error {
 		item.RunID = runID
@@ -411,10 +432,11 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID string, state R
 
 func (e *Executor) finishFailedRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := context.WithoutCancel(ctx)
-	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusFailed); err != nil {
+	output := state.output()
+	if err := e.recordAssistantMessage(durableCtx, runID, output, core.RunStatusFailed); err != nil {
 		return nil, err
 	}
-	end := core.RunEnd{RunID: runID, Status: core.RunStatusFailed, Output: state.lastOutput, Error: state.failure.Error()}
+	end := core.RunEnd{RunID: runID, Status: core.RunStatusFailed, Output: output, Error: state.failure.Error()}
 	next, err := e.finishRun(durableCtx, sink, end, runFailedItem(state.failure.Error()), true)
 	if err != nil {
 		return nil, err
@@ -425,7 +447,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID string, state RunS
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusFailed,
-		Output: state.lastOutput,
+		Output: output,
 		Error:  state.failure.Error(),
 		Next:   next,
 	}, nil
@@ -444,26 +466,29 @@ func (e *Executor) recordAssistantMessage(ctx context.Context, runID, output str
 	return nil
 }
 
+// finishInterruptedRun records as the run's output what its agent replied
+// before the stretch that waits for the owner; the resume goes on from it.
 func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state RunState) (*Result, error) {
 	durableCtx := context.WithoutCancel(ctx)
-	if err := e.store.MarkInterrupted(durableCtx, runID, state.lastOutput); err != nil {
+	if err := e.store.MarkInterrupted(durableCtx, runID, state.replied); err != nil {
 		return nil, err
 	}
 	return &Result{
 		RunID:       runID,
 		Status:      core.RunStatusInterrupted,
-		Output:      state.lastOutput,
+		Output:      state.replied,
 		Interrupted: state.interrupt,
 	}, nil
 }
 
 func (e *Executor) finishSucceededRun(ctx context.Context, runID string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := context.WithoutCancel(ctx)
-	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusSucceeded); err != nil {
+	output := state.output()
+	if err := e.recordAssistantMessage(durableCtx, runID, output, core.RunStatusSucceeded); err != nil {
 		return nil, err
 	}
-	end := core.RunEnd{RunID: runID, Status: core.RunStatusSucceeded, Output: state.lastOutput}
-	next, err := e.finishRun(durableCtx, sink, end, runCompletedItem(state.lastOutput), true)
+	end := core.RunEnd{RunID: runID, Status: core.RunStatusSucceeded, Output: output}
+	next, err := e.finishRun(durableCtx, sink, end, runCompletedItem(output), true)
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +498,7 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID string, state R
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusSucceeded,
-		Output: state.lastOutput,
+		Output: output,
 		Next:   next,
 	}, nil
 }

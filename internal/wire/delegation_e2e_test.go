@@ -112,7 +112,8 @@ func requestTools(request map[string]any) []string {
 // another. The sub-runs see only their briefs and start once the agent has
 // said it waits; the run waits for them, takes their reports, accepts the
 // summary, sends the check back once and accepts the second attempt. Only
-// then does it end, with its last reply as the conversation's message.
+// then does it end, with every reply it ended with as the conversation's
+// message: the notes that it waits, then the summary.
 func TestDelegatedWorkReportsBeforeTheRunEnds(t *testing.T) {
 	waiting := make(chan struct{})
 	var waitOnce sync.Once
@@ -172,8 +173,13 @@ func TestDelegatedWorkReportsBeforeTheRunEnds(t *testing.T) {
 
 	var listed api.MessageListResponse
 	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/threads/"+thread.ID+"/messages", nil), http.StatusOK, &listed)
-	if got := messageLines(listed); !slices.Equal(got, []string{"user:读一下 A 再找人复核", "assistant:汇总：A 的三条要点，复核通过。"}) {
+	if got := messageLines(listed); len(got) != 2 || got[0] != "user:读一下 A 再找人复核" {
 		t.Fatalf("messages = %v", got)
+	}
+	replies := strings.Split(listed.Items[1].Content.Text, "\n\n")
+	waits := replies[:len(replies)-1]
+	if len(waits) == 0 || slices.ContainsFunc(waits, func(r string) bool { return r != "两个子任务在跑，等它们回来。" }) || replies[len(replies)-1] != "汇总：A 的三条要点，复核通过。" {
+		t.Fatalf("reply = %q", listed.Items[1].Content.Text)
 	}
 	latest, err := c.store.LoadLatestRunForSession(ctx, thread.ID)
 	if err != nil || latest.RunID != started.Run.ID {
@@ -269,6 +275,137 @@ func TestDelegatedWorkReportsBeforeTheRunEnds(t *testing.T) {
 	if !sawParent || !sawReport {
 		t.Fatalf("the run saw no report (parent requests: %t)", sawParent)
 	}
+}
+
+// textAndToolCallChunk is a reply that says text and calls one tool.
+func textAndToolCallChunk(text, callID, name string, args any) string {
+	content, err := json.Marshal(map[string]any{
+		"id": "c", "object": "chat.completion.chunk", "created": 1, "model": "fake",
+		"choices": []any{map[string]any{"index": 0, "delta": map[string]any{"role": "assistant", "content": text}, "finish_reason": nil}},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(content) + "\n\n" + toolCallChunk(callID, name, args)
+}
+
+const (
+	answerBeforeReport = "结论：顺序任务按计划完成。\n1. 第一步通过。\n2. 第二步通过。"
+	addendumAfterCheck = "核对过评论原文，前面的结论不用改。"
+)
+
+// answerBeforeReportModel answers the owner while its sub-run still goes and
+// adds a line once it accepted the report; with approval it first recalls,
+// which waits for the owner.
+func answerBeforeReportModel(approval bool) (*routedOpenAI, func()) {
+	answered := make(chan struct{})
+	var answerOnce sync.Once
+	provider := &routedOpenAI{}
+	provider.respond = func(request map[string]any) string {
+		if isSubRunRequest(request) {
+			<-answered
+			if slices.ContainsFunc(requestMessages(request), func(m map[string]any) bool { return m["role"] == "tool" }) {
+				return textReply("交回了")
+			}
+			return toolCallChunk("submit_1", "submit", map[string]any{"summary": "评论原文与结论一致", "evidence": []string{"逐条读了评论原文"}})
+		}
+		calls, users := modelCalls(request), userTexts(request)
+		reported := strings.Contains(users, "[sub_run task 1, attempt 1: succeeded]")
+		recalled := slices.ContainsFunc(calls, func(call modelCall) bool { return call.name == "recall" })
+		switch {
+		case countCalls(calls, "delegate", "start", 0) == 0:
+			return toolCallChunk("start_a", "delegate", map[string]any{"action": "start", "objective": "核对评论原文"})
+		case !reported:
+			defer answerOnce.Do(func() { close(answered) })
+			return textReply(answerBeforeReport)
+		case approval && !recalled:
+			return toolCallChunk("recall_1", "recall", map[string]string{"query": "评论原文"})
+		case countCalls(calls, "delegate", "accept", 1) == 0:
+			return textAndToolCallChunk("收下核对结果。", "accept_a", "delegate", map[string]any{"action": "accept", "task": 1})
+		default:
+			return textReply(addendumAfterCheck)
+		}
+	}
+	return provider, func() { answerOnce.Do(func() { close(answered) }) }
+}
+
+// assertReplyKeepsTheAnswer checks the run's output, its completion and the
+// conversation's message all hold the answer and then the addendum.
+func assertReplyKeepsTheAnswer(t *testing.T, c *Container, client pairedClient, threadID, runID, input string) {
+	t.Helper()
+	ctx := context.Background()
+	want := answerBeforeReport + "\n\n" + addendumAfterCheck
+	var listed api.MessageListResponse
+	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/threads/"+threadID+"/messages", nil), http.StatusOK, &listed)
+	if got := messageLines(listed); !slices.Equal(got, []string{"user:" + input, "assistant:" + want}) {
+		t.Fatalf("messages = %q", got)
+	}
+	run, err := c.store.LoadRun(ctx, runID)
+	if err != nil || run.Output != want {
+		t.Fatalf("run output = %q, %v", run.Output, err)
+	}
+	events, err := c.store.LoadEvents(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed := events[len(events)-1]
+	message, _ := completed.Payload.(map[string]any)["message"].(map[string]any)
+	if completed.Kind != "run.completed" || message["content"] != want {
+		t.Fatalf("last event = %s %v", completed.Kind, completed.Payload)
+	}
+}
+
+// The agent answers the owner while its sub-run still goes, then accepts the
+// report and adds a line. The run's reply holds the answer and the line.
+func TestTheReplyKeepsTheAnswerGivenBeforeAReport(t *testing.T) {
+	provider, release := answerBeforeReportModel(false)
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	defer release()
+	c, err := NewContainer(context.Background(), writeTestConfig(t, server.URL, ""))
+	if err != nil {
+		t.Fatalf("container: %v", err)
+	}
+	defer c.Close()
+	client := newPairedClient(t, c)
+	thread, err := c.threads.CreateThread(context.Background(), "计划验收")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var started api.CreateRunResponse
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "验收顺序任务"}, http.StatusCreated, &started)
+	waitRunStatusWithin(t, c, started.Run.ID, "completed", 30*time.Second)
+	assertReplyKeepsTheAnswer(t, c, client, thread.ID, started.Run.ID, "验收顺序任务")
+}
+
+// The answer given before the report survives the approval the run waits for
+// after it.
+func TestTheReplyKeepsTheAnswerAcrossAnApproval(t *testing.T) {
+	provider, release := answerBeforeReportModel(true)
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	defer release()
+	c, err := NewContainer(context.Background(), writeApprovalTestConfig(t, server.URL))
+	if err != nil {
+		t.Fatalf("container: %v", err)
+	}
+	defer c.Close()
+	ctx := context.Background()
+	client := newPairedClient(t, c)
+	thread, err := c.threads.CreateThread(ctx, "计划验收")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var started api.CreateRunResponse
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "验收顺序任务"}, http.StatusCreated, &started)
+	waitRunStatus(t, c, started.Run.ID, "interrupted")
+	actions, err := c.pendingAction.List(ctx, 10)
+	if err != nil || len(actions) != 1 || actions[0].RunID != started.Run.ID {
+		t.Fatalf("pending actions = %+v, %v", actions, err)
+	}
+	decideOverHTTP(t, c, actions[0].ActionID, "accept")
+	waitRunStatus(t, c, started.Run.ID, "completed")
+	assertReplyKeepsTheAnswer(t, c, client, thread.ID, started.Run.ID, "验收顺序任务")
 }
 
 // Stopping a run that waits for its sub-runs stops them too.

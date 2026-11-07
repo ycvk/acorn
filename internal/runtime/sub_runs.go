@@ -369,7 +369,7 @@ func (e *Executor) runSubRun(runCtx context.Context, sub core.SubRun, input stri
 		return e.failSetupOrErr(ctx, sub.RunID, err, nil)
 	}
 	iter := active.Runner.Run(buildExecutionContext(runCtx, sub.RunID, launch.SessionID), []*schema.AgenticMessage{schema.UserAgenticMessage(input)})
-	state, err := e.collectRunState(ctx, runCtx, sub.RunID, iter, nil, active)
+	state, err := e.collectRunState(ctx, runCtx, sub.RunID, "", iter, nil, active)
 	if err != nil {
 		return e.failSetupOrErr(ctx, sub.RunID, err, nil)
 	}

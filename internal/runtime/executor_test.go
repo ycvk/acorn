@@ -119,6 +119,26 @@ func TestRunStateApplyMessageEmptyContentPreservesOutput(t *testing.T) {
 	}
 }
 
+// A run's reply keeps what its agent replied before each report and adds
+// the current stretch's text after a blank line.
+func TestRunStateOutputKeepsEarlierReplies(t *testing.T) {
+	tests := []struct {
+		state RunState
+		want  string
+	}{
+		{RunState{lastOutput: "only"}, "only"},
+		{RunState{replied: "answer"}, "answer"},
+		{RunState{replied: "answer", lastOutput: " \n"}, "answer"},
+		{RunState{replied: "\n", lastOutput: "addendum"}, "addendum"},
+		{RunState{replied: "answer\n", lastOutput: "\naddendum"}, "answer\n\naddendum"},
+	}
+	for _, tc := range tests {
+		if got := tc.state.output(); got != tc.want {
+			t.Errorf("%+v output = %q, want %q", tc.state, got, tc.want)
+		}
+	}
+}
+
 func TestRunStateApplyInterrupt(t *testing.T) {
 	state := RunState{}
 	state.applyStreamItem(core.StreamItem{
