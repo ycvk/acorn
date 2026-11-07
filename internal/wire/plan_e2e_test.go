@@ -13,12 +13,13 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// The agent writes its plan before the first step and again as the step
-// ends. The run's live events carry each plan without the calls that wrote
-// it, and the reply keeps the last plan and no plan steps.
+// The agent writes its plan with the first step and again as the step ends,
+// leaving the last step running for the reply, which closes it as the run
+// succeeds. The run's live events carry each plan without the calls that
+// wrote it, and the reply keeps the closed plan and no plan steps.
 func TestThePlanOfARunReachesTheApp(t *testing.T) {
 	first := []map[string]any{{"label": "读 A", "status": "running"}, {"label": "写汇总", "status": "pending"}}
-	second := []map[string]any{{"label": "读 A", "status": "done", "note": "1/1"}, {"label": "写汇总", "status": "done"}}
+	second := []map[string]any{{"label": "读 A", "status": "done", "note": "1/1"}, {"label": "写汇总", "status": "running"}}
 	provider := &routedOpenAI{}
 	provider.respond = func(request map[string]any) string {
 		switch calls := modelCalls(request); len(calls) {
@@ -67,7 +68,7 @@ func TestThePlanOfARunReachesTheApp(t *testing.T) {
 			plans = append(plans, fmt.Sprint(data.Steps))
 		}
 	}
-	if want := []string{"[{读 A running } {写汇总 pending }]", "[{读 A done 1/1} {写汇总 done }]"}; !slices.Equal(plans, want) {
+	if want := []string{"[{读 A running } {写汇总 pending }]", "[{读 A done 1/1} {写汇总 running }]", "[{读 A done 1/1} {写汇总 done }]"}; !slices.Equal(plans, want) {
 		t.Fatalf("live plans = %q, want %q", plans, want)
 	}
 

@@ -1,7 +1,8 @@
 package core
 
 // EventPlanUpdated is recorded on a run each time its plan tool call
-// replaces the plan; the latest one is the plan as it stands.
+// replaces the plan, and once more when the run succeeds and closes the
+// plan's last step; the latest one is the plan as it stands.
 const EventPlanUpdated = "plan.updated"
 
 // PlanToolName is the tool a run writes its plan with. Its calls are the

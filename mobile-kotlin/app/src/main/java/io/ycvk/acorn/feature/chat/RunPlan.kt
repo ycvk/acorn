@@ -74,7 +74,7 @@ fun planStepState(step: PlanStep, live: Boolean): String = when (step.status) {
 
 /**
  * The plan a reply works through, above its steps. While the run goes on the
- * whole checklist shows and only the step under way moves; once the reply is
+ * whole checklist shows and only the steps under way move; once the reply is
  * in, the plan folds to its header and opens on a tap.
  */
 @Composable

@@ -3821,7 +3821,9 @@ components:
       description: |
         The run wrote its plan for the owner's request again; `data` is the
         whole plan as it now stands and replaces the one before. The calls
-        that write a plan send no tool.call events.
+        that write a plan send no tool.call events. When the run succeeds
+        with its last step running and every step before it done or failed,
+        a last plan.updated before run.completed marks that step done.
       allOf:
         - $ref: '#/components/schemas/RunEventBase'
         - type: object
@@ -4983,7 +4985,7 @@ components:
         status:
           type: string
           enum: [pending, running, done, failed]
-          description: At most one step of a plan is `running`.
+          description: Steps whose calls run at once are all `running`.
         note:
           type: string
           description: A short note for the end of the row, such as a count; at most 20 characters.

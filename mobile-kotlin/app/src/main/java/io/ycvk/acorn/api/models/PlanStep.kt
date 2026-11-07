@@ -31,7 +31,7 @@ import com.squareup.moshi.JsonClass
  * One step of the plan a run works through.
  *
  * @param label What the step does, on one line, at most 60 characters.
- * @param status At most one step of a plan is `running`.
+ * @param status Steps whose calls run at once are all `running`.
  * @param note A short note for the end of the row, such as a count; at most 20 characters.
  */
 
@@ -42,7 +42,7 @@ data class PlanStep (
     @Json(name = "label")
     val label: kotlin.String,
 
-    /* At most one step of a plan is `running`. */
+    /* Steps whose calls run at once are all `running`. */
     @Json(name = "status")
     val status: PlanStep.Status,
 
@@ -53,7 +53,7 @@ data class PlanStep (
 ) {
 
     /**
-     * At most one step of a plan is `running`.
+     * Steps whose calls run at once are all `running`.
      *
      * Values: pending,running,done,failed
      */

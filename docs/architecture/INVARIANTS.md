@@ -244,8 +244,9 @@
   - `internal/api/openapi_test.go`
   - `internal/wire/delegation_e2e_test.go`
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/chat/SubRunsTest.kt`
-- **run 的计划随事件到达客户端**：`plan` 是对话 run 的本地工具，子 run 没有；每次调用整份替换计划：2 到 12 步，每步 label 压成一行、非空、至多 60 字，note 至多 20 字，状态是 pending、running、done、failed 之一，至多一步 running，不合要求的调用返回错误、不记事件。合要求的调用在当前 run 上记 `plan.updated`，它进入 live 契约，没有步骤、缺 label 或状态不对的载荷投影失败。线程消息把 run 最后一次 `plan.updated` 的步骤放在其 assistant 消息的 `plan` 上。
+- **run 的计划随事件到达客户端**：`plan` 是对话 run 的本地工具，子 run 没有；每次调用整份替换计划：2 到 12 步，每步 label 压成一行、非空、至多 60 字，note 至多 20 字，状态是 pending、running、done、failed 之一，可以有几步同时 running，不合要求的调用返回错误、不记事件。合要求的调用在当前 run 上记 `plan.updated`，它进入 live 契约，没有步骤、缺 label 或状态不对的载荷投影失败。run 成功时，若最后一份计划的最后一步是 running、之前各步都是 done 或 failed，run 在 `run.completed` 之前再记一次 `plan.updated`，把这一步标成 done。线程消息把 run 最后一次 `plan.updated` 的步骤放在其 assistant 消息的 `plan` 上。
   - `internal/tools/plan_tool_test.go`
+  - `internal/runtime/plan_test.go`
   - `internal/api/tool_steps_test.go`
   - `internal/wire/plan_e2e_test.go`
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/chat/RunPlanTest.kt`

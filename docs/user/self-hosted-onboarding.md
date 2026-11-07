@@ -363,7 +363,7 @@ When you ask for something later ("remind me in three days to read X"), the agen
 
 ### Plans
 
-When a request takes three or more steps, such as reading several pages and comparing them, the agent writes a plan with `plan` before it starts and updates it as each step ends. Above the reply the app shows the plan as a checklist: each step waiting, under way, done or failed, with a short note such as a count, and how many steps are done. While the run goes on, the step under way is the only one that moves; once the reply is in, the plan folds into one line that opens on a tap. A question a search or two answers gets no plan, and neither do the morning briefing, reflections, watches and triggers.
+When a request takes three or more steps, such as reading several pages and comparing them, the agent writes a plan with `plan` as it starts and updates it as each step ends. Above the reply the app shows the plan as a checklist: each step waiting, under way, done or failed, with a short note such as a count, and how many steps are done. Steps the agent works on at once are under way together, and the last step stays under way until the reply is written. While the run goes on, only the steps under way move; once the reply is in, the plan folds into one line that opens on a tap. A question a search or two answers gets no plan, and neither do the morning briefing, reflections, watches and triggers.
 
 ### Long Work
 
