@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"time"
+
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type clientHandlerStub struct {
@@ -25,6 +27,7 @@ type clientHandlerStub struct {
 	createMessageThreadID     string
 	createMessageContent      string
 	createRunThreadID         string
+	createRunRequest          core.ExecuteRequest
 }
 
 func (s *clientHandlerStub) ListThreads(context.Context, int) ([]Thread, error) {

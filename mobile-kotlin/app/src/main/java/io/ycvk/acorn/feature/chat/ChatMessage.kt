@@ -94,7 +94,7 @@ fun withView(messages: List<ChatMessage>, view: View): List<ChatMessage> = messa
     }
 }
 
-enum class WakeSource { Commitment, Watch, Briefing, Night, Wander, FollowUp, Goal }
+enum class WakeSource { Commitment, Watch, Briefing, Piece, Night, Wander, FollowUp, Goal }
 
 /** What woke a run, from the prefix the backend gives its input. */
 fun wakeSource(input: String): WakeSource = when {
@@ -102,6 +102,7 @@ fun wakeSource(input: String): WakeSource = when {
     input.startsWith("[wander ") -> WakeSource.Wander
     input.startsWith("[watch") -> WakeSource.Watch
     input.startsWith("[briefing") -> WakeSource.Briefing
+    input.startsWith("[piece ") -> WakeSource.Piece
     input.startsWith("[follow_up ") -> WakeSource.FollowUp
     input.startsWith("[goal ") -> WakeSource.Goal
     else -> WakeSource.Commitment
@@ -112,8 +113,9 @@ data class WakeSummary(val title: String, val body: String, val detail: String? 
 
 private val goalInput = Regex("""^\[goal #\d+, run (\d+) of (\d+)] Objective: (.*?)\n(The last run stopped when Acorn restarted; check what it left unfinished\.\n)?Keep working toward the objective""", RegexOption.DOT_MATCHES_ALL)
 private val followUpInput = Regex("""^\[follow_up #\d+, set [^\]]+] (.*)\nWhat happened: (.*)$""", RegexOption.DOT_MATCHES_ALL)
+private val pieceInput = Regex("""^\[piece [^\]]+] (.+)$""")
 
-/** The short form of a goal's or a follow-up's run input as the backend writes it, or null to show the input in full. */
+/** The short form of the run input of a goal, a follow-up or a briefing piece as the backend writes it, or null to show the input in full. */
 fun wakeSummary(source: WakeSource, input: String): WakeSummary? = when (source) {
     WakeSource.Goal -> goalInput.find(input)?.destructured?.let { (run, of, objective, restarted) ->
         WakeSummary("继续目标 · 第 $run/$of 轮", objective.trim(), "上一轮因 Acorn 重启中断".takeIf { restarted.isNotEmpty() })
@@ -121,6 +123,7 @@ fun wakeSummary(source: WakeSource, input: String): WakeSummary? = when (source)
     WakeSource.FollowUp -> followUpInput.find(input)?.destructured?.let { (task, happened) ->
         WakeSummary("等到结果", task.trim(), happenedText(happened.trim()))
     }
+    WakeSource.Piece -> pieceInput.find(input)?.destructured?.let { (title) -> WakeSummary("简报短文", title.trim()) }
     else -> null
 }
 

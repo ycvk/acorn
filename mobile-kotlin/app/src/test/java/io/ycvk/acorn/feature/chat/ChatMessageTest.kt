@@ -25,6 +25,8 @@ class ChatMessageTest {
         assertEquals(WakeSource.Briefing, (chatMessageFrom(Message.Role.wake, "[briefing 2026-10-04] morning briefing") as ChatMessage.Wake).source)
         assertEquals(WakeSource.FollowUp, wakeSource("[follow_up #3, set 2026-11-03 16:20] 下载完就整理\nWhat happened: job job-ab12cd34 exited with code 0"))
         assertEquals(WakeSource.Goal, wakeSource("[goal #2, run 1 of 10] Objective: 下完整本书"))
+        assertEquals(WakeSource.Piece, wakeSource("[piece 2026-11-10] 太原公寓火灾已致14人死"))
+        assertEquals(WakeSummary("简报短文", "太原公寓火灾已致14人死"), wakeSummary(WakeSource.Piece, "[piece 2026-11-10] 太原公寓火灾已致14人死"))
         assertEquals(WakeSource.Commitment, wakeSource("anything else"))
     }
 

@@ -129,6 +129,7 @@ paths:
     get:
       tags: [client]
       summary: List client threads
+      description: A conversation that holds only a piece about a briefing story is left out until the owner writes in it.
       operationId: clientListThreads
       parameters:
         - $ref: '#/components/parameters/Limit'
@@ -4191,7 +4192,7 @@ components:
     NowBriefingStory:
       type: object
       additionalProperties: false
-      required: [story_id, section, title, url, focus, following]
+      required: [story_id, section, title, url, sources, focus, following]
       properties:
         story_id:
           type: integer
@@ -4207,6 +4208,11 @@ components:
         url:
           type: string
           description: The source the briefing linked.
+        sources:
+          type: array
+          items:
+            type: string
+          description: The names of the news sources of the story's items.
         focus:
           type: boolean
           description: Whether it is one of today's focus.
@@ -4216,10 +4222,33 @@ components:
           description: The owner's reaction to the story; absent without one.
         thread_id:
           type: string
-          description: The story's conversation; absent until the owner asks Acorn to explain or follow the story.
+          description: The story's conversation; absent until a piece is written about the story or the owner asks Acorn to explain or follow it.
         following:
           type: boolean
           description: Whether the story's conversation has an active or waiting concern.
+        piece:
+          $ref: '#/components/schemas/NowStoryPiece'
+
+    NowStoryPiece:
+      type: object
+      additionalProperties: false
+      description: The piece the briefing had written about a story of its focus, in the story's conversation.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [writing, ready, failed]
+          description: writing while the piece's run is going; ready once it succeeded with a reply; failed when the run did not start, failed, was stopped, waits for the owner or ended without a reply.
+        run_id:
+          type: string
+          description: The run that writes the piece; absent when it did not start.
+        body:
+          type: string
+          description: The piece in Markdown; present when ready.
+        finished_at:
+          type: string
+          format: date-time
+          description: When the piece was finished; present when ready.
 
     StoryMessageResponse:
       type: object

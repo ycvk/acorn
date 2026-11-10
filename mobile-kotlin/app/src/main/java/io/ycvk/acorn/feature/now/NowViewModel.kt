@@ -8,6 +8,7 @@ import io.ycvk.acorn.api.models.NowFollowUp
 import io.ycvk.acorn.api.models.NowGoal
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
+import io.ycvk.acorn.api.models.NowStoryPiece
 import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -209,6 +210,35 @@ fun intervalLabel(seconds: Long): String = when {
 fun nextReaction(current: NowBriefingStory.Reaction?, chosen: NowBriefingStory.Reaction): NowBriefingStory.Reaction? =
     if (current == chosen) null else chosen
 
-/** The stories a briefing picked, by section in the order the briefing gave them. */
-fun storySections(stories: List<NowBriefingStory>): List<Pair<String, List<NowBriefingStory>>> =
-    stories.groupBy { it.section }.toList()
+/** The stories of today's focus, in the briefing's order; each gets a card of its own. */
+fun focusStories(stories: List<NowBriefingStory>): List<NowBriefingStory> = stories.filter { it.focus }
+
+/** The other stories a briefing picked, in its order; they are listed as briefs. */
+fun briefStories(stories: List<NowBriefingStory>): List<NowBriefingStory> = stories.filterNot { it.focus }
+
+/** A story's news sources in a line, "中新网要闻 · BBC 中文"; past three, the first two and how many more. Null without any. */
+fun sourceLine(sources: List<String>): String? = when {
+    sources.isEmpty() -> null
+    sources.size <= 3 -> sources.joinToString(" · ")
+    else -> sources.take(2).joinToString(" · ") + " 等 ${sources.size} 个来源"
+}
+
+/** How long a piece takes to read, at about 400 characters a minute and no less than one: "约 2 分钟读完". */
+fun readingTime(body: String): String {
+    val characters = body.count { !it.isWhitespace() }
+    return "约 ${maxOf(1, (characters + 399) / 400)} 分钟读完"
+}
+
+/** What a story's card says of its piece: how long it reads, that it is being written, or nothing without one. */
+fun pieceLabel(story: NowBriefingStory): String? = when (story.piece?.status) {
+    NowStoryPiece.Status.ready -> story.piece.body?.let(::readingTime)
+    NowStoryPiece.Status.writing -> "正在写"
+    NowStoryPiece.Status.failed, null -> null
+}
+
+/** Whether the page's briefing has a piece that is still being written. */
+fun writingPiece(now: NowResponse?): Boolean =
+    now?.briefing?.stories.orEmpty().any { it.piece?.status == NowStoryPiece.Status.writing }
+
+/** The entry from a story's reading page to its conversation: go on asking where it has one, else have Acorn explain it. */
+fun storyAskLabel(story: NowBriefingStory): String = if (story.threadId != null) "接着问这件事" else "让 Acorn 展开讲讲"

@@ -36,7 +36,9 @@ func (s *Scheduler) runRoutines(ctx context.Context, now time.Time, settings cor
 			errs = append(errs, fmt.Errorf("queue portrait refresh: %w", err))
 		}
 	}
-	if settings.Briefing.Enabled && due(settings.Briefing.At) {
+	// The briefing starts briefingLead early: its push waits for the pieces
+	// about its focus and for the owner's time.
+	if settings.Briefing.Enabled && due(max(settings.Briefing.At-briefingLead, 0)) {
 		errs = append(errs, s.runRoutine(ctx, "briefing", day, "Briefings", false, now, settings, func() (routineInput, error) { return s.prepareBriefing(ctx, day, now, settings.Location) }))
 	}
 	if settings.Night.Enabled && due(settings.Night.At) {

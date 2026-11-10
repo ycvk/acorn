@@ -96,7 +96,9 @@ func TestBriefingPicksAreRecordedOnceAndReactionsOutliveThem(t *testing.T) {
 	if err := s.RecordBriefingPicks(ctx, core.BriefingPicks{RunID: "run_b", BriefedAt: unrecorded[0].FinishedAt}); err != nil {
 		t.Fatalf("recording a briefing again: %v", err)
 	}
-	if got, err := s.BriefingStories(ctx, "run_b"); err != nil || !reflect.DeepEqual(got, []core.BriefingStory{picked}) {
+	shown := picked
+	shown.SourceNames = []string{bbc.Name, ft.Name}
+	if got, err := s.BriefingStories(ctx, "run_b"); err != nil || !reflect.DeepEqual(got, []core.BriefingStory{shown}) {
 		t.Fatalf("briefing stories = %+v, %v", got, err)
 	}
 	if unrecorded, err := s.UnrecordedBriefings(ctx, since); err != nil || len(unrecorded) != 0 {

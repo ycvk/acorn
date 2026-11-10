@@ -77,6 +77,10 @@ func (noStories) SendStoryMessage(context.Context, core.StoryMessageWrite) (core
 	return core.SessionMessageRecord{}, errors.New("no stories in this test")
 }
 
+func (noStories) WriteStoryPiece(context.Context, core.StoryPieceWrite) (core.SessionMessageRecord, error) {
+	return core.SessionMessageRecord{}, errors.New("no stories in this test")
+}
+
 type noSubRuns struct{}
 
 func (noSubRuns) SubRunsOf(context.Context, []string) (map[string][]core.SubRun, error) {
@@ -120,6 +124,7 @@ func (s *clientHandlerStub) executeRun(_ context.Context, req core.ExecuteReques
 	}
 	if s != nil {
 		s.createRunThreadID = req.SessionID
+		s.createRunRequest = req
 		if strings.TrimSpace(s.run.ID) == "" {
 			s.run = Run{
 				ID:        req.RunID,

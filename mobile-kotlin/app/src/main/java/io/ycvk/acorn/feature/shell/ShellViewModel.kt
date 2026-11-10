@@ -34,6 +34,11 @@ sealed interface Page {
         override val key = "chat:${threadId ?: "new-$nonce"}"
     }
 
+    /** The reading page of a story on the briefing card. */
+    data class Story(val storyId: Long) : Page {
+        override val key = "story:$storyId"
+    }
+
     data class Note(val path: String) : Page {
         override val key = "note:$path"
     }

@@ -1,13 +1,18 @@
 package io.ycvk.acorn.feature.now
 
+import io.ycvk.acorn.api.models.NowBriefing
 import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowFollowUp
 import io.ycvk.acorn.api.models.NowGoal
 import io.ycvk.acorn.api.models.NowPanel
+import io.ycvk.acorn.api.models.NowResponse
+import io.ycvk.acorn.api.models.NowStoryPiece
 import io.ycvk.acorn.api.models.NowWatch
 import io.ycvk.acorn.api.models.View
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -84,7 +89,7 @@ class NowLabelsTest {
     }
 
     private fun story(id: Long, section: String, focus: Boolean = false, reaction: NowBriefingStory.Reaction? = null) =
-        NowBriefingStory(storyId = id, section = section, title = "事件 $id", url = "https://x.test/$id", focus = focus, following = false, reaction = reaction)
+        NowBriefingStory(storyId = id, section = section, title = "事件 $id", url = "https://x.test/$id", sources = emptyList(), focus = focus, following = false, reaction = reaction)
 
     @Test
     fun `choosing the current reaction again takes it back`() {
@@ -96,11 +101,58 @@ class NowLabelsTest {
     }
 
     @Test
-    fun `stories group by section in the briefing's order`() {
-        val stories = listOf(story(1, "国际"), story(2, "AI", focus = true), story(3, "国际"))
-        assertEquals(
-            listOf("国际" to listOf(stories[0], stories[2]), "AI" to listOf(stories[1])),
-            storySections(stories),
+    fun `today's focus gets cards and the other stories are briefs, each in the briefing's order`() {
+        val stories = listOf(story(1, "国际"), story(2, "AI", focus = true), story(3, "国际"), story(4, "国内", focus = true))
+        assertEquals(listOf(stories[1], stories[3]), focusStories(stories))
+        assertEquals(listOf(stories[0], stories[2]), briefStories(stories))
+    }
+
+    @Test
+    fun `a story names up to three sources and counts the rest`() {
+        assertNull(sourceLine(emptyList()))
+        assertEquals("中新网要闻", sourceLine(listOf("中新网要闻")))
+        assertEquals("中新网要闻 · BBC 中文 · FT 中文网", sourceLine(listOf("中新网要闻", "BBC 中文", "FT 中文网")))
+        assertEquals("中新网要闻 · BBC 中文 等 4 个来源", sourceLine(listOf("中新网要闻", "BBC 中文", "FT 中文网", "知乎热榜")))
+    }
+
+    @Test
+    fun `a card says how long its piece reads or that it is being written`() {
+        assertEquals("约 1 分钟读完", readingTime("短"))
+        assertEquals("约 1 分钟读完", readingTime("字".repeat(400)))
+        assertEquals("约 2 分钟读完", readingTime("字".repeat(401) + "\n\n  "))
+        val focus = story(2, "AI", focus = true)
+        assertNull(pieceLabel(focus))
+        assertEquals("正在写", pieceLabel(focus.copy(piece = NowStoryPiece(status = NowStoryPiece.Status.writing))))
+        assertEquals("约 2 分钟读完", pieceLabel(focus.copy(piece = NowStoryPiece(status = NowStoryPiece.Status.ready, body = "字".repeat(800)))))
+        assertNull(pieceLabel(focus.copy(piece = NowStoryPiece(status = NowStoryPiece.Status.failed))))
+    }
+
+    @Test
+    fun `the page is loaded again only while a piece is being written`() {
+        fun page(vararg stories: NowBriefingStory) = NowResponse(
+            panels = emptyList(), commitments = emptyList(), concerns = emptyList(), goals = emptyList(), followUps = emptyList(), watches = emptyList(),
+            briefing = NowBriefing(
+                threadId = "thread_briefings", runId = "run_b", date = today, body = "", finishedAt = OffsetDateTime.parse("2026-10-11T00:55:00Z"),
+                stories = stories.toList(), parts = emptyList(),
+            ),
         )
+        val focus = story(2, "AI", focus = true)
+        assertFalse(writingPiece(null))
+        assertFalse(writingPiece(page(story(1, "国际"), focus.copy(piece = NowStoryPiece(status = NowStoryPiece.Status.ready, body = "写好了")))))
+        assertTrue(writingPiece(page(story(1, "国际"), focus.copy(piece = NowStoryPiece(status = NowStoryPiece.Status.writing)))))
+    }
+
+    @Test
+    fun `a story's page leads into its conversation or asks Acorn to explain it`() {
+        val brief = story(1, "国际")
+        assertEquals("让 Acorn 展开讲讲", storyAskLabel(brief))
+        assertEquals("接着问这件事", storyAskLabel(brief.copy(threadId = "thread_story")))
+    }
+
+    @Test
+    fun `a source link is named by its host`() {
+        assertEquals("chinanews.com.cn", sourceHost("https://www.chinanews.com.cn/sh/2026/11-09/10728761.shtml"))
+        assertEquals("daily.ai225.com", sourceHost("https://daily.ai225.com/daily/2026-11-10"))
+        assertEquals("not a link", sourceHost("not a link"))
     }
 }

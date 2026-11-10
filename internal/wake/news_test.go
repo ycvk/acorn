@@ -29,6 +29,67 @@ type fakeNews struct {
 	reactions       []core.StoryReaction
 	reactionsSince  []time.Time
 	prunedReactions []time.Time
+	// pieces are the pieces about stories, by story; piecesAt and pushedAt
+	// are when a briefing's pieces and push were claimed, by run.
+	pieces   map[int64]*core.BriefingPiece
+	piecesAt map[string]time.Time
+	pushedAt map[string]time.Time
+}
+
+// OpenBriefings lists the recorded briefings with a step left.
+func (f *fakeNews) OpenBriefings(context.Context, time.Time) ([]core.OpenBriefing, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []core.OpenBriefing
+	for _, b := range f.unrecorded {
+		_, pieces := f.piecesAt[b.RunID]
+		_, pushed := f.pushedAt[b.RunID]
+		if slices.ContainsFunc(f.recorded, func(p core.BriefingPicks) bool { return p.RunID == b.RunID }) && (!pieces || !pushed) {
+			out = append(out, core.OpenBriefing{RoutineOutput: b, PiecesStarted: pieces, Pushed: pushed})
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeNews) ClaimBriefingPieces(_ context.Context, runID string, at time.Time) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return claimOnce(&f.piecesAt, runID, at), nil
+}
+
+func (f *fakeNews) ClaimBriefingPush(_ context.Context, runID string, at time.Time) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return claimOnce(&f.pushedAt, runID, at), nil
+}
+
+func claimOnce(claims *map[string]time.Time, runID string, at time.Time) bool {
+	if _, taken := (*claims)[runID]; taken {
+		return false
+	}
+	if *claims == nil {
+		*claims = map[string]time.Time{}
+	}
+	(*claims)[runID] = at
+	return true
+}
+
+// BriefingStories lists what a briefing was recorded to have picked, each
+// story with its piece.
+func (f *fakeNews) BriefingStories(_ context.Context, runID string) ([]core.BriefingStory, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []core.BriefingStory
+	for _, picks := range f.recorded {
+		if picks.RunID != runID {
+			continue
+		}
+		for _, story := range picks.Stories {
+			story.Piece = f.pieces[story.StoryID]
+			out = append(out, story)
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeNews) UnrecordedBriefings(context.Context, time.Time) ([]core.RoutineOutput, error) {
@@ -369,6 +430,9 @@ func TestFinishedBriefingsRecordTheStoriesTheyPicked(t *testing.T) {
 	if !reflect.DeepEqual(h.news.recorded, want) {
 		t.Fatalf("recorded = %+v", h.news.recorded)
 	}
+	if want := []string{"12|2026-10-05"}; !reflect.DeepEqual(h.runs.pieces, want) {
+		t.Fatalf("pieces started = %v, want the focus", h.runs.pieces)
+	}
 	if err := h.sched.Tick(context.Background()); err != nil || len(h.news.recorded) != 1 || len(notifier.pushed) != 1 {
 		t.Fatalf("a recorded briefing is recorded or pushed again: %v, %+v, %+v", err, h.news.recorded, notifier.pushed)
 	}
@@ -381,7 +445,7 @@ func TestABriefingReplyWithoutSectionsIsAFailure(t *testing.T) {
 	h := newHarness(t, 20)
 	h.section(t, "国际与财经", 1, "")
 	finished := h.now.Add(-time.Hour)
-	h.news.unrecorded = []core.RoutineOutput{{Slot: "2026-10-25", RunID: "run_b", Text: "早安简报已写好并推送。今日关注三条：地震救援、海啸预警、教堂枪击。", FinishedAt: finished}}
+	h.news.unrecorded = []core.RoutineOutput{{Slot: "2026-10-05", RunID: "run_b", Text: "早安简报已写好并推送。今日关注三条：地震救援、海啸预警、教堂枪击。", FinishedAt: finished}}
 	h.news.briefed = map[string][]core.NewsStory{"run_b": {
 		story(11, "国际与财经", "瓦努阿图海啸预警", 5, finished, "", core.WatchItem{WatchID: 3, URL: "https://bbc.test/tsunami"}),
 	}}

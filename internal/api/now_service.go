@@ -75,18 +75,30 @@ type NowBriefingPartDTO struct {
 	Body    string `json:"body"`
 }
 
-// NowBriefingStoryDTO is a story the briefing picked, with the owner's
-// reaction to it, its conversation and whether Acorn is following it.
+// NowBriefingStoryDTO is a story the briefing picked, with the names of its
+// news sources, the owner's reaction to it, its conversation, whether Acorn
+// is following it and the piece the briefing had written about it.
 type NowBriefingStoryDTO struct {
-	StoryID   int64  `json:"story_id"`
-	Section   string `json:"section"`
-	Title     string `json:"title"`
-	Summary   string `json:"summary,omitempty"`
-	URL       string `json:"url"`
-	Focus     bool   `json:"focus"`
-	Reaction  string `json:"reaction,omitempty"`
-	ThreadID  string `json:"thread_id,omitempty"`
-	Following bool   `json:"following"`
+	StoryID   int64             `json:"story_id"`
+	Section   string            `json:"section"`
+	Title     string            `json:"title"`
+	Summary   string            `json:"summary,omitempty"`
+	URL       string            `json:"url"`
+	Sources   []string          `json:"sources"`
+	Focus     bool              `json:"focus"`
+	Reaction  string            `json:"reaction,omitempty"`
+	ThreadID  string            `json:"thread_id,omitempty"`
+	Following bool              `json:"following"`
+	Piece     *NowStoryPieceDTO `json:"piece,omitempty"`
+}
+
+// NowStoryPieceDTO is the piece about a story of the briefing's focus: how
+// far it is, the run that writes it and, once ready, its text.
+type NowStoryPieceDTO struct {
+	Status     string     `json:"status"`
+	RunID      string     `json:"run_id,omitempty"`
+	Body       string     `json:"body,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 // NowPanelDTO is a view pinned to the now page, with its conversation and
@@ -310,10 +322,15 @@ func (s *NowService) ClearStoryReaction(ctx context.Context, storyID int64) erro
 func nowBriefingStories(stories []core.BriefingStory) []NowBriefingStoryDTO {
 	out := make([]NowBriefingStoryDTO, 0, len(stories))
 	for _, story := range stories {
-		out = append(out, NowBriefingStoryDTO{
+		dto := NowBriefingStoryDTO{
 			StoryID: story.StoryID, Section: story.Section, Title: story.Title, Summary: story.Summary,
-			URL: story.URL, Focus: story.Focus, Reaction: string(story.Reaction), ThreadID: story.ThreadID, Following: story.Following,
-		})
+			URL: story.URL, Sources: append([]string{}, story.SourceNames...), Focus: story.Focus,
+			Reaction: string(story.Reaction), ThreadID: story.ThreadID, Following: story.Following,
+		}
+		if piece := story.Piece; piece != nil {
+			dto.Piece = &NowStoryPieceDTO{Status: string(piece.Status), RunID: piece.RunID, Body: piece.Body, FinishedAt: optionalUTC(piece.FinishedAt)}
+		}
+		out = append(out, dto)
 	}
 	return out
 }

@@ -1,10 +1,8 @@
 package io.ycvk.acorn.feature.now
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -27,8 +24,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,7 +34,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +55,7 @@ import io.ycvk.acorn.api.models.NowFollowUp
 import io.ycvk.acorn.api.models.NowGoal
 import io.ycvk.acorn.api.models.NowPanel
 import io.ycvk.acorn.api.models.NowResponse
+import io.ycvk.acorn.api.models.NowStoryPiece
 import io.ycvk.acorn.api.models.NowWatch
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -74,7 +69,6 @@ import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.IconAction
-import io.ycvk.acorn.core.ui.IconTile
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.ListRow
 import io.ycvk.acorn.core.ui.Load
@@ -93,7 +87,6 @@ import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
-import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.core.ui.weekdayName
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
@@ -108,12 +101,13 @@ import java.time.ZoneId
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowScreen(
+    viewModel: NowViewModel,
     onThreadClick: (String) -> Unit,
+    onStoryClick: (Long) -> Unit,
     onNewChat: () -> Unit,
     onSettings: () -> Unit,
     onBrowser: () -> Unit,
     bottomInset: Dp,
-    viewModel: NowViewModel = hiltViewModel(),
     approvals: ApprovalsViewModel = hiltViewModel(),
 ) {
     val load by viewModel.load.collectAsStateWithLifecycle()
@@ -123,7 +117,6 @@ fun NowScreen(
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
     val approvalError by approvals.error.collectAsStateWithLifecycle()
-    val askingStory by viewModel.askingStory.collectAsStateWithLifecycle()
     var cancelling by remember { mutableStateOf<NowCommitment?>(null) }
     var stoppingGoal by remember { mutableStateOf<NowGoal?>(null) }
     var cancellingFollowUp by remember { mutableStateOf<NowFollowUp?>(null) }
@@ -134,8 +127,7 @@ fun NowScreen(
     }
     LaunchedEffect(Unit) { refresh() }
     OnReturnToForeground(refresh)
-    val openThread by rememberUpdatedState(onThreadClick)
-    LaunchedEffect(viewModel) { viewModel.openThread.collect { openThread(it) } }
+    RefreshWhilePiecesAreWritten(load, viewModel::refresh)
 
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
@@ -195,12 +187,7 @@ fun NowScreen(
                         zone = zone,
                         profile = viewModel.connection(),
                         onThreadClick = onThreadClick,
-                        stories = StoryActions(
-                            asking = askingStory,
-                            onOpen = viewModel::openStory,
-                            onFollow = viewModel::followStory,
-                            onReact = viewModel::react,
-                        ),
+                        onStoryClick = onStoryClick,
                         onUnpin = viewModel::unpinView,
                         onCancel = { cancelling = it },
                         onStopGoal = { stoppingGoal = it },
@@ -211,7 +198,7 @@ fun NowScreen(
                 }
             }
         }
-        AskBar(onClick = onNewChat, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
+        AskBar("问点什么，或者交给 Acorn 去做", onClick = onNewChat, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
     }
 
     selected?.let { detail ->
@@ -309,7 +296,7 @@ private fun LazyListScope.nowSections(
     zone: ZoneId,
     profile: ConnectionProfile?,
     onThreadClick: (String) -> Unit,
-    stories: StoryActions,
+    onStoryClick: (Long) -> Unit,
     onUnpin: (NowPanel) -> Unit,
     onCancel: (NowCommitment) -> Unit,
     onStopGoal: (NowGoal) -> Unit,
@@ -333,7 +320,24 @@ private fun LazyListScope.nowSections(
 
     if (briefing != null) {
         item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
-        item(key = "briefing") { BriefingCard(briefing, onClick = { onThreadClick(briefing.threadId) }, stories = stories) }
+        item(key = "briefing:header") { BriefingHeader(briefing, onClick = { onThreadClick(briefing.threadId) }) }
+        items(focusStories(briefing.stories), key = { "story:${it.storyId}" }) { story ->
+            FocusStoryCard(
+                story,
+                onClick = { onStoryClick(story.storyId) },
+                modifier = Modifier.animateItem().padding(horizontal = ScreenPadding, vertical = 5.dp),
+            )
+        }
+        briefStories(briefing.stories).takeIf { it.isNotEmpty() }?.let { briefs ->
+            item(key = "briefing:briefs") {
+                BriefsCard(briefs, onStoryClick, Modifier.animateItem().padding(horizontal = ScreenPadding, vertical = 5.dp))
+            }
+        }
+        briefingPartPreviews(briefing).takeIf { it.isNotEmpty() }?.let { parts ->
+            item(key = "briefing:parts") {
+                BriefingPartsCard(parts, onClick = { onThreadClick(briefing.threadId) }, Modifier.animateItem().padding(horizontal = ScreenPadding, vertical = 5.dp))
+            }
+        }
     }
 
     if (now.panels.isNotEmpty()) {
@@ -399,143 +403,151 @@ private fun LazyListScope.nowSections(
     }
 }
 
-/** What the owner can do with a story on the briefing card, and the story whose ask is being sent. */
-private class StoryActions(
-    val asking: Long?,
-    val onOpen: (NowBriefingStory) -> Unit,
-    val onFollow: (NowBriefingStory) -> Unit,
-    val onReact: (NowBriefingStory, NowBriefingStory.Reaction) -> Unit,
-)
-
 /**
- * The latest briefing: the stories it picked by section, today's focus, the
- * stories followed and the owner's reactions marked, then a preview of the
- * rest. A tap on a story opens its conversation, where Acorn explains it the
- * first time; a long press asks to follow it or for more or less of its
- * kind. A tap elsewhere opens the briefing.
+ * The line over a briefing's stories: the day it is for and when it was
+ * written. A tap opens the briefing in its conversation.
  */
 @Composable
-private fun BriefingCard(
-    briefing: NowBriefing,
-    onClick: () -> Unit,
-    stories: StoryActions,
-) {
+private fun BriefingHeader(briefing: NowBriefing, onClick: () -> Unit) {
     val colors = AcornTheme.colors
-    val preview = AcornTheme.type.callout
-    Panel(modifier = Modifier.padding(horizontal = ScreenPadding), onClick = onClick, contentPadding = PaddingValues(18.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(size = 36.dp) {
-                Icon(Icons.Outlined.WbSunny, contentDescription = null, tint = colors.warning, modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "早安 · ${briefing.date.monthValue}月${briefing.date.dayOfMonth}日",
-                    style = AcornTheme.type.headline.copy(fontWeight = FontWeight.SemiBold),
-                    color = colors.ink,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(ago(briefing.finishedAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
-            }
-        }
-        storySections(briefing.stories).forEach { (section, picked) ->
-            Spacer(Modifier.height(12.dp))
-            Text(section, style = AcornTheme.type.eyebrow, color = colors.accentInk)
-            Spacer(Modifier.height(2.dp))
-            picked.forEach { story -> StoryRow(story, stories) }
-        }
-        briefing.parts.map { it.heading to plainSnippet(it.body) }.filter { it.second.isNotEmpty() }
-            .take(if (briefing.stories.isEmpty()) 4 else 3).forEach { (heading, text) ->
-                Spacer(Modifier.height(12.dp))
-                heading?.let {
-                    Text(it, style = AcornTheme.type.eyebrow, color = colors.accentInk)
-                    Spacer(Modifier.height(2.dp))
-                }
-                Text(text, style = preview, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-        Spacer(Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("阅读全文", style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = colors.accent)
-            Spacer(Modifier.width(2.dp))
-            Icon(AcornIcons.ChevronRight, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
-        }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ScreenPadding - 8.dp)
+            .clip(AcornShapes.small)
+            .clickable(onClickLabel = "阅读简报全文", onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "${briefing.date.monthValue}月${briefing.date.dayOfMonth}日 · ${ago(briefing.finishedAt, OffsetDateTime.now())}写好",
+            style = AcornTheme.type.caption,
+            color = colors.inkFaint,
+            modifier = Modifier.weight(1f),
+        )
+        Text("阅读全文", style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium), color = colors.accent)
+        Spacer(Modifier.width(2.dp))
+        Icon(AcornIcons.ChevronRight, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
     }
 }
 
 /**
- * One picked story: its title, whether it is today's focus, whether Acorn
- * follows it, and the owner's reaction. While an ask about a story is being
- * sent no row takes a tap, and that story's row shows it is sending.
+ * A story of today's focus: its section, the title and sentence the briefing
+ * wrote, its sources and how far the piece about it is. A tap opens its
+ * reading page.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun StoryRow(story: NowBriefingStory, actions: StoryActions) {
+private fun FocusStoryCard(story: NowBriefingStory, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AcornTheme.colors
-    val haptics = rememberHaptics()
-    var menu by remember { mutableStateOf(false) }
-    val onReact = { reaction: NowBriefingStory.Reaction -> actions.onReact(story, reaction) }
-    Box {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(AcornShapes.small)
-                .combinedClickable(
-                    enabled = actions.asking == null,
-                    onClickLabel = if (story.threadId == null) "让 Acorn 展开讲讲" else "打开这件事的对话",
-                    onClick = { actions.onOpen(story) },
-                    onLongClickLabel = "持续跟进，或多报少报这类",
-                    onLongClick = {
-                        haptics.longPress()
-                        menu = true
-                    },
-                )
-                .heightIn(min = 36.dp)
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    Panel(modifier = modifier, onClick = onClick, contentPadding = PaddingValues(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(story.section, style = AcornTheme.type.eyebrow, color = colors.accentInk, modifier = Modifier.weight(1f))
+            StoryMarks(story)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            story.title,
+            style = AcornTheme.type.headline.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.ink,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        story.summary?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(it, style = AcornTheme.type.callout, color = colors.inkSoft, maxLines = 4, overflow = TextOverflow.Ellipsis)
+        }
+        val meta = listOfNotNull(sourceLine(story.sources), pieceLabel(story)).joinToString(" · ")
+        if (meta.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (story.piece?.status == NowStoryPiece.Status.writing) {
+                    CircularProgressIndicator(color = colors.inkFaint, strokeWidth = 1.5.dp, modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(meta, style = AcornTheme.type.caption, color = colors.inkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** The briefing's other stories, each with the sentence the briefing wrote and its sources. A tap on one opens its reading page. */
+@Composable
+private fun BriefsCard(stories: List<NowBriefingStory>, onStoryClick: (Long) -> Unit, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    Panel(modifier = modifier, contentPadding = PaddingValues(vertical = 6.dp)) {
+        Text("快讯", style = AcornTheme.type.eyebrow, color = colors.accentInk, modifier = Modifier.padding(start = 18.dp, top = 10.dp, bottom = 2.dp))
+        stories.forEachIndexed { index, story ->
+            BriefRow(story, onClick = { onStoryClick(story.storyId) })
+            if (index < stories.lastIndex) Hairline(inset = 18.dp)
+        }
+    }
+}
+
+@Composable
+private fun BriefRow(story: NowBriefingStory, onClick: () -> Unit) {
+    val colors = AcornTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = "打开这件事", onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
             Text(
                 story.title,
-                style = AcornTheme.type.callout,
+                style = AcornTheme.type.callout.copy(fontWeight = FontWeight.Medium),
                 color = if (story.reaction == NowBriefingStory.Reaction.less) colors.inkSoft else colors.ink,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f),
             )
-            if (story.focus) {
-                Spacer(Modifier.width(8.dp))
-                Tag("关注", color = colors.warningInk, container = colors.warningSoft)
-            }
-            if (story.following) {
-                Spacer(Modifier.width(6.dp))
-                Tag("跟进中", color = colors.success)
-            }
-            when (story.reaction) {
-                NowBriefingStory.Reaction.more -> { Spacer(Modifier.width(6.dp)); Tag("多报", color = colors.accentInk, container = colors.accentSoft) }
-                NowBriefingStory.Reaction.less -> { Spacer(Modifier.width(6.dp)); Tag("少报") }
-                null -> Unit
-            }
-            if (actions.asking == story.storyId) {
-                Spacer(Modifier.width(8.dp))
-                CircularProgressIndicator(color = colors.inkSoft, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
-            }
+            StoryMarks(story, Modifier.padding(start = 8.dp, top = 1.dp))
         }
-        AcornMenu(expanded = menu, onDismiss = { menu = false }) {
-            AcornMenuItem("持续跟进", onClick = {
-                menu = false
-                if (!story.following) actions.onFollow(story)
-            }, checked = story.following)
-            AcornMenuItem("多报这类", onClick = {
-                menu = false
-                onReact(NowBriefingStory.Reaction.more)
-            }, checked = story.reaction == NowBriefingStory.Reaction.more)
-            AcornMenuItem("少报这类", onClick = {
-                menu = false
-                onReact(NowBriefingStory.Reaction.less)
-            }, checked = story.reaction == NowBriefingStory.Reaction.less)
+        story.summary?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(3.dp))
+            Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        sourceLine(story.sources)?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, style = AcornTheme.type.caption, color = colors.inkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
+
+/** What the owner asked of a story: that Acorn follows it, and more or less of its kind. */
+@Composable
+private fun StoryMarks(story: NowBriefingStory, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    if (!story.following && story.reaction == null) return
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (story.following) Tag("跟进中", color = colors.success)
+        when (story.reaction) {
+            NowBriefingStory.Reaction.more -> Tag("多报", color = colors.accentInk, container = colors.accentSoft)
+            NowBriefingStory.Reaction.less -> Tag("少报")
+            null -> Unit
+        }
+    }
+}
+
+/** The parts of a briefing beside its news, such as what is due today and what needs the owner. A tap opens the briefing. */
+@Composable
+private fun BriefingPartsCard(parts: List<Pair<String?, String>>, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    Panel(modifier = modifier, onClick = onClick, contentPadding = PaddingValues(18.dp)) {
+        parts.forEachIndexed { index, (heading, text) ->
+            if (index > 0) Spacer(Modifier.height(12.dp))
+            heading?.let {
+                Text(it, style = AcornTheme.type.eyebrow, color = colors.accentInk)
+                Spacer(Modifier.height(2.dp))
+            }
+            Text(text, style = AcornTheme.type.callout, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** The parts of a briefing its card previews, as plain text, at most four. */
+fun briefingPartPreviews(briefing: NowBriefing): List<Pair<String?, String>> =
+    briefing.parts.map { it.heading to plainSnippet(it.body) }.filter { it.second.isNotEmpty() }.take(4)
 
 /**
  * A view the owner pinned, drawn as in its conversation under the name of
@@ -733,9 +745,9 @@ private fun MenuItem(text: String, danger: Boolean = false, onClick: () -> Unit)
     AcornMenuItem(text, onClick, danger = danger)
 }
 
-/** The entry to a new conversation, a pill floating above the tab bar. */
+/** The entry to a conversation, a pill floating over the foot of a page: a new one on the Today tab, a story's on its reading page. [busy] holds while the ask it sends is on its way. */
 @Composable
-private fun AskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun AskBar(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, busy: Boolean = false) {
     val colors = AcornTheme.colors
     val shape = AcornShapes.pill
     val interaction = remember { MutableInteractionSource() }
@@ -753,18 +765,22 @@ private fun AskBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 .height(54.dp)
                 .clip(shape)
                 .background(colors.surface)
-                .clickable(interaction, LocalIndication.current, onClick = onClick)
+                .clickable(interaction, LocalIndication.current, enabled = !busy, onClick = onClick)
                 .padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ThinkingOrb(OrbState.Thinking, size = 22.dp, animated = false)
             Spacer(Modifier.width(12.dp))
-            Text("问点什么，或者交给 Acorn 去做", style = AcornTheme.type.callout, color = colors.inkFaint, modifier = Modifier.weight(1f))
+            Text(text, style = AcornTheme.type.callout, color = colors.inkFaint, modifier = Modifier.weight(1f))
             Box(
                 modifier = Modifier.size(38.dp).background(colors.surfaceMuted, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(AcornIcons.ArrowUp, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(17.dp))
+                if (busy) {
+                    CircularProgressIndicator(color = colors.inkSoft, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                } else {
+                    Icon(AcornIcons.ArrowUp, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(17.dp))
+                }
             }
         }
     }

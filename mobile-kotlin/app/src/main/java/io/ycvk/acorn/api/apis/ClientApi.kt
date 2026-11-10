@@ -1660,7 +1660,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * GET /v1/threads
      * List client threads
-     * 
+     * A conversation that holds only a piece about a briefing story is left out until the owner writes in it.
      * @param limit Positive integer limit. Defaults to 100. (optional)
      * @return ThreadListResponse
      * @throws IllegalStateException If the request is not correctly configured
@@ -1692,7 +1692,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * GET /v1/threads
      * List client threads
-     * 
+     * A conversation that holds only a piece about a briefing story is left out until the owner writes in it.
      * @param limit Positive integer limit. Defaults to 100. (optional)
      * @return ApiResponse<ThreadListResponse?>
      * @throws IllegalStateException If the request is not correctly configured
