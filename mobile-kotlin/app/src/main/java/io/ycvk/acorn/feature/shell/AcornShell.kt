@@ -130,6 +130,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     OnReturnToForeground {
         if (localNetworkDenied) scope.launch { localNetworkDenied = shellViewModel.needsLocalNetwork() }
         if (shellViewModel.ownerGate.value is OwnerGate.Failed) shellViewModel.checkOwner()
+        shellViewModel.refreshPending()
     }
     if (localNetworkDenied) {
         AcornDialog(

@@ -16,6 +16,7 @@ import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.authorized
+import io.ycvk.acorn.core.push.NotificationShade
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunStatus
@@ -60,6 +61,7 @@ class ChatViewModel @Inject constructor(
     private val follower: RunFollower,
     private val authController: AuthController,
     private val files: ThreadFileRepository,
+    private val shade: NotificationShade,
 ) : ViewModel() {
 
     private val _threadId = MutableStateFlow<String?>(null)
@@ -121,6 +123,8 @@ class ChatViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { follower.updates.collect(::onRunUpdate) }
+        // The conversation on screen needs no notification of its own news.
+        viewModelScope.launch { _threadId.collect(shade::showThread) }
     }
 
     /** Opens a thread, or a new conversation when [threadId] is null, and returns the page's number for [leave]. */
@@ -588,6 +592,7 @@ class ChatViewModel @Inject constructor(
 
     override fun onCleared() {
         _threadId.value?.let(follower::unwatch)
+        shade.showThread(null)
         super.onCleared()
     }
 }

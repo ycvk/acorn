@@ -16,6 +16,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import io.ycvk.acorn.core.push.DeepLinks
 import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
 import io.ycvk.acorn.core.push.EXTRA_BROWSER_URL
+import io.ycvk.acorn.core.push.NotificationShade
 import io.ycvk.acorn.core.push.ThreadLink
 import io.ycvk.acorn.core.push.threadIdFromExtras
 import io.ycvk.acorn.core.theme.AcornTheme
@@ -28,6 +29,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var deepLinks: DeepLinks
     @Inject lateinit var themePreference: ThemePreference
+    @Inject lateinit var shade: NotificationShade
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +51,11 @@ class MainActivity : ComponentActivity() {
                 AcornShell()
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        shade.appEntered()
     }
 
     override fun onNewIntent(intent: Intent) {

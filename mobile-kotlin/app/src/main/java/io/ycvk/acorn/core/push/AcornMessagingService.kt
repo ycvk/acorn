@@ -10,13 +10,15 @@ import javax.inject.Inject
 /**
  * Receives FCM callbacks. In the background the system shows notifications
  * itself and puts the data payload into the launch intent; in the foreground
- * the app shows them through [PushManager]. A pending action arrives as data
- * only and is always shown by [ApprovalNotifications], with its decisions.
+ * the app shows them through [PushManager], unless the conversation they
+ * announce is on screen. A pending action arrives as data only and is always
+ * shown by [ApprovalNotifications], with its decisions.
  */
 @AndroidEntryPoint
 class AcornMessagingService : FirebaseMessagingService() {
     @Inject lateinit var pushManager: PushManager
     @Inject lateinit var approvals: ApprovalNotifications
+    @Inject lateinit var shade: NotificationShade
 
     override fun onRegistered(installationId: String) {
         pushManager.onRegistered(installationId)
@@ -28,11 +30,14 @@ class AcornMessagingService : FirebaseMessagingService() {
             return
         }
         val notification = message.notification ?: return
+        val threadId = message.data[EXTRA_THREAD_ID]
+        val browserUrl = message.data[EXTRA_BROWSER_URL]
+        if (shade.covers(threadId, browserUrl)) return
         pushManager.show(
             title = notification.title.orEmpty(),
             body = notification.body.orEmpty(),
-            threadId = message.data[EXTRA_THREAD_ID],
-            browserUrl = message.data[EXTRA_BROWSER_URL],
+            threadId = threadId,
+            browserUrl = browserUrl,
         )
     }
 }

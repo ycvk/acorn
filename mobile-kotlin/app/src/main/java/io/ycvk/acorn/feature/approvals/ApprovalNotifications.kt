@@ -21,7 +21,9 @@ import io.ycvk.acorn.core.auth.SecureStore
 import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
 import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
+import io.ycvk.acorn.core.push.ShownNotification
 import io.ycvk.acorn.core.push.canPostNotifications
+import io.ycvk.acorn.core.push.shown
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.feature.live.RunFollower
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +54,17 @@ fun notificationDecisions(detail: PendingActionDetail): List<Pair<String, Decide
     val ids = detail.options.map { it.id }
     if (!ids.containsAll(listOf("accept", "decline"))) return emptyList()
     return listOf("decline" to DecidePendingActionRequest.Decision.decline, "accept" to DecidePendingActionRequest.Decision.accept)
+}
+
+/**
+ * The approval notifications whose action no longer waits on the owner: it is
+ * not among [pending], the whole list of waiting actions asked for at
+ * [askedAt]. One posted after that may be for an action the list is too old
+ * to hold.
+ */
+fun settledApprovals(shown: List<ShownNotification>, pending: Set<String>, askedAt: Long): List<ShownNotification> {
+    val waiting = pending.map(ApprovalNotifications::notificationId).toSet()
+    return shown.filter { it.channelId == ApprovalNotifications.CHANNEL_ID && it.id !in waiting && it.postedAt < askedAt }
 }
 
 /**
@@ -108,6 +121,15 @@ class ApprovalNotifications @Inject constructor(
 
     fun cancel(actionId: String) {
         manager.cancel(notificationId(actionId))
+    }
+
+    /**
+     * Clears the notifications of actions decided, stopped or gone somewhere
+     * else. [pending] is every action that waited when the server was asked
+     * at [askedAt].
+     */
+    fun keepOnly(pending: Set<String>, askedAt: Long) {
+        settledApprovals(manager.shown(), pending, askedAt).forEach { manager.cancel(it.tag, it.id) }
     }
 
     /**
