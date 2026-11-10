@@ -3,6 +3,8 @@ package io.ycvk.acorn.feature.approvals
 import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionOption
+import io.ycvk.acorn.core.push.PushManager
+import io.ycvk.acorn.core.push.ShownNotification
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -18,6 +20,22 @@ class ApprovalNotificationsTest {
         )
         assertNull(pendingActionPush(mapOf("thread_id" to "thread_1", "run_id" to "run_1")))
         assertNull(pendingActionPush(mapOf("type" to "pending_action", "action_id" to " ")))
+    }
+
+    @Test
+    fun `an approval notification leaves once its action no longer waits`() {
+        fun approval(actionId: String, postedAt: Long) =
+            ShownNotification(null, ApprovalNotifications.notificationId(actionId), ApprovalNotifications.CHANNEL_ID, postedAt)
+        val waiting = approval("action_waiting", postedAt = 100)
+        val decidedElsewhere = approval("action_decided", postedAt = 100)
+        // Its action began waiting after the list was asked for.
+        val newer = approval("action_new", postedAt = 600)
+        val message = ShownNotification(null, 5, PushManager.CHANNEL_ID, 100)
+
+        assertEquals(
+            listOf(decidedElsewhere),
+            settledApprovals(listOf(waiting, decidedElsewhere, newer, message), pending = setOf("action_waiting"), askedAt = 500),
+        )
     }
 
     private fun detail(kind: PendingActionDetail.Kind, vararg optionIds: String) = PendingActionDetail(

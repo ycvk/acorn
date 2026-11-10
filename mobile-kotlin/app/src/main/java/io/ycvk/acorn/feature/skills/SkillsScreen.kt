@@ -33,7 +33,9 @@ import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.arrive
 import io.ycvk.acorn.core.ui.groupItem
+import io.ycvk.acorn.core.ui.rememberArrival
 import java.time.OffsetDateTime
 
 /** Every skill Acorn has, in use first, with whether the next conversation lists it. */
@@ -48,6 +50,7 @@ fun SkillsScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = "技能")
+        val arrival = rememberArrival(waiting = load is Load.Loading)
         when (val state = load) {
             Load.Loading -> SkeletonRows(rows = 5)
             is Load.Failed -> ErrorState(state.message, onRetry = viewModel::loadList)
@@ -58,17 +61,17 @@ fun SkillsScreen(
                     body = "Acorn 做成一件多步骤的事之后会把做法记成技能，也可以让它导入现成的技能包。",
                 )
             } else {
-                SkillList(state.value, onOpenSkill)
+                SkillList(state.value, onOpenSkill, Modifier.arrive(arrival))
             }
         }
     }
 }
 
 @Composable
-private fun SkillList(items: List<SkillSummary>, onOpenSkill: (String) -> Unit) {
+private fun SkillList(items: List<SkillSummary>, onOpenSkill: (String) -> Unit, modifier: Modifier = Modifier) {
     val now = OffsetDateTime.now()
     val (inUse, retired) = items.partition { !it.retired }
-    LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding(), contentPadding = PaddingValues(bottom = 32.dp)) {
+    LazyColumn(modifier = modifier.fillMaxSize().navigationBarsPadding(), contentPadding = PaddingValues(bottom = 32.dp)) {
         item {
             Text(
                 "Acorn 遇到对应的事时会加载这些技能。新建和修改交给 Acorn，在对话里告诉它就行；这里可以查看历史、回滚、停用，并给技能包设置密钥。",

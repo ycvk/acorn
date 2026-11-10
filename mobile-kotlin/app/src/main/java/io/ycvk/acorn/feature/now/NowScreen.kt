@@ -25,10 +25,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,6 +63,7 @@ import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
+import io.ycvk.acorn.core.ui.Arrival
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.Hairline
@@ -75,6 +74,7 @@ import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.OrbState
 import io.ycvk.acorn.core.ui.Panel
+import io.ycvk.acorn.core.ui.PullRefresh
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
@@ -83,14 +83,17 @@ import io.ycvk.acorn.core.ui.StatusGlyph
 import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.ThinkingOrb
 import io.ycvk.acorn.core.ui.ago
+import io.ycvk.acorn.core.ui.arrive
 import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
+import io.ycvk.acorn.core.ui.rememberArrival
 import io.ycvk.acorn.core.ui.weekdayName
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
+import io.ycvk.acorn.feature.shell.storyOrigin
 import io.ycvk.acorn.feature.views.ViewActions
 import io.ycvk.acorn.feature.views.ViewCard
 import java.time.LocalDate
@@ -98,7 +101,6 @@ import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowScreen(
     viewModel: NowViewModel,
@@ -115,6 +117,7 @@ fun NowScreen(
     val actionError by viewModel.actionError.collectAsStateWithLifecycle()
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
+    val settled by approvals.settled.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
     val approvalError by approvals.error.collectAsStateWithLifecycle()
     var cancelling by remember { mutableStateOf<NowCommitment?>(null) }
@@ -128,12 +131,13 @@ fun NowScreen(
     LaunchedEffect(Unit) { refresh() }
     OnReturnToForeground(refresh)
     RefreshWhilePiecesAreWritten(load, viewModel::refresh)
+    val arrival = rememberArrival(waiting = load is Load.Loading)
 
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
 
     Box(modifier = Modifier.fillMaxSize()) {
-        PullToRefreshBox(
+        PullRefresh(
             isRefreshing = refreshing,
             onRefresh = refresh,
             modifier = Modifier.fillMaxSize(),
@@ -174,6 +178,7 @@ fun NowScreen(
                             modifier = Modifier
                                 .animateItem()
                                 .padding(horizontal = ScreenPadding, vertical = 8.dp),
+                            settled = settled[action.actionId],
                         )
                     }
                 }
@@ -182,6 +187,7 @@ fun NowScreen(
                     is Load.Failed -> item(key = "failed") { ErrorState(state.message, onRetry = refresh) }
                     is Load.Loaded -> nowSections(
                         now = state.value,
+                        arrival = arrival,
                         pending = pending,
                         today = today,
                         zone = zone,
@@ -291,6 +297,7 @@ fun greeting(now: LocalTime): String = when (now.hour) {
 
 private fun LazyListScope.nowSections(
     now: NowResponse,
+    arrival: Arrival,
     pending: List<PendingActionSummary>,
     today: LocalDate,
     zone: ZoneId,
@@ -319,38 +326,38 @@ private fun LazyListScope.nowSections(
     }
 
     if (briefing != null) {
-        item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
-        item(key = "briefing:header") { BriefingHeader(briefing, onClick = { onThreadClick(briefing.threadId) }) }
+        item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报", Modifier.arrive(arrival)) }
+        item(key = "briefing:header") { BriefingHeader(briefing, onClick = { onThreadClick(briefing.threadId) }, Modifier.arrive(arrival)) }
         items(focusStories(briefing.stories), key = { "story:${it.storyId}" }) { story ->
             FocusStoryCard(
                 story,
                 onClick = { onStoryClick(story.storyId) },
-                modifier = Modifier.animateItem().padding(horizontal = ScreenPadding, vertical = 5.dp),
+                modifier = Modifier.animateItem().arrive(arrival).padding(horizontal = ScreenPadding, vertical = 5.dp).storyOrigin(story.storyId),
             )
         }
         briefStories(briefing.stories).takeIf { it.isNotEmpty() }?.let { briefs ->
             item(key = "briefing:briefs") {
-                BriefsCard(briefs, onStoryClick, Modifier.animateItem().padding(horizontal = ScreenPadding, vertical = 5.dp))
+                BriefsCard(briefs, onStoryClick, Modifier.animateItem().arrive(arrival).padding(horizontal = ScreenPadding, vertical = 5.dp))
             }
         }
         briefingPartPreviews(briefing).takeIf { it.isNotEmpty() }?.let { parts ->
             item(key = "briefing:parts") {
-                BriefingPartsCard(parts, onClick = { onThreadClick(briefing.threadId) }, Modifier.animateItem().padding(horizontal = ScreenPadding, vertical = 5.dp))
+                BriefingPartsCard(parts, onClick = { onThreadClick(briefing.threadId) }, Modifier.animateItem().arrive(arrival).padding(horizontal = ScreenPadding, vertical = 5.dp))
             }
         }
     }
 
     if (now.panels.isNotEmpty()) {
-        item(key = "panels:label") { SectionLabel("面板", count = now.panels.size) }
+        item(key = "panels:label") { SectionLabel("面板", Modifier.arrive(arrival), count = now.panels.size) }
         items(now.panels, key = { "panel:${it.view.id}" }) { panel ->
             PanelCard(panel, profile, onOpen = { onThreadClick(panel.threadId) }, onUnpin = { onUnpin(panel) })
         }
     }
 
     if (now.commitments.isNotEmpty()) {
-        item(key = "commitments:label") { SectionLabel("接下来", count = now.commitments.size) }
+        item(key = "commitments:label") { SectionLabel("接下来", Modifier.arrive(arrival), count = now.commitments.size) }
         itemsIndexed(now.commitments, key = { _, it -> "commitment:${it.id}" }) { index, commitment ->
-            Column(Modifier.animateItem().groupItem(index, now.commitments.size)) {
+            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.commitments.size)) {
                 CommitmentRow(commitment, wakeTime(commitment.wakeAt, today, zone), onCancel = { onCancel(commitment) })
                 if (index < now.commitments.lastIndex) Hairline(inset = ScreenPadding + 63.dp)
             }
@@ -358,9 +365,9 @@ private fun LazyListScope.nowSections(
     }
 
     if (now.concerns.isNotEmpty()) {
-        item(key = "concerns:label") { SectionLabel("正在跟进", count = now.concerns.size) }
+        item(key = "concerns:label") { SectionLabel("正在跟进", Modifier.arrive(arrival), count = now.concerns.size) }
         itemsIndexed(now.concerns, key = { _, it -> "concern:${it.id}" }) { index, concern ->
-            Column(Modifier.animateItem().groupItem(index, now.concerns.size)) {
+            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.concerns.size)) {
                 ConcernRow(concern, onClick = { onThreadClick(concern.threadId) })
                 if (index < now.concerns.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
             }
@@ -368,9 +375,9 @@ private fun LazyListScope.nowSections(
     }
 
     if (now.goals.isNotEmpty()) {
-        item(key = "goals:label") { SectionLabel("目标", count = now.goals.size) }
+        item(key = "goals:label") { SectionLabel("目标", Modifier.arrive(arrival), count = now.goals.size) }
         itemsIndexed(now.goals, key = { _, it -> "goal:${it.id}" }) { index, goal ->
-            Column(Modifier.animateItem().groupItem(index, now.goals.size)) {
+            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.goals.size)) {
                 GoalRow(goal, onClick = { onThreadClick(goal.threadId) }, onStop = { onStopGoal(goal) })
                 if (index < now.goals.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
             }
@@ -378,9 +385,9 @@ private fun LazyListScope.nowSections(
     }
 
     if (now.followUps.isNotEmpty()) {
-        item(key = "follow_ups:label") { SectionLabel("等结果", count = now.followUps.size) }
+        item(key = "follow_ups:label") { SectionLabel("等结果", Modifier.arrive(arrival), count = now.followUps.size) }
         itemsIndexed(now.followUps, key = { _, it -> "follow_up:${it.id}" }) { index, followUp ->
-            Column(Modifier.animateItem().groupItem(index, now.followUps.size)) {
+            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.followUps.size)) {
                 FollowUpRow(
                     followUp,
                     deadline = followUpDeadline(followUp, today, zone),
@@ -393,9 +400,9 @@ private fun LazyListScope.nowSections(
     }
 
     if (now.watches.isNotEmpty()) {
-        item(key = "watches:label") { SectionLabel("追踪", count = now.watches.size) }
+        item(key = "watches:label") { SectionLabel("追踪", Modifier.arrive(arrival), count = now.watches.size) }
         itemsIndexed(now.watches, key = { _, it -> "watch:${it.id}" }) { index, watch ->
-            Column(Modifier.animateItem().groupItem(index, now.watches.size)) {
+            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.watches.size)) {
                 WatchRow(watch, onPause = { onPause(watch.id) }, onResume = { onResume(watch.id) })
                 if (index < now.watches.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
             }
@@ -408,10 +415,10 @@ private fun LazyListScope.nowSections(
  * written. A tap opens the briefing in its conversation.
  */
 @Composable
-private fun BriefingHeader(briefing: NowBriefing, onClick: () -> Unit) {
+private fun BriefingHeader(briefing: NowBriefing, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AcornTheme.colors
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = ScreenPadding - 8.dp)
             .clip(AcornShapes.small)
@@ -486,10 +493,13 @@ private fun BriefsCard(stories: List<NowBriefingStory>, onStoryClick: (Long) -> 
 @Composable
 private fun BriefRow(story: NowBriefingStory, onClick: () -> Unit) {
     val colors = AcornTheme.colors
+    val interaction = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClickLabel = "打开这件事", onClick = onClick)
+            .storyOrigin(story.storyId)
+            .clickable(interaction, LocalIndication.current, onClickLabel = "打开这件事", onClick = onClick)
+            .pressScale(interaction, 0.98f)
             .padding(horizontal = 18.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {

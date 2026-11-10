@@ -12,6 +12,7 @@ import io.ycvk.acorn.core.push.DeepLinks
 import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.OwnerRepository
+import io.ycvk.acorn.feature.approvals.ApprovalNotifications
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,6 +102,7 @@ class ShellViewModel @Inject constructor(
     private val pushManager: PushManager,
     private val deepLinks: DeepLinks,
     private val ownerRepository: OwnerRepository,
+    private val approvalNotifications: ApprovalNotifications,
 ) : ViewModel() {
 
     private val _ownerGate = MutableStateFlow<OwnerGate>(OwnerGate.Checking)
@@ -154,19 +156,36 @@ class ShellViewModel @Inject constructor(
     private fun pollPendingCount() {
         viewModelScope.launch {
             while (true) {
-                val profile = profile() ?: break
-                try {
-                    val resp = withContext(Dispatchers.IO) {
-                        ClientApi(profile.serverUrl).authorized(profile).clientGetInbox()
-                    }
-                    _pendingCount.value = resp.pendingActions.size
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    // The badge refreshes on the next poll; Today shows load failures.
-                }
+                if (profile() == null) break
+                readPending()
                 kotlinx.coroutines.delay(POLL_INTERVAL_MS)
             }
+        }
+    }
+
+    /** Reads what waits on the owner now, without waiting for the next poll; call when the app returns to the front. */
+    fun refreshPending() {
+        viewModelScope.launch { readPending() }
+    }
+
+    /**
+     * Reads the actions waiting on the owner, for the badge and to take down
+     * the notifications of those that no longer wait. A full page may leave
+     * actions out, so only a shorter one says which are over.
+     */
+    private suspend fun readPending() {
+        val profile = profile() ?: return
+        val askedAt = System.currentTimeMillis()
+        try {
+            val pending = withContext(Dispatchers.IO) {
+                ClientApi(profile.serverUrl).authorized(profile).clientListPendingActions(limit = PENDING_LIMIT).items
+            }
+            _pendingCount.value = pending.size
+            if (pending.size < PENDING_LIMIT) approvalNotifications.keepOnly(pending.map { it.actionId }.toSet(), askedAt)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // The badge refreshes on the next poll; Today shows load failures.
         }
     }
 
@@ -239,5 +258,6 @@ class ShellViewModel @Inject constructor(
 
     companion object {
         private const val POLL_INTERVAL_MS = 30_000L
+        private const val PENDING_LIMIT = 50
     }
 }

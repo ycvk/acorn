@@ -48,6 +48,8 @@ import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.core.ui.ago
+import io.ycvk.acorn.core.ui.arrive
+import io.ycvk.acorn.core.ui.rememberArrival
 import java.net.URI
 import java.time.OffsetDateTime
 
@@ -95,12 +97,13 @@ fun NoteScreen(
                 onAction = viewModel::clearDeleteError,
             )
         }
+        val arrival = rememberArrival(waiting = load is Load.Loading)
         when (val current = load) {
             Load.Loading -> SkeletonRows(rows = 5)
             is Load.Failed -> ErrorState(current.message, onRetry = { viewModel.openNote(path) })
             is Load.Loaded -> NoteBody(
                 note = current.value,
-                modifier = Modifier.verticalScroll(scroll),
+                modifier = Modifier.arrive(arrival).verticalScroll(scroll),
             )
         }
     }

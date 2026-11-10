@@ -1,5 +1,10 @@
 package io.ycvk.acorn.feature.approvals
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +44,7 @@ import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionOption
 import io.ycvk.acorn.api.models.PendingActionSummary
+import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
@@ -102,7 +108,18 @@ fun kindLabel(kind: String): String = when (kind) {
     else -> kind
 }
 
-/** A pending action on Today: two-option approvals decide in place, anything else opens the sheet. */
+/** What a decided action's card says in place of its buttons. */
+fun settledLabel(decision: DecidePendingActionRequest.Decision): String = when (decision) {
+    DecidePendingActionRequest.Decision.accept -> "已批准，Acorn 会继续"
+    DecidePendingActionRequest.Decision.decline -> "已拒绝"
+    DecidePendingActionRequest.Decision.answer -> "已回答"
+}
+
+/**
+ * A pending action on Today: two-option approvals decide in place, anything
+ * else opens the sheet. Once the owner's decision is taken, [settled], the
+ * card says so in place of its buttons for the moment before it leaves.
+ */
 @Composable
 fun ApprovalCard(
     action: PendingActionSummary,
@@ -110,13 +127,14 @@ fun ApprovalCard(
     onDecide: (DecidePendingActionRequest) -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    settled: DecidePendingActionRequest.Decision? = null,
 ) {
     val colors = AcornTheme.colors
     val haptics = rememberHaptics()
     // A warm light rides the card for as long as the decision waits on the owner.
     Panel(
-        modifier = modifier.borderBeam(true, CardRadius, BeamPalette.Sunset, period = 3200),
-        onClick = onOpen,
+        modifier = modifier.borderBeam(settled == null, CardRadius, BeamPalette.Sunset, period = 3200),
+        onClick = onOpen.takeIf { settled == null },
         contentPadding = PaddingValues(16.dp),
     ) {
         Row {
@@ -134,29 +152,63 @@ fun ApprovalCard(
                     Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(12.dp))
-                val inline = action.kind == PendingActionSummary.Kind.tool_approval && action.options.size == 2
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
-                    if (inline) {
-                        action.options.sortedBy { it.id == "accept" }.forEach { option ->
-                            val accept = option.id == "accept"
-                            AcornButton(
-                                text = optionLabel(option),
-                                onClick = {
-                                    if (accept) haptics.confirm() else haptics.reject()
-                                    onDecide(optionRequest(action.kind.value, option))
-                                },
-                                kind = if (accept) ButtonKind.Primary else ButtonKind.Secondary,
-                                compact = true,
-                                loading = deciding && accept,
-                                enabled = !deciding,
-                            )
-                        }
+                AnimatedContent(
+                    targetState = settled,
+                    transitionSpec = {
+                        (fadeIn(AcornMotion.enter(AcornMotion.MEDIUM)) + scaleIn(AcornMotion.pop(), initialScale = 0.9f)) togetherWith fadeOut(AcornMotion.exit(100))
+                    },
+                    contentAlignment = Alignment.CenterEnd,
+                    label = "approval_outcome",
+                ) { outcome ->
+                    if (outcome != null) {
+                        Outcome(outcome)
                     } else {
-                        AcornButton("查看并回答", onOpen, kind = ButtonKind.Primary, compact = true)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+                            if (action.kind == PendingActionSummary.Kind.tool_approval && action.options.size == 2) {
+                                action.options.sortedBy { it.id == "accept" }.forEach { option ->
+                                    val accept = option.id == "accept"
+                                    AcornButton(
+                                        text = optionLabel(option),
+                                        onClick = {
+                                            if (accept) haptics.confirm() else haptics.reject()
+                                            onDecide(optionRequest(action.kind.value, option))
+                                        },
+                                        kind = if (accept) ButtonKind.Primary else ButtonKind.Secondary,
+                                        compact = true,
+                                        loading = deciding && accept,
+                                        enabled = !deciding,
+                                    )
+                                }
+                            } else {
+                                AcornButton("查看并回答", onOpen, kind = ButtonKind.Primary, compact = true)
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/** What was decided, where the card's buttons were. */
+@Composable
+private fun Outcome(decision: DecidePendingActionRequest.Decision) {
+    val colors = AcornTheme.colors
+    val declined = decision == DecidePendingActionRequest.Decision.decline
+    Row(
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp),
+    ) {
+        if (!declined) {
+            StatusGlyph(Status.Done)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            settledLabel(decision),
+            style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.Medium),
+            color = if (declined) colors.inkSoft else colors.accentInk,
+        )
     }
 }
 

@@ -11,9 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +34,7 @@ import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
+import io.ycvk.acorn.core.ui.Arrival
 import io.ycvk.acorn.core.ui.DayGroup
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
@@ -45,6 +44,7 @@ import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.ListRow
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.PageHeader
+import io.ycvk.acorn.core.ui.PullRefresh
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SearchField
 import io.ycvk.acorn.core.ui.SectionLabel
@@ -52,16 +52,17 @@ import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Status
 import io.ycvk.acorn.core.ui.StatusGlyph
 import io.ycvk.acorn.core.ui.SwipeToDelete
+import io.ycvk.acorn.core.ui.arrive
 import io.ycvk.acorn.core.ui.clockTime
 import io.ycvk.acorn.core.ui.dayGroup
 import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
+import io.ycvk.acorn.core.ui.rememberArrival
 import io.ycvk.acorn.core.ui.rememberHaptics
 import java.time.LocalDate
 import java.time.ZoneId
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThreadsScreen(
     onThreadClick: (String) -> Unit,
@@ -87,12 +88,14 @@ fun ThreadsScreen(
         error?.let {
             InlineError(it, Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp), action = "知道了", onAction = viewModel::dismissError)
         }
-        PullToRefreshBox(
+        val content = threadsContent(load, threads.size)
+        val arrival = rememberArrival(waiting = content == ThreadsContent.Loading)
+        PullRefresh(
             isRefreshing = refreshing && threads.isNotEmpty(),
             onRefresh = viewModel::loadThreads,
             modifier = Modifier.weight(1f),
         ) {
-            when (val content = threadsContent(load, threads.size)) {
+            when (content) {
                 ThreadsContent.Loading -> SkeletonRows()
                 is ThreadsContent.Failed -> ErrorState(content.message, onRetry = viewModel::loadThreads)
                 ThreadsContent.Empty -> EmptyState(
@@ -104,6 +107,7 @@ fun ThreadsScreen(
                 ThreadsContent.Items -> ThreadList(
                     threads = threads.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) },
                     query = query,
+                    arrival = arrival,
                     bottomInset = bottomInset,
                     onThreadClick = onThreadClick,
                     onDelete = { pendingDelete = it },
@@ -139,6 +143,7 @@ fun threadTitle(thread: Thread): String = thread.title.takeIf { it.isNotBlank() 
 private fun ThreadList(
     threads: List<Thread>,
     query: String,
+    arrival: Arrival,
     bottomInset: Dp,
     onThreadClick: (String) -> Unit,
     onDelete: (Thread) -> Unit,
@@ -152,9 +157,9 @@ private fun ThreadList(
     val groups = threads.groupBy { dayGroup(it.updatedAt, today, zone) }.toSortedMap()
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
         groups.forEach { (group, items) ->
-            item(key = "group:${group.name}") { SectionLabel(group.label, Modifier.animateItem(), count = items.size) }
+            item(key = "group:${group.name}") { SectionLabel(group.label, Modifier.animateItem().arrive(arrival), count = items.size) }
             itemsIndexed(items, key = { _, it -> it.id }) { index, thread ->
-                Column(Modifier.animateItem().groupItem(index, items.size)) {
+                Column(Modifier.animateItem().arrive(arrival).groupItem(index, items.size)) {
                     SwipeToDelete(onDelete = { onDelete(thread) }) {
                         ThreadRow(
                             thread = thread,

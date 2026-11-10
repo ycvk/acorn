@@ -4,10 +4,22 @@ import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.activity.compose.BackHandler
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.SeekableTransitionState
+import androidx.compose.animation.core.Transition
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -25,10 +37,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,6 +51,9 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -51,8 +69,11 @@ import io.ycvk.acorn.core.net.LocalNetworkDenied
 import io.ycvk.acorn.core.push.canPostNotifications
 import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.theme.CardRadius
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.OnReturnToForeground
+import io.ycvk.acorn.core.ui.animateOnceDrawn
+import io.ycvk.acorn.core.ui.rememberReducedMotion
 import io.ycvk.acorn.feature.browser.BrowserScreen
 import io.ycvk.acorn.feature.chat.ChatScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeScreen
@@ -75,6 +96,7 @@ import io.ycvk.acorn.feature.skills.SkillsScreen
 import io.ycvk.acorn.feature.skills.SkillsViewModel
 import io.ycvk.acorn.feature.threads.ThreadsScreen
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 @Composable
 fun AcornShell(
@@ -130,6 +152,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     OnReturnToForeground {
         if (localNetworkDenied) scope.launch { localNetworkDenied = shellViewModel.needsLocalNetwork() }
         if (shellViewModel.ownerGate.value is OwnerGate.Failed) shellViewModel.checkOwner()
+        shellViewModel.refreshPending()
     }
     if (localNetworkDenied) {
         AcornDialog(
@@ -178,110 +201,192 @@ private fun Pages(shellViewModel: ShellViewModel) {
     val personaViewModel: PersonaViewModel = hiltViewModel()
     val skillsViewModel: SkillsViewModel = hiltViewModel()
 
-    BackHandler(enabled = pages.isNotEmpty()) { shellViewModel.back() }
-
     // Pages and tabs keep their scroll positions while covered.
     val saveable = rememberSaveableStateHolder()
     val top = pages.lastOrNull()
     val newChat = { shellViewModel.open(Page.Chat(null)) }
-    AnimatedContent(
-        targetState = top,
-        transitionSpec = {
-            val depth = { page: Page? -> if (page == null) 0 else pages.indexOf(page).let { if (it < 0) Int.MAX_VALUE else it + 1 } }
-            val forward = depth(targetState) >= depth(initialState)
-            val enter = slideInHorizontally(AcornMotion.enter(AcornMotion.LONG)) { if (forward) it / 5 else -it / 5 } +
-                fadeIn(AcornMotion.enter(AcornMotion.MEDIUM))
-            val exit = slideOutHorizontally(AcornMotion.enter(AcornMotion.LONG)) { if (forward) -it / 10 else it / 5 } +
-                fadeOut(AcornMotion.exit(AcornMotion.SHORT))
-            enter togetherWith exit
-        },
-        contentKey = { it?.key ?: "tabs" },
-        label = "pages",
-    ) { page ->
-        saveable.SaveableStateProvider(page?.key ?: "tabs") {
-            when (page) {
-                null -> Tabs(
-                    tab = tab,
-                    pendingCount = pendingCount,
-                    onSelect = shellViewModel::selectTab,
-                ) { current, barInset ->
-                    when (current) {
-                        Tab.Today -> NowScreen(
-                            viewModel = nowViewModel,
-                            onThreadClick = { shellViewModel.open(Page.Chat(it)) },
-                            onStoryClick = { shellViewModel.open(Page.Story(it)) },
-                            onNewChat = newChat,
-                            onSettings = { shellViewModel.open(Page.Settings) },
-                            onBrowser = { shellViewModel.open(Page.Browser()) },
-                            bottomInset = barInset,
-                        )
-                        Tab.Threads -> ThreadsScreen(
-                            onThreadClick = { shellViewModel.open(Page.Chat(it)) },
-                            onNewChat = newChat,
-                            bottomInset = barInset,
-                        )
-                        Tab.Knowledge -> KnowledgeScreen(
-                            viewModel = knowledgeViewModel,
-                            memoryViewModel = memoryViewModel,
-                            onNoteClick = { shellViewModel.open(Page.Note(it)) },
-                            onMemoryClick = { shellViewModel.open(Page.Memory(it)) },
-                            onOpenThread = { shellViewModel.open(Page.Chat(it)) },
-                            bottomInset = barInset,
-                        )
-                    }
+    val canvas = AcornTheme.colors.canvas
+    val origins = remember { StoryOrigins() }
+    val storyBodyTop = remember { mutableFloatStateOf(0f) }
+
+    // A back gesture holds the stack part way into the pop before it is let go, so the stack's transition can be sought.
+    val stack = remember { SeekableTransitionState(top) }
+    val transition = rememberTransition(stack, label = "pages")
+    val reducedMotion = rememberReducedMotion()
+    var held by remember { mutableStateOf<Float?>(null) }
+    var edge by remember { mutableStateOf(BackEdge.Left) }
+    PredictiveBackHandler(enabled = pages.isNotEmpty()) { events ->
+        try {
+            events.collect { event ->
+                if (!reducedMotion) {
+                    edge = if (event.swipeEdge == BackEventCompat.EDGE_RIGHT) BackEdge.Right else BackEdge.Left
+                    held = event.progress
                 }
-                is Page.Chat -> ChatScreen(threadId = page.threadId, openActionId = page.actionId, onBack = shellViewModel::back)
-                is Page.Story -> StoryScreen(
-                    storyId = page.storyId,
-                    viewModel = nowViewModel,
-                    onBack = shellViewModel::back,
-                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
-                )
-                is Page.Note -> NoteScreen(path = page.path, viewModel = knowledgeViewModel, onBack = shellViewModel::back)
-                is Page.Memory -> MemoryScreen(
-                    id = page.id,
-                    viewModel = memoryViewModel,
-                    onBack = shellViewModel::back,
-                    onOpenMemory = { shellViewModel.open(Page.Memory(it)) },
-                    onReplaceMemory = { shellViewModel.replace(Page.Memory(it)) },
-                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
-                    onOpenNote = { shellViewModel.open(Page.Note(it)) },
-                )
-                Page.Settings -> SettingsScreen(
-                    onBack = shellViewModel::back,
-                    onOpenPersona = { shellViewModel.open(Page.Persona) },
-                    onOpenSkills = { shellViewModel.open(Page.Skills) },
-                    onOpenOwnerSettings = { shellViewModel.open(Page.OwnerSettings) },
-                )
-                Page.OwnerSettings -> OwnerSettingsScreen(onBack = shellViewModel::back)
-                Page.Persona -> PersonaScreen(
-                    viewModel = personaViewModel,
-                    onBack = shellViewModel::back,
-                    onOpenRevision = { shellViewModel.open(Page.PersonaRevision(it)) },
-                )
-                is Page.PersonaRevision -> PersonaRevisionScreen(revision = page.revision, viewModel = personaViewModel, onBack = shellViewModel::back)
-                Page.Skills -> SkillsScreen(
-                    viewModel = skillsViewModel,
-                    onBack = shellViewModel::back,
-                    onOpenSkill = { shellViewModel.open(Page.Skill(it)) },
-                )
-                is Page.Skill -> SkillScreen(
-                    name = page.name,
-                    viewModel = skillsViewModel,
-                    onBack = shellViewModel::back,
-                    onOpenRevision = { shellViewModel.open(Page.SkillRevision(page.name, it)) },
-                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
-                )
-                is Page.SkillRevision -> SkillRevisionScreen(
-                    name = page.name,
-                    revision = page.revision,
-                    viewModel = skillsViewModel,
-                    onBack = shellViewModel::back,
-                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
-                )
-                is Page.Browser -> BrowserScreen(openUrl = page.openUrl, onBack = shellViewModel::back)
+            }
+            held = null
+            edge = BackEdge.Left
+            shellViewModel.back()
+        } catch (e: CancellationException) {
+            held = null
+            edge = BackEdge.Left
+            throw e
+        }
+    }
+    val progress = held
+    if (progress != null) {
+        LaunchedEffect(progress) { stack.seekTo(backFraction(progress), pages.dropLast(1).lastOrNull()) }
+    } else {
+        LaunchedEffect(top) {
+            if (stack.currentState != top) {
+                // After a back gesture the pop is already under way and plays on from where it was held.
+                stack.animateOnceDrawn(top)
+            } else if (stack.targetState != top) {
+                // The gesture was let go without going back: the pop plays backwards, then the page rests.
+                animate(stack.fraction, 0f, animationSpec = AcornMotion.standard(AcornMotion.MEDIUM)) { value, _ ->
+                    launch { if (value > 0f) stack.seekTo(value) else stack.snapTo(top) }
+                }
             }
         }
+    }
+
+    transition.AnimatedContent(
+        transitionSpec = { pageTransform(pageMove(initialState, targetState, pages), edge, depthOf(targetState, pages).toFloat()) },
+        contentKey = { it?.key ?: "tabs" },
+    ) { page ->
+        saveable.SaveableStateProvider(page?.key ?: "tabs") {
+            val frame = if (page is Page.Story) storyContainer(page, transition, origins) { storyBodyTop.floatValue } else Modifier
+            Box(modifier = Modifier.fillMaxSize().then(frame).then(steppedBack()).background(canvas)) {
+                when (page) {
+                    null -> Tabs(
+                        tab = tab,
+                        pendingCount = pendingCount,
+                        onSelect = shellViewModel::selectTab,
+                    ) { current, barInset ->
+                        when (current) {
+                            // The story cards tell where they are, for the reading pages that grow out of them.
+                            Tab.Today -> CompositionLocalProvider(LocalStoryOrigins provides origins) {
+                                NowScreen(
+                                    viewModel = nowViewModel,
+                                    onThreadClick = { shellViewModel.open(Page.Chat(it)) },
+                                    onStoryClick = { shellViewModel.open(Page.Story(it)) },
+                                    onNewChat = newChat,
+                                    onSettings = { shellViewModel.open(Page.Settings) },
+                                    onBrowser = { shellViewModel.open(Page.Browser()) },
+                                    bottomInset = barInset,
+                                )
+                            }
+                            Tab.Threads -> ThreadsScreen(
+                                onThreadClick = { shellViewModel.open(Page.Chat(it)) },
+                                onNewChat = newChat,
+                                bottomInset = barInset,
+                            )
+                            Tab.Knowledge -> KnowledgeScreen(
+                                viewModel = knowledgeViewModel,
+                                memoryViewModel = memoryViewModel,
+                                onNoteClick = { shellViewModel.open(Page.Note(it)) },
+                                onMemoryClick = { shellViewModel.open(Page.Memory(it)) },
+                                onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                                bottomInset = barInset,
+                            )
+                        }
+                    }
+                    is Page.Chat -> ChatScreen(threadId = page.threadId, openActionId = page.actionId, onBack = shellViewModel::back)
+                    is Page.Story -> StoryScreen(
+                        storyId = page.storyId,
+                        viewModel = nowViewModel,
+                        onBack = shellViewModel::back,
+                        onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                        onBodyTop = { storyBodyTop.floatValue = it },
+                    )
+                    is Page.Note -> NoteScreen(path = page.path, viewModel = knowledgeViewModel, onBack = shellViewModel::back)
+                    is Page.Memory -> MemoryScreen(
+                        id = page.id,
+                        viewModel = memoryViewModel,
+                        onBack = shellViewModel::back,
+                        onOpenMemory = { shellViewModel.open(Page.Memory(it)) },
+                        onReplaceMemory = { shellViewModel.replace(Page.Memory(it)) },
+                        onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                        onOpenNote = { shellViewModel.open(Page.Note(it)) },
+                    )
+                    Page.Settings -> SettingsScreen(
+                        onBack = shellViewModel::back,
+                        onOpenPersona = { shellViewModel.open(Page.Persona) },
+                        onOpenSkills = { shellViewModel.open(Page.Skills) },
+                        onOpenOwnerSettings = { shellViewModel.open(Page.OwnerSettings) },
+                    )
+                    Page.OwnerSettings -> OwnerSettingsScreen(onBack = shellViewModel::back)
+                    Page.Persona -> PersonaScreen(
+                        viewModel = personaViewModel,
+                        onBack = shellViewModel::back,
+                        onOpenRevision = { shellViewModel.open(Page.PersonaRevision(it)) },
+                    )
+                    is Page.PersonaRevision -> PersonaRevisionScreen(revision = page.revision, viewModel = personaViewModel, onBack = shellViewModel::back)
+                    Page.Skills -> SkillsScreen(
+                        viewModel = skillsViewModel,
+                        onBack = shellViewModel::back,
+                        onOpenSkill = { shellViewModel.open(Page.Skill(it)) },
+                    )
+                    is Page.Skill -> SkillScreen(
+                        name = page.name,
+                        viewModel = skillsViewModel,
+                        onBack = shellViewModel::back,
+                        onOpenRevision = { shellViewModel.open(Page.SkillRevision(page.name, it)) },
+                        onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                    )
+                    is Page.SkillRevision -> SkillRevisionScreen(
+                        name = page.name,
+                        revision = page.revision,
+                        viewModel = skillsViewModel,
+                        onBack = shellViewModel::back,
+                        onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                    )
+                    is Page.Browser -> BrowserScreen(openUrl = page.openUrl, onBack = shellViewModel::back)
+                }
+            }
+        }
+    }
+}
+
+/** Rounds a page's corners while it is stepped back from the screen: leaving, or held by a back gesture. */
+@Composable
+private fun AnimatedVisibilityScope.steppedBack(): Modifier {
+    val corner by transition.animateDp(transitionSpec = { tween(POP_MS / 3) }, label = "page_corner") {
+        if (it == EnterExitState.PostExit) CardRadius else 0.dp
+    }
+    return if (corner > 0.dp) Modifier.clip(RoundedCornerShape(corner)) else Modifier
+}
+
+/**
+ * Draws a story's reading page inside a frame that grows out of the story's
+ * card when the page opens from Today and shrinks back into it on return.
+ * [bodyTop] is where the page's own content starts under its bar.
+ */
+@Composable
+private fun AnimatedVisibilityScope.storyContainer(
+    page: Page.Story,
+    stack: Transition<Page?>,
+    origins: StoryOrigins,
+    bodyTop: () -> Float,
+): Modifier {
+    val from = stack.currentState
+    val to = stack.targetState
+    val withCard = (from == null && to == page) || (from == page && to == null)
+    val grown by transition.animateFloat(
+        transitionSpec = { tween(GROW_MS, easing = FastOutSlowInEasing) },
+        label = "story_container",
+    ) { if (it == EnterExitState.Visible || !withCard) 1f else 0f }
+    val cardCorner = with(LocalDensity.current) { CardRadius.toPx() }
+    return Modifier.graphicsLayer {
+        val origin = origins[page.storyId]
+        if (grown >= 1f || origin == null) return@graphicsLayer
+        val frame = containerFrame(origin, size.width, size.height, bodyTop(), cardCorner, grown)
+        transformOrigin = TransformOrigin(0f, 0f)
+        scaleX = frame.scale
+        scaleY = frame.scale
+        translationX = frame.x
+        translationY = frame.y
+        shape = ContainerWindow(frame)
+        clip = true
     }
 }
 
@@ -307,10 +412,16 @@ private fun Tabs(
     var barInset by remember { mutableStateOf(0.dp) }
     Box(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = { fadeIn(AcornMotion.enter(AcornMotion.SHORT)) togetherWith fadeOut(AcornMotion.exit(100)) },
-                label = "tabs",
+            val shift = with(density) { TabShift.roundToPx() }
+            val shown = remember { SeekableTransitionState(tab) }
+            LaunchedEffect(tab) { if (shown.currentState != tab) shown.animateOnceDrawn(tab) }
+            rememberTransition(shown, label = "tabs").AnimatedContent(
+                transitionSpec = {
+                    // The page comes from the side its tab is on, once the one before it has cleared.
+                    val side = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                    (slideInHorizontally(AcornMotion.travel(TAB_MS)) { side * shift } + fadeIn(tween(TAB_MS / 2, delayMillis = TAB_CLEAR_MS, easing = LinearEasing))) togetherWith
+                        (slideOutHorizontally(tween(TAB_CLEAR_MS, easing = LinearEasing)) { -side * shift / 3 } + fadeOut(tween(TAB_CLEAR_MS, easing = LinearEasing)))
+                },
             ) { current ->
                 saveable.SaveableStateProvider(current.name) { content(current, barInset) }
             }
@@ -335,3 +446,8 @@ private fun Tabs(
         )
     }
 }
+
+/** How far a tab's page travels as it comes in. */
+private val TabShift = 36.dp
+private const val TAB_MS = 340
+private const val TAB_CLEAR_MS = 80

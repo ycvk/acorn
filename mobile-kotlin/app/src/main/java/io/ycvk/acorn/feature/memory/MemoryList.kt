@@ -32,9 +32,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.api.models.PortraitLine
-import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.EmptyState
@@ -47,8 +47,10 @@ import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SearchField
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
+import io.ycvk.acorn.core.ui.arrive
 import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
+import io.ycvk.acorn.core.ui.rememberArrival
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -94,7 +96,9 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, onOp
                 FilterPill(kindLabel(option), kind == option, { viewModel.selectKind(option) })
             }
         }
-        when (val content = memoryListContent(load, portraitLoad, query, kind, limit)) {
+        val content = memoryListContent(load, portraitLoad, query, kind, limit)
+        val arrival = rememberArrival(waiting = content == MemoryListContent.Loading)
+        when (content) {
             MemoryListContent.Loading -> SkeletonRows()
             is MemoryListContent.Failed -> ErrorState(content.message, onRetry = viewModel::refresh)
             MemoryListContent.Empty -> if (portrait is PortraitSection.Hidden) {
@@ -127,7 +131,7 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit, onOp
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
                     portraitAbove()
                     itemsIndexed(content.memories, key = { _, it -> it.id }) { index, memory ->
-                        Column(Modifier.animateItem().groupItem(index, content.memories.size)) {
+                        Column(Modifier.animateItem().arrive(arrival).groupItem(index, content.memories.size)) {
                             MemoryRow(memory, listTime(memory.updatedAt, today, zone), onClick = { onMemoryClick(memory.id) })
                             if (index < content.memories.lastIndex) Hairline(inset = ScreenPadding)
                         }

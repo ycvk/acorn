@@ -46,11 +46,11 @@ import io.ycvk.acorn.api.models.SkillRevisionSummary
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
-import io.ycvk.acorn.core.ui.FilledField
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.ErrorState
+import io.ycvk.acorn.core.ui.FilledField
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Load
@@ -62,6 +62,8 @@ import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.StatusDot
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.arrive
+import io.ycvk.acorn.core.ui.rememberArrival
 import java.time.OffsetDateTime
 
 /** One skill: where it stands, what it says, the files and package it carries, and its history. */
@@ -94,12 +96,13 @@ fun SkillScreen(
             title = name,
             subtitle = loaded?.detail?.let { "${skillRevisionTitle(it.revision)} · ${skillRevisionMeta(it.author, it.updatedAt, now)}" },
         )
+        val arrival = rememberArrival(waiting = loaded == null && load !is Load.Failed)
         when {
             load is Load.Failed -> ErrorState((load as Load.Failed).message, onRetry = { viewModel.open(name) })
             loaded == null -> SkeletonRows(rows = 4)
             else -> {
                 val detail = loaded.detail
-                Column(modifier = Modifier.weight(1f).verticalScroll(scroll)) {
+                Column(modifier = Modifier.weight(1f).arrive(arrival).verticalScroll(scroll)) {
                     SkillBody(
                         detail = detail,
                         revisions = loaded.revisions,

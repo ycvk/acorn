@@ -43,9 +43,11 @@ import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.SwipeToDelete
 import io.ycvk.acorn.core.ui.Tag
+import io.ycvk.acorn.core.ui.arrive
 import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
+import io.ycvk.acorn.core.ui.rememberArrival
 import io.ycvk.acorn.feature.memory.MemoryList
 import io.ycvk.acorn.feature.memory.MemoryViewModel
 import java.time.LocalDate
@@ -91,7 +93,9 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
         deleteError?.let {
             InlineError("没能删除：$it", Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp), action = "知道了", onAction = viewModel::clearDeleteError)
         }
-        when (val content = knowledgeContent(load, query)) {
+        val content = knowledgeContent(load, query)
+        val arrival = rememberArrival(waiting = content == KnowledgeContent.Loading)
+        when (content) {
             KnowledgeContent.Loading -> SkeletonRows()
             is KnowledgeContent.Failed -> ErrorState(content.message, onRetry = viewModel::refresh)
             KnowledgeContent.Empty -> EmptyState(
@@ -109,7 +113,7 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
                 val today = LocalDate.now(zone)
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomInset + 24.dp)) {
                     itemsIndexed(content.notes, key = { _, it -> it.path }) { index, note ->
-                        Column(Modifier.animateItem().groupItem(index, content.notes.size)) {
+                        Column(Modifier.animateItem().arrive(arrival).groupItem(index, content.notes.size)) {
                             SwipeToDelete(onDelete = { pendingDelete = note }) {
                                 NoteRow(note, listTime(note.updatedAt, today, zone), onClick = { onNoteClick(note.path) })
                             }

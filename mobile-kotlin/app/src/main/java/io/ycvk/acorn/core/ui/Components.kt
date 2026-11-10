@@ -318,7 +318,7 @@ fun StatusGlyph(status: Status, modifier: Modifier = Modifier) {
     }
 }
 
-/** A card in the flow of a page, lit along its top edge; tinted cards drop the edge. */
+/** A card in the flow of a page, lit along its top edge; tinted cards drop the edge. One that can be tapped sinks a little under the finger. */
 @Composable
 fun Panel(
     modifier: Modifier = Modifier,
@@ -329,19 +329,21 @@ fun Panel(
 ) {
     val colors = AcornTheme.colors
     val shape = AcornShapes.card
+    val interaction = remember { MutableInteractionSource() }
     Column(
-        modifier = modifier
+        modifier = (if (onClick != null) Modifier.pressScale(interaction, 0.98f) else Modifier)
+            .then(modifier)
             .fillMaxWidth()
             .clip(shape)
             .background(color)
             .then(if (color == colors.surface) Modifier.hairline(shape) else Modifier)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(interaction, LocalIndication.current, onClick = onClick) else Modifier)
             .padding(contentPadding),
         content = content,
     )
 }
 
-/** A full-width list row. */
+/** A full-width list row; under a finger its content sinks a little inside the wash. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ListRow(
@@ -353,15 +355,20 @@ fun ListRow(
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .then(
                 if (onClick != null || onLongClick != null) {
-                    Modifier.combinedClickable(
-                        onClick = { onClick?.invoke() },
-                        onLongClick = onLongClick,
-                    )
+                    Modifier
+                        .combinedClickable(
+                            interactionSource = interaction,
+                            indication = LocalIndication.current,
+                            onClick = { onClick?.invoke() },
+                            onLongClick = onLongClick,
+                        )
+                        .pressScale(interaction, 0.98f)
                 } else {
                     Modifier
                 },

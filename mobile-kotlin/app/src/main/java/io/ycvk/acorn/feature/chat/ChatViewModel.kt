@@ -16,6 +16,7 @@ import io.ycvk.acorn.api.models.View
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.authorized
+import io.ycvk.acorn.core.push.NotificationShade
 import io.ycvk.acorn.core.sse.ChatState
 import io.ycvk.acorn.core.sse.RunEventPacket
 import io.ycvk.acorn.core.sse.RunStatus
@@ -60,6 +61,7 @@ class ChatViewModel @Inject constructor(
     private val follower: RunFollower,
     private val authController: AuthController,
     private val files: ThreadFileRepository,
+    private val shade: NotificationShade,
 ) : ViewModel() {
 
     private val _threadId = MutableStateFlow<String?>(null)
@@ -107,6 +109,10 @@ class ChatViewModel @Inject constructor(
     private val _pinning = MutableStateFlow<String?>(null)
     val pinning: StateFlow<String?> = _pinning.asStateFlow()
 
+    /** The row of the message the owner sent last from this screen: its bubble's id, or its key while it waits for a run. */
+    private val _justSent = MutableStateFlow<String?>(null)
+    val justSent: StateFlow<String?> = _justSent.asStateFlow()
+
     private var streamingRunId: String? = null
 
     /** Bumped when the thread changes or reloads, so an older check of the inbox is dropped. */
@@ -121,6 +127,8 @@ class ChatViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { follower.updates.collect(::onRunUpdate) }
+        // The conversation on screen needs no notification of its own news.
+        viewModelScope.launch { _threadId.collect(shade::showThread) }
     }
 
     /** Opens a thread, or a new conversation when [threadId] is null, and returns the page's number for [leave]. */
@@ -286,6 +294,7 @@ class ChatViewModel @Inject constructor(
         val busy = existing != null && runGoing()
         val bubble = ChatMessage.User(text, attachments.map { it.view() })
         val waiting = QueuedChat(text, bubble.files)
+        _justSent.value = if (busy) waiting.key else bubble.id
         if (busy) {
             _queued.value = _queued.value + waiting
         } else {
@@ -588,6 +597,7 @@ class ChatViewModel @Inject constructor(
 
     override fun onCleared() {
         _threadId.value?.let(follower::unwatch)
+        shade.showThread(null)
         super.onCleared()
     }
 }

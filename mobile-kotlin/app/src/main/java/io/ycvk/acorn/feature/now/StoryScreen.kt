@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +73,7 @@ fun StoryScreen(
     viewModel: NowViewModel,
     onBack: () -> Unit,
     onOpenThread: (String) -> Unit,
+    onBodyTop: (Float) -> Unit = {},
 ) {
     val load by viewModel.load.collectAsStateWithLifecycle()
     val asking by viewModel.askingStory.collectAsStateWithLifecycle()
@@ -98,7 +101,8 @@ fun StoryScreen(
         }
         val current = load
         when {
-            story != null -> Box(modifier = Modifier.weight(1f)) {
+            // The page grows out of the story's card on Today from where its own content starts.
+            story != null -> Box(modifier = Modifier.weight(1f).onGloballyPositioned { onBodyTop(it.positionInParent().y) }) {
                 StoryBody(
                     story = story,
                     busy = asking != null,

@@ -291,6 +291,9 @@
 - **只有这台手机发起或批准的 run 在后台跟随**：run 的事件流只由 `RunFollower` 持有，断线后从最后读到的事件接着读；为 owner 刚做的决定而跟随的 run 在这个决定的事件之前不显示，重放里更早的等待不会结束它。这类 run 运行时显示为 Live Update，结束、等 owner 或被 owner 停止时消失；App 不在前台时完成与失败留一条通知，owner 停止的不留。终止事件带 `next_run_id` 时，`RunFollower` 以同一个对话、标题与是否 Live Update 接着跟随那个 run，这次结束不留通知。
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/RunFollowerTest.kt`
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/live/LiveStatusTest.kt`
+- **看到了的通知自己消失**：App 的界面一显示出来（锁屏没解开时不算），早报、提醒、目标结果和 run 结束留下的通知全部清掉，不论是系统代为显示的还是 App 自己发的。App 开着时到达的推送带着对话的标记，打开那个对话时清掉；对话正在屏幕上时不再发通知，带 `browser_url` 的推送照常发。审批通知留到操作不再等待为止：App 每 30 秒和每次回到前台读一次完整的待处理列表，不在列表里、且发出时间早于这次读取的审批通知被取消。Live Update 只随 run 结束消失。
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/core/push/NotificationShadeTest.kt`
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/approvals/ApprovalNotificationsTest.kt`
 
 ## 约定、唤醒与追踪
 

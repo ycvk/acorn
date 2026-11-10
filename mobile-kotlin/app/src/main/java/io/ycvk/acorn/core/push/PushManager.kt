@@ -106,7 +106,10 @@ class PushManager @Inject constructor(
         }
     }
 
-    /** Shows a notification received while the app is in the foreground. */
+    /**
+     * Shows a notification received while the app is in the foreground,
+     * tagged with its conversation so opening that clears it.
+     */
     fun show(title: String, body: String, threadId: String?, browserUrl: String?) {
         if (!canPostNotifications(context)) return
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -130,7 +133,7 @@ class PushManager @Inject constructor(
             .setContentIntent(pending)
             .build()
         context.getSystemService(NotificationManager::class.java)
-            .notify(System.currentTimeMillis().toInt(), notification)
+            .notify(threadId?.let(::threadTag), System.currentTimeMillis().toInt(), notification)
     }
 
     private fun upload(profile: ConnectionProfile, fid: String) {
