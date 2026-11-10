@@ -49,7 +49,9 @@ import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.arrive
 import io.ycvk.acorn.core.ui.lineDiff
+import io.ycvk.acorn.core.ui.rememberArrival
 import java.time.OffsetDateTime
 
 /** The persona: who Acorn is and how it talks, its history, and the editor. */
@@ -74,11 +76,12 @@ fun PersonaScreen(
     val scroll = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = "人格")
+        val arrival = rememberArrival(waiting = load is Load.Loading)
         when (val state = load) {
             Load.Loading -> SkeletonRows(rows = 4)
             is Load.Failed -> ErrorState(state.message, onRetry = viewModel::load)
             is Load.Loaded -> {
-                Column(modifier = Modifier.weight(1f).verticalScroll(scroll)) {
+                Column(modifier = Modifier.weight(1f).arrive(arrival).verticalScroll(scroll)) {
                     PersonaBody(state, viewModel.deviceId, onOpenRevision)
                 }
                 AcornButton(

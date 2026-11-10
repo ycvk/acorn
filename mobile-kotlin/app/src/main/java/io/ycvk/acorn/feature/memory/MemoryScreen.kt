@@ -50,6 +50,8 @@ import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.core.ui.ago
+import io.ycvk.acorn.core.ui.arrive
+import io.ycvk.acorn.core.ui.rememberArrival
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -79,13 +81,14 @@ fun MemoryScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = detail?.let { kindLabel(it.memory.kind) })
+        val arrival = rememberArrival(waiting = load is Load.Loading || (load is Load.Loaded && detail == null))
         when (val current = load) {
             Load.Loading -> SkeletonRows(rows = 4)
             is Load.Failed -> ErrorState(current.message, onRetry = { viewModel.open(id) })
             is Load.Loaded -> if (detail == null) {
                 SkeletonRows(rows = 4)
             } else {
-                Column(modifier = Modifier.weight(1f).verticalScroll(scroll)) {
+                Column(modifier = Modifier.weight(1f).arrive(arrival).verticalScroll(scroll)) {
                     MemoryBody(detail, onOpenMemory, onOpenThread, onOpenNote)
                 }
                 Column(

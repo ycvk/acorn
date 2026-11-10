@@ -9,7 +9,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -66,6 +68,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -85,6 +88,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -114,6 +119,7 @@ import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.LocalWriting
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.OrbState
@@ -126,6 +132,7 @@ import io.ycvk.acorn.core.ui.metalRing
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.rememberHaptics
+import io.ycvk.acorn.core.ui.rememberWriting
 import io.ycvk.acorn.core.ui.shimmer
 import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.data.repository.pendingAttachment
@@ -156,8 +163,12 @@ fun ChatScreen(
     val fileBusy by viewModel.fileBusy.collectAsStateWithLifecycle()
     val sendingAction by viewModel.sendingAction.collectAsStateWithLifecycle()
     val pinning by viewModel.pinning.collectAsStateWithLifecycle()
+    val justSent by viewModel.justSent.collectAsStateWithLifecycle()
+    // The sent messages that have already risen into the list; one rises once.
+    val risen = remember { mutableSetOf<String>() }
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
+    val settled by approvals.settled.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
     val approvalError by approvals.error.collectAsStateWithLifecycle()
 
@@ -290,7 +301,7 @@ fun ChatScreen(
                 items(messages, key = { it.id }) { message ->
                     val itemModifier = rowAnimation()
                     when (message) {
-                        is ChatMessage.User -> UserBubble(message.text, itemModifier) {
+                        is ChatMessage.User -> UserBubble(message.text, itemModifier.sentNow(message.id, justSent, risen)) {
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
                         }
                         is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.plan, message.steps, message.subRuns, streaming = false, modifier = itemModifier) {
@@ -324,10 +335,11 @@ fun ChatScreen(
                         onDecide = { approvals.decideAction(action.actionId, it) },
                         onOpen = { approvals.loadActionDetail(action.actionId) },
                         modifier = rowAnimation(),
+                        settled = settled[action.actionId],
                     )
                 }
                 items(queued, key = { it.key }) { message ->
-                    QueuedBubble(message.text, queuedNote(message, status), rowAnimation()) {
+                    QueuedBubble(message.text, queuedNote(message, status), rowAnimation().sentNow(message.key, justSent, risen)) {
                         MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
                     }
                 }
@@ -481,6 +493,27 @@ private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Goal -> Icons.Outlined.Flag
 }
 
+/**
+ * The message the owner just sent rises out of the composer: it comes up a
+ * short way, growing from the corner nearest the send button, as it fades in.
+ * [id] is the row's, [sent] the row the owner sent last.
+ */
+@Composable
+private fun Modifier.sentNow(id: String, sent: String?, risen: MutableSet<String>): Modifier {
+    val rises = remember(id) { id == sent && risen.add(id) }
+    if (!rises) return this
+    val arrived = remember(id) { Animatable(0f) }
+    LaunchedEffect(id) { arrived.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 260f)) }
+    return graphicsLayer {
+        val at = arrived.value
+        alpha = (at * 1.3f).coerceIn(0f, 1f)
+        translationY = (1f - at) * 30.dp.toPx()
+        scaleX = 0.94f + 0.06f * at
+        scaleY = 0.94f + 0.06f * at
+        transformOrigin = TransformOrigin(1f, 1f)
+    }
+}
+
 /** The owner's words on a soft bubble at the right, its corner toward the edge kept tight. */
 private val UserBubbleShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 6.dp, bottomStart = 20.dp)
 
@@ -558,7 +591,11 @@ private fun AssistantMessage(
             Spacer(Modifier.height(8.dp))
         }
         if (text.isNotBlank()) {
-            SelectionContainer { Markdown(text) }
+            // A reply being written flows in; one already written is simply there.
+            val writing = rememberWriting()
+            CompositionLocalProvider(LocalWriting provides writing.takeIf { streaming }) {
+                SelectionContainer { Markdown(text) }
+            }
         }
         // While no step runs, the orb at the foot of the reply shows whether Acorn waits for its sub-agents, is still thinking or already writing.
         val waitingFor = runningSubRuns(subRuns)

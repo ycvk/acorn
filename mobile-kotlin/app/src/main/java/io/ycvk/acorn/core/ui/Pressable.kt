@@ -8,9 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.ycvk.acorn.core.theme.AcornMotion
@@ -20,7 +21,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Shrinks the element a little while pressed and springs it back on release.
- * Put it before clip and background so the whole surface scales.
+ * Put it before clip and background so the whole surface scales. The scale is
+ * applied as the element is drawn, so one at rest costs a list no layer.
  */
 @Composable
 fun Modifier.pressScale(interactionSource: InteractionSource, pressed: Float = 0.97f): Modifier {
@@ -40,9 +42,9 @@ fun Modifier.pressScale(interactionSource: InteractionSource, pressed: Float = 0
             }
         }
     }
-    return graphicsLayer {
-        scaleX = scale.value
-        scaleY = scale.value
+    return drawWithContent {
+        val by = scale.value
+        if (by == 1f) drawContent() else scale(by) { this@drawWithContent.drawContent() }
     }
 }
 

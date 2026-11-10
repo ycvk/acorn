@@ -56,11 +56,11 @@ import io.ycvk.acorn.api.models.QuietHours
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
-import io.ycvk.acorn.core.ui.FilledField
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.ErrorState
+import io.ycvk.acorn.core.ui.FilledField
 import io.ycvk.acorn.core.ui.FilterPill
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.Load
@@ -68,6 +68,8 @@ import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.arrive
+import io.ycvk.acorn.core.ui.rememberArrival
 import java.time.ZoneId
 
 /** The most idle thought times a day holds. */
@@ -91,10 +93,11 @@ fun OwnerSettingsScreen(onBack: () -> Unit, viewModel: OwnerSettingsViewModel = 
 
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
         TopBar(onBack = onBack, title = "作息、预算与审批")
+        val arrival = rememberArrival(waiting = state is Load.Loading)
         when (val load = state) {
             Load.Loading -> SkeletonRows(Modifier.padding(horizontal = ScreenPadding, vertical = 16.dp))
             is Load.Failed -> ErrorState(load.message, onRetry = viewModel::load)
-            is Load.Loaded -> OwnerSettingsContent(load.value) {
+            is Load.Loaded -> OwnerSettingsContent(load.value, Modifier.arrive(arrival)) {
                 viewModel.dismissSaveError()
                 editing = it
             }
@@ -124,14 +127,14 @@ fun OwnerSettingsScreen(onBack: () -> Unit, viewModel: OwnerSettingsViewModel = 
 }
 
 @Composable
-private fun OwnerSettingsContent(settings: OwnerSettings, onEdit: (OwnerSettingName) -> Unit) {
+private fun OwnerSettingsContent(settings: OwnerSettings, modifier: Modifier = Modifier, onEdit: (OwnerSettingName) -> Unit) {
     val values = settings.propertyValues
     val usage = settings.usage
     val row: @Composable (OwnerSettingName, String, String?) -> Unit = { name, value, used ->
         OwnerSettingRow(name, value, customized = name in settings.customized, used = used, onClick = { onEdit(name) })
     }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
             .padding(bottom = 32.dp),

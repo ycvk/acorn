@@ -18,7 +18,13 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -214,15 +226,82 @@ private fun Inline(node: Node, style: TextStyle, modifier: Modifier = Modifier) 
     val built = remember(node, colors) { buildInline(node, colors) }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val codeFill = colors.surfaceMuted
+    val writing = LocalWriting.current
     Text(
         built.text,
         style = style,
         onTextLayout = { layout = it },
-        modifier = modifier.drawBehind {
-            val result = layout ?: return@drawBehind
-            drawCodeFills(result, built.code, codeFill, style.fontSize.toPx() * CODE_SCALE)
-        },
+        modifier = modifier
+            .then(if (writing != null) Modifier.writtenIn(writing, built.text.length) { layout } else Modifier)
+            .drawBehind {
+                val result = layout ?: return@drawBehind
+                drawCodeFills(result, built.code, codeFill, style.fontSize.toPx() * CODE_SCALE)
+            },
     )
+}
+
+/**
+ * Text that is still being written. What stood when it was first shown is
+ * simply there; what arrives after that fades in at its tail, see [writtenIn].
+ */
+class Writing {
+    internal var begun = false
+}
+
+/** Set over markdown whose text is still arriving. */
+val LocalWriting = compositionLocalOf<Writing?> { null }
+
+@Composable
+fun rememberWriting(): Writing {
+    val writing = remember { Writing() }
+    SideEffect { writing.begun = true }
+    return writing
+}
+
+/**
+ * Lets a text of [length] characters appear behind a soft edge that runs
+ * after it as it grows, so a reply flows in instead of landing in pieces.
+ * Only the drawing follows the edge; the text is laid out once per piece.
+ */
+@Composable
+private fun Modifier.writtenIn(writing: Writing, length: Int, layout: () -> TextLayoutResult?): Modifier {
+    val shown = remember { Animatable(if (writing.begun) 0f else length.toFloat()) }
+    LaunchedEffect(length) {
+        if (shown.value > length) shown.snapTo(length.toFloat())
+        shown.animateTo(length.toFloat(), tween(WRITE_MS, easing = LinearEasing))
+    }
+    return graphicsLayer { compositingStrategy = if (shown.value < length) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
+        .drawWithContent {
+            drawContent()
+            val result = layout() ?: return@drawWithContent
+            hideUnwritten(result, shown.value, WriteEdge.toPx())
+        }
+}
+
+/** How long the edge takes to catch up with a new piece of text. */
+private const val WRITE_MS = 260
+private val WriteEdge = 28.dp
+
+/** Erases the text from character [shown] on: the rest of its line behind an edge [edge] wide, and every line under it. */
+private fun ContentDrawScope.hideUnwritten(layout: TextLayoutResult, shown: Float, edge: Float) {
+    val length = layout.layoutInput.text.length
+    if (length == 0 || shown >= length) return
+    val at = shown.toInt().coerceIn(0, length - 1)
+    val line = layout.getLineForOffset(at)
+    val top = layout.getLineTop(line)
+    val bottom = layout.getLineBottom(line)
+    val from = layout.getHorizontalPosition(at, usePrimaryDirection = true)
+    val next = if (at + 1 < length && layout.getLineForOffset(at + 1) == line) layout.getHorizontalPosition(at + 1, usePrimaryDirection = true) else layout.getLineRight(line)
+    val x = from + (next - from) * (shown - at)
+    drawRect(
+        brush = Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = x - edge, endX = x),
+        topLeft = Offset(x - edge, top),
+        size = Size(size.width - (x - edge) + edge, bottom - top),
+        blendMode = BlendMode.DstOut,
+    )
+    if (bottom < size.height) {
+        drawRect(Color.Black, topLeft = Offset(0f, bottom), size = Size(size.width, size.height - bottom), blendMode = BlendMode.DstOut)
+    }
 }
 
 private const val CODE_SCALE = 0.8f

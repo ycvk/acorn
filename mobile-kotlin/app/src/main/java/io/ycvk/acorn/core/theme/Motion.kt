@@ -21,9 +21,13 @@ object AcornMotion {
     val decelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
     val accelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 
+    /** A whole page crossing the screen: off the mark at once, then a settle long enough to follow. */
+    val travel = CubicBezierEasing(0.215f, 0.61f, 0.355f, 1f)
+
     fun <T> standard(duration: Int = MEDIUM): FiniteAnimationSpec<T> = tween(duration, easing = standard)
     fun <T> enter(duration: Int = MEDIUM): FiniteAnimationSpec<T> = tween(duration, easing = decelerate)
     fun <T> exit(duration: Int = SHORT): FiniteAnimationSpec<T> = tween(duration, easing = accelerate)
+    fun <T> travel(duration: Int = LONG): FiniteAnimationSpec<T> = tween(duration, easing = travel)
 
     /** A finger landing on a surface: quick, no overshoot. */
     fun <T> press(): SpringSpec<T> = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1400f)
