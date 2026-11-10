@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// StoryIntent is what the owner asked of a story on the briefing card.
+// StoryIntent is why a message was sent from a story on the briefing card:
+// what the owner asked of it, or the piece a briefing has written about it.
 type StoryIntent string
 
 const (
@@ -15,9 +16,12 @@ const (
 	StoryDiscuss StoryIntent = "discuss"
 	// StoryFollow asks Acorn to keep following the story.
 	StoryFollow StoryIntent = "follow"
+	// StoryPiece has Acorn write the piece the owner reads on opening a
+	// story of today's focus; its message is the wake input of that run.
+	StoryPiece StoryIntent = "piece"
 )
 
-// Valid reports whether i is discuss or follow.
+// Valid reports whether i is an ask the owner sends: discuss or follow.
 func (i StoryIntent) Valid() bool {
 	return i == StoryDiscuss || i == StoryFollow
 }
@@ -69,8 +73,8 @@ func (s StorySnapshot) Text() string {
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
-// StoryMessage is an owner message sent from a story on the briefing card,
-// with the story as it stood then.
+// StoryMessage is a message sent from a story on the briefing card, the
+// owner's ask or the wake input of a piece, with the story as it stood then.
 type StoryMessage struct {
 	MessageID int64
 	SessionID string
@@ -90,8 +94,18 @@ type StoryMessageWrite struct {
 	NewThreadID string
 }
 
-// StoryMessageLister lists the owner messages sent from briefing stories in
-// a conversation, oldest first.
+// StoryPieceWrite records the wake input of a piece in the story's
+// conversation. When the story has none, a conversation named NewThreadID is
+// created under Title, the title the briefing gave the story.
+type StoryPieceWrite struct {
+	Text        string
+	Title       string
+	Story       StorySnapshot
+	NewThreadID string
+}
+
+// StoryMessageLister lists the messages sent from briefing stories in a
+// conversation, oldest first.
 type StoryMessageLister interface {
 	StoryMessages(ctx context.Context, sessionID string) ([]StoryMessage, error)
 }

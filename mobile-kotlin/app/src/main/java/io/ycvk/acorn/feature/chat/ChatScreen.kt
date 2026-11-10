@@ -50,6 +50,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.Redo
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.DarkMode
@@ -462,6 +463,7 @@ private fun wakeLabel(source: WakeSource) = when (source) {
     WakeSource.Commitment -> "约定提醒"
     WakeSource.Watch -> "追踪有更新"
     WakeSource.Briefing -> "早安简报"
+    WakeSource.Piece -> "简报短文"
     WakeSource.Night -> "夜思"
     WakeSource.Wander -> "游思"
     WakeSource.FollowUp -> "等到结果"
@@ -472,6 +474,7 @@ private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Commitment -> Icons.Outlined.NotificationsNone
     WakeSource.Watch -> Icons.Outlined.Visibility
     WakeSource.Briefing -> Icons.Outlined.WbSunny
+    WakeSource.Piece -> Icons.AutoMirrored.Outlined.Article
     WakeSource.Night -> Icons.Outlined.DarkMode
     WakeSource.Wander -> Icons.Outlined.Lightbulb
     WakeSource.FollowUp -> Icons.Outlined.HourglassBottom

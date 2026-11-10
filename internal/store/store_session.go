@@ -53,6 +53,9 @@ func (s *Store) LoadSession(ctx context.Context, sessionID string) (*core.Sessio
 	return &rec, nil
 }
 
+// ListSessions lists the newest conversations. A conversation that holds
+// only a piece about a briefing story is left out until the owner writes in
+// it.
 func (s *Store) ListSessions(ctx context.Context, limit int) ([]core.SessionRecord, error) {
 	if limit <= 0 {
 		limit = 100
@@ -60,7 +63,9 @@ func (s *Store) ListSessions(ctx context.Context, limit int) ([]core.SessionReco
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT session_id, title, created_at, updated_at
-         FROM sessions
+         FROM sessions s
+         WHERE NOT (EXISTS (SELECT 1 FROM news_story_messages m WHERE m.session_id = s.session_id AND m.intent = 'piece')
+           AND NOT EXISTS (SELECT 1 FROM session_messages o WHERE o.session_id = s.session_id AND o.role = 'user'))
          ORDER BY updated_at DESC, created_at DESC
          LIMIT ?`,
 		limit,

@@ -23,6 +23,7 @@
 
 package io.ycvk.acorn.api.models
 
+import io.ycvk.acorn.api.models.NowStoryPiece
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -34,11 +35,13 @@ import com.squareup.moshi.JsonClass
  * @param section The news section the briefing listed it under.
  * @param title 
  * @param url The source the briefing linked.
+ * @param sources The names of the news sources of the story's items.
  * @param focus Whether it is one of today's focus.
  * @param following Whether the story's conversation has an active or waiting concern.
  * @param summary The sentence the briefing wrote after the title.
  * @param reaction The owner's reaction to the story; absent without one.
- * @param threadId The story's conversation; absent until the owner asks Acorn to explain or follow the story.
+ * @param threadId The story's conversation; absent until a piece is written about the story or the owner asks Acorn to explain or follow it.
+ * @param piece 
  */
 
 
@@ -58,6 +61,10 @@ data class NowBriefingStory (
     @Json(name = "url")
     val url: kotlin.String,
 
+    /* The names of the news sources of the story's items. */
+    @Json(name = "sources")
+    val sources: kotlin.collections.List<kotlin.String>,
+
     /* Whether it is one of today's focus. */
     @Json(name = "focus")
     val focus: kotlin.Boolean,
@@ -74,9 +81,12 @@ data class NowBriefingStory (
     @Json(name = "reaction")
     val reaction: NowBriefingStory.Reaction? = null,
 
-    /* The story's conversation; absent until the owner asks Acorn to explain or follow the story. */
+    /* The story's conversation; absent until a piece is written about the story or the owner asks Acorn to explain or follow it. */
     @Json(name = "thread_id")
-    val threadId: kotlin.String? = null
+    val threadId: kotlin.String? = null,
+
+    @Json(name = "piece")
+    val piece: NowStoryPiece? = null
 
 ) {
 

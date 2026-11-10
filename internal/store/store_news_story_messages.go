@@ -12,15 +12,16 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// newsStoryMessagesTable is shared with the migration that adds it. A row
-// keeps the story as the owner saw it, as JSON, so it outlives the story,
-// which is pruned with its items; it leaves with its conversation. The
-// newest row of a story names the story's conversation.
+// newsStoryMessagesTable is shared with the migrations that add and rebuild
+// it. A row is an owner message sent from a story or the wake input of a
+// piece about it. It keeps the story as it stood then, as JSON, so it
+// outlives the story, which is pruned with its items; it leaves with its
+// conversation. The newest row of a story names the story's conversation.
 const newsStoryMessagesTable = `CREATE TABLE IF NOT EXISTS news_story_messages (
     message_id INTEGER PRIMARY KEY,
     session_id TEXT NOT NULL,
     story_id INTEGER NOT NULL,
-    intent TEXT NOT NULL CHECK (intent IN ('discuss', 'follow')),
+    intent TEXT NOT NULL CHECK (intent IN ('discuss', 'follow', 'piece')),
     story TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
@@ -73,8 +74,8 @@ func (s *Store) BriefingStoryTitle(ctx context.Context, storyID int64) (string, 
 	return title, nil
 }
 
-// storyThread selects the newest conversation an owner message from the
-// story went to; story is the SQL expression of the story's id.
+// storyThread selects the newest conversation a message from the story
+// went to; story is the SQL expression of the story's id.
 func storyThread(story string) string {
 	return `SELECT session_id FROM news_story_messages WHERE story_id = ` + story + ` ORDER BY message_id DESC LIMIT 1`
 }
@@ -84,29 +85,42 @@ func storyThread(story string) string {
 // A conversation whose latest run is running or waits for the owner is
 // refused with ErrThreadBusy.
 func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite) (core.SessionMessageRecord, error) {
-	switch {
-	case !in.Intent.Valid():
+	if !in.Intent.Valid() {
 		return core.SessionMessageRecord{}, fmt.Errorf("send story message: intent %q must be discuss or follow", in.Intent)
-	case strings.TrimSpace(in.Text) == "" || strings.TrimSpace(in.Title) == "":
-		return core.SessionMessageRecord{}, errors.New("send story message: text and title are required")
-	case in.Story.ID <= 0 || strings.TrimSpace(in.Story.Title) == "":
-		return core.SessionMessageRecord{}, errors.New("send story message: the story's id and title are required")
-	case strings.TrimSpace(in.NewThreadID) == "":
-		return core.SessionMessageRecord{}, errors.New("send story message: NewThreadID is required")
 	}
-	story, err := json.Marshal(in.Story)
+	return s.writeStoryMessage(ctx, "user", in.Intent, in.Text, in.Title, in.Story, in.NewThreadID)
+}
+
+// WriteStoryPiece records the wake input of a piece in the story's
+// conversation, creating it under in.Title when the story has none. A
+// conversation whose latest run is running or waits for the owner is refused
+// with ErrThreadBusy.
+func (s *Store) WriteStoryPiece(ctx context.Context, in core.StoryPieceWrite) (core.SessionMessageRecord, error) {
+	return s.writeStoryMessage(ctx, core.MessageRoleWake, core.StoryPiece, in.Text, in.Title, in.Story, in.NewThreadID)
+}
+
+func (s *Store) writeStoryMessage(ctx context.Context, role string, intent core.StoryIntent, text, title string, snapshot core.StorySnapshot, newThreadID string) (core.SessionMessageRecord, error) {
+	switch {
+	case strings.TrimSpace(text) == "" || strings.TrimSpace(title) == "":
+		return core.SessionMessageRecord{}, errors.New("story message: text and title are required")
+	case snapshot.ID <= 0 || strings.TrimSpace(snapshot.Title) == "":
+		return core.SessionMessageRecord{}, errors.New("story message: the story's id and title are required")
+	case strings.TrimSpace(newThreadID) == "":
+		return core.SessionMessageRecord{}, errors.New("story message: NewThreadID is required")
+	}
+	story, err := json.Marshal(snapshot)
 	if err != nil {
-		return core.SessionMessageRecord{}, fmt.Errorf("send story message: %w", err)
+		return core.SessionMessageRecord{}, fmt.Errorf("story message: %w", err)
 	}
 	now := time.Now().UTC()
-	message := core.SessionMessageRecord{Role: "user", Content: strings.TrimSpace(in.Text), CreatedAt: now}
+	message := core.SessionMessageRecord{Role: role, Content: strings.TrimSpace(text), CreatedAt: now}
 	err = s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		err := tx.QueryRowContext(ctx, storyThread("?"), in.Story.ID).Scan(&message.SessionID)
+		err := tx.QueryRowContext(ctx, storyThread("?"), snapshot.ID).Scan(&message.SessionID)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			message.SessionID = in.NewThreadID
+			message.SessionID = newThreadID
 			if _, err := tx.ExecContext(ctx, `INSERT INTO sessions(session_id, title, created_at, updated_at) VALUES(?, ?, ?, ?)`,
-				message.SessionID, strings.TrimSpace(in.Title), formatTimestamp(now), formatTimestamp(now)); err != nil {
+				message.SessionID, strings.TrimSpace(title), formatTimestamp(now), formatTimestamp(now)); err != nil {
 				return err
 			}
 		case err != nil:
@@ -121,21 +135,21 @@ func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite)
 				return fmt.Errorf("%w: %s", core.ErrThreadBusy, message.SessionID)
 			}
 		}
-		if err := appendOwnerMessage(ctx, tx, &message); err != nil {
+		if err := appendUnboundMessage(ctx, tx, &message); err != nil {
 			return err
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO news_story_messages (message_id, session_id, story_id, intent, story, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			message.ID, message.SessionID, in.Story.ID, string(in.Intent), string(story), formatTimestamp(now))
+			message.ID, message.SessionID, snapshot.ID, string(intent), string(story), formatTimestamp(now))
 		return err
 	})
 	if err != nil {
-		return core.SessionMessageRecord{}, fmt.Errorf("send story message from story %d: %w", in.Story.ID, err)
+		return core.SessionMessageRecord{}, fmt.Errorf("%s message from story %d: %w", intent, snapshot.ID, err)
 	}
 	return message, nil
 }
 
-// StoryMessages lists the owner messages sent from stories in a
-// conversation, oldest first.
+// StoryMessages lists the messages sent from stories in a conversation,
+// oldest first.
 func (s *Store) StoryMessages(ctx context.Context, sessionID string) ([]core.StoryMessage, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT message_id, session_id, intent, story, created_at FROM news_story_messages WHERE session_id = ? ORDER BY message_id`, sessionID)
 	if err != nil {

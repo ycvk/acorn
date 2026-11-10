@@ -37,21 +37,55 @@ func (r NewsReaction) Valid() bool {
 
 // BriefingStory is a story a briefing picked: the section it stood in, the
 // title and sentence the briefing wrote and the link it gave, whether it was
-// among today's focus, the news sources of its items, and the owner's
-// reaction to the story, empty without one. ThreadID is the story's
-// conversation, empty before the owner opens or follows the story;
-// Following holds while that conversation has an active or waiting concern.
+// among today's focus, the news sources of its items with their names, and
+// the owner's reaction to the story, empty without one. ThreadID is the
+// story's conversation, empty until a piece is written about the story or
+// the owner opens or follows it; Following holds while that conversation has
+// an active or waiting concern. Piece is the piece the briefing had written
+// about the story, nil without one.
 type BriefingStory struct {
-	StoryID   int64
-	Section   string
-	Title     string
-	Summary   string
-	URL       string
-	Focus     bool
-	Sources   []int64
-	Reaction  NewsReaction
-	ThreadID  string
-	Following bool
+	StoryID     int64
+	Section     string
+	Title       string
+	Summary     string
+	URL         string
+	Focus       bool
+	Sources     []int64
+	SourceNames []string
+	Reaction    NewsReaction
+	ThreadID    string
+	Following   bool
+	Piece       *BriefingPiece
+}
+
+// BriefingPieceStatus is how far the piece about a story is.
+type BriefingPieceStatus string
+
+const (
+	// BriefingPieceWriting holds while the piece's run is going.
+	BriefingPieceWriting BriefingPieceStatus = "writing"
+	// BriefingPieceReady is a piece whose run succeeded with a reply.
+	BriefingPieceReady BriefingPieceStatus = "ready"
+	// BriefingPieceFailed is a piece whose run did not start, failed, was
+	// stopped, waits for the owner or ended without a reply.
+	BriefingPieceFailed BriefingPieceStatus = "failed"
+)
+
+// BriefingPiece is the piece a briefing had written about one of its focus
+// stories: the run that writes it and, once ready, its text.
+type BriefingPiece struct {
+	RunID      string
+	Status     BriefingPieceStatus
+	Body       string
+	FinishedAt time.Time
+}
+
+// OpenBriefing is a briefing whose picks are recorded and that still has
+// its pieces to start or its push to send.
+type OpenBriefing struct {
+	RoutineOutput
+	PiecesStarted bool
+	Pushed        bool
 }
 
 // BriefingPicks is what a finished briefing picked, in its order, and how
@@ -238,9 +272,18 @@ type NewsStore interface {
 	// already recorded is left as it is.
 	RecordBriefingPicks(ctx context.Context, picks BriefingPicks) error
 	// BriefingStories lists the stories a briefing picked, in its order,
-	// each with the owner's current reaction; empty when the briefing is
-	// not recorded.
+	// each with the owner's current reaction and the piece the briefing had
+	// written about it; empty when the briefing is not recorded.
 	BriefingStories(ctx context.Context, runID string) ([]BriefingStory, error)
+	// OpenBriefings lists the recorded briefings finished since since
+	// that have pieces to start or a push to send, oldest first.
+	OpenBriefings(ctx context.Context, since time.Time) ([]OpenBriefing, error)
+	// ClaimBriefingPieces marks a briefing's pieces as started at at and
+	// reports whether this call did; a briefing is claimed once.
+	ClaimBriefingPieces(ctx context.Context, runID string, at time.Time) (bool, error)
+	// ClaimBriefingPush marks a briefing as pushed at at and reports
+	// whether this call did; a briefing is claimed once.
+	ClaimBriefingPush(ctx context.Context, runID string, at time.Time) (bool, error)
 	// ReactToNewsStory records the owner's reaction to a story, replacing
 	// an earlier one, else ErrNewsStoryNotFound.
 	ReactToNewsStory(ctx context.Context, storyID int64, reaction NewsReaction, deviceID string, at time.Time) error

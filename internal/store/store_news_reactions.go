@@ -6,20 +6,24 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// briefingPicksTables are shared with the migration that adds them. A
-// briefing's picks are recorded once, after its run succeeded, and leave
-// with its thread. A reaction outlives its story and the briefing it was
-// made on: it keeps the story's section, title and sources. sources are
-// JSON arrays of watch ids.
+// briefingPicksTables are shared with the migrations that add and rebuild
+// them. A briefing's picks are recorded once, after its run succeeded, and
+// leave with its thread; pieces_at and pushed_at are when the pieces about
+// its focus stories were started and its push was sent, empty until then. A
+// reaction outlives its story and the briefing it was made on: it keeps the
+// story's section, title and sources. sources are JSON arrays of watch ids.
 const briefingPicksTables = `CREATE TABLE IF NOT EXISTS briefing_picks (
     run_id TEXT PRIMARY KEY,
     briefed_at TEXT NOT NULL,
-    unmatched INTEGER NOT NULL DEFAULT 0
+    unmatched INTEGER NOT NULL DEFAULT 0,
+    pieces_at TEXT NOT NULL DEFAULT '',
+    pushed_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_briefing_picks_briefed ON briefing_picks(briefed_at);
 CREATE TABLE IF NOT EXISTS briefing_stories (
@@ -51,6 +55,32 @@ CREATE INDEX IF NOT EXISTS idx_news_reactions_created ON news_reactions(created_
 func addBriefingPicks(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, briefingPicksTables)
 	return err
+}
+
+// addBriefingPieces (37 to 38) lets a story message be the wake input of a
+// piece and records when a briefing's pieces were started and its push was
+// sent. The briefings recorded before it were pushed as they were recorded
+// and get no pieces. Both tables are rebuilt so their stored definitions
+// match a new database.
+func addBriefingPieces(ctx context.Context, tx *sql.Tx) error {
+	messages := "message_id, session_id, story_id, intent, story, created_at"
+	for _, statement := range []string{
+		`CREATE TEMP TABLE briefing_picks_v37 AS SELECT run_id, briefed_at, unmatched FROM briefing_picks`,
+		`DROP TABLE briefing_picks`,
+		briefingPicksTables,
+		`INSERT INTO briefing_picks(run_id, briefed_at, unmatched, pieces_at, pushed_at) SELECT run_id, briefed_at, unmatched, briefed_at, briefed_at FROM briefing_picks_v37`,
+		`DROP TABLE briefing_picks_v37`,
+		`CREATE TEMP TABLE news_story_messages_v37 AS SELECT ` + messages + ` FROM news_story_messages`,
+		`DROP TABLE news_story_messages`,
+		newsStoryMessagesTable,
+		`INSERT INTO news_story_messages(` + messages + `) SELECT ` + messages + ` FROM news_story_messages_v37`,
+		`DROP TABLE news_story_messages_v37`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) UnrecordedBriefings(ctx context.Context, since time.Time) ([]core.RoutineOutput, error) {
@@ -137,30 +167,106 @@ func (s *Store) RecordBriefingPicks(ctx context.Context, picks core.BriefingPick
 	return tx.Commit()
 }
 
+// OpenBriefings lists the recorded briefings finished since since whose
+// pieces are not started or whose push is not sent, oldest first.
+func (s *Store) OpenBriefings(ctx context.Context, since time.Time) ([]core.OpenBriefing, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT rr.slot, rr.thread_id, rr.run_id, r.output_text, r.finished_at, p.pieces_at <> '', p.pushed_at <> ''
+		 FROM briefing_picks p JOIN routine_runs rr ON rr.run_id = p.run_id AND rr.routine = 'briefing' JOIN runs r ON r.run_id = p.run_id
+		 WHERE p.briefed_at >= ? AND (p.pieces_at = '' OR p.pushed_at = '')
+		 ORDER BY p.briefed_at, p.run_id`, formatTimestamp(since))
+	if err != nil {
+		return nil, fmt.Errorf("open briefings: %w", err)
+	}
+	var out []core.OpenBriefing
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var (
+			b        core.OpenBriefing
+			finished string
+		)
+		if err := scan(&b.Slot, &b.ThreadID, &b.RunID, &b.Text, &finished, &b.PiecesStarted, &b.Pushed); err != nil {
+			return err
+		}
+		var err error
+		b.FinishedAt, err = parseTimestamp(finished, "runs.finished_at")
+		out = append(out, b)
+		return err
+	}); err != nil {
+		return nil, fmt.Errorf("open briefings: %w", err)
+	}
+	return out, nil
+}
+
+func (s *Store) ClaimBriefingPieces(ctx context.Context, runID string, at time.Time) (bool, error) {
+	return s.claimBriefing(ctx, "pieces_at", runID, at)
+}
+
+func (s *Store) ClaimBriefingPush(ctx context.Context, runID string, at time.Time) (bool, error) {
+	return s.claimBriefing(ctx, "pushed_at", runID, at)
+}
+
+// claimBriefing sets an empty step column of a recorded briefing and
+// reports whether it did.
+func (s *Store) claimBriefing(ctx context.Context, column, runID string, at time.Time) (bool, error) {
+	if runID == "" || at.IsZero() {
+		return false, fmt.Errorf("claim briefing %s: runID and at are required", column)
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE briefing_picks SET `+column+` = ? WHERE run_id = ? AND `+column+` = ''`, formatTimestamp(at), runID)
+	if err != nil {
+		return false, fmt.Errorf("claim briefing %s: %w", column, err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("claim briefing %s: %w", column, err)
+	}
+	return n == 1, nil
+}
+
+// BriefingStories lists a briefing's picks. A story's piece is the newest
+// piece message of the story sent since the briefing was recorded, read
+// through the run its wake input started.
 func (s *Store) BriefingStories(ctx context.Context, runID string) ([]core.BriefingStory, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`WITH picked AS (
 		   SELECT b.position, b.story_id, b.section, b.title, b.summary, b.url, b.focus, b.sources, COALESCE(r.reaction, '') AS reaction,
-		     COALESCE((`+storyThread("b.story_id")+`), '') AS thread
-		   FROM briefing_stories b LEFT JOIN news_reactions r ON r.story_id = b.story_id WHERE b.run_id = ?)
-		 SELECT story_id, section, title, summary, url, focus, sources, reaction, thread,
-		   EXISTS (SELECT 1 FROM memory_concerns c WHERE c.thread_id = picked.thread AND c.state IN ('active', 'waiting') AND `+visibleConcern+`)
-		 FROM picked ORDER BY position`, runID)
+		     COALESCE((`+storyThread("b.story_id")+`), '') AS thread,
+		     COALESCE((SELECT json_group_array(name) FROM (SELECT w.name FROM json_each(b.sources) j JOIN watches w ON w.id = j.value ORDER BY w.id)), '[]') AS source_names,
+		     (SELECT m.message_id FROM news_story_messages m WHERE m.story_id = b.story_id AND m.intent = 'piece' AND m.created_at >= p.briefed_at
+		      ORDER BY m.message_id DESC LIMIT 1) AS piece
+		   FROM briefing_stories b JOIN briefing_picks p ON p.run_id = b.run_id LEFT JOIN news_reactions r ON r.story_id = b.story_id WHERE b.run_id = ?)
+		 SELECT story_id, section, title, summary, url, focus, sources, source_names, reaction, thread,
+		   EXISTS (SELECT 1 FROM memory_concerns c WHERE c.thread_id = picked.thread AND c.state IN ('active', 'waiting') AND `+visibleConcern+`),
+		   piece IS NOT NULL, COALESCE(pm.run_id, ''), COALESCE(pr.status, ''), COALESCE(pr.output_text, ''), COALESCE(pr.finished_at, '')
+		 FROM picked LEFT JOIN session_messages pm ON pm.id = picked.piece LEFT JOIN runs pr ON pr.run_id = pm.run_id AND pm.run_id <> ''
+		 ORDER BY position`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("briefing stories: %w", err)
 	}
 	var stories []core.BriefingStory
 	if err := scanRows(rows, func(scan func(...any) error) error {
 		var (
-			story             core.BriefingStory
-			sources, reaction string
+			story                    core.BriefingStory
+			sources, names, reaction string
+			hasPiece                 bool
+			piece                    core.BriefingPiece
+			status, finished         string
 		)
-		if err := scan(&story.StoryID, &story.Section, &story.Title, &story.Summary, &story.URL, &story.Focus, &sources, &reaction, &story.ThreadID, &story.Following); err != nil {
+		if err := scan(&story.StoryID, &story.Section, &story.Title, &story.Summary, &story.URL, &story.Focus, &sources, &names, &reaction, &story.ThreadID, &story.Following,
+			&hasPiece, &piece.RunID, &status, &piece.Body, &finished); err != nil {
 			return err
 		}
 		story.Reaction = core.NewsReaction(reaction)
 		if err := json.Unmarshal([]byte(sources), &story.Sources); err != nil {
 			return err
+		}
+		if err := json.Unmarshal([]byte(names), &story.SourceNames); err != nil {
+			return err
+		}
+		if hasPiece {
+			if err := finishBriefingPiece(&piece, core.RunStatus(status), finished); err != nil {
+				return err
+			}
+			story.Piece = &piece
 		}
 		stories = append(stories, story)
 		return nil
@@ -168,6 +274,26 @@ func (s *Store) BriefingStories(ctx context.Context, runID string) ([]core.Brief
 		return nil, fmt.Errorf("briefing stories: %w", err)
 	}
 	return stories, nil
+}
+
+// finishBriefingPiece sets a piece's status from its run's: a running run is
+// still writing, a succeeded one with a reply is ready and keeps the reply,
+// and any other outcome, a run that never started among them, failed.
+func finishBriefingPiece(piece *core.BriefingPiece, status core.RunStatus, finished string) error {
+	body := strings.TrimSpace(piece.Body)
+	piece.Body = ""
+	switch {
+	case status == core.RunStatusRunning:
+		piece.Status = core.BriefingPieceWriting
+	case status == core.RunStatusSucceeded && body != "":
+		piece.Status, piece.Body = core.BriefingPieceReady, body
+		var err error
+		piece.FinishedAt, err = parseTimestamp(finished, "runs.finished_at")
+		return err
+	default:
+		piece.Status = core.BriefingPieceFailed
+	}
+	return nil
 }
 
 // ReactToNewsStory keeps the story's section, title and the sources of its

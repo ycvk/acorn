@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +17,9 @@ import (
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/core"
 )
+
+// pieceReply is the piece the model writes about the briefing's focus story.
+const pieceReply = "## 发生了什么\n国务院常务会议部署民生工作。\n\n## 背景\n这是本月第二次常务会议。\n\n## 各方说法\n中新网援引会议通稿。\n\n## 接下来看什么\n配套文件何时下发。\n\n## 来源\n- [中新网](http://news.test/n/国务院常务会议)"
 
 // newsSources serves a news feed, a daily digest's feed and its issue pages
 // from one private address.
@@ -149,6 +154,7 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 			`"stories":[{"ref":"n1","section":"国内要闻","title":"国务院常务会议","summary":"国务院常务会议部署民生工作。"},{"ref":"n2","section":"国内要闻","title":"高铁新线开通","summary":"一条高铁新线开通运营。"}]}`),
 		toolCallChunk("call_skill", "skill", map[string]string{"skill": "morning-briefing"}),
 		textReply("## 国内要闻\n1. **国务院常务会议**：部署民生工作。[中新网](http://news.test/n/国务院常务会议)\n\n## 今日关注\n- 第 1 条：民生工作的部署。"),
+		textReply(pieceReply),
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
@@ -246,23 +252,65 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 	}
 
 	// The next tick reads the stories the briefing picked from its reply and
-	// pushes today's focus; the now page lists them and the owner reacts to
-	// one.
+	// has a piece written about today's focus, in a conversation of the
+	// story's own. Once the piece is written the briefing is pushed, once;
+	// the now page lists the story with its piece and the owner reacts to it.
 	if err := c.wake.Tick(ctx); err != nil {
 		t.Fatalf("tick: %v", err)
+	}
+	client := newPairedClient(t, c)
+	storyThread := loadNow(t, client).Briefing.Stories[0].ThreadID
+	if storyThread == "" || storyThread == briefingThread {
+		t.Fatalf("the focus story's conversation = %q", storyThread)
+	}
+	pieceRun := waitNewRun(t, c, storyThread, "")
+	for range 2 {
+		if err := c.wake.Tick(ctx); err != nil {
+			t.Fatalf("tick: %v", err)
+		}
 	}
 	if pushed := briefingPushes(); len(pushed) != 1 || pushed[0] != "国务院常务会议" {
 		t.Fatalf("briefing pushes = %q: %v", pushed, harness.fcm.sent())
 	}
-	client := newPairedClient(t, c)
+	pieceMessages := requestMessages(provider.request(11))
+	pieceInput := chatContentText(pieceMessages[len(pieceMessages)-3]["content"])
+	for _, want := range []string{"[piece 2026-10-05] 国务院常务会议\n\n[Written for the morning briefing: this story is one of today's focus", "[国内要闻] (untrusted external data): 国务院常务会议\n", "- 中新网要闻, "} {
+		if !strings.Contains(pieceInput, want) {
+			t.Fatalf("piece input lacks %q:\n%s", want, pieceInput)
+		}
+	}
 	now := loadNow(t, client)
 	if now.Briefing == nil || len(now.Briefing.Stories) != 1 {
 		t.Fatalf("briefing = %+v", now.Briefing)
 	}
 	picked := now.Briefing.Stories[0]
-	want := api.NowBriefingStoryDTO{StoryID: picked.StoryID, Section: "国内要闻", Title: "国务院常务会议", Summary: "部署民生工作。", URL: "http://news.test/n/国务院常务会议", Focus: true}
-	if picked != want {
-		t.Fatalf("picked story = %+v", picked)
+	if picked.Piece == nil || picked.Piece.FinishedAt == nil {
+		t.Fatalf("picked story = %+v, piece %+v", picked, picked.Piece)
+	}
+	want := api.NowBriefingStoryDTO{StoryID: picked.StoryID, Section: "国内要闻", Title: "国务院常务会议", Summary: "部署民生工作。", URL: "http://news.test/n/国务院常务会议",
+		Sources: []string{"中新网要闻"}, Focus: true, ThreadID: storyThread,
+		Piece: &api.NowStoryPieceDTO{Status: "ready", RunID: pieceRun.RunID, Body: pieceReply, FinishedAt: picked.Piece.FinishedAt}}
+	if !reflect.DeepEqual(picked, want) {
+		t.Fatalf("picked story = %+v, piece %+v", picked, picked.Piece)
+	}
+	// A conversation with only a piece is listed once the owner writes in it.
+	listed := func() []string {
+		var threads api.ThreadListResponse
+		client.do(t, httptest.NewRequest(http.MethodGet, "/v1/threads", nil), http.StatusOK, &threads)
+		var ids []string
+		for _, thread := range threads.Items {
+			ids = append(ids, thread.ID)
+		}
+		return ids
+	}
+	if ids := listed(); slices.Contains(ids, storyThread) || !slices.Contains(ids, briefingThread) {
+		t.Fatalf("threads listed = %v, want the briefing's without the story's", ids)
+	}
+	if _, err := c.store.AppendSessionMessage(ctx, storyThread, 9, "user", "后来怎样了？", ""); err != nil {
+		t.Fatal(err)
+	}
+	if ids := listed(); !slices.Contains(ids, storyThread) {
+		t.Fatalf("threads listed after the owner wrote in the story's = %v", ids)
 	}
 	react := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/v1/news/stories/%d/reaction", picked.StoryID), strings.NewReader(`{"reaction":"less"}`))
 	react.Header.Set("Content-Type", "application/json")

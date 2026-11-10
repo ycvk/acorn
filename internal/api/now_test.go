@@ -173,7 +173,10 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 		briefing: core.RoutineOutput{Slot: "2026-10-11", ThreadID: "thread_briefings", RunID: "run_briefing", Text: "## 今天\n交房租", FinishedAt: nowTestTime},
 		stories: map[string][]core.BriefingStory{"run_briefing": {
 			{StoryID: 41, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://news.test/ph", Sources: []int64{3}, Reaction: core.NewsReactionLess},
-			{StoryID: 42, Section: "国际与财经", Title: "普京提议中美俄三方会谈", URL: "https://news.test/talks", Focus: true, Sources: []int64{3, 4}},
+			{StoryID: 42, Section: "国际与财经", Title: "普京提议中美俄三方会谈", URL: "https://news.test/talks", Focus: true, Sources: []int64{3, 4}, SourceNames: []string{"BBC 中文", "FT 中文网"},
+				ThreadID: "thread_talks", Piece: &core.BriefingPiece{RunID: "run_piece", Status: core.BriefingPieceReady, Body: "## 发生了什么\n克宫证实。", FinishedAt: nowTestTime}},
+			{StoryID: 43, Section: "国际与财经", Title: "港口罢工", URL: "https://news.test/strike", Focus: true, Sources: []int64{3}, SourceNames: []string{"BBC 中文"},
+				ThreadID: "thread_strike", Piece: &core.BriefingPiece{RunID: "run_strike", Status: core.BriefingPieceWriting}},
 		}},
 		panels: []core.Panel{{ThreadTitle: "仓库版本", View: core.ThreadView{ID: "view_1", SessionID: "thread_repos", Title: "eino 最新版本", Catalog: "acorn.views.v1",
 			Components: []byte(`[{"id":"root","component":"Text","text":{"path":"/latest"}}]`), Data: []byte(`{"latest":"v0.9.22"}`), Source: "repo-releases/check",
@@ -188,8 +191,11 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 	var got NowResponse
 	decodeClientTestJSON(t, rec, &got)
 	want := NowBriefingDTO{ThreadID: "thread_briefings", RunID: "run_briefing", Date: "2026-10-11", Body: "## 今天\n交房租", FinishedAt: nowTestTime, Stories: []NowBriefingStoryDTO{
-		{StoryID: 41, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://news.test/ph", Reaction: "less"},
-		{StoryID: 42, Section: "国际与财经", Title: "普京提议中美俄三方会谈", URL: "https://news.test/talks", Focus: true},
+		{StoryID: 41, Section: "国际与财经", Title: "菲律宾央行加息", Summary: "加息 25 个基点。", URL: "https://news.test/ph", Sources: []string{}, Reaction: "less"},
+		{StoryID: 42, Section: "国际与财经", Title: "普京提议中美俄三方会谈", URL: "https://news.test/talks", Sources: []string{"BBC 中文", "FT 中文网"}, Focus: true,
+			ThreadID: "thread_talks", Piece: &NowStoryPieceDTO{Status: "ready", RunID: "run_piece", Body: "## 发生了什么\n克宫证实。", FinishedAt: &nowTestTime}},
+		{StoryID: 43, Section: "国际与财经", Title: "港口罢工", URL: "https://news.test/strike", Sources: []string{"BBC 中文"}, Focus: true,
+			ThreadID: "thread_strike", Piece: &NowStoryPieceDTO{Status: "writing", RunID: "run_strike"}},
 	}, Parts: []NowBriefingPartDTO{{Heading: "今天", Body: "交房租"}}}
 	if store.routine != "briefing" || got.Briefing == nil || !reflect.DeepEqual(*got.Briefing, want) {
 		t.Fatalf("briefing = %+v from routine %q", got.Briefing, store.routine)

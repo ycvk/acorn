@@ -61,6 +61,8 @@ import io.ycvk.acorn.feature.knowledge.NoteScreen
 import io.ycvk.acorn.feature.memory.MemoryScreen
 import io.ycvk.acorn.feature.memory.MemoryViewModel
 import io.ycvk.acorn.feature.now.NowScreen
+import io.ycvk.acorn.feature.now.NowViewModel
+import io.ycvk.acorn.feature.now.StoryScreen
 import io.ycvk.acorn.feature.pairing.PairingScreen
 import io.ycvk.acorn.feature.persona.PersonaRevisionScreen
 import io.ycvk.acorn.feature.persona.PersonaScreen
@@ -171,6 +173,7 @@ private fun Pages(shellViewModel: ShellViewModel) {
     val pages by shellViewModel.pages.collectAsStateWithLifecycle()
     val pendingCount by shellViewModel.pendingCount.collectAsStateWithLifecycle()
     val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
+    val nowViewModel: NowViewModel = hiltViewModel()
     val memoryViewModel: MemoryViewModel = hiltViewModel()
     val personaViewModel: PersonaViewModel = hiltViewModel()
     val skillsViewModel: SkillsViewModel = hiltViewModel()
@@ -204,7 +207,9 @@ private fun Pages(shellViewModel: ShellViewModel) {
                 ) { current, barInset ->
                     when (current) {
                         Tab.Today -> NowScreen(
+                            viewModel = nowViewModel,
                             onThreadClick = { shellViewModel.open(Page.Chat(it)) },
+                            onStoryClick = { shellViewModel.open(Page.Story(it)) },
                             onNewChat = newChat,
                             onSettings = { shellViewModel.open(Page.Settings) },
                             onBrowser = { shellViewModel.open(Page.Browser()) },
@@ -226,6 +231,12 @@ private fun Pages(shellViewModel: ShellViewModel) {
                     }
                 }
                 is Page.Chat -> ChatScreen(threadId = page.threadId, openActionId = page.actionId, onBack = shellViewModel::back)
+                is Page.Story -> StoryScreen(
+                    storyId = page.storyId,
+                    viewModel = nowViewModel,
+                    onBack = shellViewModel::back,
+                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                )
                 is Page.Note -> NoteScreen(path = page.path, viewModel = knowledgeViewModel, onBack = shellViewModel::back)
                 is Page.Memory -> MemoryScreen(
                     id = page.id,

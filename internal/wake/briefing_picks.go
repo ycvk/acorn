@@ -2,7 +2,6 @@ package wake
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"regexp"
 	"slices"
@@ -27,8 +26,8 @@ var (
 
 // recordBriefingPicks records what each briefing that succeeded since the
 // last check picked, so the now page lists its stories for the owner's
-// reactions and the night review counts them, then pushes its focus. The
-// picks are recorded first, so a briefing is pushed at most once.
+// reactions, the night review counts them, and advanceBriefings has its
+// focus written about and pushed.
 func (s *Scheduler) recordBriefingPicks(ctx context.Context, now time.Time) error {
 	briefings, err := s.cfg.News.UnrecordedBriefings(ctx, now.Add(-core.NewsRetention))
 	if err != nil || len(briefings) == 0 {
@@ -38,11 +37,10 @@ func (s *Scheduler) recordBriefingPicks(ctx context.Context, now time.Time) erro
 	if err != nil {
 		return err
 	}
-	var errs []error
 	for _, briefing := range briefings {
 		stories, err := s.cfg.News.BriefedNewsStories(ctx, briefing.RunID)
 		if err != nil {
-			return errors.Join(append(errs, err)...)
+			return err
 		}
 		names := make([]string, 0, len(sections)+len(stories))
 		for _, section := range sections {
@@ -53,7 +51,7 @@ func (s *Scheduler) recordBriefingPicks(ctx context.Context, now time.Time) erro
 		}
 		picked, unmatched := pickBriefingStories(briefing.Text, names, stories)
 		if err := s.cfg.News.RecordBriefingPicks(ctx, core.BriefingPicks{RunID: briefing.RunID, BriefedAt: briefing.FinishedAt, Stories: picked, Unmatched: unmatched}); err != nil {
-			return errors.Join(append(errs, err)...)
+			return err
 		}
 		if unmatched > 0 {
 			slog.Warn("briefing lines matched no story it offered; the now page leaves them out", "run_id", briefing.RunID, "slot", briefing.Slot, "unmatched", unmatched, "picked", len(picked))
@@ -61,11 +59,8 @@ func (s *Scheduler) recordBriefingPicks(ctx context.Context, now time.Time) erro
 		if len(stories) > 0 && len(picked) == 0 {
 			slog.Error("briefing reply lists none of the news it was offered", "run_id", briefing.RunID, "slot", briefing.Slot, "offered", len(stories))
 		}
-		if err := s.pushBriefing(ctx, briefing); err != nil {
-			errs = append(errs, err)
-		}
 	}
-	return errors.Join(errs...)
+	return nil
 }
 
 // pickBriefingStories reads the stories a briefing picked from its reply:

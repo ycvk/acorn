@@ -57,6 +57,18 @@ type fakeRuns struct {
 	standalone []bool     // per start
 	sources    [][]string // per start
 	fail       error
+	pieces     []string        // storyID|day, per piece started
+	pieceFail  map[int64]error // by story
+}
+
+func (r *fakeRuns) StartStoryPiece(_ context.Context, storyID int64, day string) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.pieceFail[storyID]; err != nil {
+		return "", err
+	}
+	r.pieces = append(r.pieces, fmt.Sprintf("%d|%s", storyID, day))
+	return fmt.Sprintf("run_piece_%d", storyID), nil
 }
 
 func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, input string, wake core.ScheduledWake) (string, string, error) {

@@ -337,7 +337,7 @@ func (s *Store) SendViewAction(ctx context.Context, in core.ViewActionWrite) (co
 		if sent > 0 {
 			return fmt.Errorf("%w: %s of %s", core.ErrViewActionTaken, in.Key, in.ViewID)
 		}
-		if err := appendOwnerMessage(ctx, tx, &message); err != nil {
+		if err := appendUnboundMessage(ctx, tx, &message); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO thread_view_actions (`+threadViewActionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -46,12 +46,14 @@ type threadViewStore interface {
 	UnpinThreadView(ctx context.Context, sessionID, viewID string) (core.ThreadView, error)
 }
 
-// threadStoryStore keeps the owner messages sent from stories on the
-// briefing card, each in its story's conversation.
+// threadStoryStore keeps the messages sent from stories on the briefing
+// card, the owner's asks and the wake inputs of pieces, each in its story's
+// conversation.
 type threadStoryStore interface {
 	NewsStory(ctx context.Context, id int64) (core.NewsStory, error)
 	BriefingStoryTitle(ctx context.Context, storyID int64) (string, error)
 	SendStoryMessage(ctx context.Context, in core.StoryMessageWrite) (core.SessionMessageRecord, error)
+	WriteStoryPiece(ctx context.Context, in core.StoryPieceWrite) (core.SessionMessageRecord, error)
 }
 
 // NewThreadService constructs a ThreadService backed by the given store and

@@ -28,6 +28,12 @@ type RunStarter interface {
 	// StartThreadRun starts a run in threadID; a deleted thread fails with
 	// core.ErrSessionNotFound.
 	StartThreadRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (runID string, err error)
+	// StartStoryPiece starts the run that writes the piece about a story of
+	// the briefing of day, in the story's conversation, created when the
+	// story has none. A story pruned since fails with
+	// core.ErrNewsStoryNotFound, a conversation with a run going or waiting
+	// for the owner with core.ErrThreadBusy.
+	StartStoryPiece(ctx context.Context, storyID int64, day string) (runID string, err error)
 }
 
 // WatchChecker fetches a watch and records what it found.
@@ -204,9 +210,9 @@ func (s *Scheduler) tickTriggers(ctx context.Context) error {
 
 // tickMain wakes every due commitment within the daily limit, wakes the
 // follow-ups whose condition holds, continues active goals and announces
-// ended ones, checks due watches, records what finished briefings picked and
-// pushes their focus, starts the morning briefing when its time has come,
-// then sends notifications whose quiet hours ended.
+// ended ones, checks due watches, records what finished briefings picked,
+// has their focus written about and pushes them, starts the morning briefing
+// when its time has come, then sends notifications whose quiet hours ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) tickMain(ctx context.Context) error {
 	settings, err := s.cfg.Settings.Settings(ctx)
@@ -241,6 +247,9 @@ func (s *Scheduler) tickMain(ctx context.Context) error {
 	}
 	if err := s.recordBriefingPicks(ctx, now); err != nil {
 		errs = append(errs, fmt.Errorf("record briefing picks: %w", err))
+	}
+	if err := s.advanceBriefings(ctx, now, settings); err != nil {
+		errs = append(errs, err)
 	}
 	if err := s.runRoutines(ctx, now, settings); err != nil {
 		errs = append(errs, fmt.Errorf("routines: %w", err))

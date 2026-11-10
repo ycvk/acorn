@@ -390,6 +390,14 @@ func (w *wakeRunStarter) StartThreadRun(ctx context.Context, threadID, input str
 	return run.ID, nil
 }
 
+func (w *wakeRunStarter) StartStoryPiece(ctx context.Context, storyID int64, day string) (string, error) {
+	run, err := w.runs.StartStoryPiece(ctx, storyID, day)
+	if err != nil {
+		return "", err
+	}
+	return run.ID, nil
+}
+
 // RunOnceResult is the terminal outcome of an owner-local smoke run.
 type RunOnceResult struct {
 	RunID  string

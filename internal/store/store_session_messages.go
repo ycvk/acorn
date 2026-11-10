@@ -44,10 +44,10 @@ func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turn
 	}, nil
 }
 
-// appendOwnerMessage adds message as the thread's next turn, unbound to a
+// appendUnboundMessage adds message as the thread's next turn, unbound to a
 // run, and moves the thread's updated time to the message's; it sets the
 // message's turn and id.
-func appendOwnerMessage(ctx context.Context, tx *sql.Tx, message *core.SessionMessageRecord) error {
+func appendUnboundMessage(ctx context.Context, tx *sql.Tx, message *core.SessionMessageRecord) error {
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(turn_index), 0) + 1 FROM session_messages WHERE session_id = ?`, message.SessionID).Scan(&message.TurnIndex); err != nil {
 		return err
 	}

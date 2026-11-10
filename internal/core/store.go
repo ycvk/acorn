@@ -11,6 +11,8 @@ type SessionStore interface {
 	// --- Sessions ---
 	CreateSession(ctx context.Context, sessionID, title string) (*SessionRecord, error)
 	LoadSession(ctx context.Context, sessionID string) (*SessionRecord, error)
+	// ListSessions lists the newest conversations, without those that hold
+	// only a piece about a briefing story.
 	ListSessions(ctx context.Context, limit int) ([]SessionRecord, error)
 	// LoadLatestRunForSession and LoadLatestRunsForSessions read the
 	// conversation's own runs; the sub-runs they delegate are left out.

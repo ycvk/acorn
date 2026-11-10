@@ -254,16 +254,9 @@ type ViewActionResult struct {
 // newest briefing gave the story, as the owner saw it on the card, else the
 // story's own. The model sees the story as it stands now beside the message.
 func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent core.StoryIntent) (*StoryMessageResult, error) {
-	story, err := s.threads.stories.NewsStory(ctx, storyID)
+	story, title, err := s.storyOnCard(ctx, storyID)
 	if err != nil {
 		return nil, err
-	}
-	title, err := s.threads.stories.BriefingStoryTitle(ctx, storyID)
-	if err != nil {
-		return nil, err
-	}
-	if title == "" {
-		title = story.Title
 	}
 	message, err := s.threads.stories.SendStoryMessage(ctx, core.StoryMessageWrite{
 		Intent: intent, Text: storyMessageText(intent, title), Title: title, Story: core.SnapshotOf(story), NewThreadID: core.NewSessionID(),
@@ -276,6 +269,46 @@ func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent
 		return nil, err
 	}
 	return &StoryMessageResult{ThreadID: message.SessionID, Run: *run, Text: message.Content}, nil
+}
+
+// StartStoryPiece has Acorn write the piece about a story of the focus of
+// the briefing of day: it records the piece's wake input in the story's
+// conversation, created the first time, and starts a run on it that is not
+// the owner's and not autonomous. The model sees how to write the piece and
+// the story as it stands now beside the input.
+func (s *RunService) StartStoryPiece(ctx context.Context, storyID int64, day string) (*Run, error) {
+	if strings.TrimSpace(day) == "" {
+		return nil, errors.New("story piece: day is required")
+	}
+	story, title, err := s.storyOnCard(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	message, err := s.threads.stories.WriteStoryPiece(ctx, core.StoryPieceWrite{
+		Text: fmt.Sprintf("[piece %s] %s", day, title), Title: title, Story: core.SnapshotOf(story), NewThreadID: core.NewSessionID(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	reason := "briefing piece " + day
+	return s.startRun(ctx, message.SessionID, &message, reason, &core.ScheduledWake{Reason: reason})
+}
+
+// storyOnCard loads a story and the title the newest briefing gave it, as
+// the owner saw it on the card, else the story's own.
+func (s *RunService) storyOnCard(ctx context.Context, storyID int64) (core.NewsStory, string, error) {
+	story, err := s.threads.stories.NewsStory(ctx, storyID)
+	if err != nil {
+		return core.NewsStory{}, "", err
+	}
+	title, err := s.threads.stories.BriefingStoryTitle(ctx, storyID)
+	if err != nil {
+		return core.NewsStory{}, "", err
+	}
+	if title == "" {
+		title = story.Title
+	}
+	return story, title, nil
 }
 
 // StoryMessageResult is the story's conversation, the run the owner's
