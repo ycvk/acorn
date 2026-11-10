@@ -39,7 +39,7 @@ func loadStoryMessageNotes(ctx context.Context, stories core.StoryMessageLister,
 }
 
 func storyMessageNote(m core.StoryMessage) string {
-	ask := "[Sent from a story on the briefing card: the owner asks you to explain it — what happened and why it matters. Read the originals when the summary is not enough and list the links you used]"
+	ask := "[Sent from a story on the briefing card: the owner asks you to explain it. Tell them what happened, how it came about and why it matters, in three or four paragraphs of about 600 characters in all, without headings or lists. Read the originals when the summary is not enough, and end with one line of Markdown links to the pages you read, each named by its outlet]"
 	switch m.Intent {
 	case core.StoryFollow:
 		ask = "[Sent from a story on the briefing card: the owner asks you to keep following it. Create a concern without an outcome for it, citing this message as its source, with review_at at the start of tomorrow in the owner's time zone; then say where the story stands and what you will watch for. Idle thought checks it for developments]"
