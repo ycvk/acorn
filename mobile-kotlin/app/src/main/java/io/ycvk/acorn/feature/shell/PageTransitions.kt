@@ -1,9 +1,9 @@
 package io.ycvk.acorn.feature.shell
 
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,7 +33,7 @@ enum class PageMove {
     /** Onto a deeper page: it slides in over the one before it, which steps back. */
     Push,
 
-    /** Back to the page underneath: the top one shrinks away and the other comes forward. */
+    /** Back to the page underneath: the top one slides off it as it comes forward. */
     Pop,
 
     /** A story's reading page growing out of its card on Today. */
@@ -56,48 +56,81 @@ fun pageMove(from: Page?, to: Page?, pages: List<Page>): PageMove = when {
 }
 
 /**
- * How far into a pop a back gesture at [progress] holds the pages. The
- * gesture previews the first part, where the page has shrunk but is whole;
- * letting go plays the rest.
+ * How far into a pop a back gesture holds the pages when the finger has
+ * travelled [dragged] pixels across a screen [width] wide. A pop moves its
+ * page across the whole width in step with this, so the page stays under the
+ * finger; the last of the way is left for letting go.
  */
-fun backFraction(progress: Float): Float = progress.coerceIn(0f, 1f) * BACK_PREVIEW
+fun dragFraction(dragged: Float, width: Float): Float =
+    if (width <= 0f) 0f else (dragged / width).coerceIn(0f, MAX_DRAG)
 
-private const val BACK_PREVIEW = 0.5f
+private const val MAX_DRAG = 0.96f
 
 /** The edge a back gesture started from; the page leaves the way the finger moves. */
 enum class BackEdge(val direction: Int) { Left(1), Right(-1) }
-
-/** Barely moves through the first half, the part a back gesture holds, then leaves. */
-private val LeaveLate = CubicBezierEasing(0.7f, 0f, 1f, 1f)
 
 internal const val PUSH_MS = 420
 internal const val POP_MS = 360
 internal const val GROW_MS = 460
 
-/** The enter and exit of a [move]; a pop leaves toward the far side of [edge]. */
+/** A move that a gesture has carried most of the way still takes this long to finish, so it does not snap. */
+private const val SETTLE_MIN_MS = 140
+
+/**
+ * How long a [move] takes from [fraction] of the way through: all of its time
+ * from the start, and the share that is left after a back gesture has carried
+ * it part way.
+ */
+fun moveMillis(move: PageMove, fraction: Float): Int {
+    val whole = when (move) {
+        PageMove.Push -> PUSH_MS
+        PageMove.Pop -> POP_MS
+        PageMove.Grow, PageMove.Shrink -> GROW_MS
+    }
+    return (whole * (1f - fraction.coerceIn(0f, 1f))).toInt().coerceAtLeast(SETTLE_MIN_MS)
+}
+
+/**
+ * The pace of a [move] from [fraction] on. The frame of a story eases in and
+ * out when it moves on its own; whatever a finger has just let go of carries
+ * on at speed and settles.
+ */
+internal fun movePace(move: PageMove, fraction: Float): FiniteAnimationSpec<Float> {
+    val storyAlone = fraction == 0f && (move == PageMove.Grow || move == PageMove.Shrink)
+    return tween(moveMillis(move, fraction), easing = if (storyAlone) FastOutSlowInEasing else AcornMotion.travel)
+}
+
+/**
+ * The enter and exit of a [move]; a pop leaves toward the far side of [edge].
+ * Everything in a move is linear in its progress: [movePace] gives the
+ * progress its curve, and a back gesture holds it where the finger is.
+ */
 internal fun pageTransform(move: PageMove, edge: BackEdge, targetDepth: Float): ContentTransform {
     val transform = when (move) {
         // Pages are opaque and never fade over each other, so no two are read at once.
         PageMove.Push ->
-            slideInHorizontally(AcornMotion.travel(PUSH_MS)) { it } togetherWith
-                (scaleOut(AcornMotion.travel(PUSH_MS), targetScale = 0.95f) + fadeOut(tween(PUSH_MS, easing = LinearEasing), targetAlpha = 0.5f))
-        // The page shrinks first and slides off late, so a held back gesture shows it whole over the page it returns to.
+            slideInHorizontally(steady()) { it } togetherWith
+                (scaleOut(steady(), targetScale = 0.95f) + fadeOut(steady(), targetAlpha = 0.5f))
         PageMove.Pop ->
-            (scaleIn(tween(POP_MS, easing = LinearOutSlowInEasing), initialScale = 0.95f) + fadeIn(tween(POP_MS, easing = LinearEasing), initialAlpha = 0.5f)) togetherWith
-                (scaleOut(tween(POP_MS, easing = LinearOutSlowInEasing), targetScale = 0.88f) +
-                    slideOutHorizontally(tween(POP_MS, easing = LeaveLate)) { edge.direction * it })
+            (scaleIn(steady(), initialScale = 0.95f) + fadeIn(steady(), initialAlpha = 0.5f)) togetherWith
+                slideOutHorizontally(steady()) { edge.direction * it }
         // The reading page's own frame grows and shrinks, see [containerFrame]; Today holds still under it.
         PageMove.Grow ->
-            fadeIn(tween(GROW_MS / 4, easing = LinearEasing)) togetherWith
-                fadeOut(tween(GROW_MS, easing = LinearEasing), targetAlpha = 0.7f)
+            fadeIn(steady(MOVE_SPAN / 4)) togetherWith fadeOut(steady(), targetAlpha = 0.7f)
         PageMove.Shrink ->
-            fadeIn(tween(GROW_MS, easing = LinearEasing), initialAlpha = 0.7f) togetherWith
-                fadeOut(tween(GROW_MS / 4, delayMillis = GROW_MS * 3 / 4, easing = LinearEasing))
+            fadeIn(steady(), initialAlpha = 0.7f) togetherWith fadeOut(steady(MOVE_SPAN / 4, delay = MOVE_SPAN * 3 / 4))
     }
     // A deeper page draws over a shallower one whichever way the stack moves.
     transform.targetContentZIndex = targetDepth
     return transform
 }
+
+/** The span every part of a move is laid out on; how long the move really takes is [moveMillis]. */
+internal const val MOVE_SPAN = 400
+
+/** A part of a move that advances evenly with the move's progress. */
+internal fun <T> steady(span: Int = MOVE_SPAN, delay: Int = 0): FiniteAnimationSpec<T> =
+    tween(span, delayMillis = delay, easing = LinearEasing)
 
 /**
  * Where a page growing out of a card is drawn: scaled by [scale] from its top

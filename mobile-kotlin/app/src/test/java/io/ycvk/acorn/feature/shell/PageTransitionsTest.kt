@@ -42,12 +42,25 @@ class PageTransitionsTest {
     }
 
     @Test
-    fun `a back gesture holds the pop within its first half`() {
-        assertEquals(0f, backFraction(0f), 0f)
-        assertEquals(0.25f, backFraction(0.5f), 1e-6f)
-        assertEquals(0.5f, backFraction(1f), 1e-6f)
-        assertEquals(0.5f, backFraction(3f), 1e-6f)
-        assertEquals(0f, backFraction(-1f), 0f)
+    fun `a back gesture holds the pop where the finger is`() {
+        assertEquals(0f, dragFraction(0f, 1080f), 0f)
+        assertEquals(0.25f, dragFraction(270f, 1080f), 1e-6f)
+        assertEquals(0.5f, dragFraction(540f, 1080f), 1e-6f)
+        // The last of the way is left for letting go.
+        assertEquals(0.96f, dragFraction(1080f, 1080f), 1e-6f)
+        assertEquals(0.96f, dragFraction(5000f, 1080f), 1e-6f)
+        assertEquals(0f, dragFraction(300f, 0f), 0f)
+    }
+
+    @Test
+    fun `a move a gesture carried part way takes the rest of its time, and never snaps`() {
+        assertEquals(360, moveMillis(PageMove.Pop, 0f))
+        assertEquals(180, moveMillis(PageMove.Pop, 0.5f))
+        assertEquals(140, moveMillis(PageMove.Pop, 0.9f))
+        assertEquals(140, moveMillis(PageMove.Pop, 1f))
+        assertEquals(420, moveMillis(PageMove.Push, 0f))
+        assertEquals(460, moveMillis(PageMove.Grow, 0f))
+        assertEquals(230, moveMillis(PageMove.Shrink, 0.5f))
     }
 
     private val card = Rect(left = 40f, top = 900f, right = 1040f, bottom = 1300f)

@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
+import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.api.models.CreateRunRequest
 import io.ycvk.acorn.api.models.CreateThreadRequest
 import io.ycvk.acorn.api.models.InboxResponse
+import io.ycvk.acorn.api.models.Message
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.api.models.RunInputData
 import io.ycvk.acorn.api.models.RunSummary
@@ -24,6 +26,8 @@ import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.data.repository.PendingAttachment
 import io.ycvk.acorn.data.repository.ThreadFileRepository
+import io.ycvk.acorn.data.repository.ThreadSnapshot
+import io.ycvk.acorn.data.repository.ThreadSnapshots
 import io.ycvk.acorn.data.repository.fileView
 import io.ycvk.acorn.feature.live.FollowedRun
 import io.ycvk.acorn.feature.live.RunFollower
@@ -62,6 +66,7 @@ class ChatViewModel @Inject constructor(
     private val authController: AuthController,
     private val files: ThreadFileRepository,
     private val shade: NotificationShade,
+    private val snapshots: ThreadSnapshots,
 ) : ViewModel() {
 
     private val _threadId = MutableStateFlow<String?>(null)
@@ -113,6 +118,20 @@ class ChatViewModel @Inject constructor(
     private val _justSent = MutableStateFlow<String?>(null)
     val justSent: StateFlow<String?> = _justSent.asStateFlow()
 
+    /** Whether the open conversation has nothing to show yet: no copy of it is kept and the server has not answered. */
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading.asStateFlow()
+
+    /** What the server last gave for the open conversation in this opening; a copy read late does not replace it. */
+    private var read: Pair<String, List<Message>>? = null
+
+    /** The messages of the copy on screen, until the server's first answer takes its place. */
+    private var copyShown: Set<String>? = null
+
+    /** The messages that answer brought beyond the copy; the screen moves to them. */
+    private val _fresh = MutableStateFlow<Set<String>>(emptySet())
+    val fresh: StateFlow<Set<String>> = _fresh.asStateFlow()
+
     private var streamingRunId: String? = null
 
     /** Bumped when the thread changes or reloads, so an older check of the inbox is dropped. */
@@ -144,9 +163,14 @@ class ChatViewModel @Inject constructor(
         _attachments.value = emptyList()
         _chatState.value = ChatState()
         _error.value = null
+        _loading.value = false
+        read = null
+        copyShown = null
+        _fresh.value = emptySet()
         streamingRunId = null
         if (threadId == null) return opened
         follower.watch(threadId)
+        showCopy(threadId)
         loadMessages(threadId)
         loadThreadTitle(threadId)
         val followed = followedRun(threadId)
@@ -169,6 +193,8 @@ class ChatViewModel @Inject constructor(
         loadGeneration.incrementAndGet()
         _threadId.value?.let(follower::unwatch)
         _threadId.value = null
+        // News is news once: the next opening starts from what is then kept.
+        _fresh.value = emptySet()
     }
 
     private fun followedRun(threadId: String): FollowedRun? = follower.runs.value.values.firstOrNull { it.threadId == threadId }
@@ -488,6 +514,7 @@ class ChatViewModel @Inject constructor(
             try {
                 withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientDeleteThread(threadId)
+                    snapshots.forget(threadId)
                 }
                 onDeleted()
             } catch (e: Exception) {
@@ -513,6 +540,40 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Shows the conversation as the server last gave it, so it is there while
+     * the server is asked again: at once when that copy is in memory, a
+     * moment later when it is read from the phone. Without a copy the
+     * conversation is [loading] until the server answers.
+     */
+    private fun showCopy(threadId: String) {
+        val profile = profile() ?: return
+        val remembered = snapshots.remembered(profile, threadId)
+        if (remembered != null) {
+            show(remembered)
+            return
+        }
+        _loading.value = true
+        viewModelScope.launch {
+            val copy = withContext(Dispatchers.IO) { snapshots.read(profile, threadId) } ?: return@launch
+            if (_threadId.value == threadId && read?.first != threadId) show(copy)
+        }
+    }
+
+    private fun show(copy: ThreadSnapshot) {
+        copyShown = copy.messages.map { it.id }.toSet()
+        _messages.value = chatMessages(copy.messages)
+        if (_threadTitle.value == null) _threadTitle.value = copy.title
+        _loading.value = false
+    }
+
+    /** Keeps the open conversation as the server just gave it, for the next time it is opened. */
+    private fun keepCopy(profile: ConnectionProfile) {
+        val (threadId, messages) = read ?: return
+        val title = _threadTitle.value
+        viewModelScope.launch(Dispatchers.IO) { snapshots.write(profile, threadId, title, messages) }
+    }
+
     private fun loadMessages(threadId: String) {
         val profile = profile() ?: return
         viewModelScope.launch {
@@ -523,15 +584,29 @@ class ChatViewModel @Inject constructor(
                     }
                 } ?: return@launch
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty(), msg.views.orEmpty(), msg.subRuns.orEmpty(), msg.plan.orEmpty(), msg.id) }
+                read = threadId to response.items
+                copyShown?.let { _fresh.value = newsBeyond(it, response.items) }
+                copyShown = null
+                _messages.value = chatMessages(response.items)
+                _loading.value = false
+                keepCopy(profile)
                 // Messages still on their way are not on the server's list yet.
                 val shown = _queued.value
                 _queued.value = response.queued.filterNot { it.id in taken }.map { waiting ->
                     val key = shown.firstOrNull { it.queuedId == waiting.id }?.key ?: "queued_${waiting.id}"
                     QueuedChat(waiting.text, waiting.files.orEmpty().map(::fileView), waiting.id, key)
                 } + shown.filter { it.queuedId == null }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (_threadId.value == threadId) _error.value = userMessage(e)
+                if (_threadId.value != threadId) return@launch
+                _error.value = userMessage(e)
+                _loading.value = false
+                // The conversation is gone from the server, so its copy goes from the phone and the screen.
+                if (e is ClientException && e.statusCode == 404) {
+                    _messages.value = emptyList()
+                    withContext(Dispatchers.IO) { snapshots.forget(threadId) }
+                }
             }
         }
     }
@@ -546,6 +621,7 @@ class ChatViewModel @Inject constructor(
                 }
                 if (_threadId.value != threadId) return@launch
                 _threadTitle.value = title
+                keepCopy(profile)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -9,6 +9,7 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.data.repository.ThreadSnapshots
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ThreadsViewModel @Inject constructor(
     private val authController: AuthController,
+    private val snapshots: ThreadSnapshots,
 ) : ViewModel() {
 
     private val _threads = MutableStateFlow<List<Thread>>(emptyList())
@@ -53,7 +55,10 @@ class ThreadsViewModel @Inject constructor(
             try {
                 val response = withContext(Dispatchers.IO) {
                     val clientApi = ClientApi(basePath = profile.serverUrl).authorized(profile)
-                    clientApi.clientListThreads(limit = 50)
+                    val listed = clientApi.clientListThreads(limit = LIST_LIMIT)
+                    // A full page may leave conversations out; only a whole list says which copies are of ones that are gone.
+                    if (listed.items.size < LIST_LIMIT) snapshots.keepOnly(listed.items.map { it.id }.toSet())
+                    listed
                 }
                 _threads.value = response.items
                 _load.value = Load.Loaded(Unit)
@@ -75,6 +80,7 @@ class ThreadsViewModel @Inject constructor(
             try {
                 withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientDeleteThread(threadId)
+                    snapshots.forget(threadId)
                 }
                 _threads.value = _threads.value.filterNot { it.id == threadId }
             } catch (e: Exception) {
@@ -84,6 +90,10 @@ class ThreadsViewModel @Inject constructor(
     }
 
     private fun profile() = authController.profile
+
+    private companion object {
+        const val LIST_LIMIT = 50
+    }
 }
 
 /** What the thread list area shows. */

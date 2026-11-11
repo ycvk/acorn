@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.chat
 
 import io.ycvk.acorn.api.models.Message
+import io.ycvk.acorn.api.models.MessageContent
 import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.data.repository.photoName
@@ -11,6 +12,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatMessageTest {
+    private fun stored(id: String, role: Message.Role, text: String) = Message(
+        id = id,
+        threadId = "thread_1",
+        role = role,
+        content = MessageContent(type = MessageContent.Type.text, text = text),
+        createdAt = OffsetDateTime.parse("2026-11-10T08:00:00Z"),
+    )
+
+    @Test
+    fun `stored messages become rows under the server's ids, so a copy and the answer after it share them`() {
+        val rows = chatMessages(listOf(stored("m1", Message.Role.user, "订机票"), stored("m2", Message.Role.assistant, "有三班")))
+        assertEquals(listOf("m1", "m2"), rows.map { it.id })
+        assertTrue(rows[0] is ChatMessage.User)
+        assertEquals("有三班", (rows[1] as ChatMessage.Assistant).text)
+    }
+
+    @Test
+    fun `what came while the conversation was closed is what the copy did not have`() {
+        val server = listOf(stored("m1", Message.Role.user, "a"), stored("m2", Message.Role.assistant, "b"), stored("m3", Message.Role.wake, "[watch] c"), stored("m4", Message.Role.assistant, "d"))
+        assertEquals(setOf("m3", "m4"), newsBeyond(copy = setOf("m1", "m2"), server = server))
+        assertTrue(newsBeyond(copy = setOf("m1", "m2", "m3", "m4"), server = server).isEmpty())
+        // The server keeps only the latest messages; older ones the copy had are no news.
+        assertEquals(setOf("m4"), newsBeyond(copy = setOf("m0", "m1", "m2", "m3"), server = server))
+    }
+
 
     @Test
     fun `wake input is its own row, not the owner's bubble`() {

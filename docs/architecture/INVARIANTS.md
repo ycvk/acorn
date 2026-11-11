@@ -294,6 +294,8 @@
 - **看到了的通知自己消失**：App 的界面一显示出来（锁屏没解开时不算），早报、提醒、目标结果和 run 结束留下的通知全部清掉，不论是系统代为显示的还是 App 自己发的。App 开着时到达的推送带着对话的标记，打开那个对话时清掉；对话正在屏幕上时不再发通知，带 `browser_url` 的推送照常发。审批通知留到操作不再等待为止：App 每 30 秒和每次回到前台读一次完整的待处理列表，不在列表里、且发出时间早于这次读取的审批通知被取消。Live Update 只随 run 结束消失。
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/core/push/NotificationShadeTest.kt`
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/feature/approvals/ApprovalNotificationsTest.kt`
+- **对话的副本只用来先显示**：App 把最近打开的 30 个对话上次从服务器读到的标题和消息存在缓存目录，最近几个同时留在内存。打开对话时先显示这份副本，同时照常向服务器读取，应答到达后整体替换；副本不参与发送，也不决定 run 的状态。删除对话、服务器的完整对话列表里已没有它、或读取时服务器回 404，它的副本随即删除；断开配对时全部删除；为另一台服务器或设备存的副本、读不出来的副本，读取时丢弃。
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/data/repository/ThreadSnapshotsTest.kt`
 
 ## 约定、唤醒与追踪
 

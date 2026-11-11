@@ -11,12 +11,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.Transition
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
@@ -51,12 +49,12 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -96,7 +94,7 @@ import io.ycvk.acorn.feature.skills.SkillsScreen
 import io.ycvk.acorn.feature.skills.SkillsViewModel
 import io.ycvk.acorn.feature.threads.ThreadsScreen
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
 
 @Composable
 fun AcornShell(
@@ -209,40 +207,45 @@ private fun Pages(shellViewModel: ShellViewModel) {
     val origins = remember { StoryOrigins() }
     val storyBodyTop = remember { mutableFloatStateOf(0f) }
 
-    // A back gesture holds the stack part way into the pop before it is let go, so the stack's transition can be sought.
+    // A back gesture holds the stack part way into the pop, where the finger is, so the stack's transition can be sought.
     val stack = remember { SeekableTransitionState(top) }
     val transition = rememberTransition(stack, label = "pages")
     val reducedMotion = rememberReducedMotion()
-    var held by remember { mutableStateOf<Float?>(null) }
+    val screenWidth = LocalWindowInfo.current.containerSize.width.toFloat()
+    var dragging by remember { mutableStateOf(false) }
     var edge by remember { mutableStateOf(BackEdge.Left) }
     PredictiveBackHandler(enabled = pages.isNotEmpty()) { events ->
+        val below = pages.dropLast(1).lastOrNull()
+        val move = pageMove(pages.lastOrNull(), below, pages)
+        var from = Float.NaN
         try {
             events.collect { event ->
-                if (!reducedMotion) {
+                // A back button has no touch to follow.
+                if (reducedMotion || !event.touchX.isFinite()) return@collect
+                if (from.isNaN()) {
+                    from = event.touchX
                     edge = if (event.swipeEdge == BackEventCompat.EDGE_RIGHT) BackEdge.Right else BackEdge.Left
-                    held = event.progress
+                    dragging = true
                 }
+                // Sought straight from the gesture: a pass through composition would leave the page a frame behind the finger.
+                stack.seekTo(dragFraction(abs(event.touchX - from), screenWidth), below)
             }
-            held = null
-            edge = BackEdge.Left
             shellViewModel.back()
-        } catch (e: CancellationException) {
-            held = null
+            // Let go of: the pop carries on from where the finger left it.
+            if (dragging) stack.animateTo(below, movePace(move, stack.fraction))
+        } finally {
+            dragging = false
             edge = BackEdge.Left
-            throw e
         }
     }
-    val progress = held
-    if (progress != null) {
-        LaunchedEffect(progress) { stack.seekTo(backFraction(progress), pages.dropLast(1).lastOrNull()) }
-    } else {
+    if (!dragging) {
         LaunchedEffect(top) {
             if (stack.currentState != top) {
-                // After a back gesture the pop is already under way and plays on from where it was held.
-                stack.animateOnceDrawn(top)
+                val move = pageMove(stack.currentState, top, pages)
+                stack.animateOnceDrawn(top) { movePace(move, it) }
             } else if (stack.targetState != top) {
-                // The gesture was let go without going back: the pop plays backwards, then the page rests.
-                animate(stack.fraction, 0f, animationSpec = AcornMotion.standard(AcornMotion.MEDIUM)) { value, _ ->
+                // The gesture was called off: the pop runs backwards from where it was held, then the page rests.
+                animate(stack.fraction, 0f, animationSpec = tween(moveMillis(PageMove.Pop, 1f - stack.fraction), easing = AcornMotion.travel)) { value, _ ->
                     launch { if (value > 0f) stack.seekTo(value) else stack.snapTo(top) }
                 }
             }
@@ -347,13 +350,18 @@ private fun Pages(shellViewModel: ShellViewModel) {
     }
 }
 
-/** Rounds a page's corners while it is stepped back from the screen: leaving, or held by a back gesture. */
+/** Lifts a page that is leaving, or held by a back gesture, off the one under it: round corners and a shadow. */
 @Composable
 private fun AnimatedVisibilityScope.steppedBack(): Modifier {
-    val corner by transition.animateDp(transitionSpec = { tween(POP_MS / 3) }, label = "page_corner") {
-        if (it == EnterExitState.PostExit) CardRadius else 0.dp
+    val lifted by transition.animateFloat(transitionSpec = { steady(MOVE_SPAN / 8) }, label = "page_lift") {
+        if (it == EnterExitState.PostExit) 1f else 0f
     }
-    return if (corner > 0.dp) Modifier.clip(RoundedCornerShape(corner)) else Modifier
+    if (lifted == 0f) return Modifier
+    return Modifier.graphicsLayer {
+        shadowElevation = PageLift.toPx() * lifted
+        shape = RoundedCornerShape(CardRadius * lifted)
+        clip = true
+    }
 }
 
 /**
@@ -372,7 +380,7 @@ private fun AnimatedVisibilityScope.storyContainer(
     val to = stack.targetState
     val withCard = (from == null && to == page) || (from == page && to == null)
     val grown by transition.animateFloat(
-        transitionSpec = { tween(GROW_MS, easing = FastOutSlowInEasing) },
+        transitionSpec = { steady() },
         label = "story_container",
     ) { if (it == EnterExitState.Visible || !withCard) 1f else 0f }
     val cardCorner = with(LocalDensity.current) { CardRadius.toPx() }
@@ -446,6 +454,9 @@ private fun Tabs(
         )
     }
 }
+
+/** How high a page held by a back gesture floats over the one under it. */
+private val PageLift = 14.dp
 
 /** How far a tab's page travels as it comes in. */
 private val TabShift = 36.dp
