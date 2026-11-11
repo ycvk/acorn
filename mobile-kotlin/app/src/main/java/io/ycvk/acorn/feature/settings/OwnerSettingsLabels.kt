@@ -11,7 +11,7 @@ fun settingCopy(name: OwnerSettingName): SettingCopy = when (name) {
     OwnerSettingName.briefing_at -> SettingCopy("早安卡", "每天这个时间整理早安卡并推送摘要；关闭后不写。")
     OwnerSettingName.thinking_night_at -> SettingCopy("夜思", "每天这个时间回顾变化的记忆、念头和关切；关闭后不夜思。")
     OwnerSettingName.thinking_wander_at -> SettingCopy("游思", "每个时刻推进一件到期的关切，最多 6 个时刻。")
-    OwnerSettingName.notify_quiet_hours -> SettingCopy("免打扰", "这段时间里的推送等到结束时再发。")
+    OwnerSettingName.notify_quiet_hours -> SettingCopy("免打扰", "这段时间里的推送等到结束时再发；你刚交代的事要你批准或回答时，照常提醒。")
     OwnerSettingName.notify_max_per_hour -> SettingCopy("每小时推送上限", "任一小时里最多推送几条，超出的会失败。")
     OwnerSettingName.wake_daily_limit -> SettingCopy("自主唤醒次数", "Acorn 每天自己醒来的次数上限：约定、游思、夜思和追踪；0 表示不自己醒来。")
     OwnerSettingName.wake_daily_tokens -> SettingCopy("自主唤醒 token", "自己醒来的 run 每天能用的 token；0 表示不限。")

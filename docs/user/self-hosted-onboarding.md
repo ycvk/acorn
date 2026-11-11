@@ -337,7 +337,7 @@ Your time zone, the times of the morning briefing and the reflections, push quie
 | `briefing.at` | Morning briefing time; empty turns it off | 08:00 |
 | `thinking.night_at` | Night reflection time; empty turns it off | 03:00 |
 | `thinking.wander_at` | Idle thought times, up to six | none |
-| `notify.quiet_hours` | Pushes inside this window wait until it ends | 23:00–08:00 |
+| `notify.quiet_hours` | Pushes inside this window wait until it ends, except an approval or question asked within 30 minutes of your last message in its conversation | 23:00–08:00 |
 | `notify.max_per_hour` | Pushes allowed in any hour | 6 |
 | `wake.daily_limit` | Autonomous wakes per day; 0 turns them off | 20 |
 | `wake.daily_tokens` | Tokens autonomous wakes may use per day; 0 means no cap | 0 |
@@ -403,7 +403,7 @@ The agent reaches you with `notify_owner` through Firebase Cloud Messaging. With
 
    The same values can come from `ACORN_FIREBASE_PROJECT_ID`, `ACORN_FIREBASE_APP_ID`, `ACORN_FIREBASE_API_KEY` and `ACORN_FIREBASE_SENDER_ID`. The release workflow reads them from the repository secrets of the same names; an APK built without them shows push as not configured.
 
-After pairing, allow notifications when the app asks. Settings (the gear on the 今天 tab) shows whether push is registered. Notifications held during quiet hours are sent when they end, except those for an approval or question you have answered in the meantime. Tapping a notification opens its thread. When a run stops for your approval or answer, a notification arrives right away; tool approvals carry 批准 and 拒绝 so you can decide without opening the app, and tapping the notification opens the thread with the decision on screen. These notifications count toward `notify.max_per_hour`; past the limit the decision still waits on the 今天 tab. Notification text passes through Google's servers; the agent keeps it to a short summary and leaves details in the thread.
+After pairing, allow notifications when the app asks. Settings (the gear on the 今天 tab) shows whether push is registered. Notifications held during quiet hours are sent when they end, except those for an approval or question you have answered in the meantime. Tapping a notification opens its thread. When a run stops for your approval or answer, a notification arrives right away. Inside quiet hours it still does when you wrote in that conversation within the last 30 minutes, since you are waiting for the work; one from work Acorn does on its own waits with the rest. Tool approvals carry 批准 and 拒绝 so you can decide without opening the app, and tapping the notification opens the thread with the decision on screen. These notifications count toward `notify.max_per_hour`; past the limit the decision still waits on the 今天 tab. Notification text passes through Google's servers; the agent keeps it to a short summary and leaves details in the thread.
 
 ### Runs in progress
 

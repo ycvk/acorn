@@ -85,6 +85,16 @@ func NewSender(cfg SenderConfig) (*Sender, error) {
 // then sends n now or queues it until quiet hours end. The returned
 // notification carries the resulting status.
 func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notification, error) {
+	return s.notify(ctx, n, false)
+}
+
+// NotifyAwaited is Notify for something the owner is waiting for: quiet
+// hours do not hold it.
+func (s *Sender) NotifyAwaited(ctx context.Context, n core.Notification) (core.Notification, error) {
+	return s.notify(ctx, n, true)
+}
+
+func (s *Sender) notify(ctx context.Context, n core.Notification, awaited bool) (core.Notification, error) {
 	settings, err := s.cfg.Settings.Settings(ctx)
 	if err != nil {
 		return core.Notification{}, err
@@ -110,6 +120,7 @@ func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notifica
 	n.CreatedAt = now
 	n.SendAfter = now
 	end, quiet := quietEnd(settings.QuietHours, now.In(settings.Location))
+	quiet = quiet && !awaited
 	if quiet {
 		n.SendAfter = end
 	}
