@@ -19,7 +19,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 38
+const schemaVersion = 39
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -60,6 +60,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	ownerSourcesFromUserMessages,
 	dropUnreadSnapshotRefs,
 	addBriefingPieces,
+	dropPhoneNotifications,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -508,5 +509,12 @@ func dropUnreadSnapshotRefs(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, `DELETE FROM memory_source_links WHERE rowid IN (
 		SELECT l.rowid FROM memory_source_links l JOIN memory_sources s ON s.id=l.source_id JOIN runs u ON u.run_id=s.run_id
 		WHERE s.speaker IN ('assistant','tool') AND NOT EXISTS(SELECT 1 FROM context_snapshot_refs r WHERE r.run_id=s.run_id AND r.source_id=l.parent_id))`)
+	return err
+}
+
+// dropPhoneNotifications (38 to 39) removes the notifications the owner's
+// phone forwarded, along with their index.
+func dropPhoneNotifications(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `DROP TABLE phone_notifications`)
 	return err
 }

@@ -366,44 +366,6 @@ func TestRoutineConcurrentTicksStartOnce(t *testing.T) {
 	}
 }
 
-func TestBriefingPhoneWindowAndRetention(t *testing.T) {
-	h := newHarnessWith(t, 20, core.DailyTime{Enabled: true, At: 0})
-	ctx := context.Background()
-	previous := h.now.Add(-24 * time.Hour)
-	if err := h.data.ClaimRoutine(ctx, "briefing", "2026-10-04", previous); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.data.SetRoutineRun(ctx, "briefing", "2026-10-04", "thread_briefings", "old"); err != nil {
-		t.Fatal(err)
-	}
-	for _, item := range []core.PhoneNotification{
-		{Key: "before", ReceivedAt: previous.Add(-time.Nanosecond)},
-		{Key: "start", ReceivedAt: previous},
-		{Key: "end", ReceivedAt: h.now},
-		{Key: "expired", ReceivedAt: h.now.Add(-8 * 24 * time.Hour)},
-	} {
-		item.DeviceID = "device"
-		item.Package = "bank"
-		item.App = "Bank"
-		item.Title = item.Key
-		item.PostedAt = item.ReceivedAt
-		if _, err := h.data.AddPhoneNotifications(ctx, []core.PhoneNotification{item}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := h.sched.Tick(ctx); err != nil {
-		t.Fatal(err)
-	}
-	input := h.runs.starts[0]
-	if !strings.Contains(input, `"start"`) || strings.Contains(input, `"end"`) || strings.Contains(input, `"before"`) {
-		t.Fatalf("window: %s", input)
-	}
-	page, err := h.data.ListPhoneNotifications(ctx, time.Time{}, h.now.Add(time.Hour), 100)
-	if err != nil || page.Total != 3 {
-		t.Fatalf("retention: %+v %v", page, err)
-	}
-}
-
 func TestZeroTokenBudgetAllowsAutonomousWake(t *testing.T) {
 	h := newHarnessWith(t, 20, core.DailyTime{})
 	h.settings.WakeDailyTokens = 0

@@ -25,7 +25,6 @@ import (
 // context snapshot and referenced by a presence.snapshot event.
 type presenceMiddleware struct {
 	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
-	phones      core.PhoneNotificationStore
 	store       core.ActivityStore
 	memory      core.MemoryStore
 	commitments core.CommitmentStore
@@ -61,7 +60,6 @@ func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string,
 		commitments:                       deps.Commitments,
 		followUps:                         deps.FollowUps,
 		goals:                             deps.Goals,
-		phones:                            deps.PhoneNotifications,
 		events:                            deps.Store,
 		clock:                             deps.Clock,
 		location:                          location,
@@ -153,27 +151,22 @@ func (m *presenceMiddleware) render(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	phones, err := m.phones.ListPhoneNotifications(ctx, now.Add(-6*time.Hour), now.Add(time.Nanosecond), 10)
-	if err != nil {
-		return "", err
-	}
 	followUps, goal, err := m.conversationWork(ctx)
 	if err != nil {
 		return "", err
 	}
 	return presence.Render(presence.RenderInput{
-		PhoneNotifications: phones.Items,
-		Now:                now,
-		Location:           m.location,
-		Wake:               wakeOrDefault(ctx),
-		Commitments:        commitments,
-		Occurrences:        occurrences,
-		FollowUps:          followUps,
-		Goal:               goal,
-		Thoughts:           thoughts,
-		Concerns:           concerns,
-		MaxTokens:          m.maxTokens,
-		Count:              func(text string) (int, error) { return m.counter.CountText(ctx, text) },
+		Now:         now,
+		Location:    m.location,
+		Wake:        wakeOrDefault(ctx),
+		Commitments: commitments,
+		Occurrences: occurrences,
+		FollowUps:   followUps,
+		Goal:        goal,
+		Thoughts:    thoughts,
+		Concerns:    concerns,
+		MaxTokens:   m.maxTokens,
+		Count:       func(text string) (int, error) { return m.counter.CountText(ctx, text) },
 	})
 }
 

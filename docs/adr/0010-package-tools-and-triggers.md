@@ -8,7 +8,7 @@ supersedes: []
 
 # ADR 0010 技能包带上工具与触发器
 
-Acorn 在运行时能扩展的只有两处：配置里的 MCP provider 与技能包。消息从哪里进来（App、分享、手机通知、rss/github/web/web_rendered 四种追踪源）、什么能叫醒 agent（约定、追踪项、早安卡、夜思、游思）都写在 Go 里，多一种就要改代码、发版。MCP provider 只能由 owner 登录服务器改 `acorn.yaml` 再重启；stdio 服务器由 backend 进程直接在宿主机上启动，处在工作机的隔离之外，agent 也无法自己添加。
+Acorn 在运行时能扩展的只有两处：配置里的 MCP provider 与技能包。消息从哪里进来（App、分享、手机通知、rss/github/web/web_rendered 四种追踪源；手机通知已移除，见 [ADR 0003](0003-personal-agent-direction.md)）、什么能叫醒 agent（约定、追踪项、早安卡、夜思、游思）都写在 Go 里，多一种就要改代码、发版。MCP provider 只能由 owner 登录服务器改 `acorn.yaml` 再重启；stdio 服务器由 backend 进程直接在宿主机上启动，处在工作机的隔离之外，agent 也无法自己添加。
 
 技能包已经有一整套可信的分发路径：`SKILL.md` 加附带文件存在 SQLite，每次写入是一个 revision，`skill_write` 与 `skill_import` 默认审批并显示全文，每次 run 前按哈希同步到工作机的 `~/skills/<name>/`。但包里的脚本只在 agent 于某次 run 中调用 `shell` 时才运行；包不能提供工具，也不能在没人找 agent 的时候叫醒它。
 
@@ -54,7 +54,7 @@ secrets: [PRICE_API_KEY]
 
 `deliver: immediate` 的事件在包自己的对话里起 run，对话以包名为标题，第一次有事件时建立；输入以 `[trigger <package>/<trigger>]` 开头，agent 据此加载这个技能处理。这类 run 计入 `wake.daily_limit` 与 `wake.daily_tokens` 并记 `wake.fired`；超出预算或起 run 失败的事件转入早安卡。`deliver: digest` 的事件只进早安卡。
 
-事件登记为外部来源，可以作为记忆证据引用，不自动抽取；事件正文与手机通知一样按外部数据处理，其中的指令不改变 agent 的规则。
+事件登记为外部来源，可以作为记忆证据引用，不自动抽取；事件正文与手机通知（已移除）一样按外部数据处理，其中的指令不改变 agent 的规则。
 
 ### 边界变化
 

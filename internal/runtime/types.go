@@ -65,25 +65,24 @@ type SkillServerHost interface {
 }
 
 type RuntimeDeps struct {
-	Config             *config.Config
-	Store              RuntimeStore
-	Persona            PersonaReader
-	Owner              OwnerReader
-	Skills             SkillLibrary
-	SkillPackages      skills.PackageHost
-	SkillServers       SkillServerHost
-	ArtifactService    core.ArtifactService
-	ToolRegistry       core.ToolRegistry
-	PhoneNotifications core.PhoneNotificationStore
-	Activity           core.ActivityStore
-	MemoryStore        core.MemoryStore
-	Memory             MemoryContextService
-	Commitments        core.CommitmentStore
-	FollowUps          core.FollowUpStore
-	Goals              core.GoalStore
-	Files              core.ThreadFiles
-	Views              ThreadViewLister
-	Stories            core.StoryMessageLister
+	Config          *config.Config
+	Store           RuntimeStore
+	Persona         PersonaReader
+	Owner           OwnerReader
+	Skills          SkillLibrary
+	SkillPackages   skills.PackageHost
+	SkillServers    SkillServerHost
+	ArtifactService core.ArtifactService
+	ToolRegistry    core.ToolRegistry
+	Activity        core.ActivityStore
+	MemoryStore     core.MemoryStore
+	Memory          MemoryContextService
+	Commitments     core.CommitmentStore
+	FollowUps       core.FollowUpStore
+	Goals           core.GoalStore
+	Files           core.ThreadFiles
+	Views           ThreadViewLister
+	Stories         core.StoryMessageLister
 	// Uploads, Work and SkillServers are nil when no workstation is
 	// configured.
 	Uploads     UploadHost

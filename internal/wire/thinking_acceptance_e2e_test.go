@@ -2,15 +2,12 @@ package wire
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/settings"
 )
@@ -83,14 +80,13 @@ func TestThinkingNightRevisesThoughtWithEvidenceAndRecordsUsage(t *testing.T) {
 	}
 }
 
-func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
+func TestThinkingBriefingReplyReachesNowAndPush(t *testing.T) {
 	ctx := context.Background()
 	start := time.Date(2026, 10, 9, 23, 0, 0, 0, time.UTC)
 	h, extra := newPushHarness(t, start)
 	provider := &fakeOpenAI{replies: []string{
-		textReply("知道了"),
-		toolCallChunk("push", "notify_owner", map[string]string{"title": "早安", "body": "银行支出已整理"}),
-		textReply("## 手机通知\n银行支出 2799 元。"),
+		toolCallChunk("push", "notify_owner", map[string]string{"title": "早安", "body": "今天要交电费"}),
+		textReply("## 今天\n- 18:00 交电费"),
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
@@ -98,36 +94,12 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	c := h.open(t, cfg)
 	defer c.Close()
 	registerPushInstallation(t, c, "fid_phone")
-	client := newPairedClient(t, c)
-	batch := api.PhoneNotificationBatch{Notifications: []api.PhoneNotificationInput{{Key: "bank", Package: "bank", App: "Bank", Title: "支付提醒", Text: "支出 2799 元", PostedAt: start}, {Key: "ad", Package: "shop", App: "Shop", Title: "广告", Text: "大促销", PostedAt: start}}}
-	body, err := json.Marshal(batch)
+	thread, err := c.threads.CreateThread(ctx, "bills")
 	if err != nil {
 		t.Fatal(err)
 	}
-	unauth := httptest.NewRecorder()
-	client.handler.ServeHTTP(unauth, httptest.NewRequest(http.MethodPost, "/v1/phone-notifications", strings.NewReader(string(body))))
-	if unauth.Code != http.StatusUnauthorized {
-		t.Fatalf("unauth=%d", unauth.Code)
-	}
-	for _, want := range []int{2, 0} {
-		var accepted api.PhoneNotificationAccepted
-		client.do(t, httptest.NewRequest(http.MethodPost, "/v1/phone-notifications", strings.NewReader(string(body))), http.StatusOK, &accepted)
-		if accepted.Accepted != want {
-			t.Fatalf("accepted=%+v", accepted)
-		}
-	}
-	thread, err := c.threads.CreateThread(ctx, "phone")
-	if err != nil {
+	if _, err := c.store.AddCommitment(ctx, core.Commitment{State: "scheduled", Content: "交电费", SessionID: thread.ID, WakeAt: start.Add(11 * time.Hour), CreatedAt: start}); err != nil {
 		t.Fatal(err)
-	}
-	if _, err := startOwnerRun(ctx, c, thread.ID, "早上好"); err != nil {
-		t.Fatal(err)
-	}
-	waitNewRun(t, c, thread.ID, "")
-	msgs := requestMessages(provider.request(0))
-	present := chatContentText(msgs[len(msgs)-1]["content"])
-	if !strings.Contains(present, "## Phone notifications") || !strings.Contains(present, "2799") {
-		t.Fatalf("presence=%s", present)
 	}
 	h.clock.Set(start.Add(time.Hour))
 	if err := c.wake.Tick(ctx); err != nil {
@@ -138,12 +110,12 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitNewRun(t, c, brief, "")
-	msgs = requestMessages(provider.request(1))
+	msgs := requestMessages(provider.request(0))
 	input := chatContentText(msgs[len(msgs)-3]["content"])
-	if !strings.Contains(input, "Phone notifications since the last briefing") || !strings.Contains(input, "大促销") || !strings.Contains(input, "2799") {
+	if !strings.Contains(input, "Commitments today") || !strings.Contains(input, "交电费") {
 		t.Fatalf("briefing=%s", input)
 	}
-	if out, err := c.store.LatestRoutineOutput(ctx, "briefing"); err != nil || out.ThreadID != brief || !strings.Contains(out.Text, "2799") {
+	if out, err := c.store.LatestRoutineOutput(ctx, "briefing"); err != nil || out.ThreadID != brief || !strings.Contains(out.Text, "交电费") {
 		t.Fatalf("briefing reply = %+v %v", out, err)
 	}
 	if notes, err := c.store.CountKnowledgeNotes(ctx); err != nil || notes != 0 {

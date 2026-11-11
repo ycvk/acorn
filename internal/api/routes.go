@@ -57,9 +57,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Now == nil {
 		return nil, errors.New("web now service is required")
 	}
-	if deps.PhoneNotifications == nil {
-		return nil, errors.New("phone notification service is required")
-	}
 	if deps.Config == nil {
 		return nil, errors.New("config is required")
 	}
@@ -69,25 +66,24 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	}
 
 	server := &Server{
-		threads:            deps.Threads,
-		runs:               deps.Runs,
-		events:             deps.Events,
-		pendingAction:      deps.PendingAction,
-		skills:             deps.Skills,
-		capabilities:       deps.Capabilities,
-		deviceAuth:         deps.DeviceAuth,
-		inbox:              deps.Inbox,
-		knowledge:          deps.Knowledge,
-		memories:           deps.Memories,
-		portrait:           deps.Portrait,
-		persona:            deps.Persona,
-		owner:              deps.Owner,
-		settings:           deps.Settings,
-		phoneNotifications: deps.PhoneNotifications,
-		now:                deps.Now,
-		browser:            deps.Browser,
-		logger:             logger,
-		cfg:                deps.Config,
+		threads:       deps.Threads,
+		runs:          deps.Runs,
+		events:        deps.Events,
+		pendingAction: deps.PendingAction,
+		skills:        deps.Skills,
+		capabilities:  deps.Capabilities,
+		deviceAuth:    deps.DeviceAuth,
+		inbox:         deps.Inbox,
+		knowledge:     deps.Knowledge,
+		memories:      deps.Memories,
+		portrait:      deps.Portrait,
+		persona:       deps.Persona,
+		owner:         deps.Owner,
+		settings:      deps.Settings,
+		now:           deps.Now,
+		browser:       deps.Browser,
+		logger:        logger,
+		cfg:           deps.Config,
 	}
 
 	router := chi.NewRouter()
@@ -151,7 +147,6 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Delete("/news/stories/{story_id}/reaction", s.handleClearStoryReaction)
 			r.Post("/news/stories/{story_id}:discuss", s.handleDiscussStory)
 			r.Post("/news/stories/{story_id}:follow", s.handleFollowStory)
-			r.Post("/phone-notifications", s.handlePhoneNotifications)
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
 			r.Get("/knowledge/note", s.handleGetKnowledgeNote)
 			r.Delete("/knowledge/note", s.handleDeleteKnowledgeNote)

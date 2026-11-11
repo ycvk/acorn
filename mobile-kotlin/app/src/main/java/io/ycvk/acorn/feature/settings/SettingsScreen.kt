@@ -157,8 +157,6 @@ fun SettingsScreen(
                 }
             }
 
-            NotificationAccessSection()
-
             SettingsGroup("模型") {
                 SettingRow("名称", status?.model?.name ?: "—")
                 Hairline(inset = 16.dp)

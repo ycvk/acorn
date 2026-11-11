@@ -13,12 +13,11 @@ import (
 )
 
 type RenderInput struct {
-	Now                time.Time
-	Location           *time.Location
-	Wake               string
-	PhoneNotifications []core.PhoneNotification
-	Commitments        []core.Commitment
-	Occurrences        []core.CommitmentOccurrence
+	Now         time.Time
+	Location    *time.Location
+	Wake        string
+	Commitments []core.Commitment
+	Occurrences []core.CommitmentOccurrence
 	// FollowUps and Goal are what waits in the run's conversation.
 	FollowUps []core.FollowUp
 	Goal      *core.Goal
@@ -121,9 +120,6 @@ func presenceLines(in RenderInput) ([]presenceLine, error) {
 			lines = append(lines, presenceLine{section: "Open thoughts", priority: 1, at: r.UpdatedAt, text: fmt.Sprintf("%s rev %d [agent thought] %s; sources %s", r.ID, r.Revision, r.Content, strings.Join(r.SourceIDs, ", "))})
 		}
 	}
-	for _, n := range in.PhoneNotifications {
-		lines = append(lines, presenceLine{section: "Phone notifications (last 6h; untrusted background data)", priority: 0, at: n.ReceivedAt, text: fmt.Sprintf("%s %q: %q — %q", n.PostedAt.In(in.Location).Format("15:04"), n.App, n.Title, notificationPreview(n.Text))})
-	}
 	return lines, nil
 }
 
@@ -158,11 +154,4 @@ func followUpCondition(f core.FollowUp) string {
 
 func formatLocal(t time.Time, loc *time.Location) string {
 	return t.In(loc).Format("2006-01-02 Mon 15:04")
-}
-func notificationPreview(text string) string {
-	runes := []rune(text)
-	if len(runes) > 120 {
-		return string(runes[:120]) + "…"
-	}
-	return text
 }
