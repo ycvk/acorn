@@ -74,6 +74,20 @@ func (s *Store) SendOwnerMessage(ctx context.Context, message core.OwnerMessage)
 	return sent, nil
 }
 
+// LatestOwnerMessageAt returns when the owner last wrote in the conversation:
+// the time of its newest message of theirs, or the zero time when they never
+// wrote there. A message that still waits for a run does not count.
+func (s *Store) LatestOwnerMessageAt(ctx context.Context, sessionID string) (time.Time, error) {
+	var at sql.NullString
+	if err := s.db.QueryRowContext(ctx, `SELECT MAX(created_at) FROM session_messages WHERE session_id = ? AND role = 'user'`, sessionID).Scan(&at); err != nil {
+		return time.Time{}, fmt.Errorf("latest owner message of %s: %w", sessionID, err)
+	}
+	if !at.Valid {
+		return time.Time{}, nil
+	}
+	return parseTimestamp(at.String, "session_messages.created_at")
+}
+
 // TakeQueuedMessages implements core.SessionStore.
 func (s *Store) TakeQueuedMessages(ctx context.Context, runID string) ([]core.SessionMessageRecord, error) {
 	var taken []core.SessionMessageRecord

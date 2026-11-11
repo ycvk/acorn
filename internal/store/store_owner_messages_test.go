@@ -5,9 +5,51 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
+
+// The owner's latest message in a conversation is the newest one they wrote
+// there. A wake input and a reply do not count, and a conversation the owner
+// never wrote in has none.
+func TestLatestOwnerMessageAt(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, id := range []string{"chat", "woken"} {
+		if _, err := s.CreateSession(ctx, id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.AppendSessionMessage(ctx, "woken", 1, core.MessageRoleWake, "[wake] 看一下进展", "run_w"); err != nil {
+		t.Fatal(err)
+	}
+	if at, err := s.LatestOwnerMessageAt(ctx, "woken"); err != nil || !at.IsZero() {
+		t.Fatalf("conversation the owner never wrote in = %v, %v", at, err)
+	}
+
+	before := time.Now().UTC()
+	if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "查一下天气", RunID: "run_1"}); err != nil {
+		t.Fatal(err)
+	}
+	wrote, err := s.LatestOwnerMessageAt(ctx, "chat")
+	if err != nil || wrote.Before(before) || wrote.After(time.Now().UTC()) {
+		t.Fatalf("latest owner message = %v, %v, want between %v and now", wrote, err, before)
+	}
+	if _, err := s.AppendSessionMessage(ctx, "chat", 1, "assistant", "晴", "run_1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendSessionMessage(ctx, "chat", 2, core.MessageRoleWake, "[wake] 看一下进展", "run_2"); err != nil {
+		t.Fatal(err)
+	}
+	if at, err := s.LatestOwnerMessageAt(ctx, "chat"); err != nil || !at.Equal(wrote) {
+		t.Fatalf("after a reply and a wake input = %v, %v, want %v", at, err, wrote)
+	}
+}
 
 // An owner message starts a run when its conversation has none going and
 // waits while one runs or waits for the owner. The running run takes text

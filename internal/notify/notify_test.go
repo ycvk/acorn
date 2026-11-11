@@ -335,6 +335,28 @@ func TestNotifyQueuesInsideQuietHoursAndFlushesAfter(t *testing.T) {
 	}
 }
 
+// What the owner is waiting for goes out inside quiet hours. The hourly cap
+// applies to it like to any push.
+func TestNotifyAwaitedIsSentInsideQuietHours(t *testing.T) {
+	h := newSenderHarness(t, overnight)
+	ctx := context.Background()
+	h.now = time.Date(2026, 10, 5, 16, 56, 0, 0, time.UTC) // 00:56 Shanghai
+	h.actions["a1"] = core.PendingActionStatusPending
+	n, err := h.sender.NotifyAwaited(ctx, core.Notification{Title: "Approve skill_write", Body: "b", ThreadID: "thread_1", ActionID: "a1"})
+	if err != nil || n.Status != core.NotificationSent || !n.SendAfter.Equal(h.now) {
+		t.Fatalf("awaited inside quiet hours = %+v err=%v", n, err)
+	}
+	if len(h.pusher.sent) != 1 {
+		t.Fatalf("pushed = %v", h.pusher.sent)
+	}
+	if n, err := h.sender.Notify(ctx, core.Notification{Title: "夜里", Body: "b"}); err != nil || n.Status != core.NotificationQueued {
+		t.Fatalf("another push inside quiet hours = %+v err=%v", n, err)
+	}
+	if _, err := h.sender.NotifyAwaited(ctx, core.Notification{Title: "Approve skill_write", Body: "b", ActionID: "a1"}); !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("awaited over the hourly cap = %v, want rate limited", err)
+	}
+}
+
 func TestFlushDropsQueuedPushesForDecidedActions(t *testing.T) {
 	h := newSenderHarness(t, overnight)
 	h.settings.MaxPushesPerHour = 5
@@ -493,20 +515,71 @@ func TestNotifyRefusesAPushOverTheFCMLimit(t *testing.T) {
 }
 
 type announceStore struct {
-	run     core.RunRecord
-	actions []core.PendingActionRecord
+	run       core.RunRecord
+	actions   []core.PendingActionRecord
+	ownerLast time.Time
 }
 
 func (s announceStore) LoadRun(context.Context, string) (*core.RunRecord, error) { return &s.run, nil }
 func (s announceStore) ListPendingActionsByRun(context.Context, string) ([]core.PendingActionRecord, error) {
 	return s.actions, nil
 }
+func (s announceStore) LatestOwnerMessageAt(context.Context, string) (time.Time, error) {
+	return s.ownerLast, nil
+}
 
-type recordingNotifier struct{ sent []core.Notification }
+type recordingNotifier struct{ sent, awaited []core.Notification }
 
 func (r *recordingNotifier) Notify(_ context.Context, n core.Notification) (core.Notification, error) {
 	r.sent = append(r.sent, n)
 	return n, nil
+}
+
+func (r *recordingNotifier) NotifyAwaited(_ context.Context, n core.Notification) (core.Notification, error) {
+	r.awaited = append(r.awaited, n)
+	return n, nil
+}
+
+// An action asked within half an hour of the owner's last message in its
+// conversation is something the owner is waiting for. One asked later, or in
+// a conversation the owner never wrote in, is announced like any push.
+func TestAnnounceRunTellsWhatTheOwnerIsWaitingFor(t *testing.T) {
+	asked := time.Date(2026, 11, 10, 16, 56, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name      string
+		ownerLast time.Time
+		awaited   bool
+	}{
+		{"five minutes after the owner wrote", asked.Add(-5 * time.Minute), true},
+		{"half an hour after", asked.Add(-30 * time.Minute), true},
+		{"later than that", asked.Add(-31 * time.Minute), false},
+		{"the owner never wrote here", time.Time{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := announceStore{
+				run: core.RunRecord{RunID: "run_1", SessionID: "thread_1"},
+				actions: []core.PendingActionRecord{
+					{ActionID: "a1", Kind: core.PendingActionKindToolApproval, Subject: "Approve skill_write", PayloadJSON: `{}`, Status: core.PendingActionStatusPending, CreatedAt: asked},
+				},
+				ownerLast: tc.ownerLast,
+			}
+			notifier := &recordingNotifier{}
+			announcer, err := NewPendingActionAnnouncer(store, notifier)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := announcer.AnnounceRun(context.Background(), "run_1"); err != nil {
+				t.Fatalf("announce: %v", err)
+			}
+			got, other := notifier.sent, notifier.awaited
+			if tc.awaited {
+				got, other = other, got
+			}
+			if len(got) != 1 || len(other) != 0 || got[0].ActionID != "a1" || got[0].ThreadID != "thread_1" {
+				t.Fatalf("awaited = %+v, held by quiet hours = %+v", notifier.awaited, notifier.sent)
+			}
+		})
+	}
 }
 
 func TestAnnounceRunPushesOnlyPendingActions(t *testing.T) {
