@@ -33,19 +33,21 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** What an approval push carries; the app loads the action itself to show current state. */
+/**
+ * What an approval push carries; the app loads the action itself to show
+ * what it asks and its current state.
+ */
 data class PendingActionPush(
     val actionId: String,
     val threadId: String,
     val title: String,
-    val body: String,
 )
 
 /** Reads an FCM data payload; null when it does not announce a pending action. */
 fun pendingActionPush(data: Map<String, String>): PendingActionPush? {
     if (data["type"] != "pending_action") return null
     val actionId = data["action_id"]?.takeIf { it.isNotBlank() } ?: return null
-    return PendingActionPush(actionId, data["thread_id"].orEmpty(), data["title"].orEmpty(), data["body"].orEmpty())
+    return PendingActionPush(actionId, data["thread_id"].orEmpty(), data["title"].orEmpty())
 }
 
 /** The decisions a notification can offer in place: a tool approval's accept and decline. */

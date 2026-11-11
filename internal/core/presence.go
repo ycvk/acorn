@@ -21,9 +21,10 @@ const (
 )
 
 // Notification is a push message to the owner. SendAfter defers delivery
-// (quiet hours). ActionID marks a push announcing a pending action, which the
-// app shows with the action's own controls. BrowserURL makes a tap open the
-// agent's browser at that page over the conversation.
+// (quiet hours). ActionID marks a push announcing a pending action: the app
+// loads the action and shows it with the action's own controls, so the push
+// carries the title and the body stays in the record. BrowserURL makes a tap
+// open the agent's browser at that page over the conversation.
 type Notification struct {
 	ID         int64
 	Title      string

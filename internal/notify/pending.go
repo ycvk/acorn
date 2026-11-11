@@ -65,8 +65,9 @@ func (a *PendingActionAnnouncer) AnnounceRun(ctx context.Context, runID string) 
 	return errors.Join(errs...)
 }
 
-// pendingActionText is the stored title and body of an announcement: the
-// subject, and the message or question the action carries.
+// pendingActionText is the title and body recorded for an announcement: the
+// subject, and the message or question the action carries. The push sends
+// the title; the app reads the rest from the action.
 func pendingActionText(action core.PendingActionRecord) (string, string, error) {
 	title := strings.TrimSpace(action.Subject)
 	if title == "" {
