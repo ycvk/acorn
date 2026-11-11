@@ -3,14 +3,18 @@ package wire
 import (
 	"context"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ycvk/acorn/internal/settings"
 )
 
+// The call here is far larger than an FCM message may be: the push announces
+// the action without carrying what it asks.
 func TestInterruptedRunPushesItsPendingAction(t *testing.T) {
-	provider := &fakeOpenAI{replies: []string{sseChunks(recallCallStream, toolCallsFinish)}}
+	largeCall := strings.Replace(recallCallStream, "probe", strings.Repeat("probe ", 1200), 1)
+	provider := &fakeOpenAI{replies: []string{sseChunks(largeCall, toolCallsFinish)}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	harness, extra := newPushHarness(t, time.Date(2026, 10, 11, 14, 0, 0, 0, time.UTC))

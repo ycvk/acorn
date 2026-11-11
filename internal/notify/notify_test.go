@@ -430,16 +430,25 @@ func TestDeliverDropsUnregisteredInstallations(t *testing.T) {
 	}
 }
 
+// A pending action push carries what the app needs to load the action and
+// none of the action's own text, so it fits in an FCM message whatever the
+// action asks.
 func TestFCMSendsPendingActionsAsData(t *testing.T) {
 	var got map[string]map[string]any
 	c := testFCM(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
+		if len(body) > 4096 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":{"code":400,"message":"Message is too large. The maximum is 4K (4096 bytes).","status":"INVALID_ARGUMENT"}}`)
+			return
+		}
 		if err := json.Unmarshal(body, &got); err != nil {
 			t.Errorf("decode: %v", err)
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	if err := c.Send(context.Background(), "fid_1", Message{Title: "发送邮件", Body: "给张三", ThreadID: "thread_1", RunID: "run_1", ActionID: "action_1"}); err != nil {
+	wholeSkill := "skill_write wants to run with arguments:\n" + strings.Repeat("下载视频后删掉一天前的文件。", 400)
+	if err := c.Send(context.Background(), "fid_1", Message{Title: "Approve skill_write", Body: wholeSkill, ThreadID: "thread_1", RunID: "run_1", ActionID: "action_1"}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	msg := got["message"]
@@ -447,8 +456,39 @@ func TestFCMSendsPendingActionsAsData(t *testing.T) {
 		t.Fatalf("pending action push has a notification block: %v", msg)
 	}
 	d := msg["data"].(map[string]any)
-	if d["type"] != "pending_action" || d["action_id"] != "action_1" || d["thread_id"] != "thread_1" || d["run_id"] != "run_1" || d["title"] != "发送邮件" || d["body"] != "给张三" {
+	if d["type"] != "pending_action" || d["action_id"] != "action_1" || d["thread_id"] != "thread_1" || d["run_id"] != "run_1" || d["title"] != "Approve skill_write" {
 		t.Fatalf("data = %v", d)
+	}
+	if _, ok := d["body"]; ok {
+		t.Fatalf("pending action push carries the action's text: %d bytes", len(d["body"].(string)))
+	}
+}
+
+// A push FCM would refuse is refused when it is asked for, inside quiet
+// hours too, so whoever asked learns of it then; nothing is queued. An
+// announcement of a pending action is sent whatever its stored text.
+func TestNotifyRefusesAPushOverTheFCMLimit(t *testing.T) {
+	h := newSenderHarness(t, overnight)
+	ctx := context.Background()
+	long := strings.Repeat("长", 1400)
+	for _, hour := range []int{4, 16} { // 12:00 and 00:00 Shanghai
+		h.now = time.Date(2026, 10, 5, hour, 0, 0, 0, time.UTC)
+		_, err := h.sender.Notify(ctx, core.Notification{Title: "进展", Body: long, ThreadID: "thread_1"})
+		if !errors.Is(err, ErrTooLarge) || !strings.Contains(err.Error(), "4096") {
+			t.Fatalf("notify at %d:00 UTC = %v, want too large with the limit", hour, err)
+		}
+	}
+	if len(h.store.notes) != 0 || len(h.pusher.sent) != 0 {
+		t.Fatalf("refused pushes left notes %+v, sent %v", h.store.notes, h.pusher.sent)
+	}
+	h.now = time.Date(2026, 10, 5, 4, 0, 0, 0, time.UTC)
+	h.actions["action_1"] = core.PendingActionStatusPending
+	n, err := h.sender.Notify(ctx, core.Notification{Title: "Approve skill_write", Body: long, ThreadID: "thread_1", ActionID: "action_1"})
+	if err != nil || n.Status != core.NotificationSent {
+		t.Fatalf("announce a large action: %+v err=%v", n, err)
+	}
+	if n, err := h.sender.Notify(ctx, core.Notification{Title: "进展", Body: strings.Repeat("长", 1200), ThreadID: "thread_1"}); err != nil || n.Status != core.NotificationSent {
+		t.Fatalf("notify under the limit: %+v err=%v", n, err)
 	}
 }
 

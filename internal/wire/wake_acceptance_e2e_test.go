@@ -52,10 +52,20 @@ func (f *fakeFCM) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing bearer token", http.StatusUnauthorized)
 		return
 	}
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// FCM refuses a message over 4096 bytes.
+	if len(raw) > 4096 {
+		http.Error(w, `{"error":{"code":400,"message":"Message is too large. The maximum is 4K (4096 bytes).","status":"INVALID_ARGUMENT"}}`, http.StatusBadRequest)
+		return
+	}
 	var body struct {
 		Message map[string]any `json:"message"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.Unmarshal(raw, &body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

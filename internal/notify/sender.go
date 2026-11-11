@@ -15,6 +15,8 @@ var (
 	ErrRateLimited = errors.New("notification limit for the last hour reached")
 	// ErrNoPushInstallation means no paired device has registered for push.
 	ErrNoPushInstallation = errors.New("no device has registered for push notifications")
+	// ErrTooLarge means the notification does not fit in one FCM message.
+	ErrTooLarge = errors.New("notification is too large to push")
 )
 
 // Pusher sends one message to one app installation.
@@ -79,8 +81,9 @@ func NewSender(cfg SenderConfig) (*Sender, error) {
 	return &Sender{cfg: cfg}, nil
 }
 
-// Notify enforces the hourly cap, then sends n now or queues it until quiet
-// hours end. The returned notification carries the resulting status.
+// Notify enforces the hourly cap, refuses a notification too large to push,
+// then sends n now or queues it until quiet hours end. The returned
+// notification carries the resulting status.
 func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notification, error) {
 	settings, err := s.cfg.Settings.Settings(ctx)
 	if err != nil {
@@ -100,6 +103,9 @@ func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notifica
 	}
 	if len(installations) == 0 {
 		return core.Notification{}, ErrNoPushInstallation
+	}
+	if err := fits(n, installations); err != nil {
+		return core.Notification{}, err
 	}
 	n.CreatedAt = now
 	n.SendAfter = now
@@ -167,11 +173,33 @@ func (s *Sender) decided(ctx context.Context, n core.Notification) (string, erro
 	return fmt.Sprintf("pending action %s is %s", action.ActionID, action.Status), nil
 }
 
+// message is the push that delivers n.
+func message(n core.Notification) Message {
+	return Message{Title: n.Title, Body: n.Body, ThreadID: n.ThreadID, RunID: n.RunID, ActionID: n.ActionID, BrowserURL: n.BrowserURL}
+}
+
+// fits returns ErrTooLarge when FCM would refuse n for its size. Checked
+// before n is queued, it reaches whoever asked for the push; a queued push
+// that fails later reaches nobody.
+func fits(n core.Notification, installations []core.PushInstallation) error {
+	msg := message(n)
+	for _, installation := range installations {
+		body, err := encode(installation.FID, msg)
+		if err != nil {
+			return err
+		}
+		if len(body) > maxMessageBytes {
+			return fmt.Errorf("%w: it takes %d bytes and the limit is %d; shorten the title or body", ErrTooLarge, len(body), maxMessageBytes)
+		}
+	}
+	return nil
+}
+
 // deliver sends n to every installation. An installation FCM no longer knows
 // is removed. The notification counts as sent when at least one device
 // received it.
 func (s *Sender) deliver(ctx context.Context, n core.Notification, installations []core.PushInstallation) (core.Notification, error) {
-	msg := Message{Title: n.Title, Body: n.Body, ThreadID: n.ThreadID, RunID: n.RunID, ActionID: n.ActionID, BrowserURL: n.BrowserURL}
+	msg := message(n)
 	delivered := 0
 	var errs []error
 	for _, installation := range installations {

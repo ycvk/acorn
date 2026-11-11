@@ -35,8 +35,9 @@ type Message struct {
 
 // payload is the FCM message for msg, addressed to the app installation fid.
 // A pending action goes as data only, so the app always builds the
-// notification itself and can attach the action's controls; title and body
-// stay in the data for when it cannot load the action.
+// notification itself: it loads the action and shows what it asks with its
+// controls. The data holds the title for when the app cannot load the action
+// and none of the action's own text, so its size does not grow with the call.
 func payload(fid string, msg Message) map[string]any {
 	message := map[string]any{
 		"fid":     fid,
@@ -45,7 +46,7 @@ func payload(fid string, msg Message) map[string]any {
 	if msg.ActionID != "" {
 		message["data"] = map[string]string{
 			"type": "pending_action", "action_id": msg.ActionID, "thread_id": msg.ThreadID, "run_id": msg.RunID,
-			"title": msg.Title, "body": msg.Body,
+			"title": msg.Title,
 		}
 	} else {
 		message["notification"] = map[string]string{"title": msg.Title, "body": msg.Body}
@@ -56,6 +57,19 @@ func payload(fid string, msg Message) map[string]any {
 		message["data"] = data
 	}
 	return map[string]any{"message": message}
+}
+
+// maxMessageBytes bounds the request that sends one message: FCM refuses a
+// message over 4096 bytes.
+const maxMessageBytes = 4096
+
+// encode is the request body that sends msg to the app installation fid.
+func encode(fid string, msg Message) ([]byte, error) {
+	body, err := json.Marshal(payload(fid, msg))
+	if err != nil {
+		return nil, fmt.Errorf("fcm: encode message: %w", err)
+	}
+	return body, nil
 }
 
 // ServiceAccount is the part of a Firebase service account key FCM needs.
@@ -107,9 +121,9 @@ const fcmMaxAttempts = 3
 // retried with backoff; the last failure is returned. An installation FCM no
 // longer knows yields ErrUnregistered.
 func (c *FCMClient) Send(ctx context.Context, fid string, msg Message) error {
-	body, err := json.Marshal(payload(fid, msg))
+	body, err := encode(fid, msg)
 	if err != nil {
-		return fmt.Errorf("fcm: encode message: %w", err)
+		return err
 	}
 	var lastErr error
 	for attempt := range fcmMaxAttempts {

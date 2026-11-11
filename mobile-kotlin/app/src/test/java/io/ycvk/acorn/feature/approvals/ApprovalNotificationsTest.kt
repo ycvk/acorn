@@ -15,8 +15,8 @@ class ApprovalNotificationsTest {
     @Test
     fun `only pending action pushes are read as such`() {
         assertEquals(
-            PendingActionPush("action_1", "thread_1", "发送邮件", "给张三"),
-            pendingActionPush(mapOf("type" to "pending_action", "action_id" to "action_1", "thread_id" to "thread_1", "title" to "发送邮件", "body" to "给张三")),
+            PendingActionPush("action_1", "thread_1", "发送邮件"),
+            pendingActionPush(mapOf("type" to "pending_action", "action_id" to "action_1", "thread_id" to "thread_1", "run_id" to "run_1", "title" to "发送邮件")),
         )
         assertNull(pendingActionPush(mapOf("thread_id" to "thread_1", "run_id" to "run_1")))
         assertNull(pendingActionPush(mapOf("type" to "pending_action", "action_id" to " ")))
