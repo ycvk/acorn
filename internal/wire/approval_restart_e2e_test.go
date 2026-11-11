@@ -274,6 +274,27 @@ func waitRunStatus(t *testing.T, c *Container, runID, want string) {
 	}
 }
 
+// waitNoCheckpoint waits for a finished run's checkpoint to be gone. The run
+// is marked finished first and its checkpoint deleted right after, so the
+// status can be read before the checkpoint goes.
+func waitNoCheckpoint(t *testing.T, c *Container, runID string) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		_, present, err := c.store.LoadCheckpoint(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("load checkpoint of %s: %v", runID, err)
+		}
+		if !present {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("checkpoint of finished run %s is still present", runID)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func eventKinds(events []core.EventRecord) string {
 	parts := make([]string, 0, len(events))
 	for _, e := range events {
@@ -378,9 +399,7 @@ func TestApprovalSurvivesRestart(t *testing.T) {
 			if record.Output != "done" {
 				t.Fatalf("run output = %q, want done", record.Output)
 			}
-			if _, ok, err := second.store.LoadCheckpoint(ctx, runID); err != nil || ok {
-				t.Fatalf("checkpoint after completion: present=%v err=%v", ok, err)
-			}
+			waitNoCheckpoint(t, second, runID)
 		})
 	}
 }
@@ -497,9 +516,7 @@ func TestBrokenAssistantStreamFailsRunThroughNormalPath(t *testing.T) {
 	if failed != 1 {
 		t.Fatalf("run.failed events = %d, want 1; events: %s", failed, eventKinds(events))
 	}
-	if _, ok, err := c.store.LoadCheckpoint(ctx, run.ID); err != nil || ok {
-		t.Fatalf("checkpoint after failure: present=%v err=%v", ok, err)
-	}
+	waitNoCheckpoint(t, c, run.ID)
 	record, err := c.store.LoadRun(ctx, run.ID)
 	if err != nil {
 		t.Fatalf("load run: %v", err)
