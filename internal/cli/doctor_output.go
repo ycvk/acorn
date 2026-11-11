@@ -352,12 +352,6 @@ func renderDoctorThinking(owner settings.Values, status wire.ThinkingStatus) str
 	if wander == "" {
 		wander = "off"
 	}
-	lines := []string{"", "Thinking", fmt.Sprintf("  Night reflection: %s (%s)", night, owner.Timezone), "  Idle thoughts: " + wander, fmt.Sprintf("  Autonomous wakes today: %d / %d", status.Wakes, owner.WakeDailyLimit), fmt.Sprintf("  Autonomous tokens today: %d / %d", status.Usage.AutonomousTokens, owner.WakeDailyTokens), fmt.Sprintf("  All reported tokens today: %d", status.Usage.TotalTokens), fmt.Sprintf("  Calls without usage today: %d", status.Usage.UnreportedCalls), "  Phone notifications (last 24h):"}
-	if len(status.Phones) == 0 {
-		lines = append(lines, "    none")
-	}
-	for _, p := range status.Phones {
-		lines = append(lines, fmt.Sprintf("    %s (%s): %d", p.App, p.Package, p.Count))
-	}
+	lines := []string{"", "Thinking", fmt.Sprintf("  Night reflection: %s (%s)", night, owner.Timezone), "  Idle thoughts: " + wander, fmt.Sprintf("  Autonomous wakes today: %d / %d", status.Wakes, owner.WakeDailyLimit), fmt.Sprintf("  Autonomous tokens today: %d / %d", status.Usage.AutonomousTokens, owner.WakeDailyTokens), fmt.Sprintf("  All reported tokens today: %d", status.Usage.TotalTokens), fmt.Sprintf("  Calls without usage today: %d", status.Usage.UnreportedCalls)}
 	return strings.Join(lines, "\n")
 }

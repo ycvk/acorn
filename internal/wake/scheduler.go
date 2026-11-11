@@ -46,18 +46,17 @@ type WatchChecker interface {
 // Config holds the scheduler's dependencies; every field but Backups and
 // Workstation is required.
 type Config struct {
-	Routines           core.RoutineStore
-	PhoneNotifications core.PhoneNotificationStore
-	Store              core.ActivityStore
-	Commitments        core.CommitmentStore
-	Memory             core.MemoryStore
-	Skills             core.SkillStore
-	Knowledge          KnowledgeReader
-	RunRecords         RunReader
-	Events             core.EventAppender
-	Runs               RunStarter
-	Watches            core.WatchStore
-	Checker            WatchChecker
+	Routines    core.RoutineStore
+	Store       core.ActivityStore
+	Commitments core.CommitmentStore
+	Memory      core.MemoryStore
+	Skills      core.SkillStore
+	Knowledge   KnowledgeReader
+	RunRecords  RunReader
+	Events      core.EventAppender
+	Runs        RunStarter
+	Watches     core.WatchStore
+	Checker     WatchChecker
 	// News offers the sorted news stories to the briefing; Sorter sorts
 	// what is waiting before it.
 	News   core.NewsStore
@@ -112,8 +111,6 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Knowledge and RunRecords are required")
 	case cfg.Routines == nil:
 		return nil, errors.New("wake scheduler: Routines is required")
-	case cfg.PhoneNotifications == nil:
-		return nil, errors.New("wake scheduler: PhoneNotifications is required")
 	case cfg.Events == nil:
 		return nil, errors.New("wake scheduler: Events is required")
 	case cfg.Runs == nil:
@@ -253,9 +250,6 @@ func (s *Scheduler) tickMain(ctx context.Context) error {
 	}
 	if err := s.runRoutines(ctx, now, settings); err != nil {
 		errs = append(errs, fmt.Errorf("routines: %w", err))
-	}
-	if _, err := s.cfg.PhoneNotifications.PrunePhoneNotifications(ctx, now.Add(-7*24*time.Hour)); err != nil {
-		errs = append(errs, err)
 	}
 	if _, err := s.cfg.News.PruneNews(ctx, now.Add(-core.NewsRetention)); err != nil {
 		errs = append(errs, err)

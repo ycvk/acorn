@@ -40,3 +40,9 @@ func TestEventServiceReportsStoreFailuresAsStoreErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestModelUsageIsDiagnostic(t *testing.T) {
+	if IsLiveRunEventKind("model.usage") {
+		t.Fatal("usage must not change the mobile live contract")
+	}
+}

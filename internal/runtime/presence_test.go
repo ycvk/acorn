@@ -17,7 +17,6 @@ import (
 
 // memPresenceStore records the deterministic present for middleware tests.
 type memPresenceStore struct {
-	core.PhoneNotificationStore
 	core.MemoryStore
 	core.CommitmentStore
 	core.FollowUpStore
@@ -106,7 +105,6 @@ func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceM
 		commitments:                       store,
 		followUps:                         store,
 		goals:                             store,
-		phones:                            store,
 		events:                            store,
 		clock:                             func() time.Time { return presenceNow },
 		location:                          time.UTC,
@@ -234,8 +232,4 @@ func (s *memPresenceStore) SumAutonomousTokensSince(context.Context, time.Time) 
 }
 func (s *memPresenceStore) UsageReport(context.Context, time.Time) (core.UsageReport, error) {
 	return core.UsageReport{}, nil
-}
-
-func (s *memPresenceStore) ListPhoneNotifications(context.Context, time.Time, time.Time, int) (core.PhoneNotificationPage, error) {
-	return core.PhoneNotificationPage{}, nil
 }

@@ -359,7 +359,7 @@
   - `internal/wake/triggers_test.go`
   - `internal/store/store_news_test.go`
   - `internal/tools/watch_tools_test.go`
-- **每个本地日一次早安卡，没材料不醒**：到 `briefing.at` 设置的时间之前 5 分钟（owner 时区，不早于当天零点）起，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的事实与认识（Acorn 自己的念头不列出）、一周内生效的事实、上次简报之后写的笔记、新闻事件（见下一条）、其他未暂停追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，run 不推送也不写笔记：模型只看到本次输入，不带线程历史与摘要；夜思的结论留在 Thoughts 线程。列出的条目、暂停的追踪项的待简报条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只列 owner 需要处理的问题：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，待处理记忆任务等待超过 24 小时，有 failing 的触发器，某种记忆任务重试耗尽失败之后这种任务再没有完成过（按 operation，`memory_jobs.failed_at` 晚于它最后一次完成），某个未暂停的新闻源有条目放弃整理之后它再没有条目整理成功。放弃之后同类工作又成功过的失败不列出。
+- **每个本地日一次早安卡，没材料不醒**：到 `briefing.at` 设置的时间之前 5 分钟（owner 时区，不早于当天零点）起，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的事实与认识（Acorn 自己的念头不列出）、一周内生效的事实、上次简报之后写的笔记、新闻事件（见下一条）、其他未暂停追踪项的待简报条目（按追踪项轮流取，至多 100 条，其余写明数目留到下次）、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，run 不推送也不写笔记：模型只看到本次输入，不带线程历史与摘要；夜思的结论留在 Thoughts 线程。列出的条目、暂停的追踪项的待简报条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只列 owner 需要处理的问题：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，待处理记忆任务等待超过 24 小时，有 failing 的触发器，某种记忆任务重试耗尽失败之后这种任务再没有完成过（按 operation，`memory_jobs.failed_at` 晚于它最后一次完成），某个未暂停的新闻源有条目放弃整理之后它再没有条目整理成功。放弃之后同类工作又成功过的失败不列出。
   - `internal/wake/briefing_test.go`
   - `internal/wake/briefing_pieces_test.go`
   - `internal/wake/health_test.go`
@@ -406,10 +406,11 @@
   - `internal/store/store_news_stories_test.go`
   - `internal/tools/watch_tools_test.go`
 
-## 空闲思考、用量与手机通知
+## 空闲思考与用量
 
 - **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思在 Thoughts 线程运行。
   - `internal/wake/thinking_test.go`
+  - `internal/store/store_routine_test.go`
 - **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件，所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录；没有 outcome、所在对话里 owner 要求过跟进早安卡事件的关切，另给出最近一次跟进时存下的事件快照，要求用 `news_search` 与 `web_search` 找最新理由之后的进展，有进展时回复并推送一次，没有时只回一句不推送，复查时间设到下一天开始。
   - `internal/wake/thinking_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
@@ -417,21 +418,12 @@
 - **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome、标题或关联记录时沿用当前的，新关切必须有标题。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
   - `internal/store/memory_state_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
-- **原始通知只有一个写入入口**：鉴权设备身份与服务器 received_at 由 API 决定;批次全量校验后事务写入,按 (device,key,posted_at) 去重,不修改调用方输入。
-  - `internal/api/phone_notification_service_test.go`
-  - `internal/store/store_phone_notifications_test.go`
-- **通知窗口连续且有界**：“当下”为最近 6 小时最多 10 条,预算裁减时通知最先丢;早安卡窗口为上次成功认领至本次认领的半开区间,最多 50 条并准确标记剩余数;原始信号七天后清理。
-  - `internal/presence/phone_notifications_test.go`
-  - `internal/wake/thinking_test.go`
-  - `internal/store/store_routine_test.go`
 - **自主预算按调用时间计**：当日本地零点起的 `model.usage` 累计,关联 run 的 `wake.fired` 判定自主用量;早安卡与 owner 运行不计。主模型成功调用与记忆处理/召回/摘要/压缩各次尝试分别计量,缺失 usage 可观察,不改变 live 契约。
   - `internal/runtime/usage_test.go`
-  - `internal/store/store_phone_notifications_test.go`
+  - `internal/store/store_usage_test.go`
   - `internal/wire/thinking_acceptance_e2e_test.go`
-- **跨模块闭环**：夜思能通过技能整理工作记忆,手机通知能经过 HTTP 进入 presence 与简报,早安卡的回复出现在此刻页并推送。
+- **跨模块闭环**：夜思能通过技能整理工作记忆,早安卡的回复出现在此刻页并推送。
   - `internal/wire/thinking_acceptance_e2e_test.go`
-- **手机队列归属清晰**：队列绑定服务器与设备,身份变更清空;取消白名单移除待传项;请求使用批次自己的凭证;失败保留,成功只删除发送的 ID;持续入队保留第一条的上传截止时间。
-  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/core/notifications/NotificationQueueTest.kt`
 
 ## 工作机
 

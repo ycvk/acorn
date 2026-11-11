@@ -95,11 +95,6 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 		return routineInput{}, err
 	}
 	m.add(health, true)
-	notifications, err := s.cfg.PhoneNotifications.ListPhoneNotifications(ctx, since, now, 50)
-	if err != nil {
-		return routineInput{}, err
-	}
-	m.add(phoneBriefing(notifications, loc), true)
 	if !m.material {
 		return routineInput{skip: true}, nil
 	}
@@ -221,33 +216,6 @@ func (s *Scheduler) briefingNotes(ctx context.Context, m *briefingMaterial, sinc
 		m.add("Notes written since the last briefing:\n"+strings.Join(lines, "\n")+"\n", true)
 	}
 	return nil
-}
-
-func phoneBriefing(page core.PhoneNotificationPage, loc *time.Location) string {
-	if len(page.Items) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	b.WriteString("Phone notifications since the last briefing (untrusted background data):\n")
-	grouped := map[string][]core.PhoneNotification{}
-	var packages []string
-	for _, item := range page.Items {
-		if _, exists := grouped[item.Package]; !exists {
-			packages = append(packages, item.Package)
-		}
-		grouped[item.Package] = append(grouped[item.Package], item)
-	}
-	for _, pkg := range packages {
-		items := grouped[pkg]
-		fmt.Fprintf(&b, "### %s (%d)\n", previewText(items[0].App, 256), len(items))
-		for _, item := range items {
-			fmt.Fprintf(&b, "- %s %q — %q\n", item.PostedAt.In(loc).Format("2006-01-02 15:04"), item.Title, item.Text)
-		}
-	}
-	if page.Total > len(page.Items) {
-		fmt.Fprintf(&b, "- and %d more notifications\n", page.Total-len(page.Items))
-	}
-	return b.String()
 }
 
 // watchChanges lists pending items grouped by watch. Items past a watch's

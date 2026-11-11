@@ -471,7 +471,7 @@ func TestBriefingPushTakesTheFocusOrTheFirstLines(t *testing.T) {
 			want: "卢拉连任\n对外投资新办法\nBBC 中文连续抓取失败：日志在 ~/feeds/bbc.log，换源或暂停。",
 		},
 		"no news: the first line of the first sections": {
-			body: "## 今天\n- 10:00 和房东签合同\n- 交电费\n## 记下的事\n你说下周去杭州。\n## 追踪\n1. **[Go 1.27 发布](https://go.test/1)**\n## 手机通知\n- 快递到了",
+			body: "## 今天\n- 10:00 和房东签合同\n- 交电费\n## 记下的事\n你说下周去杭州。\n## 追踪\n1. **[Go 1.27 发布](https://go.test/1)**\n## 接下来\n- 周五交报告",
 			want: "10:00 和房东签合同\n你说下周去杭州。\nGo 1.27 发布",
 		},
 		"a closing line without sections": {body: "早安简报已写好并推送。", want: ""},

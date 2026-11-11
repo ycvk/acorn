@@ -130,18 +130,17 @@ func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
 
 func handlerTestDeps(cfg *config.Config) RuntimeDeps {
 	return RuntimeDeps{
-		Config:             cfg,
-		Memory:             handlerMemory{},
-		Store:              approvalHandlersStore{},
-		Describer:          describedCalls{},
-		Activity:           newMemPresenceStore(),
-		MemoryStore:        newMemPresenceStore(),
-		Commitments:        newMemPresenceStore(),
-		FollowUps:          newMemPresenceStore(),
-		Goals:              newMemPresenceStore(),
-		PhoneNotifications: newMemPresenceStore(),
-		Clock:              time.Now,
-		Settings:           settings.Fixed(settings.Defaults()),
+		Config:      cfg,
+		Memory:      handlerMemory{},
+		Store:       approvalHandlersStore{},
+		Describer:   describedCalls{},
+		Activity:    newMemPresenceStore(),
+		MemoryStore: newMemPresenceStore(),
+		Commitments: newMemPresenceStore(),
+		FollowUps:   newMemPresenceStore(),
+		Goals:       newMemPresenceStore(),
+		Clock:       time.Now,
+		Settings:    settings.Fixed(settings.Defaults()),
 	}
 }
 

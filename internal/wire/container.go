@@ -25,34 +25,33 @@ import (
 )
 
 type Container struct {
-	memory             *memory.Engine
-	news               *news.Processor
-	clock              func() time.Time
-	cfg                *config.Config
-	store              *store.Store
-	runnerFactory      *runtime.RunnerFactory
-	runController      *runtime.RunController
-	runResume          *api.RunResumeService
-	skills             *api.SkillService
-	skillLibrary       *skills.Library
-	packageStatus      *skills.Status
-	threads            *api.ThreadService
-	runs               *api.RunService
-	events             *api.EventService
-	pendingAction      *api.PendingActionService
-	capabilities       *api.CapabilitiesService
-	deviceAuth         *api.DeviceAuthService
-	inbox              *api.InboxService
-	vault              *knowledge.Vault
-	knowledge          *api.KnowledgeService
-	memories           *api.MemoryService
-	portrait           *api.PortraitService
-	persona            *api.PersonaService
-	owner              *api.OwnerService
-	settings           *settings.Service
-	phoneNotifications *api.PhoneNotificationService
-	now                *api.NowService
-	wake               *wake.Scheduler
+	memory        *memory.Engine
+	news          *news.Processor
+	clock         func() time.Time
+	cfg           *config.Config
+	store         *store.Store
+	runnerFactory *runtime.RunnerFactory
+	runController *runtime.RunController
+	runResume     *api.RunResumeService
+	skills        *api.SkillService
+	skillLibrary  *skills.Library
+	packageStatus *skills.Status
+	threads       *api.ThreadService
+	runs          *api.RunService
+	events        *api.EventService
+	pendingAction *api.PendingActionService
+	capabilities  *api.CapabilitiesService
+	deviceAuth    *api.DeviceAuthService
+	inbox         *api.InboxService
+	vault         *knowledge.Vault
+	knowledge     *api.KnowledgeService
+	memories      *api.MemoryService
+	portrait      *api.PortraitService
+	persona       *api.PersonaService
+	owner         *api.OwnerService
+	settings      *settings.Service
+	now           *api.NowService
+	wake          *wake.Scheduler
 	// workstation is nil when no workstation is configured.
 	workstation *workstation.Client
 }
@@ -123,25 +122,24 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		browser = c.workstation
 	}
 	return api.NewHandler(api.Dependencies{
-		Threads:            c.threads,
-		Runs:               c.runs,
-		Events:             c.events,
-		PendingAction:      c.pendingAction,
-		Skills:             c.skills,
-		Capabilities:       c.capabilities,
-		DeviceAuth:         c.deviceAuth,
-		Inbox:              c.inbox,
-		Knowledge:          c.knowledge,
-		Memories:           c.memories,
-		Portrait:           c.portrait,
-		Persona:            c.persona,
-		Owner:              c.owner,
-		Settings:           c.settings,
-		PhoneNotifications: c.phoneNotifications,
-		Now:                c.now,
-		Browser:            browser,
-		Config:             c.cfg,
-		Logger:             logger,
+		Threads:       c.threads,
+		Runs:          c.runs,
+		Events:        c.events,
+		PendingAction: c.pendingAction,
+		Skills:        c.skills,
+		Capabilities:  c.capabilities,
+		DeviceAuth:    c.deviceAuth,
+		Inbox:         c.inbox,
+		Knowledge:     c.knowledge,
+		Memories:      c.memories,
+		Portrait:      c.portrait,
+		Persona:       c.persona,
+		Owner:         c.owner,
+		Settings:      c.settings,
+		Now:           c.now,
+		Browser:       browser,
+		Config:        c.cfg,
+		Logger:        logger,
 	})
 }
 
@@ -284,11 +282,6 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		return nil, err
 	}
 
-	phoneNotifications, err := api.NewPhoneNotificationService(db, clock)
-	if err != nil {
-		return nil, err
-	}
-	container.phoneNotifications = phoneNotifications
 	if container.now, err = api.NewNowService(db, clock); err != nil {
 		return nil, err
 	}
@@ -297,29 +290,28 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		followUpChecks = deps.workstation
 	}
 	container.wake, err = wake.NewScheduler(wake.Config{
-		Routines:           db,
-		PhoneNotifications: db,
-		Store:              db,
-		Commitments:        db,
-		Memory:             db,
-		Skills:             db,
-		Knowledge:          &knowledge.MemoryView{Vault: deps.vault, Store: db},
-		RunRecords:         db,
-		Events:             db,
-		Runs:               &wakeRunStarter{runs: container.runs, store: db},
-		Watches:            db,
-		Checker:            deps.watchChecker,
-		News:               db,
-		Sorter:             deps.news,
-		Stories:            db,
-		Triggers:           db,
-		FollowUps:          db,
-		Goals:              db,
-		Workstation:        followUpChecks,
-		Clock:              clock,
-		Settings:           deps.settings,
-		Backups:            backupStatus(cfg),
-		Interval:           wakeInterval,
+		Routines:    db,
+		Store:       db,
+		Commitments: db,
+		Memory:      db,
+		Skills:      db,
+		Knowledge:   &knowledge.MemoryView{Vault: deps.vault, Store: db},
+		RunRecords:  db,
+		Events:      db,
+		Runs:        &wakeRunStarter{runs: container.runs, store: db},
+		Watches:     db,
+		Checker:     deps.watchChecker,
+		News:        db,
+		Sorter:      deps.news,
+		Stories:     db,
+		Triggers:    db,
+		FollowUps:   db,
+		Goals:       db,
+		Workstation: followUpChecks,
+		Clock:       clock,
+		Settings:    deps.settings,
+		Backups:     backupStatus(cfg),
+		Interval:    wakeInterval,
 	})
 	if err != nil {
 		return nil, err

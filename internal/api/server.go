@@ -8,22 +8,21 @@ import (
 )
 
 type Dependencies struct {
-	Threads            *ThreadService
-	Runs               *RunService
-	Events             *EventService
-	PendingAction      *PendingActionService
-	Skills             *SkillService
-	Capabilities       *CapabilitiesService
-	DeviceAuth         *DeviceAuthService
-	Inbox              *InboxService
-	Knowledge          *KnowledgeService
-	Memories           *MemoryService
-	Portrait           *PortraitService
-	Persona            *PersonaService
-	Owner              *OwnerService
-	Settings           *settings.Service
-	PhoneNotifications *PhoneNotificationService
-	Now                *NowService
+	Threads       *ThreadService
+	Runs          *RunService
+	Events        *EventService
+	PendingAction *PendingActionService
+	Skills        *SkillService
+	Capabilities  *CapabilitiesService
+	DeviceAuth    *DeviceAuthService
+	Inbox         *InboxService
+	Knowledge     *KnowledgeService
+	Memories      *MemoryService
+	Portrait      *PortraitService
+	Persona       *PersonaService
+	Owner         *OwnerService
+	Settings      *settings.Service
+	Now           *NowService
 	// Browser is nil when no workstation is configured.
 	Browser BrowserView
 	Logger  *slog.Logger
@@ -31,23 +30,22 @@ type Dependencies struct {
 }
 
 type Server struct {
-	threads            *ThreadService
-	runs               *RunService
-	events             *EventService
-	pendingAction      *PendingActionService
-	skills             *SkillService
-	capabilities       *CapabilitiesService
-	deviceAuth         *DeviceAuthService
-	inbox              *InboxService
-	knowledge          *KnowledgeService
-	memories           *MemoryService
-	portrait           *PortraitService
-	persona            *PersonaService
-	owner              *OwnerService
-	settings           *settings.Service
-	phoneNotifications *PhoneNotificationService
-	now                *NowService
-	browser            BrowserView
-	logger             *slog.Logger
-	cfg                *config.Config
+	threads       *ThreadService
+	runs          *RunService
+	events        *EventService
+	pendingAction *PendingActionService
+	skills        *SkillService
+	capabilities  *CapabilitiesService
+	deviceAuth    *DeviceAuthService
+	inbox         *InboxService
+	knowledge     *KnowledgeService
+	memories      *MemoryService
+	portrait      *PortraitService
+	persona       *PersonaService
+	owner         *OwnerService
+	settings      *settings.Service
+	now           *NowService
+	browser       BrowserView
+	logger        *slog.Logger
+	cfg           *config.Config
 }
