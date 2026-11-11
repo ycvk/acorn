@@ -85,6 +85,24 @@ fun chatMessageFrom(
     Message.Role.system, Message.Role.tool -> ChatMessage.Assistant(text, id = id)
 }
 
+/** The chat rows of a conversation's stored messages, in the server's order. */
+fun chatMessages(messages: List<Message>): List<ChatMessage> = messages.map { message ->
+    chatMessageFrom(
+        message.role,
+        message.content.text,
+        message.steps.orEmpty(),
+        message.files.orEmpty(),
+        message.views.orEmpty(),
+        message.subRuns.orEmpty(),
+        message.plan.orEmpty(),
+        message.id,
+    )
+}
+
+/** The messages the server has that the copy shown in its place did not: what came while the conversation was closed. */
+fun newsBeyond(copy: Set<String>, server: List<Message>): Set<String> =
+    server.map { it.id }.filterNot { it in copy }.toSet()
+
 /** [messages] with [view] in place of the view with its id, wherever a reply shows it. */
 fun withView(messages: List<ChatMessage>, view: View): List<ChatMessage> = messages.map { message ->
     if (message is ChatMessage.Assistant && message.views.any { it.id == view.id }) {

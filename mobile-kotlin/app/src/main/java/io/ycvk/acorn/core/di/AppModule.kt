@@ -12,10 +12,11 @@ import io.ycvk.acorn.core.notifications.NotificationDelivery
 import io.ycvk.acorn.core.notifications.NotificationPreferences
 import io.ycvk.acorn.core.notifications.NotificationQueue
 import io.ycvk.acorn.data.repository.PhoneNotificationRepository
+import io.ycvk.acorn.data.repository.ThreadSnapshots
 import java.io.File
 import javax.inject.Singleton
 
-/** Application-scoped Hilt bindings for phone notification delivery. */
+/** Application-scoped Hilt bindings for what the app keeps in files: phone notifications on their way, and copies of conversations. */
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -24,6 +25,11 @@ object AppModule {
     @Singleton
     fun provideNotificationQueue(@ApplicationContext context: Context): NotificationQueue =
         NotificationQueue(File(context.filesDir, "phone-notifications.json"))
+
+    @Provides
+    @Singleton
+    fun provideThreadSnapshots(@ApplicationContext context: Context): ThreadSnapshots =
+        ThreadSnapshots(File(context.cacheDir, "threads"))
 
     @Provides
     @Singleton

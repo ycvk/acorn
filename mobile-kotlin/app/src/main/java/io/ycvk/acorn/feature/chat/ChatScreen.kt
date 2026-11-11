@@ -25,6 +25,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -74,6 +76,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -124,13 +127,16 @@ import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.OrbState
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.ThinkingOrb
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.arrive
 import io.ycvk.acorn.core.ui.borderBeam
 import io.ycvk.acorn.core.ui.hairline
 import io.ycvk.acorn.core.ui.metalRing
 import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
+import io.ycvk.acorn.core.ui.rememberArrival
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.core.ui.rememberWriting
 import io.ycvk.acorn.core.ui.shimmer
@@ -141,6 +147,7 @@ import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
 import io.ycvk.acorn.feature.views.ViewActions
 import io.ycvk.acorn.feature.views.ViewCards
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -164,7 +171,18 @@ fun ChatScreen(
     val sendingAction by viewModel.sendingAction.collectAsStateWithLifecycle()
     val pinning by viewModel.pinning.collectAsStateWithLifecycle()
     val justSent by viewModel.justSent.collectAsStateWithLifecycle()
-    // The sent messages that have already risen into the list; one rises once.
+    val loading by viewModel.loading.collectAsStateWithLifecycle()
+    val fresh by viewModel.fresh.collectAsStateWithLifecycle()
+    // A copy read from the phone is there within a frame or two; the skeleton is for waiting on the server.
+    val waiting by produceState(false, loading, currentThread) {
+        value = false
+        if (loading) {
+            delay(SKELETON_AFTER_MS)
+            value = true
+        }
+    }
+    val arrival = rememberArrival(waiting = waiting)
+    // The rows that have already come into the list with a motion of their own; each does once.
     val risen = remember { mutableSetOf<String>() }
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
@@ -225,11 +243,25 @@ fun ChatScreen(
     LaunchedEffect(listState) {
         snapshotFlow { !listState.canScrollForward }.collect { if (it) follow = true }
     }
+    // The news the list has moved to; until it has, the move owns the scrolling.
+    var revealed by remember(currentThread) { mutableStateOf(emptySet<String>()) }
     LaunchedEffect(messages.size, queued.size, chatState.assistantText, chatState.assistantReasoning, chatState.steps, streaming, chatState.activities.size, threadPending.size) {
-        if (follow) {
+        if (follow && fresh == revealed) {
             val last = listState.layoutInfo.totalItemsCount - 1
             if (last >= 0) listState.scrollToItem(last, scrollOffset = Int.MAX_VALUE / 2)
         }
+    }
+    // What the server had beyond the copy first shown: the list moves to where it starts, and stays there if it is longer than the screen.
+    LaunchedEffect(fresh) {
+        if (fresh == revealed) return@LaunchedEffect
+        val news = messages.indexOfFirst { it.id in fresh }
+        if (follow && news >= 0) {
+            // At one pace with the rows fading in; a row too far to measure is jumped near first.
+            val distance = listState.distanceTo(news)
+            if (distance != null) listState.animateScrollBy(distance, AcornMotion.travel(NEWS_MS)) else listState.animateScrollToItem(news)
+            if (listState.canScrollForward) follow = false
+        }
+        revealed = fresh
     }
 
     var menu by remember { mutableStateOf(false) }
@@ -298,8 +330,11 @@ fun ChatScreen(
                 if (messages.isEmpty() && !streaming && currentThread == null) {
                     item(key = "__welcome__") { Welcome(Modifier.fillParentMaxHeight(0.8f)) }
                 }
+                if (messages.isEmpty() && waiting) {
+                    item(key = "__loading__") { SkeletonRows(rows = 3) }
+                }
                 items(messages, key = { it.id }) { message ->
-                    val itemModifier = rowAnimation()
+                    val itemModifier = rowAnimation().arrive(arrival).news(message.id, fresh, risen)
                     when (message) {
                         is ChatMessage.User -> UserBubble(message.text, itemModifier.sentNow(message.id, justSent, risen)) {
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
@@ -491,6 +526,36 @@ private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Wander -> Icons.Outlined.Lightbulb
     WakeSource.FollowUp -> Icons.Outlined.HourglassBottom
     WakeSource.Goal -> Icons.Outlined.Flag
+}
+
+/** How long a conversation with nothing to show stays empty before its skeleton appears. */
+private const val SKELETON_AFTER_MS = 150L
+
+/** How long the list takes to move to news, and the news to fade in. */
+private const val NEWS_MS = 450
+
+/**
+ * How far the list scrolls to bring row [index] to its top, for a row on
+ * screen or right under the last one that is; null for one further away.
+ */
+private fun LazyListState.distanceTo(index: Int): Float? {
+    val layout = layoutInfo
+    layout.visibleItemsInfo.firstOrNull { it.index == index }?.let { return it.offset.toFloat() }
+    val last = layout.visibleItemsInfo.lastOrNull() ?: return null
+    return if (index == last.index + 1) (last.offset + last.size + layout.mainAxisItemSpacing).toFloat() else null
+}
+
+/** A message the server had beyond the copy first shown fades in, once, as the list moves to it. */
+@Composable
+private fun Modifier.news(id: String, fresh: Set<String>, risen: MutableSet<String>): Modifier {
+    val comes = remember(id) { id in fresh && risen.add(id) }
+    if (!comes) return this
+    val shown = remember(id) { Animatable(0f) }
+    LaunchedEffect(id) { shown.animateTo(1f, AcornMotion.travel(NEWS_MS)) }
+    return graphicsLayer {
+        alpha = shown.value
+        translationY = (1f - shown.value) * 12.dp.toPx()
+    }
 }
 
 /**

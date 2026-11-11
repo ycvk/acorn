@@ -3,6 +3,7 @@ package io.ycvk.acorn.core.auth
 import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.AuthRepository
+import io.ycvk.acorn.data.repository.ThreadSnapshots
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,6 +32,7 @@ import javax.inject.Singleton
 class AuthController @Inject constructor(
     private val secureStore: SecureStore,
     private val authRepository: AuthRepository,
+    private val threadSnapshots: ThreadSnapshots,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -79,7 +81,11 @@ class AuthController @Inject constructor(
     fun disconnect() {
         _authState.value = AuthState.Disconnected
         _pairingState.value = PairingState.Idle
-        scope.launch(storeDispatcher) { secureStore.clearConnection() }
+        scope.launch(storeDispatcher) {
+            secureStore.clearConnection()
+            // Conversations read from the server it was paired with do not stay on the phone.
+            threadSnapshots.clear()
+        }
     }
 
     /**
