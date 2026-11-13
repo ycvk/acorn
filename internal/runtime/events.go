@@ -85,9 +85,6 @@ func (p *agentEventProjector) toolResultItem(block *schema.ContentBlock) (core.S
 				output += part.Text.Text
 			}
 		}
-	case schema.ContentBlockTypeToolSearchResult:
-		result := block.ToolSearchFunctionToolResult
-		id, name, output = result.CallID, result.Name, result.String()
 	default:
 		return core.StreamItem{}, false
 	}
