@@ -91,7 +91,7 @@ func CheckSummary(text string) error {
 	if err := checkSections(text, progressHeadings); err != nil {
 		return err
 	}
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		if slices.Contains(fileHeadings, strings.TrimSpace(line)) {
 			return fmt.Errorf("%w: it writes %q, which Acorn adds", ErrSummaryFormat, strings.TrimSpace(line))
 		}
