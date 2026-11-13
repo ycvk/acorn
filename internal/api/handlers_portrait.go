@@ -3,9 +3,6 @@ package api
 import (
 	"errors"
 	"net/http"
-	"strconv"
-
-	"github.com/go-chi/chi/v5"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -20,9 +17,8 @@ func (s *Server) handleGetPortrait(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRemovePortraitLine(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "line_id"), 10, 64)
-	if err != nil || id < 1 {
-		s.respondBadRequest(w, r, "line_id must be a positive integer")
+	id, ok := s.pathID(w, r, "line_id")
+	if !ok {
 		return
 	}
 	if err := s.portrait.Remove(r.Context(), id); err != nil {
