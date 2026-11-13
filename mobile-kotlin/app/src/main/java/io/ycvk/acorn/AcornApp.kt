@@ -1,14 +1,14 @@
 package io.ycvk.acorn
 
-import io.ycvk.acorn.feature.approvals.ApprovalNotifications
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
-import io.ycvk.acorn.core.push.PushManager
-import javax.inject.Inject
 import io.ycvk.acorn.core.auth.AuthController
+import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.theme.ThemePreference
+import io.ycvk.acorn.feature.approvals.ApprovalNotifications
 import io.ycvk.acorn.feature.live.AppVisibility
 import io.ycvk.acorn.feature.live.LiveNotifications
+import javax.inject.Inject
 
 @HiltAndroidApp
 class AcornApp : Application() {
