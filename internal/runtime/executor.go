@@ -24,7 +24,6 @@ type Result struct {
 
 type Executor struct {
 	store      core.SessionStore
-	subRuns    core.SubRunStore
 	runRuntime *RunnerFactory
 	controller *RunController
 }
@@ -44,7 +43,6 @@ func NewExecutorWithRunRuntimeAndController(store core.SessionStore, runRuntime 
 	}
 	exec := &Executor{
 		store:      store,
-		subRuns:    runRuntime.deps.Store,
 		runRuntime: runRuntime,
 		controller: controller,
 	}
