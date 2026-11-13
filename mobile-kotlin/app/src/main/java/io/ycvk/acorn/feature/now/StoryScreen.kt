@@ -73,7 +73,7 @@ fun StoryScreen(
     viewModel: NowViewModel,
     onBack: () -> Unit,
     onOpenThread: (String) -> Unit,
-    onBodyTop: (Float) -> Unit = {},
+    onBodyTop: (Float) -> Unit,
 ) {
     val load by viewModel.load.collectAsStateWithLifecycle()
     val asking by viewModel.askingStory.collectAsStateWithLifecycle()

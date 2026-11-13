@@ -584,7 +584,7 @@ private val UserBubbleShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.d
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UserBubble(text: String, modifier: Modifier = Modifier, files: @Composable () -> Unit = {}) {
+private fun UserBubble(text: String, modifier: Modifier = Modifier, files: @Composable () -> Unit) {
     val colors = AcornTheme.colors
     val copy = rememberCopy()
     Column(
@@ -618,7 +618,7 @@ private fun queuedNote(message: QueuedChat, status: ChatHeaderStatus): String = 
 
 /** An owner message that waits for the run, faded until the run takes it. */
 @Composable
-private fun QueuedBubble(text: String, note: String, modifier: Modifier = Modifier, files: @Composable () -> Unit = {}) {
+private fun QueuedBubble(text: String, note: String, modifier: Modifier = Modifier, files: @Composable () -> Unit) {
     Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         UserBubble(text, Modifier.alpha(0.6f), files)
         Text(note, style = AcornTheme.type.caption, color = AcornTheme.colors.inkFaint, modifier = Modifier.padding(top = 4.dp, end = 4.dp))
@@ -634,7 +634,7 @@ private fun AssistantMessage(
     subRuns: List<SubRunData>,
     streaming: Boolean,
     modifier: Modifier = Modifier,
-    handedOver: @Composable () -> Unit = {},
+    handedOver: @Composable () -> Unit,
 ) {
     val colors = AcornTheme.colors
     val copy = rememberCopy()

@@ -127,7 +127,7 @@ fun ApprovalCard(
     onDecide: (DecidePendingActionRequest) -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
-    settled: DecidePendingActionRequest.Decision? = null,
+    settled: DecidePendingActionRequest.Decision?,
 ) {
     val colors = AcornTheme.colors
     val haptics = rememberHaptics()

@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
  * applied as the element is drawn, so one at rest costs a list no layer.
  */
 @Composable
-fun Modifier.pressScale(interactionSource: InteractionSource, pressed: Float = 0.97f): Modifier {
+fun Modifier.pressScale(interactionSource: InteractionSource, pressed: Float): Modifier {
     val scale = remember { Animatable(1f) }
     LaunchedEffect(interactionSource) {
         var press: Job? = null
