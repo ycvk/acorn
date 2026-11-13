@@ -45,10 +45,6 @@ import io.ycvk.acorn.core.ui.OrbState
 import io.ycvk.acorn.core.ui.ThinkingOrb
 import io.ycvk.acorn.core.ui.shimmer
 
-/** [tasks] with [update] in place of its task's earlier attempt, in task order. */
-fun withSubRun(tasks: List<SubRunData>, update: SubRunData): List<SubRunData> =
-    (tasks.filterNot { it.task == update.task } + update).sortedBy { it.task }
-
 /** The tasks that still run. */
 fun runningSubRuns(tasks: List<SubRunData>): Int = tasks.count { it.state == SubRunData.State.running }
 
