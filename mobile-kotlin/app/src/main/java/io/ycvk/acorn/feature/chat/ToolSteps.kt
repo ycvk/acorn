@@ -121,7 +121,6 @@ fun stepDetail(step: ToolStep): String = when {
 /** One line per step: while a call runs it shows what is happening; afterwards it folds into a count. */
 @Composable
 fun ToolSteps(steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Modifier) {
-    if (steps.isEmpty()) return
     val colors = AcornTheme.colors
     val running = steps.lastOrNull { it.status == StepStatus.Running }.takeIf { streaming }
     val failures = steps.count { it.status == StepStatus.Failed }

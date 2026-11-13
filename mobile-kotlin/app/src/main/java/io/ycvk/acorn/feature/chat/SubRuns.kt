@@ -57,7 +57,6 @@ fun subRunStateLabel(task: SubRunData): String {
  */
 @Composable
 fun SubRuns(tasks: List<SubRunData>, streaming: Boolean, modifier: Modifier = Modifier) {
-    if (tasks.isEmpty()) return
     val colors = AcornTheme.colors
     val working = streaming && runningSubRuns(tasks) > 0
     val failed = tasks.any { it.state == SubRunData.State.failed }
