@@ -24,7 +24,6 @@ var (
 	ErrRunNotFound              = errors.New("run not found")
 	ErrSessionNotFound          = errors.New("session not found")
 	ErrThreadBusy               = errors.New("thread has a running run")
-	ErrSessionMessageNotFound   = errors.New("session message not found")
 	ErrPendingActionNotFound    = errors.New("pending action not found")
 	ErrPendingActionExists      = errors.New("pending action already exists")
 	ErrPendingActionDecided     = errors.New("pending action already decided")
