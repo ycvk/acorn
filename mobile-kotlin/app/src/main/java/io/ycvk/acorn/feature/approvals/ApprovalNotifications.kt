@@ -100,12 +100,9 @@ class ApprovalNotifications @Inject constructor(
         val profile = secureStore.getConnection() ?: return
         val detail = try {
             api(profile).clientGetPendingAction(push.actionId)
-        } catch (e: ClientException) {
+        } catch (e: Exception) {
             // Already decided, or gone with its thread: nothing waits any more.
-            if (e.statusCode == 404 || e.statusCode == 409) return
-            notify(push.actionId, push.threadId, runId = null, "Acorn 在等你确认", push.title, kind = null, decisions = emptyList())
-            return
-        } catch (_: Exception) {
+            if (e is ClientException && (e.statusCode == 404 || e.statusCode == 409)) return
             notify(push.actionId, push.threadId, runId = null, "Acorn 在等你确认", push.title, kind = null, decisions = emptyList())
             return
         }
