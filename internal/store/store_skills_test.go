@@ -54,6 +54,8 @@ func TestSkillWritesAreRevisionsBasedOnTheCurrentOne(t *testing.T) {
 	}
 }
 
+// SkillLoadsSince counts the skill loads of every run but the night
+// reflection's.
 func TestSkillLoadsSinceCountsSkillToolCalls(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
@@ -78,6 +80,28 @@ func TestSkillLoadsSinceCountsSkillToolCalls(t *testing.T) {
 	}
 	if later, err := s.SkillLoadsSince(ctx, time.Now().UTC().Add(time.Second)); err != nil || len(later) != 0 {
 		t.Fatalf("loads after = %v, %v", later, err)
+	}
+	// A night reflection loads the skills it reviews; those loads are not
+	// counted, or every skill would come back the next night.
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_night", Input: "[night 2026-11-13] night reflection"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ClaimRoutine(ctx, "night", "2026-11-13", before); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateSession(ctx, "thoughts", "Thoughts"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRoutineRun(ctx, "night", "2026-11-13", "thoughts", "run_night"); err != nil {
+		t.Fatal(err)
+	}
+	for _, skill := range []string{"orders", "views"} {
+		if _, err := s.AppendEvent(ctx, "run_night", "tool.call.started", map[string]any{"tool_name": "skill", "arguments": `{"skill":"` + skill + `"}`}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if loads, err := s.SkillLoadsSince(ctx, before); err != nil || len(loads) != 2 || loads["orders"] != 2 || loads["views"] != 0 {
+		t.Fatalf("loads with a night reflection's own = %v, %v", loads, err)
 	}
 }
 

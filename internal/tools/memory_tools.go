@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -73,7 +74,16 @@ func buildMemoryForgetTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 }
 
 func buildConcernTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferLocalTool("concern", "Track a continuing matter or open issue that idle thought keeps advancing over the coming days. List before creating a related concern; update with its revision, a reason and a source from this run, and the title and record links you leave out stay as they are. When the owner asks you to make something over the coming days, give the concern an outcome; for work you go on with right away over several runs in this conversation, set a goal instead. Resolve when supported by owner confirmation or observed results; a concern with an outcome is resolved only by the owner's confirmation, cited as source.", func(ctx context.Context, in memory.ConcernInput) ([]core.MemoryConcern, error) {
+	return inferLocalTool("concern", "Track a continuing matter or open issue that idle thought keeps advancing over the coming days. List before creating a related concern; update with its revision, a reason and a source from this run, and the title and record links you leave out stay as they are. When the owner asks you to make something over the coming days, give the concern an outcome; for work you go on with right away over several runs in this conversation, set a goal instead. When the owner asks something whose answer may change, create it with question to watch it for them. Resolve when supported by owner confirmation or observed results; a concern with an outcome is resolved only by the owner's confirmation, cited as source.", func(ctx context.Context, in memory.ConcernInput) ([]core.MemoryConcern, error) {
+		if in.Action == "create" && in.Question {
+			current, err := deps.Settings.Settings(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if len(current.Wander) == 0 {
+				return nil, errors.New("concern: watched questions are checked at the idle thought times, and the owner has set none (thinking.wander_at); this question is not watched, so do not tell the owner it is")
+			}
+		}
 		return deps.Memory.Concern(ctx, deps.Context.CurrentRunID(ctx), deps.Context.CurrentSessionID(ctx), in)
 	})
 }

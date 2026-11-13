@@ -76,8 +76,9 @@ func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply = newsItemIDs(reply, requestMessages(request))
 	}
 	// __input_source__ stands for the run's input message, __notify_source__
-	// for its notify_owner result.
-	if strings.Contains(reply, "__notify_source__") || strings.Contains(reply, "__input_source__") {
+	// for its notify_owner result and __source:TOOL__ for the result of its
+	// TOOL call.
+	if strings.Contains(reply, "__notify_source__") || strings.Contains(reply, "__input_source__") || strings.Contains(reply, "__source:") {
 		for _, msg := range requestMessages(request) {
 			if msg["role"] != "system" {
 				continue
@@ -97,6 +98,9 @@ func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			for _, source := range memoryContext.Current {
+				if source.Tool != "" {
+					reply = strings.ReplaceAll(reply, "__source:"+source.Tool+"__", source.ID)
+				}
 				switch source.Tool {
 				case "notify_owner":
 					reply = strings.ReplaceAll(reply, "__notify_source__", source.ID)

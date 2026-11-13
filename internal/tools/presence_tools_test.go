@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -258,5 +259,57 @@ func TestNotifyOwnerAttributesConversationAndReportsQueue(t *testing.T) {
 	}
 	if _, err := runPresenceTool(t, tool, `{"title":"","body":"b"}`); err == nil {
 		t.Fatal("empty title must fail")
+	}
+}
+
+// A question is watched only when the owner has set idle thought times,
+// which is when it is checked; the mark is given at creation and a later
+// revision cannot set it.
+func TestConcernWatchesAQuestionOnlyWithIdleThoughtTimes(t *testing.T) {
+	ctx := context.Background()
+	deps, db := testPresenceDeps(t, fixedArtifactContext{runID: "run_1", sessionID: "thread_1", callID: "call_1"})
+	if _, err := db.CreateSession(ctx, "thread_1", "Qwen"); err != nil {
+		t.Fatal(err)
+	}
+	message, err := db.AppendSessionMessage(ctx, "thread_1", 1, "user", "Qwen 4 还没出吗？", "run_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asked, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: core.MessageSourceID(message.ID), Kind: "message", ObjectID: strconv.FormatInt(message.ID, 10), Version: "1", Speaker: "owner", SessionID: "thread_1", RunID: "run_1", RecordedAt: presenceTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	create := `{"action":"create","title":"Qwen 4 发布了吗","question":true,"reason":"截至今天还没有","source_id":"` + asked.ID + `","review_at":"2026-10-03T00:00:00Z"}`
+
+	tool, err := buildConcernTool(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPresenceTool(t, tool, create); err == nil || !strings.Contains(err.Error(), "the owner has set none (thinking.wander_at)") {
+		t.Fatalf("a question without idle thought times: %v", err)
+	}
+	if concerns, err := db.ListConcerns(ctx, false); err != nil || len(concerns) != 0 {
+		t.Fatalf("concerns = %+v, %v", concerns, err)
+	}
+
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.Settings = settings.Fixed(core.Settings{Location: loc, Wander: []time.Duration{15 * time.Hour}})
+	if tool, err = buildConcernTool(deps); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runPresenceTool(t, tool, create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved []core.MemoryConcern
+	if err := json.Unmarshal([]byte(out), &saved); err != nil || len(saved) != 1 || !saved[0].Question || saved[0].ThreadID != "thread_1" {
+		t.Fatalf("watched question = %s, %v", out, err)
+	}
+	revise := `{"action":"active","id":"` + saved[0].ID + `","revision":1,"question":true,"reason":"仍未发布","source_id":"` + asked.ID + `"}`
+	if _, err := runPresenceTool(t, tool, revise); err == nil || !strings.Contains(err.Error(), "question is set when a concern is created") {
+		t.Fatalf("a revision that sets question: %v", err)
 	}
 }

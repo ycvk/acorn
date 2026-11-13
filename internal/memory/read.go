@@ -162,6 +162,7 @@ type ConcernInput struct {
 	Revision  int64    `json:"revision,omitempty"`
 	Title     string   `json:"title,omitempty"`
 	Outcome   string   `json:"outcome,omitempty" jsonschema_description:"What you hand the owner when the matter is done: its form and how to tell it is done, such as a Markdown file listing the breaking changes from v1.4 to v1.7 with upgrade steps. Only for a matter the owner asked you to make something for. Omit to keep the current outcome."`
+	Question  bool     `json:"question,omitempty" jsonschema_description:"True with create when the owner asked something whose answer may change, such as whether a release is out yet, and you will watch it for them: the title is the question, the reason what the answer is now, review_at when to look next, and source_id the owner's message. It is checked on its own from then on, and the owner is told in this conversation once the answer changes."`
 	Reason    string   `json:"reason,omitempty"`
 	SourceID  string   `json:"source_id,omitempty"`
 	RecordIDs []string `json:"record_ids,omitempty"`
@@ -191,6 +192,9 @@ func (e *Engine) Concern(ctx context.Context, runID, threadID string, in Concern
 		}
 		concern.State = "active"
 		concern.ThreadID = threadID
+		concern.Question = in.Question
+	} else if in.Question {
+		return nil, errors.New("question is set when a concern is created and stays as it was")
 	}
 	if in.ReviewAt != "" {
 		concern.ReviewAt, err = time.Parse(time.RFC3339, in.ReviewAt)

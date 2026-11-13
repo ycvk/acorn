@@ -295,7 +295,10 @@ func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Tim
 	wake := fmt.Sprintf("commitment #%d: %s", item.ID, item.Content)
 	input := fmt.Sprintf("[commitment #%d, made %s] %s",
 		item.ID, item.CreatedAt.In(settings.Location).Format("2006-01-02 15:04"), item.Content)
-	if concern != nil {
+	switch {
+	case concern != nil && concern.Question && concern.State == "resolved":
+		input += "\n" + questionAnswerTask(*concern, settings.Location)
+	case concern != nil:
 		input += "\nConcern " + concernText(*concern)
 	}
 	runID, err := s.cfg.Runs.StartWakeRun(ctx, item.SessionID, input, core.ScheduledWake{Reason: wake, Autonomous: true, Commitment: &core.CommitmentWake{Occurrence: occurrence, Next: next}})

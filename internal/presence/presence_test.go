@@ -38,9 +38,9 @@ func TestRenderOrdersSectionsInOwnerTime(t *testing.T) {
 		Commitments: []core.Commitment{{ID: 2, State: "scheduled", Content: "later", WakeAt: t0.Add(48 * time.Hour), Recurrence: "0 9 * * *"}, {ID: 3, State: "due", Content: "提醒 owner 看 X", WakeAt: t0}, {ID: 5, State: "scheduled", Content: "sooner", WakeAt: t0.Add(time.Hour)}},
 		Occurrences: []core.CommitmentOccurrence{{ID: 30, CommitmentID: 3, State: "due", DueAt: t0}},
 		Thoughts:    []core.MemoryRecord{{ID: "thought", Kind: "thought", State: "open", Content: "owner 在读论文", UpdatedAt: t0}},
-		Concerns:    []core.MemoryConcern{{ID: "concern", State: "active", Title: "准备面试", Revision: 2, UpdatedAt: t0}}}
+		Concerns:    []core.MemoryConcern{{ID: "concern", State: "active", Title: "准备面试", Revision: 2, UpdatedAt: t0}, {ID: "asked", State: "active", Title: "Qwen 4 发布了吗", Question: true, Revision: 1, UpdatedAt: t0}}}
 	out := mustRender(t, in)
-	for _, want := range []string{"Now: 2026-10-05 Mon 09:00 (Asia/Shanghai)", "#3 occurrence #30", `repeats "0 9 * * *"`, "owner 在读论文", "concern rev 2"} {
+	for _, want := range []string{"Now: 2026-10-05 Mon 09:00 (Asia/Shanghai)", "#3 occurrence #30", `repeats "0 9 * * *"`, "owner 在读论文", "concern rev 2 [active] 准备面试", "asked rev 1 [active; watched question] Qwen 4 发布了吗"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q: %s", want, out)
 		}

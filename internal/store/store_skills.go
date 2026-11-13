@@ -325,11 +325,14 @@ func (s *Store) DeleteStagedSkillPackage(ctx context.Context, sha string) error 
 }
 
 // SkillLoadsSince counts the skill tool calls since a time by the skill they
-// load. Calls whose arguments name no skill are left out.
+// load. Calls whose arguments name no skill are left out, and so are the
+// calls of night reflections: the night reviews what other runs used, and
+// its own loads would bring every skill back the next night.
 func (s *Store) SkillLoadsSince(ctx context.Context, since time.Time) (map[string]int, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT skill, COUNT(*) FROM (
 			SELECT CASE WHEN json_valid(json_extract(payload_json, '$.arguments')) THEN json_extract(json_extract(payload_json, '$.arguments'), '$.skill') END AS skill
-			FROM events WHERE kind = 'tool.call.started' AND json_extract(payload_json, '$.tool_name') = 'skill' AND created_at > ?)
+			FROM events WHERE kind = 'tool.call.started' AND json_extract(payload_json, '$.tool_name') = 'skill' AND created_at > ?
+			 AND run_id NOT IN (SELECT run_id FROM routine_runs WHERE routine = 'night'))
 		WHERE skill IS NOT NULL GROUP BY skill`, formatTimestamp(since))
 	if err != nil {
 		return nil, fmt.Errorf("count skill loads: %w", err)
