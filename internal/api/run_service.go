@@ -405,7 +405,7 @@ func (s *clientRunStartSignal) RunStarted() {
 }
 
 func (s *clientRunStartSignal) MarkFailed(err error) bool {
-	if err == nil || s.hasStarted.Load() {
+	if s.hasStarted.Load() {
 		return false
 	}
 	s.failureOnce.Do(func() { s.failed <- err })
@@ -441,9 +441,6 @@ func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteReques
 // runStartSignalSink adapts a clientRunStartSignal into a core.StreamSink
 // that fires RunStarted() when the RunStarted stream event is emitted.
 func runStartSignalSink(started *clientRunStartSignal) core.StreamSink {
-	if started == nil {
-		return nil
-	}
 	return func(item core.StreamItem) error {
 		if item.Kind == core.StreamKindRunStarted {
 			started.RunStarted()
@@ -461,9 +458,6 @@ func (s *RunService) reportBackgroundRunFailure(ctx context.Context, runID strin
 }
 
 func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {
-	if strings.TrimSpace(runID) == "" || cause == nil {
-		return nil
-	}
 	record, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return err
