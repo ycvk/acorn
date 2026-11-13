@@ -179,7 +179,7 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 		return
 	}
 	if next != nil {
-		s.continueRun(ctx, createdRunRequest(*next))
+		s.continueRun(ctx, next.ExecuteRequest())
 	}
 }
 

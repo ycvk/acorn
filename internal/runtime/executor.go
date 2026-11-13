@@ -390,7 +390,8 @@ func (e *Executor) finishRun(ctx context.Context, sink core.StreamSink, end core
 	if start == nil {
 		return nil, nil
 	}
-	return &core.ExecuteRequest{RunID: start.RunID, SessionID: start.SessionID, TurnIndex: start.TurnIndex, Input: start.Input, Created: true}, nil
+	req := start.ExecuteRequest()
+	return &req, nil
 }
 
 func runCompletedItem(output string) core.StreamItem {

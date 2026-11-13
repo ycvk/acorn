@@ -59,6 +59,11 @@ type RunStart struct {
 	Messages  []SessionMessageRecord
 }
 
+// ExecuteRequest is the request that executes the run.
+func (s RunStart) ExecuteRequest() ExecuteRequest {
+	return ExecuteRequest{RunID: s.RunID, SessionID: s.SessionID, TurnIndex: s.TurnIndex, Input: s.Input, Created: true}
+}
+
 // SentOwnerMessage is what sending an owner message did: RunID is the run
 // that takes it. Queued is set when that run was already going and the
 // message waits for it; Started is set when the message started the run.
