@@ -41,6 +41,7 @@ type PlanStepInput struct {
 	Label  string `json:"label" jsonschema:"required" jsonschema_description:"What the step does, in the owner's language, at most 60 characters."`
 	Status string `json:"status" jsonschema:"required,enum=pending,enum=running,enum=done,enum=failed" jsonschema_description:"pending has not started; running is under way, and steps whose calls run at once are all running; done is finished; failed could not be done."`
 	Note   string `json:"note,omitempty" jsonschema_description:"Optional note shown at the end of the row, at most 20 characters, such as 3/5 or 2 files."`
+	Reply  bool   `json:"reply,omitempty" jsonschema_description:"True on the last step when your reply itself carries it out, such as explaining or comparing what you found. Leave that step pending; the run marks it done once it ends with your reply."`
 }
 
 type PlanOutput struct {
@@ -51,7 +52,7 @@ type PlanOutput struct {
 
 func buildPlanTool(deps PlanToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool(core.PlanToolName,
-		"Show the owner your plan for this request as a checklist above your reply, and keep it current. Send the whole list each time: with the first calls, marking running the steps they carry out, then each time a step ends, in the same response as the calls that start the next ones. When only the reply is left, leave the last step running; the run marks it done once it ends with your reply.",
+		"Show the owner your plan for this request as a checklist above your reply, and keep it current. Send the whole list each time, in the same response as the calls it goes with: with the first calls, marking running the steps they carry out, then each time a step ends, with the calls that start the next ones. After your last calls send nothing more: once the run ends with your reply, it marks done every step still running and the step marked reply. A response that calls plan alone makes the owner wait a whole turn; do that only to mark a step failed.",
 		func(ctx context.Context, input PlanInput) (PlanOutput, error) {
 			runID := strings.TrimSpace(deps.Context.CurrentRunID(ctx))
 			if runID == "" {
@@ -80,15 +81,17 @@ func buildPlanTool(deps PlanToolDeps) (einotool.BaseTool, error) {
 
 // checkPlan puts each label and note on one line and rejects a plan the app
 // cannot show: too few or too many steps, an empty or long label, a long
-// note or an unknown status.
+// note or an unknown status. Only the last step can be the reply's.
 func checkPlan(input PlanInput) (core.PlanUpdate, error) {
 	if n := len(input.Steps); n < minPlanSteps || n > maxPlanSteps {
 		return core.PlanUpdate{}, fmt.Errorf("steps: a plan has %d to %d steps, got %d; a request done in one step needs no plan", minPlanSteps, maxPlanSteps, n)
 	}
 	steps := make([]core.PlanStep, 0, len(input.Steps))
 	for i, in := range input.Steps {
-		step := core.PlanStep{Label: oneLine(in.Label), Status: strings.TrimSpace(in.Status), Note: oneLine(in.Note)}
+		step := core.PlanStep{Label: oneLine(in.Label), Status: strings.TrimSpace(in.Status), Note: oneLine(in.Note), Reply: in.Reply}
 		switch {
+		case step.Reply && i != len(input.Steps)-1:
+			return core.PlanUpdate{}, fmt.Errorf("steps[%d].reply: only the last step can be the one the reply carries out", i)
 		case step.Label == "":
 			return core.PlanUpdate{}, fmt.Errorf("steps[%d].label is empty", i)
 		case utf8.RuneCountInString(step.Label) > maxPlanLabelRunes:

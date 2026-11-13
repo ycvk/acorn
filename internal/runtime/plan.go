@@ -8,10 +8,9 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// closePlan marks the last step of the run's plan done when the run
-// succeeds with that step running and every step before it ended. The reply
-// carries out that step, so only the run can record its end after the reply
-// is written.
+// closePlan records the plan as the run's reply leaves it. Only the run can
+// record a step's end after the reply is written, so the agent spends no
+// model call on it.
 func (e *Executor) closePlan(ctx context.Context, runID string) error {
 	events, err := e.store.LoadStepEvents(ctx, []string{runID})
 	if err != nil {
@@ -27,9 +26,10 @@ func (e *Executor) closePlan(ctx context.Context, runID string) error {
 	return nil
 }
 
-// closedPlan returns the run's last plan with its last step done, or false
-// when the run wrote no plan, its last step is not running, or a step
-// before it has not ended.
+// closedPlan returns the run's last plan as a reply that ends the run leaves
+// it: the steps still running are done, and so is a pending step the reply
+// carries out. It returns false when the run wrote no plan or the reply ends
+// none of its steps. A step that never began stays pending.
 func closedPlan(events []core.EventRecord) (core.PlanUpdate, bool, error) {
 	for _, event := range slices.Backward(events) {
 		if event.Kind != core.EventPlanUpdated {
@@ -39,18 +39,15 @@ func closedPlan(events []core.EventRecord) (core.PlanUpdate, bool, error) {
 		if err := reencodeViaJSON(event.Payload, &plan); err != nil {
 			return core.PlanUpdate{}, false, fmt.Errorf("%s event %d of %s: %w", core.EventPlanUpdated, event.Sequence, event.RunID, err)
 		}
-		last := len(plan.Steps) - 1
-		if last < 0 || plan.Steps[last].Status != core.PlanStepRunning {
-			return core.PlanUpdate{}, false, nil
-		}
-		for _, step := range plan.Steps[:last] {
-			if step.Status != core.PlanStepDone && step.Status != core.PlanStepFailed {
-				return core.PlanUpdate{}, false, nil
+		steps := slices.Clone(plan.Steps)
+		closed := false
+		for i, step := range steps {
+			if step.Status == core.PlanStepRunning || step.Reply && step.Status == core.PlanStepPending {
+				steps[i].Status = core.PlanStepDone
+				closed = true
 			}
 		}
-		steps := slices.Clone(plan.Steps)
-		steps[last].Status = core.PlanStepDone
-		return core.PlanUpdate{Steps: steps}, true, nil
+		return core.PlanUpdate{Steps: steps}, closed, nil
 	}
 	return core.PlanUpdate{}, false, nil
 }

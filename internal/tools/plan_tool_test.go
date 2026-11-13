@@ -14,7 +14,8 @@ import (
 )
 
 // plan records each whole plan on the run, with steps that run at once all
-// running, and rejects one the app cannot show.
+// running and the reply's step marked, and rejects one the app cannot show
+// or whose reply step is not the last.
 func TestPlanRecordsTheWholePlanOnTheRun(t *testing.T) {
 	db, err := store.Open(t.TempDir())
 	if err != nil {
@@ -51,6 +52,7 @@ func TestPlanRecordsTheWholePlanOnTheRun(t *testing.T) {
 		`{"steps":[{"label":"` + long + `","status":"running"},{"label":"写","status":"pending"}]}`:                     "steps[0].label has 61 characters, at most 60",
 		`{"steps":[{"label":"读","status":"running","note":"一二三四五六七八九十一二三四五六七八九十一"},{"label":"写","status":"pending"}]}`: "steps[0].note has 21 characters, at most 20",
 		`{"steps":[{"label":"读","status":"in_progress"},{"label":"写","status":"pending"}]}`:                            `steps[0].status must be pending, running, done or failed, got "in_progress"`,
+		`{"steps":[{"label":"写","status":"pending","reply":true},{"label":"读","status":"running"}]}`:                   "steps[0].reply: only the last step can be the one the reply carries out",
 	} {
 		if _, err := call(args); err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("plan %s err = %v, want %q", args, err, want)
@@ -62,7 +64,7 @@ func TestPlanRecordsTheWholePlanOnTheRun(t *testing.T) {
 	if got, err := call(`{"steps":[{"label":"读 A","status":"running"},{"label":"读 B","status":"running"},{"label":"写汇总","status":"pending"}]}`); err != nil || got.Done != 0 || got.Total != 3 {
 		t.Fatalf("parallel plan = %+v, %v", got, err)
 	}
-	got, err := call(`{"steps":[{"label":"  读三篇\n文章 ","status":"done","note":" 3/3 "},{"label":"写汇总","status":"running"},{"label":"核对引用","status":"pending"}]}`)
+	got, err := call(`{"steps":[{"label":"  读三篇\n文章 ","status":"done","note":" 3/3 "},{"label":"核对引用","status":"running"},{"label":"写汇总","status":"pending","reply":true}]}`)
 	if err != nil || got.Done != 1 || got.Total != 3 {
 		t.Fatalf("second plan = %+v, %v", got, err)
 	}
@@ -78,8 +80,8 @@ func TestPlanRecordsTheWholePlanOnTheRun(t *testing.T) {
 	}
 	want := map[string]any{"steps": []any{
 		map[string]any{"label": "读三篇 文章", "status": "done", "note": "3/3"},
-		map[string]any{"label": "写汇总", "status": "running"},
-		map[string]any{"label": "核对引用", "status": "pending"},
+		map[string]any{"label": "核对引用", "status": "running"},
+		map[string]any{"label": "写汇总", "status": "pending", "reply": true},
 	}}
 	if len(plans) != 3 || !reflect.DeepEqual(plans[2], want) {
 		t.Fatalf("plan events = %#v, want three with the last %#v", plans, want)

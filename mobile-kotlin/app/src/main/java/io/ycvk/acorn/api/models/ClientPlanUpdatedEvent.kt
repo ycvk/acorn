@@ -29,7 +29,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * The run wrote its plan for the owner's request again; `data` is the whole plan as it now stands and replaces the one before. The calls that write a plan send no tool.call events. When the run succeeds with its last step running and every step before it done or failed, a last plan.updated before run.completed marks that step done. 
+ * The run wrote its plan for the owner's request again; `data` is the whole plan as it now stands and replaces the one before. The calls that write a plan send no tool.call events. When the run succeeds with steps still running, or with a last step its reply carries out, a last plan.updated before run.completed marks those steps done. 
  *
  * @param eventId 
  * @param runId 
