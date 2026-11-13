@@ -46,12 +46,8 @@ func (s *Store) SendOwnerMessage(ctx context.Context, message core.OwnerMessage)
 	queued := core.QueuedMessage{SessionID: message.SessionID, Content: content, FileIDs: append([]string{}, message.FileIDs...), CreatedAt: time.Now().UTC()}
 	var sent core.SentOwnerMessage
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var exists int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, message.SessionID).Scan(&exists); err != nil {
+		if err := requireSession(ctx, tx, message.SessionID); err != nil {
 			return err
-		}
-		if exists == 0 {
-			return fmt.Errorf("%w: %s", core.ErrSessionNotFound, message.SessionID)
 		}
 		active, err := activeRunOf(ctx, tx, message.SessionID)
 		if err != nil {

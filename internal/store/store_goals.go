@@ -59,12 +59,9 @@ func (s *Store) StartGoal(ctx context.Context, g core.Goal) (core.Goal, error) {
 	}
 	g.Runs, g.State, g.Result, g.Announced, g.UpdatedAt = 0, core.GoalActive, "", false, g.CreatedAt
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var exists, active int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, g.SessionID).Scan(&exists); err != nil {
+		var active int
+		if err := requireSession(ctx, tx, g.SessionID); err != nil {
 			return err
-		}
-		if exists == 0 {
-			return fmt.Errorf("%w: %s", core.ErrSessionNotFound, g.SessionID)
 		}
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM goals WHERE session_id = ? AND state = ?`, g.SessionID, core.GoalActive).Scan(&active); err != nil {
 			return err

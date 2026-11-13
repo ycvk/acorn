@@ -31,12 +31,9 @@ func (s *Store) ThreadMemorySourceIDs(ctx context.Context, sessionID string) ([]
 func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
 	var paths, files []string
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var exists, running int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, sessionID).Scan(&exists); err != nil {
+		var running int
+		if err := requireSession(ctx, tx, sessionID); err != nil {
 			return err
-		}
-		if exists == 0 {
-			return fmt.Errorf("%w: %s", core.ErrSessionNotFound, sessionID)
 		}
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs WHERE session_id = ? AND status = ?`, sessionID, string(core.RunStatusRunning)).Scan(&running); err != nil {
 			return err
