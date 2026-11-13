@@ -34,7 +34,6 @@ func coreToolContract(name string) core.ToolContract {
 		Source:   "local",
 		Kind:     core.ToolKindNative,
 		Category: core.ToolCategoryRead,
-		Loading:  core.EagerLoadingPolicy(),
 	}
 }
 

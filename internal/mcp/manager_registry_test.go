@@ -25,7 +25,6 @@ func TestManagerFailsAProviderWhoseToolsCannotRegister(t *testing.T) {
 		}
 		spec := core.ToolSpec{Tool: tool}
 		spec.Name, spec.Kind, spec.Category = "mcp__"+providerName+"__"+info.Name, core.ToolKindMCP, core.ToolCategoryIntegration
-		spec.Loading.Mode = core.ToolLoadingModeEager
 		return spec, nil
 	}
 	mgr, err := NewManager(context.Background(), []core.ProviderConfig{

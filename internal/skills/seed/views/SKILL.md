@@ -7,7 +7,7 @@ metadata:
 
 # Views
 
-A view is a small screen under your reply, drawn by the app from a fixed catalog of components. Load the tools with `tool_search({"query":"select:show_view,update_view"})`, then call `show_view` once per view.
+A view is a small screen under your reply, drawn by the app from a fixed catalog of components. Call `show_view` once per view.
 
 ## When
 

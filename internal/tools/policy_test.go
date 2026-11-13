@@ -3,27 +3,18 @@ package tools_test
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
-func TestConfiguredLocalSpecsLoadWebToolsAndDeferWorkstationTools(t *testing.T) {
-	for _, name := range []string{"web_fetch", "web_search"} {
-		spec, ok := tools.ConfiguredLocalSpec(name)
-		if !ok {
+// The workstation tools are local tools marked as needing the workstation;
+// the web and view tools are not, and no local tool drives a browser.
+func TestWorkstationToolsAreMarkedAmongLocalTools(t *testing.T) {
+	for name, want := range map[string]bool{"shell": true, "job": true, "follow_up": true, "files": true, "send_file": true, "web_fetch": false, "web_search": false, "show_view": false} {
+		if _, ok := tools.ConfiguredLocalSpec(name); !ok {
 			t.Fatalf("%s spec missing", name)
 		}
-		if spec.Loading.Mode != core.ToolLoadingModeEager {
-			t.Fatalf("%s loading = %+v, want eager", name, spec.Loading)
-		}
-	}
-	for _, name := range []string{"shell", "files"} {
-		spec, ok := tools.ConfiguredLocalSpec(name)
-		if !ok {
-			t.Fatalf("%s spec missing", name)
-		}
-		if spec.Loading.Mode != core.ToolLoadingModeDeferred || spec.Loading.Reason != "workstation" {
-			t.Fatalf("%s loading = %+v, want deferred/workstation", name, spec.Loading)
+		if got := tools.WorkstationTool(name); got != want {
+			t.Fatalf("WorkstationTool(%s) = %v, want %v", name, got, want)
 		}
 	}
 	if _, ok := tools.ConfiguredLocalSpec("browser"); ok {

@@ -15,7 +15,6 @@ func TestToolSpecValidate(t *testing.T) {
 			Name:     "test_tool",
 			Kind:     ToolKindNative,
 			Category: ToolCategoryRead,
-			Loading:  EagerLoadingPolicy(),
 		},
 	}
 	if err := valid.Validate(); err != nil {
@@ -31,7 +30,6 @@ func TestToolSpecValidate(t *testing.T) {
 			name: "missing_name",
 			spec: ToolSpec{ToolContract: ToolContract{
 				Kind: ToolKindNative, Category: ToolCategoryRead,
-				Loading: EagerLoadingPolicy(),
 			}},
 			err: "name is required",
 		},
@@ -39,7 +37,6 @@ func TestToolSpecValidate(t *testing.T) {
 			name: "missing_kind",
 			spec: ToolSpec{ToolContract: ToolContract{
 				Name: "x", Category: ToolCategoryRead,
-				Loading: EagerLoadingPolicy(),
 			}},
 			err: "kind is required",
 		},
@@ -47,16 +44,8 @@ func TestToolSpecValidate(t *testing.T) {
 			name: "missing_category",
 			spec: ToolSpec{ToolContract: ToolContract{
 				Name: "x", Kind: ToolKindNative,
-				Loading: EagerLoadingPolicy(),
 			}},
 			err: "category is required",
-		},
-		{
-			name: "missing_loading_mode",
-			spec: ToolSpec{ToolContract: ToolContract{
-				Name: "x", Kind: ToolKindNative, Category: ToolCategoryRead,
-			}},
-			err: "loading mode is required",
 		},
 	}
 	for _, tc := range cases {

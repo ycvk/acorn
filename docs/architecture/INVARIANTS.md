@@ -15,9 +15,11 @@
 
 ## 运行时与编排
 
-- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 memory visibility → interjection → sub-run reports → patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；子 run 的 `buildSubRunRunner` 不带 checkpoint store，handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → approval → tool errors。工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 memory visibility → interjection → sub-run reports → patchtoolcalls → summarization → reduction(clear-only) → skill → presence → approval → tool errors；子 run 的 `buildSubRunRunner` 不带 checkpoint store，handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → skill → approval → tool errors。catalog 里启用的工具从 run 的第一次模型调用起全部在工具列表里，没有按需加载。工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/events_test.go`
+  - `internal/wire/thread_views_e2e_test.go`
+  - `internal/wire/long_work_e2e_test.go`
 - **子 run 只看到 brief，只拿查资料与工作机的工具**：`delegate start` 的 brief 要 objective（去掉空白后非空），deliverables、constraints、acceptance 与 block 去掉空项，block 的每个模式须能被 `path.Match` 解析。子 run 是父 run 所在对话与轮次里的一个 run，在 `sub_runs` 登记父 run、任务编号（新任务取父 run 已有的最大编号加一）、第几次尝试与 brief；子 run 不能再派出。子 run 的指令只有 `subRunInstruction`，输入只有一条 user 消息：渲染后的 brief 与工作机上的 `~/sub-runs/<run_id>/`，返工时再附上被退回的那次提交与反馈；没有人格、对话历史、记忆、presence 与 owner 中途的消息。工具只留 `web_search`、`web_fetch`、`artifact_read`、`shell`、`job`、`files`、`knowledge_search`、`knowledge_read`、`knowledge_list`、`news_search`、`feed_discover` 与 `submit`，`mcp.providers` 的工具不留（它们的 elicitation 落在 MCP 的当前 run 上），子 run 也不登记为当前 run。工作机上的技能包与包的 MCP 服务器不论哪个 run 同步，都按对话的 run 能用的工具（含 `delegate`）算，子 run 再按留下的工具去掉用不了的技能，留下的技能带着它们服务器的工具。`submit` 只在运行中的子 run 里记下 summary（非空）、evidence 与 limitations，后一次替换前一次。每个父 run 至多派出 16 次（含返工），超出返回 `ErrSubRunLimit`；整个 Acorn 同时至多 4 个子 run 在跑，其余等空位；每个子 run 至多 30 分钟，超时失败。父 run 的步骤里 `delegate` 调用的摘要取 objective，返工取 feedback。
   - `internal/store/store_sub_runs_test.go`
   - `internal/tools/delegate_tools_test.go`
@@ -266,7 +268,7 @@
   - `internal/store/thread_files_test.go`
   - `internal/core/thread_file_test.go`
   - `internal/wire/thread_files_e2e_test.go`
-- **视图经后端校验后挂在回复上**：`show_view` 经 toolsearch 按需加载，`internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里的 Markdown 链接）、不是本对话图片文件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
+- **视图经后端校验后挂在回复上**：`show_view` 的视图由 `internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里的 Markdown 链接）、不是本对话图片文件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
   - `internal/views/views_test.go`
   - `internal/tools/views_tool_test.go`
   - `internal/store/thread_views_test.go`
@@ -427,7 +429,7 @@
 
 ## 工作机
 
-- **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell`、`job`、`follow_up`、`files` 与 `send_file` 是 deferred 工具，未配置 `workstation.url` 时以原因禁用。
+- **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell`、`job`、`follow_up`、`files` 与 `send_file` 在未配置 `workstation.url` 时以原因禁用。
   - `internal/workstation/workstation_test.go`
 - **按段编辑只改旧文本所在之处**：`files` 的 edit 与 `knowledge_edit` 都经 `internal/textedit` 修改文本：每段旧文本对照修改前的全文，必须只出现一次；完全对不上时把行尾空白、弯引号、破折号与不换行空格归一后再找，仍然对不上或出现多次就报错并指出是第几段；各段不能重叠；要么全部生效，要么文本不变。CRLF 换行与 BOM 保持原样，结果给出每段新文本所在的行。工作机写到旁边的临时文件再整体换入，保留文件权限，只改 UTF-8 文本文件。
   - `internal/textedit/textedit_test.go`

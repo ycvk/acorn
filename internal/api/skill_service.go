@@ -324,7 +324,7 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 	names := make([]string, 0, len(specs))
 	workstation := cfg != nil && strings.TrimSpace(cfg.Workstation.URL) != ""
 	for _, spec := range specs {
-		if spec.Loading.Reason == "workstation" && !workstation {
+		if tools.WorkstationTool(spec.Name) && !workstation {
 			continue
 		}
 		if spec.Enabled() {

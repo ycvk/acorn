@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/ycvk/acorn/internal/api"
 )
 
-// TestViewsShowUnderTheReply has the agent load show_view, get a view
-// rejected with what to fix, show the fixed one and reply. The thread lists
-// the view under the reply, the run's events announce it, and deleting the
-// thread deletes it.
+// TestViewsShowUnderTheReply has the agent get a view rejected with what to
+// fix, show the fixed one and reply; the view tools are among the run's
+// tools from its first model call. The thread lists the view under the
+// reply, the run's events announce it, and deleting the thread deletes it.
 func TestViewsShowUnderTheReply(t *testing.T) {
 	broken := map[string]any{"title": "eino 最近的版本", "components": []any{
 		map[string]any{"id": "root", "component": "Table", "columns": []any{"版本"}, "rows": map[string]any{"path": "/missing"}},
@@ -24,7 +25,6 @@ func TestViewsShowUnderTheReply(t *testing.T) {
 		map[string]any{"id": "table", "component": "Table", "columns": []any{"版本", "要点"}, "rows": map[string]any{"path": "/releases"}},
 	}, "data": map[string]any{"releases": []any{[]any{"v0.9.21", "summarization 可以只清理不压缩"}}}}
 	provider := &fakeOpenAI{replies: []string{
-		toolCallChunk("load_views", "tool_search", map[string]string{"query": "select:show_view"}),
 		toolCallChunk("broken_view", "show_view", broken),
 		toolCallChunk("fixed_view", "show_view", fixed),
 		textReply("整理成了一张表"),
@@ -48,7 +48,10 @@ func TestViewsShowUnderTheReply(t *testing.T) {
 	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "比较一下 eino 最近几个版本"}, http.StatusCreated, &run)
 	waitRunStatus(t, c, run.Run.ID, "completed")
 
-	if rejected := toolResult(t, provider.request(2), "broken_view"); !strings.Contains(rejected, "/missing") || !strings.Contains(rejected, "finds nothing") {
+	if tools := requestTools(provider.request(0)); !slices.Contains(tools, "show_view") || !slices.Contains(tools, "update_view") || slices.Contains(tools, "tool_search") {
+		t.Fatalf("the run's tools = %v", tools)
+	}
+	if rejected := toolResult(t, provider.request(1), "broken_view"); !strings.Contains(rejected, "/missing") || !strings.Contains(rejected, "finds nothing") {
 		t.Fatalf("the model saw %q for the broken view", rejected)
 	}
 

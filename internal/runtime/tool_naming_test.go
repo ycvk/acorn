@@ -241,7 +241,7 @@ func buildCapabilityRegistryForTest(
 	specs := make([]core.ToolSpec, 0, len(localTools)+len(registrations)+len(resourceTools)+len(promptTools))
 	for _, tool := range localTools {
 		specs = append(specs, core.ToolSpec{
-			ToolContract: toolNamingContract("", "local", core.ToolKindNative, core.ToolCategoryRead, core.EagerLoadingPolicy()),
+			ToolContract: toolNamingContract("", "local", core.ToolKindNative, core.ToolCategoryRead),
 			Tool:         tool,
 		})
 	}
@@ -255,7 +255,7 @@ func buildCapabilityRegistryForTest(
 			return nil, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 		}
 		specs = append(specs, core.ToolSpec{
-			ToolContract: toolNamingContract("", registration.ProviderName, core.ToolKindMCP, core.ToolCategoryIntegration, core.EagerLoadingPolicy()),
+			ToolContract: toolNamingContract("", registration.ProviderName, core.ToolKindMCP, core.ToolCategoryIntegration),
 			Tool:         namespaced,
 		})
 	}
@@ -268,7 +268,7 @@ func buildCapabilityRegistryForTest(
 			return nil, fmt.Errorf("read resource tool info: nil ToolInfo")
 		}
 		specs = append(specs, core.ToolSpec{
-			ToolContract: toolNamingContract("", info.Name, core.ToolKindMCP, core.ToolCategoryIntegration, core.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: toolNamingContract("", info.Name, core.ToolKindMCP, core.ToolCategoryIntegration),
 			Tool:         tool,
 		})
 	}
@@ -281,7 +281,7 @@ func buildCapabilityRegistryForTest(
 			return nil, fmt.Errorf("read prompt tool info: nil ToolInfo")
 		}
 		specs = append(specs, core.ToolSpec{
-			ToolContract: toolNamingContract("", info.Name, core.ToolKindMCP, core.ToolCategoryIntegration, core.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: toolNamingContract("", info.Name, core.ToolKindMCP, core.ToolCategoryIntegration),
 			Tool:         tool,
 		})
 	}
@@ -293,14 +293,12 @@ func toolNamingContract(
 	source string,
 	kind core.ToolKind,
 	category core.ToolCategory,
-	loading core.ToolLoadingPolicy,
 ) core.ToolContract {
 	return core.ToolContract{
 		Name:     name,
 		Source:   source,
 		Kind:     kind,
 		Category: category,
-		Loading:  loading,
 	}
 }
 

@@ -12,7 +12,7 @@ metadata:
 
 outcome 写明做完时交给 owner 的东西和判断做完的标准。每次做下一步具体的事，朝它推进：
 
-- 动手用工作机，先用 `tool_search` 取得 `shell` 与 `files`。工作文件放在输入给出的 `~/work/<关切 id>/`；`files` 与 `send_file` 的路径相对 home 目录，写成 `work/<关切 id>/…`。home 目录跨运行保留，接着上次留下的文件做。
+- 动手用工作机时用 `shell` 与 `files`。工作文件放在输入给出的 `~/work/<关切 id>/`；`files` 与 `send_file` 的路径相对 home 目录，写成 `work/<关切 id>/…`。home 目录跨运行保留，接着上次留下的文件做。
 - 有后果的操作会停下等 owner 在手机上批准。调用前说明要做什么；批准后接着做，被拒绝就换别的办法，或在理由里写明卡在哪里。
 - 每次结束前用 `concern` 留一个 revision：理由写这次做了什么、还差什么，设下次的 review_at。outcome 不变时不传。想在下个游思时段之前接着做，用带 `concern_id` 的 `schedule_wake` 约一次醒来。
 - 达到 outcome 时交付：文件用 `send_file` 发在本对话里，值得长期查阅的资料用 `knowledge_write` 写进知识库。然后调用一次 `notify_owner`，说成品已经发在这个对话里；再用 `concern` 把关切转为 `waiting`，理由写明交付了什么、在哪里，review_at 设在几天后。

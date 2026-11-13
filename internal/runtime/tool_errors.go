@@ -65,5 +65,5 @@ func (m *toolErrorMiddleware) WrapInvokableToolCall(_ context.Context, endpoint 
 }
 
 func unknownToolResult(_ context.Context, name, _ string) (string, error) {
-	return fmt.Sprintf("Tool %s does not exist. Call only the tools in your tool list; use tool_search to find deferred tools.", name), nil
+	return fmt.Sprintf("Tool %s does not exist. Call only the tools in your tool list.", name), nil
 }

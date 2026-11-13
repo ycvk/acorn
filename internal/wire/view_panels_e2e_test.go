@@ -39,7 +39,6 @@ func TestPinnedPanelsTakeTheirTriggersViewData(t *testing.T) {
 		map[string]any{"id": "notes", "component": "Link", "label": "发布说明", "url": map[string]any{"path": "/url"}},
 	}, "data": map[string]any{"latest": "v0.9.21", "url": "https://github.com/cloudwego/eino/releases/tag/v0.9.21"}}
 	provider := &fakeOpenAI{replies: []string{
-		toolCallChunk("load_views", "tool_search", map[string]string{"query": "select:show_view"}),
 		toolCallChunk("latest", "show_view", latest),
 		textReply("eino 现在是 v0.9.21，可以把这个视图固定到今天页"),
 	}}
