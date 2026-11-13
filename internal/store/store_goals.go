@@ -144,7 +144,7 @@ func (s *Store) CountGoalRun(ctx context.Context, id int64, runs int, now time.T
 	return s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		changed, err := tx.ExecContext(ctx, `UPDATE goals SET runs = runs + 1, updated_at = ? WHERE id = ? AND state = ? AND runs = ? AND runs < max_runs`,
 			formatTimestamp(now), id, core.GoalActive, runs)
-		return goalChanged(changed, err, core.ErrGoalChanged)
+		return goalChanged(changed, err)
 	})
 }
 
@@ -153,11 +153,11 @@ func (s *Store) MarkGoalAnnounced(ctx context.Context, id int64, now time.Time) 
 	return s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		changed, err := tx.ExecContext(ctx, `UPDATE goals SET announced = 1, updated_at = ? WHERE id = ? AND state IN (?, ?) AND announced = 0`,
 			formatTimestamp(now), id, core.GoalDone, core.GoalBlocked)
-		return goalChanged(changed, err, core.ErrGoalChanged)
+		return goalChanged(changed, err)
 	})
 }
 
-func goalChanged(result sql.Result, err, unchanged error) error {
+func goalChanged(result sql.Result, err error) error {
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func goalChanged(result sql.Result, err, unchanged error) error {
 		return err
 	}
 	if n != 1 {
-		return unchanged
+		return core.ErrGoalChanged
 	}
 	return nil
 }
