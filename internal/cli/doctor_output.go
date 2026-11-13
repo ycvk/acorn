@@ -196,13 +196,9 @@ func renderDoctorProviderLine(provider api.SystemMCPProviderCapability) string {
 		} else {
 			parts = append(parts, "["+transport+"]")
 		}
-		switch strings.TrimSpace(provider.StartupStatus) {
-		case "healthy":
-			parts = append(parts, "healthy")
-		case "failed":
-			parts = append(parts, "failed")
-		case "degraded":
-			parts = append(parts, "degraded")
+		switch status := strings.TrimSpace(provider.StartupStatus); status {
+		case "healthy", "failed", "degraded":
+			parts = append(parts, status)
 		default:
 			if strings.TrimSpace(provider.Error) != "" {
 				parts = append(parts, "failed")
