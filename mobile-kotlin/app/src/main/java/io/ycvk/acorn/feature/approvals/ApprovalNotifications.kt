@@ -143,10 +143,9 @@ class ApprovalNotifications @Inject constructor(
         try {
             api(profile).clientDecidePendingAction(actionId, DecidePendingActionRequest(decision = decision, selectedOptionId = optionId))
             runId?.let { follower.follow(profile, it, threadId, title = null, live = true, decided = actionId) }
-            val done = if (decision == DecidePendingActionRequest.Decision.accept) "已批准，Acorn 会继续" else "已拒绝"
             manager.notify(
                 notificationId(actionId),
-                base(threadId, actionId).setContentTitle(done).setTimeoutAfter(OUTCOME_TIMEOUT_MS).setSilent(true).build(),
+                base(threadId, actionId).setContentTitle(settledLabel(decision)).setTimeoutAfter(OUTCOME_TIMEOUT_MS).setSilent(true).build(),
             )
         } catch (e: ClientException) {
             if (e.statusCode == 409) {
