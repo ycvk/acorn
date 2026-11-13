@@ -223,7 +223,7 @@ func (s *Scheduler) tickMain(ctx context.Context) error {
 	}
 	due, err := s.cfg.Commitments.DueCommitments(ctx, now)
 	if err != nil {
-		return errors.Join(append(errs, fmt.Errorf("list due commitments: %w", err))...)
+		return fmt.Errorf("list due commitments: %w", err)
 	}
 	for _, item := range due {
 		if err := s.wake(ctx, item, now, settings); err != nil {
