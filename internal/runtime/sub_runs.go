@@ -300,7 +300,7 @@ func (e *Executor) startSubRun(ctx context.Context, start core.SubRunStart, laun
 	if err != nil {
 		return core.SubRun{}, err
 	}
-	sub, err := e.runRuntime.deps.Store.StartSubRun(ctx, start)
+	sub, err := e.subRuns.StartSubRun(ctx, start)
 	if err != nil {
 		cleanup()
 		return core.SubRun{}, err
@@ -388,7 +388,7 @@ func (e *Executor) awaitSubRuns(runCtx context.Context, runID, sessionID string)
 	defer ticker.Stop()
 	for {
 		ended := e.controller.subRunEnded(runID)
-		attempts, err := e.runRuntime.deps.Store.SubRuns(runCtx, runID)
+		attempts, err := e.subRuns.SubRuns(runCtx, runID)
 		if err != nil {
 			return false, stopCauseOr(runCtx, err)
 		}
