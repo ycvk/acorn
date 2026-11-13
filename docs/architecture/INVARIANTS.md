@@ -231,8 +231,9 @@
   - `internal/skills/owner_test.go`
   - `internal/api/handlers_skills_test.go`
   - `internal/wire/skills_owner_e2e_test.go`
-- **夜思回顾技能**：夜思输入列出上次夜思以来 agent 写过或加载过的技能及其 revision；release 写入的 revision 不列出。
+- **夜思回顾技能**：夜思输入列出上次夜思以来 agent 写过、或夜思以外的 run 加载过的技能及其 revision；release 写入的 revision 不列出，夜思自己的加载不计。
   - `internal/wake/thinking_test.go`
+  - `internal/store/store_skills_test.go`
 
 ## Remote API 与 mobile
 
