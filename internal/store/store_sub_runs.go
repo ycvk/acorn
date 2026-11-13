@@ -289,10 +289,8 @@ func querySubRuns(ctx context.Context, q memorySQL, where string, args ...any) (
 		if sub.CreatedAt, err = parseTimestamp(created, "sub-run created_at"); err != nil {
 			return err
 		}
-		if finished != "" {
-			if sub.FinishedAt, err = parseTimestamp(finished, "sub-run finished_at"); err != nil {
-				return err
-			}
+		if sub.FinishedAt, err = parseOptionalTime(finished, "sub-run finished_at"); err != nil {
+			return err
 		}
 		out = append(out, sub)
 		return nil
