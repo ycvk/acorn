@@ -200,13 +200,20 @@ type MemoryExcludedFragment struct {
 	Quote    string
 }
 
+// MaxWatchedQuestions bounds the questions watched for the owner at once.
+const MaxWatchedQuestions = 5
+
 // MemoryConcern is a continuing matter. ThreadID is the conversation it was
 // created in, fixed for all its revisions. Outcome is what it hands the owner
-// when done, empty for a matter that is only followed.
+// when done, empty for a matter that is only followed. Question marks a
+// question the owner asked whose answer may change, fixed like ThreadID: the
+// title is the question, and the owner is told in ThreadID once it has a new
+// answer.
 type MemoryConcern struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
 	Outcome   string    `json:"outcome,omitempty"`
+	Question  bool      `json:"question,omitempty"`
 	State     string    `json:"state"`
 	Reason    string    `json:"reason"`
 	SourceID  string    `json:"source_id"`
@@ -252,6 +259,9 @@ type MemoryStore interface {
 	// note at a path.
 	KnowledgeMemorySourceIDs(context.Context, string) ([]string, error)
 	SaveConcern(context.Context, MemoryConcern, int64) (MemoryConcern, error)
+	// ReleaseStaleQuestions releases the watched questions asked before
+	// askedBefore that still have no new answer, and returns them.
+	ReleaseStaleQuestions(ctx context.Context, askedBefore, now time.Time) ([]MemoryConcern, error)
 	// ListConcerns leaves out concerns whose source or linked records were
 	// forgotten and those created in a deleted conversation.
 	ListConcerns(context.Context, bool) ([]MemoryConcern, error)

@@ -112,7 +112,11 @@ func presenceLines(in RenderInput) ([]presenceLine, error) {
 	}
 	for _, c := range in.Concerns {
 		if c.State == "active" || c.State == "waiting" {
-			lines = append(lines, presenceLine{section: "Concerns", priority: 2, at: c.UpdatedAt, text: fmt.Sprintf("%s rev %d [%s] %s; source %s", c.ID, c.Revision, c.State, c.Title, c.SourceID)})
+			state := c.State
+			if c.Question {
+				state += "; watched question"
+			}
+			lines = append(lines, presenceLine{section: "Concerns", priority: 2, at: c.UpdatedAt, text: fmt.Sprintf("%s rev %d [%s] %s; source %s", c.ID, c.Revision, state, c.Title, c.SourceID)})
 		}
 	}
 	for _, r := range in.Thoughts {

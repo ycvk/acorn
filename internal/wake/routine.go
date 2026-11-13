@@ -49,6 +49,9 @@ func (s *Scheduler) runRoutines(ctx context.Context, now time.Time, settings cor
 			continue
 		}
 		slot := fmt.Sprintf("%s %02d:%02d", day, int(at/time.Hour), int(at%time.Hour/time.Minute))
+		errs = append(errs, s.runRoutine(ctx, "questions", slot, "Watching", true, now, settings, func() (routineInput, error) {
+			return s.questionsInput(ctx, slot, now, settings.Location)
+		}))
 		errs = append(errs, s.runRoutine(ctx, "wander", slot, "", true, now, settings, func() (routineInput, error) {
 			return s.wanderInput(ctx, slot, now, settings.Location)
 		}))

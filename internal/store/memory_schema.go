@@ -184,13 +184,15 @@ END;
 `
 
 // memoryConcernsTable holds each concern's current revision; thread_id is the
-// conversation the concern was created in, outcome what it delivers when done.
+// conversation the concern was created in, outcome what it delivers when
+// done, and question is 1 for a question of the owner's that is watched for a
+// new answer.
 const memoryConcernsTable = `
 CREATE TABLE IF NOT EXISTS memory_concerns (
  id TEXT PRIMARY KEY, title TEXT NOT NULL, state TEXT NOT NULL, reason TEXT NOT NULL,
  source_id TEXT NOT NULL REFERENCES memory_sources(id), revision INTEGER NOT NULL,
  review_at TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
- thread_id TEXT NOT NULL, outcome TEXT NOT NULL DEFAULT ''
+ thread_id TEXT NOT NULL, outcome TEXT NOT NULL DEFAULT '', question INTEGER NOT NULL DEFAULT 0
 );`
 
 const memoryConcernRevisionsTable = `

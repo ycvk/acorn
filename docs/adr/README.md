@@ -22,6 +22,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | [0016](0016-briefing-story-follow.md) | 从早安卡的事件进入对话与跟进 | Proposed | 2026-10-29 |
 | [0017](0017-delegation-to-sub-runs.md) | agent 把一部分工作交给自己的子 run | Proposed | 2026-11-03 |
 | [0018](0018-briefing-pieces.md) | 早安卡把今日关注的事讲透 | Proposed | 2026-11-10 |
+| [0019](0019-watched-questions.md) | Acorn 自己留意 owner 问过、答案会变的事 | Proposed | 2026-11-14 |
 
 ## Status 约定
 

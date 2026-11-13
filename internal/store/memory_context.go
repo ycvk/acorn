@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -58,12 +59,39 @@ func addConcernOutcomes(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+// addWatchedQuestions (39 to 40) adds the mark of a question watched for the
+// owner to each concern; existing concerns watch none.
+func addWatchedQuestions(ctx context.Context, tx *sql.Tx) error {
+	concerns := "id, title, state, reason, source_id, revision, review_at, created_at, updated_at, thread_id, outcome"
+	revisions := "concern_id, revision, title, state, reason, source_id, review_at, at, outcome"
+	for _, statement := range []string{
+		`CREATE TEMP TABLE memory_concerns_v39 AS SELECT ` + concerns + ` FROM memory_concerns`,
+		`CREATE TEMP TABLE memory_concern_revisions_v39 AS SELECT ` + revisions + ` FROM memory_concern_revisions`,
+		`DROP TABLE memory_concern_revisions`,
+		`DROP TABLE memory_concerns`,
+		memoryConcernsTable,
+		memoryConcernRevisionsTable,
+		`INSERT INTO memory_concerns(` + concerns + `) SELECT ` + concerns + ` FROM memory_concerns_v39`,
+		`INSERT INTO memory_concern_revisions(` + revisions + `) SELECT ` + revisions + ` FROM memory_concern_revisions_v39`,
+		`DROP TABLE memory_concerns_v39`,
+		`DROP TABLE memory_concern_revisions_v39`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SaveConcern writes a concern's next revision. A new concern belongs to
 // concern.ThreadID, which must exist; a revision keeps the stored thread and
 // fails with core.ErrMemoryExcluded once that conversation was deleted. A
-// revision without a title, outcome or record links keeps the stored ones.
+// revision without a title, outcome or record links keeps the stored ones,
+// and whether it watches a question stays as it was created.
 // Resolving needs the owner's confirmation or a tool result as source, and
-// only the owner's confirmation for a concern with an outcome.
+// only the owner's confirmation for a concern with an outcome. A watched
+// question is opened under checkNewQuestion, and resolving one schedules
+// telling the owner in the same transaction.
 func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, expected int64) (core.MemoryConcern, error) {
 	if strings.TrimSpace(concern.Reason) == "" || concern.SourceID == "" || concern.UpdatedAt.IsZero() {
 		return core.MemoryConcern{}, errors.New("concern requires reason, source_id and updated_at")
@@ -84,13 +112,15 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			concern.ID = memoryID("concern", concern.Title, concern.SourceID)
 		}
 		var revision int64
-		var title, created, thread, outcome string
-		err = tx.QueryRowContext(ctx, `SELECT title,revision,created_at,thread_id,outcome FROM memory_concerns WHERE id=?`, concern.ID).Scan(&title, &revision, &created, &thread, &outcome)
+		var title, created, thread, outcome, state string
+		var question bool
+		err = tx.QueryRowContext(ctx, `SELECT title,revision,created_at,thread_id,outcome,question,state FROM memory_concerns WHERE id=?`, concern.ID).Scan(&title, &revision, &created, &thread, &outcome, &question, &state)
 		switch {
 		case err == nil:
 			if expected != revision {
 				return core.ErrMemoryConflict
 			}
+			concern.Question = question
 			if concern.CreatedAt, err = parseTimestamp(created, "concern created_at"); err != nil {
 				return err
 			}
@@ -121,6 +151,11 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			if concern.ThreadID == "" {
 				return errors.New("new concern requires thread_id")
 			}
+			if concern.Question {
+				if err := checkNewQuestion(ctx, tx, concern, source); err != nil {
+					return err
+				}
+			}
 			concern.CreatedAt = concern.UpdatedAt
 			concern.Revision = 1
 		default:
@@ -150,7 +185,7 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 			}
 		}
 		reviewAt, updatedAt := formatZeroableTimestamp(concern.ReviewAt), formatTimestamp(concern.UpdatedAt)
-		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concerns(id,title,state,reason,source_id,revision,review_at,created_at,updated_at,thread_id,outcome) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,state=excluded.state,reason=excluded.reason,source_id=excluded.source_id,revision=excluded.revision,review_at=excluded.review_at,updated_at=excluded.updated_at,outcome=excluded.outcome`, concern.ID, concern.Title, concern.State, concern.Reason, concern.SourceID, concern.Revision, reviewAt, formatTimestamp(concern.CreatedAt), updatedAt, concern.ThreadID, concern.Outcome); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concerns(id,title,state,reason,source_id,revision,review_at,created_at,updated_at,thread_id,outcome,question) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,state=excluded.state,reason=excluded.reason,source_id=excluded.source_id,revision=excluded.revision,review_at=excluded.review_at,updated_at=excluded.updated_at,outcome=excluded.outcome`, concern.ID, concern.Title, concern.State, concern.Reason, concern.SourceID, concern.Revision, reviewAt, formatTimestamp(concern.CreatedAt), updatedAt, concern.ThreadID, concern.Outcome, concern.Question); err != nil {
 			return err
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concern_revisions(concern_id,revision,title,state,reason,source_id,review_at,at,outcome) VALUES(?,?,?,?,?,?,?,?,?)`, concern.ID, concern.Revision, concern.Title, concern.State, concern.Reason, concern.SourceID, reviewAt, updatedAt, concern.Outcome); err != nil {
@@ -161,12 +196,76 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 				return err
 			}
 		}
+		if concern.Question && concern.State == "resolved" && state != "resolved" {
+			return scheduleQuestionAnswer(ctx, tx, concern, source)
+		}
 		return nil
 	})
 	if err != nil {
 		return core.MemoryConcern{}, fmt.Errorf("save concern: %w", err)
 	}
 	return concern, nil
+}
+
+// checkNewQuestion refuses a watched question that is not opened from the
+// owner's own message, that also has an outcome, or that would be one more
+// than core.MaxWatchedQuestions.
+func checkNewQuestion(ctx context.Context, tx *sql.Tx, concern core.MemoryConcern, source core.MemorySource) error {
+	switch {
+	case source.Kind != "message" || source.Speaker != "owner":
+		return errors.New("a watched question is opened from the owner's own message; cite that message as source_id")
+	case concern.Outcome != "":
+		return errors.New("a concern watches a question or has an outcome, not both")
+	}
+	var watched int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_concerns c WHERE c.question=1 AND c.state='active' AND `+visibleConcern).Scan(&watched); err != nil {
+		return err
+	}
+	if watched >= core.MaxWatchedQuestions {
+		return fmt.Errorf("%d questions are already watched, the most at once; this one is not watched, so do not tell the owner it is", watched)
+	}
+	return nil
+}
+
+// scheduleQuestionAnswer makes the commitment that tells the owner a watched
+// question has a new answer, in the conversation they asked in. A run in
+// that conversation is telling them already and needs none.
+func scheduleQuestionAnswer(ctx context.Context, tx *sql.Tx, concern core.MemoryConcern, source core.MemorySource) error {
+	session := source.SessionID
+	if session == "" {
+		if err := tx.QueryRowContext(ctx, `SELECT session_id FROM runs WHERE run_id=?`, source.RunID).Scan(&session); err != nil {
+			return fmt.Errorf("conversation of run %s: %w", source.RunID, err)
+		}
+	}
+	if session == concern.ThreadID {
+		return nil
+	}
+	at := formatTimestamp(concern.UpdatedAt)
+	_, err := tx.ExecContext(ctx, `INSERT INTO commitments(content,state,session_id,source_run_id,concern_id,wake_at,recurrence,created_at,updated_at) VALUES(?,'scheduled',?,?,?,?,'',?,?)`, concern.Title, concern.ThreadID, source.RunID, concern.ID, at, at, at)
+	return err
+}
+
+// ReleaseStaleQuestions releases the watched questions asked before
+// askedBefore that still have no new answer, each with a revision that keeps
+// its source, and returns them as released.
+func (s *Store) ReleaseStaleQuestions(ctx context.Context, askedBefore, now time.Time) ([]core.MemoryConcern, error) {
+	concerns, err := s.ListConcerns(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+	released := []core.MemoryConcern{}
+	for _, c := range concerns {
+		if !c.Question || c.State != "active" || !c.CreatedAt.Before(askedBefore) {
+			continue
+		}
+		next := core.MemoryConcern{ID: c.ID, State: "released", Reason: fmt.Sprintf("watched since %s without a new answer", c.CreatedAt.UTC().Format("2006-01-02")), SourceID: c.SourceID, UpdatedAt: now}
+		saved, err := s.SaveConcern(ctx, next, c.Revision)
+		if err != nil {
+			return nil, fmt.Errorf("release watched question %s: %w", c.ID, err)
+		}
+		released = append(released, saved)
+	}
+	return released, nil
 }
 
 // visibleConcern holds for a concern c whose conversation still exists, whose
@@ -178,7 +277,7 @@ const visibleConcern = `EXISTS(SELECT 1 FROM sessions t WHERE t.session_id=c.thr
 // ListConcerns leaves out concerns whose source or linked records were
 // forgotten and those created in a conversation the owner deleted.
 func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.MemoryConcern, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.state,c.reason,c.source_id,c.revision,c.review_at,c.created_at,c.updated_at,c.thread_id,c.outcome,
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.state,c.reason,c.source_id,c.revision,c.review_at,c.created_at,c.updated_at,c.thread_id,c.outcome,c.question,
  (SELECT json_group_array(l.record_id) FROM (SELECT record_id FROM memory_concern_records WHERE concern_id=c.id AND revision=c.revision ORDER BY rowid) l)
  FROM memory_concerns c WHERE (?=0 OR c.state IN ('active','waiting')) AND `+visibleConcern+`
  ORDER BY c.id`, activeOnly)
@@ -189,7 +288,7 @@ func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.Memor
 	err = scanRows(rows, func(scan func(...any) error) error {
 		var c core.MemoryConcern
 		var reviewAt, created, updated, records string
-		if err := scan(&c.ID, &c.Title, &c.State, &c.Reason, &c.SourceID, &c.Revision, &reviewAt, &created, &updated, &c.ThreadID, &c.Outcome, &records); err != nil {
+		if err := scan(&c.ID, &c.Title, &c.State, &c.Reason, &c.SourceID, &c.Revision, &reviewAt, &created, &updated, &c.ThreadID, &c.Outcome, &c.Question, &records); err != nil {
 			return err
 		}
 		var err error
