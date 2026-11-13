@@ -80,8 +80,7 @@ class ThreadSnapshots(private val dir: File) {
     /** Drops the copies of conversations that are not among [listed], every conversation the server has. */
     @Synchronized
     fun keepOnly(listed: Set<String>) {
-        val names = listed.associateBy(::name)
-        unlisted(files().map { it.nameWithoutExtension }.toSet(), names.keys).forEach { File(dir, "$it.json").delete() }
+        unlisted(files().map { it.nameWithoutExtension }.toSet(), listed.map(::name).toSet()).forEach { File(dir, "$it.json").delete() }
         recent.keys.retainAll(listed)
     }
 
