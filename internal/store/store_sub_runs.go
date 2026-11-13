@@ -100,20 +100,12 @@ func (s *Store) StartSubRun(ctx context.Context, start core.SubRunStart) (core.S
 			}
 			attempt = latest.Attempt + 1
 		}
-		created := formatTimestamp(start.CreatedAt)
-		for _, statement := range []struct {
-			query string
-			args  []any
-		}{
-			{`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
-				[]any{start.RunID, sessionID, turn, string(core.RunStatusRunning), start.Input, created}},
-			{`INSERT INTO run_processes(run_id, process) VALUES(?, ?)`, []any{start.RunID, s.process}},
-			{`INSERT INTO sub_runs(run_id, parent_run_id, task, attempt, brief, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
-				[]any{start.RunID, start.ParentRunID, task, attempt, string(brief), created}},
-		} {
-			if _, err := tx.ExecContext(ctx, statement.query, statement.args...); err != nil {
-				return err
-			}
+		if err := insertRun(ctx, tx, s.process, start.RunID, sessionID, turn, start.Input, start.CreatedAt); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO sub_runs(run_id, parent_run_id, task, attempt, brief, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
+			start.RunID, start.ParentRunID, task, attempt, string(brief), formatTimestamp(start.CreatedAt)); err != nil {
+			return err
 		}
 		out = core.SubRun{
 			RunID: start.RunID, ParentRunID: start.ParentRunID, Task: task, Attempt: attempt, Brief: start.Brief,

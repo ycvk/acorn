@@ -241,11 +241,7 @@ func startQueuedRun(ctx context.Context, tx *sql.Tx, process, sessionID, runID s
 		}
 	}
 	start.Input = strings.Join(texts, "\n\n")
-	if _, err := tx.ExecContext(ctx, `INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
-		runID, sessionID, start.TurnIndex, string(core.RunStatusRunning), start.Input, formatTimestamp(time.Now())); err != nil {
-		return nil, err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO run_processes(run_id, process) VALUES(?, ?)`, runID, process); err != nil {
+	if err := insertRun(ctx, tx, process, runID, sessionID, start.TurnIndex, start.Input, time.Now()); err != nil {
 		return nil, err
 	}
 	return start, nil
