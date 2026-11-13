@@ -29,8 +29,10 @@ const subRunsTable = `CREATE TABLE IF NOT EXISTS sub_runs (
     UNIQUE(parent_run_id, task, attempt)
 );`
 
-// notSubRun keeps a query on runs r to the conversation's own runs.
-const notSubRun = `NOT EXISTS(SELECT 1 FROM sub_runs WHERE sub_runs.run_id = r.run_id)`
+// notSubRun keeps a query on runs alias to the conversation's own runs.
+func notSubRun(alias string) string {
+	return `NOT EXISTS(SELECT 1 FROM sub_runs WHERE sub_runs.run_id = ` + alias + `.run_id)`
+}
 
 // addSubRuns (33 to 34) records the sub-runs runs delegate.
 func addSubRuns(ctx context.Context, tx *sql.Tx) error {

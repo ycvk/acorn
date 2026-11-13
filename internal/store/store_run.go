@@ -230,7 +230,7 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]core.RunRecord
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT r.run_id, r.session_id, r.turn_index, r.status, r.input_text, r.output_text, r.error_text, r.created_at, r.finished_at
 		 FROM runs r JOIN sessions s ON s.session_id = r.session_id
-		 WHERE r.status = ? AND `+notSubRun+`
+		 WHERE r.status = ? AND `+notSubRun("r")+`
 		 ORDER BY r.created_at DESC
 		 LIMIT ?`,
 		string(core.RunStatusRunning),
@@ -246,7 +246,7 @@ func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]core.R
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT r.run_id, r.session_id, r.turn_index, r.status, r.input_text, r.output_text, r.error_text, r.created_at, r.finished_at
 		 FROM runs r JOIN sessions s ON s.session_id = r.session_id
-		 WHERE r.status IN (?, ?, ?) AND `+notSubRun+`
+		 WHERE r.status IN (?, ?, ?) AND `+notSubRun("r")+`
 		 ORDER BY r.finished_at DESC
 		 LIMIT ?`,
 		string(core.RunStatusSucceeded),

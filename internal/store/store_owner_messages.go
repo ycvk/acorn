@@ -171,7 +171,7 @@ func (s *Store) ListQueuedSessions(ctx context.Context) ([]string, error) {
 // for the owner, else "". Sub-runs belong to the run that delegated them.
 func activeRunOf(ctx context.Context, tx *sql.Tx, sessionID string) (string, error) {
 	var runID string
-	err := tx.QueryRowContext(ctx, `SELECT run_id FROM runs r WHERE session_id = ? AND status IN (?, ?) AND `+notSubRun+` ORDER BY created_at DESC, run_id DESC LIMIT 1`,
+	err := tx.QueryRowContext(ctx, `SELECT run_id FROM runs r WHERE session_id = ? AND status IN (?, ?) AND `+notSubRun("r")+` ORDER BY created_at DESC, run_id DESC LIMIT 1`,
 		sessionID, string(core.RunStatusRunning), string(core.RunStatusInterrupted)).Scan(&runID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
