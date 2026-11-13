@@ -7,11 +7,10 @@ import (
 
 // RunCreateParams holds the parameters for creating a run record.
 type RunCreateParams struct {
-	RunID          string
-	SessionID      string
-	TurnIndex      int
-	Input          string
-	BoundMessageID int64
+	RunID     string
+	SessionID string
+	TurnIndex int
+	Input     string
 }
 
 // RunEnd is how a run ends: its status, output and error, and its terminal
