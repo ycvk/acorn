@@ -6,7 +6,7 @@ metadata:
 ---
 # Browser
 
-浏览器是工作机上你自己的 Chromium，经 `bsk`（BrowserSkill）操作。先用 `tool_search({"query":"select:shell,files"})` 加载 `shell` 与 `files`，所有 `bsk` 命令都通过 `shell` 执行。浏览器 24 小时在线，登录状态保存在工作机里，重启后仍在。
+浏览器是工作机上你自己的 Chromium，经 `bsk`（BrowserSkill）操作，所有 `bsk` 命令都通过 `shell` 执行。浏览器 24 小时在线，登录状态保存在工作机里，重启后仍在。
 
 先用 `bsk status --json` 确认 `browsers` 里有连接；为空就如实告诉 owner，不要反复重试。
 

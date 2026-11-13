@@ -56,7 +56,6 @@ func RuntimeToolSpec(
 			Source:   source,
 			Kind:     kind,
 			Category: core.ToolCategoryInspect,
-			Loading:  core.EagerLoadingPolicy(),
 		},
 		Tool: tool,
 	}

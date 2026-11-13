@@ -186,13 +186,6 @@ func TestShowViewNeedsARun(t *testing.T) {
 	}
 }
 
-func TestShowViewLoadsOnDemand(t *testing.T) {
-	spec, ok := ConfiguredLocalSpec("show_view")
-	if !ok || spec.Loading.Mode != core.ToolLoadingModeDeferred {
-		t.Fatalf("show_view spec = %+v, %v", spec, ok)
-	}
-}
-
 // TestShowViewTakesATriggerOfASkillInUseAsItsSource checks that a view names
 // the trigger that feeds it while pinned, and only a trigger that exists.
 func TestShowViewTakesATriggerOfASkillInUseAsItsSource(t *testing.T) {

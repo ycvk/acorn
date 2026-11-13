@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/cloudwego/eino/adk"
-	"github.com/cloudwego/eino/adk/middlewares/dynamictool/toolsearch"
 	"github.com/cloudwego/eino/adk/middlewares/patchtoolcalls"
 	"github.com/cloudwego/eino/adk/middlewares/reduction"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -56,19 +54,20 @@ const (
 	maskAfterTurns = 8
 )
 
-// buildAgentRunner assembles the per-run ChatModelAgent. Context management,
-// deferred tool discovery and approvals are middleware; checkpoints persist
-// through the session store so interrupted runs resume after a restart.
+// buildAgentRunner assembles the per-run ChatModelAgent with every enabled
+// tool of the catalog. Context management and approvals are middleware;
+// checkpoints persist through the session store so interrupted runs resume
+// after a restart.
 func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest) (*adk.TypedRunner[*schema.AgenticMessage], error) {
-	eager, deferred, err := buildRunTools(ctx, req.Catalog)
+	runTools, err := BuildAuditedTools(ctx, req.Catalog.EnabledSpecs())
 	if err != nil {
 		return nil, err
 	}
-	handlers, err := buildAgentHandlers(ctx, deps, req, deferred)
+	handlers, err := buildAgentHandlers(ctx, deps, req)
 	if err != nil {
 		return nil, err
 	}
-	agent, err := newChatModelAgent(ctx, agentName, agentDescription, req.Instruction, req.ChatModel, eager, handlers)
+	agent, err := newChatModelAgent(ctx, agentName, agentDescription, req.Instruction, req.ChatModel, runTools, handlers)
 	if err != nil {
 		return nil, err
 	}
@@ -83,37 +82,29 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 // owner messages, and no checkpoints, since a sub-run never waits for the
 // owner.
 func buildSubRunRunner(ctx context.Context, deps RuntimeDeps, req subRunRunnerRequest) (*adk.TypedRunner[*schema.AgenticMessage], error) {
-	eager, deferred, err := buildRunTools(ctx, req.Catalog)
+	runTools, err := BuildAuditedTools(ctx, req.Catalog.EnabledSpecs())
 	if err != nil {
 		return nil, err
 	}
-	handlers, err := buildSubRunHandlers(ctx, deps, req, deferred)
+	handlers, err := buildSubRunHandlers(ctx, deps, req)
 	if err != nil {
 		return nil, err
 	}
-	agent, err := newChatModelAgent(ctx, subAgentName, subAgentDesc, subRunInstruction, req.ChatModel, eager, handlers)
+	agent, err := newChatModelAgent(ctx, subAgentName, subAgentDesc, subRunInstruction, req.ChatModel, runTools, handlers)
 	if err != nil {
 		return nil, err
 	}
 	return adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true}), nil
 }
 
-func buildRunTools(ctx context.Context, catalog *tools.Catalog) (eager, deferred []einotool.BaseTool, err error) {
-	built, err := BuildAuditedTools(ctx, catalog.EnabledSpecs())
-	if err != nil {
-		return nil, nil, err
-	}
-	return splitToolsByLoading(ctx, catalog.EnabledSpecs(), built)
-}
-
-func newChatModelAgent(ctx context.Context, name, description, instruction string, chatModel einomodel.AgenticModel, eager []einotool.BaseTool, handlers []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]) (adk.TypedAgent[*schema.AgenticMessage], error) {
+func newChatModelAgent(ctx context.Context, name, description, instruction string, chatModel einomodel.AgenticModel, runTools []einotool.BaseTool, handlers []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]) (adk.TypedAgent[*schema.AgenticMessage], error) {
 	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:        name,
 		Description: description,
 		Instruction: instruction,
 		Model:       chatModel,
 		ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{
-			Tools:               eager,
+			Tools:               runTools,
 			ExecuteSequentially: true,
 			UnknownToolsHandler: unknownToolResult,
 		}},
@@ -140,30 +131,7 @@ func modelRetryConfig() *adk.TypedModelRetryConfig[*schema.AgenticMessage] {
 	}
 }
 
-// splitToolsByLoading separates eager tools from deferred ones; deferred tools
-// are only reachable through the tool_search middleware.
-func splitToolsByLoading(ctx context.Context, specs []core.ToolSpec, built []einotool.BaseTool) (eager, deferred []einotool.BaseTool, err error) {
-	modes := make(map[string]core.ToolLoadingMode, len(specs))
-	for _, spec := range specs {
-		modes[strings.TrimSpace(spec.Name)] = spec.Loading.Mode
-	}
-	for _, t := range built {
-		info, err := t.Info(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read tool info: %w", err)
-		}
-		switch modes[info.Name] {
-		case core.ToolLoadingModeDeferred:
-			deferred = append(deferred, t)
-		case core.ToolLoadingModeHidden:
-		default:
-			eager = append(eager, t)
-		}
-	}
-	return eager, deferred, nil
-}
-
-func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest, deferred []einotool.BaseTool) ([]adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
+func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest) ([]adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
 	if req.Reports == nil {
 		return nil, errors.New("run handlers require the sub-run report middleware")
 	}
@@ -199,9 +167,6 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 		req.Reports,
 	}
 	handlers = append(handlers, contextHandlers...)
-	if handlers, err = appendToolSearch(ctx, handlers, deferred); err != nil {
-		return nil, err
-	}
 	// Earlier handlers wrap later ones. The skill handler adds its tool and
 	// instruction before presence reads the final instruction. Presence
 	// follows summarization so the present is not counted toward compaction
@@ -215,7 +180,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 // buildSubRunHandlers is the run's chain without memory visibility, owner
 // messages, sub-run reports and presence; approval refuses what would wait
 // for the owner.
-func buildSubRunHandlers(ctx context.Context, deps RuntimeDeps, req subRunRunnerRequest, deferred []einotool.BaseTool) ([]adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
+func buildSubRunHandlers(ctx context.Context, deps RuntimeDeps, req subRunRunnerRequest) ([]adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
 	counter, err := NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("token counter: %w", err)
@@ -226,9 +191,6 @@ func buildSubRunHandlers(ctx context.Context, deps RuntimeDeps, req subRunRunner
 	}
 	handlers, err := newContextHandlers(ctx, deps, req.ChatModel, counter, inputBudget)
 	if err != nil {
-		return nil, err
-	}
-	if handlers, err = appendToolSearch(ctx, handlers, deferred); err != nil {
 		return nil, err
 	}
 	approval, err := newApprovalMiddleware(req.Rules, deps.Reviewer, deps.Describer, deps.Store)
@@ -268,15 +230,4 @@ func newContextHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomod
 		return nil, fmt.Errorf("reduction middleware: %w", err)
 	}
 	return []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{patch, summarize, reduce}, nil
-}
-
-func appendToolSearch(ctx context.Context, handlers []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], deferred []einotool.BaseTool) ([]adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
-	if len(deferred) == 0 {
-		return handlers, nil
-	}
-	search, err := toolsearch.NewTyped[*schema.AgenticMessage](ctx, &toolsearch.Config{DynamicTools: deferred})
-	if err != nil {
-		return nil, fmt.Errorf("toolsearch middleware: %w", err)
-	}
-	return append(handlers, search), nil
 }

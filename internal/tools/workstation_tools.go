@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -139,12 +140,20 @@ type FilesOutput struct {
 	Lines []int `json:"lines,omitempty"`
 }
 
+// workstationToolNames are the tools that work on the agent's workstation.
+var workstationToolNames = []string{"shell", "job", "follow_up", "files", "send_file"}
+
+// WorkstationTool reports whether the named local tool needs the workstation.
+func WorkstationTool(name string) bool {
+	return slices.Contains(workstationToolNames, name)
+}
+
 // BuildWorkstationToolSpecs returns the specs for shell, job, follow_up,
 // files and send_file.
 func BuildWorkstationToolSpecs(cfg WorkstationToolsConfig) ([]core.ToolSpec, error) {
 	if cfg.Service == nil {
 		var specs []core.ToolSpec
-		for _, name := range []string{"shell", "job", "follow_up", "files", "send_file"} {
+		for _, name := range workstationToolNames {
 			spec, err := disabledLocalSpec(name, cfg.DisabledReason)
 			if err != nil {
 				return nil, err

@@ -75,8 +75,8 @@ func TestWorkstationToolsRunCommandsAndFiles(t *testing.T) {
 	specs := workstationSpecs(t)
 	for _, name := range []string{"shell", "job", "follow_up", "files"} {
 		spec := specs[name]
-		if !spec.Enabled() || spec.Loading.Mode != core.ToolLoadingModeDeferred {
-			t.Fatalf("%s enabled=%v loading=%s", name, spec.Enabled(), spec.Loading.Mode)
+		if !spec.Enabled() {
+			t.Fatalf("%s is disabled: %+v", name, spec.Health)
 		}
 	}
 	if _, err := invoke(t, specs["files"], `{"action":"write","path":"data/n.txt","content":"3\n4\n"}`); err != nil {
@@ -235,8 +235,8 @@ func TestWorkstationToolsDisabledWithoutService(t *testing.T) {
 
 func TestSendFileHandsTheOwnerAWorkstationFile(t *testing.T) {
 	specs, db := workstationSpecsWithFiles(t, 1<<20)
-	if spec := specs["send_file"]; !spec.Enabled() || spec.Loading.Mode != core.ToolLoadingModeDeferred {
-		t.Fatalf("send_file enabled=%v loading=%s", spec.Enabled(), spec.Loading.Mode)
+	if spec := specs["send_file"]; !spec.Enabled() {
+		t.Fatalf("send_file is disabled: %+v", spec.Health)
 	}
 	if _, err := invoke(t, specs["shell"], `{"command":"mkdir -p books && printf 'PK\\003\\004book' > books/hongloumeng.epub && head -c 2000000 /dev/zero > big.bin"}`); err != nil {
 		t.Fatal(err)

@@ -26,7 +26,6 @@ func TestViewActionsComeBackAsTheOwnersMessage(t *testing.T) {
 		"next":    []any{map[string]any{"id": "a", "label": "写摘要"}, map[string]any{"id": "b", "label": "设个提醒"}},
 	}}
 	provider := &fakeOpenAI{replies: []string{
-		toolCallChunk("load_views", "tool_search", map[string]string{"query": "select:show_view,update_view"}),
 		toolCallChunk("offer", "show_view", next),
 		textReply("读完了，接下来想怎么处理？"),
 	}}
@@ -68,7 +67,7 @@ func TestViewActionsComeBackAsTheOwnersMessage(t *testing.T) {
 	waitRunStatus(t, c, sent.Run.ID, "completed")
 
 	// The model sees the owner's words and, beside them, which view and action sent them.
-	input := lastOwnerInput(provider.request(3))
+	input := lastOwnerInput(provider.request(2))
 	for _, want := range []string{"整理成笔记", `[Sent from your view "读完之后" (` + viewID + `) through note: action save_note]`, `Context: {"url":"https://example.com/long-read"}`} {
 		if !strings.Contains(input, want) {
 			t.Fatalf("model input %q\nwant it to contain %q", input, want)

@@ -74,7 +74,6 @@ func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 		ToolContract: core.ToolContract{
 			Source:   "local",
 			Category: core.ToolCategoryRead,
-			Loading:  core.EagerLoadingPolicy(),
 		},
 		Tool: tool,
 	}})
@@ -92,7 +91,6 @@ func testToolContract(name string, source string) core.ToolContract {
 		Source:   source,
 		Kind:     core.ToolKindNative,
 		Category: core.ToolCategoryRead,
-		Loading:  core.EagerLoadingPolicy(),
 	}
 }
 

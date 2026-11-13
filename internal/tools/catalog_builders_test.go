@@ -57,9 +57,6 @@ func TestBuildWebToolSpecsEnablesConfiguredTools(t *testing.T) {
 		if !spec.Enabled() || spec.Tool == nil {
 			t.Fatalf("%s: enabled=%v tool=%v, want enabled with a tool", name, spec.Enabled(), spec.Tool)
 		}
-		if spec.Loading.Mode != core.ToolLoadingModeEager {
-			t.Fatalf("%s loading = %s, want eager", name, spec.Loading.Mode)
-		}
 	}
 }
 

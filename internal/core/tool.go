@@ -7,21 +7,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 )
 
-// --- Tool loading ---
-
-type ToolLoadingMode string
-
-const (
-	ToolLoadingModeEager    ToolLoadingMode = "eager"
-	ToolLoadingModeDeferred ToolLoadingMode = "deferred"
-	ToolLoadingModeHidden   ToolLoadingMode = "hidden"
-)
-
-type ToolLoadingPolicy struct {
-	Mode   ToolLoadingMode
-	Reason string
-}
-
 // --- Tool classification ---
 
 type ToolKind string
@@ -67,13 +52,11 @@ type ToolContract struct {
 	Source   string
 	Kind     ToolKind
 	Category ToolCategory
-	Loading  ToolLoadingPolicy
 }
 
 func (c ToolContract) Normalized() ToolContract {
 	c.Name = strings.TrimSpace(c.Name)
 	c.Source = strings.TrimSpace(c.Source)
-	c.Loading.Reason = strings.TrimSpace(c.Loading.Reason)
 	return c
 }
 
@@ -88,14 +71,6 @@ func (c ToolContract) Validate() error {
 	if c.Category == "" {
 		return fmt.Errorf("tool contract %q: category is required", c.Name)
 	}
-	if c.Loading.Mode == "" {
-		return fmt.Errorf("tool contract %q: loading mode is required", c.Name)
-	}
-	switch c.Loading.Mode {
-	case ToolLoadingModeEager, ToolLoadingModeDeferred, ToolLoadingModeHidden:
-	default:
-		return fmt.Errorf("tool contract %q: unknown loading mode %q", c.Name, c.Loading.Mode)
-	}
 	return nil
 }
 
@@ -106,7 +81,7 @@ func (c ToolContract) Validate() error {
 //
 // Factory unifies tool construction for both native and MCP tools: when non-nil,
 // the runtime invokes it to lazily produce the einotool.BaseTool instance.
-// The pre-built Tool field serves eager-loaded tools that need no factory.
+// The pre-built Tool field serves tools that need no factory.
 type ToolSpec struct {
 	ToolContract
 	Tool    einotool.BaseTool
@@ -126,14 +101,4 @@ type Catalog interface {
 	EnabledSpecs() []ToolSpec
 	Tools() []einotool.BaseTool
 	Find(name string) (ToolSpec, bool)
-}
-
-// --- Policy constructors ---
-
-func EagerLoadingPolicy() ToolLoadingPolicy {
-	return ToolLoadingPolicy{Mode: ToolLoadingModeEager}
-}
-
-func DeferredLoadingPolicy(reason string) ToolLoadingPolicy {
-	return ToolLoadingPolicy{Mode: ToolLoadingModeDeferred, Reason: reason}
 }

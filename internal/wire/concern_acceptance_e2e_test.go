@@ -176,7 +176,6 @@ func TestWanderDeliversAnOutcomeThatOnlyTheOwnerResolves(t *testing.T) {
 	// The first slot writes the first part in the concern's work directory.
 	before := provider.requestCount()
 	provider.add(
-		toolCallChunk("load_files", "tool_search", map[string]string{"query": "select:files"}),
 		toolCallChunk("write", "files", map[string]string{"action": "write", "path": doc, "content": "# X 的版本变化\n\n## v1.4\n- 移除旧配置项\n"}),
 		toolCallChunk("advance_1", "concern", map[string]any{"action": "active", "id": item.ID, "revision": item.Revision, "title": item.Title, "reason": "整理完 v1.4，下一步是 v1.5", "source_id": "__input_source__"}),
 		textReply("v1.4 整理完了，写在 changes.md 里。"),
@@ -199,7 +198,6 @@ func TestWanderDeliversAnOutcomeThatOnlyTheOwnerResolves(t *testing.T) {
 
 	// The second slot's command waits for approval, then the advance delivers.
 	provider.add(
-		toolCallChunk("load_shell", "tool_search", map[string]string{"query": "select:shell"}),
 		toolCallChunk("append", "shell", map[string]string{"command": "printf '\\n## v1.5\\n- 配置改为 YAML，升级时先运行 x migrate\\n' >> ~/" + doc}),
 		toolCallChunk("deliver", "send_file", map[string]string{"path": doc, "name": "X 版本变化.md"}),
 		toolCallChunk("push", "notify_owner", map[string]string{"title": "X 的版本变化整理好了", "body": "文档已发在对话里"}),

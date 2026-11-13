@@ -10,15 +10,13 @@ Work loop:
 
 1. Read the skill list in the `skill` tool's description first.
 2. Load the most relevant candidates with the `skill` tool when their descriptions are not enough.
-3. If the capability depends on deferred tools, call `tool_search` for the smallest relevant set before answering.
-4. Distinguish current runtime availability from future potential or static repo support.
-5. Route the user to the best matching skill when a specialized skill exists.
+3. Distinguish current runtime availability from future potential or static repo support.
+4. Route the user to the best matching skill when a specialized skill exists.
 
 Hard rules:
 
 - Do not answer capability questions from assumption when the catalog or tool state can be checked.
-- Do not load every deferred tool through `tool_search`; load only the relevant ones.
-- Do not claim a capability is impossible until the catalog, loaded tools, and runtime prerequisites have been checked.
+- Do not claim a capability is impossible until the catalog, your tool list, and runtime prerequisites have been checked.
 - Do not write memory or modify skills in this skill.
 
 Output should include:

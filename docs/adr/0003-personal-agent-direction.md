@@ -72,7 +72,7 @@ Acorn 是一个有连续人格的个人代理。它盯着 owner 关心的信息�
 
 ### Runtime
 
-- 使用 Eino `ChatModelAgent`,挂载 summarization、reduction、toolsearch、patchtoolcalls、skill 几个 middleware,checkpoint store 落 SQLite,chat model 加重试。
+- 使用 Eino `ChatModelAgent`,挂载 summarization、reduction、toolsearch（已移除，见 [ADR 0011](0011-views-in-replies.md)）、patchtoolcalls、skill 几个 middleware,checkpoint store 落 SQLite,chat model 加重试。
 - 自研两个 middleware:
   - `presence`:在 `WrapModel` 中把"当下"作为最后一条 system 消息追加到本次模型调用的输入,并写入快照。"当下"只属于这一次调用;`BeforeModelRewriteState` 会把它写进 agent 状态,进而进入对话历史和 checkpoint,所以不用;
   - `approval`:见上文。

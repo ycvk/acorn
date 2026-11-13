@@ -90,7 +90,6 @@ func configuredLocalSpec(name string) core.ToolSpec {
 			Source:   "local",
 			Kind:     core.ToolKindNative,
 			Category: core.ToolCategoryInspect,
-			Loading:  core.EagerLoadingPolicy(),
 		},
 	}
 	switch name {
@@ -106,12 +105,8 @@ func configuredLocalSpec(name string) core.ToolSpec {
 		spec.Category = core.ToolCategoryRead
 	case "web_fetch", "web_search":
 		spec.Category = core.ToolCategoryRead
-	case "shell", "job", "follow_up", "files", "send_file":
+	case "shell", "job", "follow_up", "files", "send_file", "show_view", "update_view":
 		spec.Category = core.ToolCategoryIntegration
-		spec.Loading = core.DeferredLoadingPolicy("workstation")
-	case "show_view", "update_view":
-		spec.Category = core.ToolCategoryIntegration
-		spec.Loading = core.DeferredLoadingPolicy("views")
 	}
 	spec.Health = core.ToolHealth{State: core.HealthStateHealthy}
 	return spec

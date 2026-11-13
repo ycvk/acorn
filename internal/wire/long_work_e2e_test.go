@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,8 @@ import (
 // starts a download that keeps running as a job and sets a follow-up on the
 // file. Once the file is ready the agent wakes in the conversation; the goal
 // then continues it until the agent reports it done. The agent tells the
-// owner itself in that run, so the goal's end is not pushed again.
+// owner itself in that run, so the goal's end is not pushed again. The
+// workstation tools are among the run's tools from its first model call.
 func TestLongWorkContinuesUntilTheGoalIsDone(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
@@ -44,7 +46,6 @@ func TestLongWorkContinuesUntilTheGoalIsDone(t *testing.T) {
 	}
 
 	provider.add(
-		toolCallChunk("load", "tool_search", map[string]string{"query": "select:shell,follow_up"}),
 		toolCallChunk("goal", "goal", map[string]any{"action": "start", "objective": "把书下好并整理成笔记", "max_runs": 3}),
 		toolCallChunk("download", "shell", map[string]any{"command": "sleep 1; printf 第一章 > book.txt", "wait_seconds": 0}),
 		toolCallChunk("wait", "follow_up", map[string]string{"task": "书下好了就整理", "path": "book.txt"}),
@@ -54,6 +55,12 @@ func TestLongWorkContinuesUntilTheGoalIsDone(t *testing.T) {
 		t.Fatal(err)
 	}
 	latest := waitNewRun(t, c, thread.ID, "").RunID
+	tools := requestTools(provider.request(0))
+	for _, name := range []string{"shell", "job", "follow_up", "files", "send_file"} {
+		if !slices.Contains(tools, name) {
+			t.Fatalf("the run's first model call lacks %s: %v", name, tools)
+		}
+	}
 	waiting, err := c.store.WaitingFollowUps(ctx, thread.ID)
 	if err != nil || len(waiting) != 1 {
 		t.Fatalf("follow-ups = %+v, %v", waiting, err)
