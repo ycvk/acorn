@@ -310,8 +310,10 @@ func (m *approvalMiddleware) review(toolName string) func(context.Context, strin
 }
 
 // reviewCalls turns a tool call into what review judges. Read-only shell
-// commands need none; each bsk page action is judged with the page the
-// agent last observed, and any other part as the whole command.
+// commands need none; each bsk page action is judged with the page bsk last
+// showed of its session, and any other part as the whole command. An action
+// review cannot place is judged without a page or a target, which sends it
+// to the owner.
 func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args string) ([]review.Call, error) {
 	owner, err := m.ownerRequest(ctx)
 	if err != nil {
@@ -333,15 +335,19 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 	var calls []review.Call
 	m.mu.Lock()
 	for _, a := range shell.Actions() {
-		page := m.pages[pageKey{a.Session}]
+		var page review.Page
+		target := ""
+		if !a.Unsure {
+			page = m.pages[pageKey{a.Session}]
+			target = page.Refs[a.Ref]
+			if a.Selector != "" {
+				target = "CSS selector " + a.Selector
+			}
+		}
 		action := a.Action
 		value := a.Value
 		if action == "press" {
 			action, value = "press "+a.Value, ""
-		}
-		target := page.Refs[a.Ref]
-		if target == "" && a.Ref != "" && !strings.HasPrefix(a.Ref, "@e") {
-			target = "CSS selector " + a.Ref
 		}
 		calls = append(calls, review.Call{OwnerRequest: owner, Browser: &review.BrowserAction{
 			Action: action, Value: value, Target: target, URL: page.URL, Title: page.Title,
@@ -366,44 +372,63 @@ func shellCommand(args string) (command string, ok bool) {
 	return input.Command, true
 }
 
-// observing remembers what bsk showed of each session, so a later click on
-// @eN is reviewed with the element's name and the page it is on.
+// observing keeps what bsk showed of each session, so a later click on @eN
+// is reviewed with the element's name and the page it is on. The memory
+// holds only what bsk itself printed, in full, about one session: a page
+// shown any other way, or a command that may have given a session new refs
+// out of sight, leaves nothing to review a ref against.
 func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) adk.InvokableToolCallEndpoint {
 	return func(ctx context.Context, args string, opts ...einotool.Option) (string, error) {
 		out, err := endpoint(ctx, args, opts...)
 		if err != nil {
 			return out, err
 		}
-		// A failed call arrives as the tool error handler's text; it showed no page.
-		if !json.Valid([]byte(out)) {
+		command, ok := shellCommand(args)
+		if !ok {
+			// The shell tool rejected the arguments without running a command.
 			return out, nil
 		}
+		// A failed call arrives as the tool error handler's text: it shows no
+		// page, and its command may have run all the same.
 		var result tools.ShellOutput
-		if err := json.Unmarshal([]byte(out), &result); err != nil {
-			return "", fmt.Errorf("observe shell result: %w", err)
-		}
-		var input struct {
-			Command string `json:"command"`
-		}
-		if err := json.Unmarshal([]byte(args), &input); err != nil {
-			return "", fmt.Errorf("observe shell arguments: %w", err)
-		}
-		sessions := map[pageKey]bool{}
-		for _, c := range review.ParseShell(input.Command).Bsk {
-			if c.Session != "" {
-				sessions[pageKey{c.Session}] = true
+		if json.Valid([]byte(out)) {
+			if err := json.Unmarshal([]byte(out), &result); err != nil {
+				return "", fmt.Errorf("observe shell result: %w", err)
 			}
 		}
-		// Output mixing several sessions cannot be attributed.
-		if len(sessions) == 1 {
-			m.mu.Lock()
-			for key := range sessions {
-				m.pages[key] = m.pages[key].Merge(review.ObservePage(result.Output))
+		shell := review.ParseShell(command)
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		switch key := (pageKey{shell.Shows}); {
+		case shell.Moves:
+			clear(m.pages)
+		case shell.Shows == "":
+			for _, a := range shell.Actions() {
+				if page, seen := m.pages[pageKey{a.Session}]; seen && leaves(a) {
+					page.URL = ""
+					m.pages[pageKey{a.Session}] = page
+				}
 			}
-			m.mu.Unlock()
+		case result.ExitCode == nil || result.OutputTruncated:
+			// The session may be past what the output holds: the command
+			// still runs, or the middle of what it printed was left out.
+			delete(m.pages, key)
+		default:
+			page, whole := shell.Page(result.Output)
+			if !whole {
+				delete(m.pages, key)
+				break
+			}
+			m.pages[key] = m.pages[key].Shown(page, slices.ContainsFunc(shell.Actions(), leaves))
 		}
 		return out, nil
 	}
+}
+
+// leaves reports whether a page action may take its session to another page:
+// a click, a key or a choice can, typing into a field does not.
+func leaves(a review.BrowserCall) bool {
+	return a.Action != "fill"
 }
 
 func (m *approvalMiddleware) ownerRequest(ctx context.Context) (string, error) {
