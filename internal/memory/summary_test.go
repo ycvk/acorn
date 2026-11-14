@@ -91,6 +91,7 @@ func TestTouchedFileReadsFilesAndSendFileCalls(t *testing.T) {
 	}{
 		{"files", `{"action":"read","path":"notes/plan.md"}`, FileTouch{Path: "notes/plan.md"}, true},
 		{"files", `{"action":"write","path":"work/c12/report.md","content":"draft"}`, FileTouch{Path: "work/c12/report.md", Changed: true}, true},
+		{"files", `{"action":"edit","path":"notes/plan.md","edits":[{"old":"step 2","new":"step 3"}]}`, FileTouch{Path: "notes/plan.md", Changed: true}, true},
 		{"send_file", `{"path":"/home/agent/out/book.epub","name":"书.epub"}`, FileTouch{Path: "/home/agent/out/book.epub"}, true},
 		{"files", `{"action":`, FileTouch{}, false},
 		{"files", `{"action":"list","path":"notes"}`, FileTouch{}, false},

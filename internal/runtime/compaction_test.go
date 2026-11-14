@@ -85,13 +85,15 @@ func TestCompactionKeepsTheFormatIdsAndFilesAcrossCompactions(t *testing.T) {
 		toolResultMessage(`{"path":"/home/agent/notes/rss-digest.md","bytes":9}`, "c7", "files"),
 		toolCallReply("c8", "files", `{"action":"read","path":"data/feeds.opml"}`),
 		toolResultMessage(`{"path":"/home/agent/data/feeds.opml","content":"<opml/>"}`, "c8", "files"),
+		toolCallReply("c9", "files", `{"action":"edit","path":"data/feeds.opml","edits":[{"old":"<opml/>","new":"<opml></opml>"}]}`),
+		toolResultMessage(`{"path":"/home/agent/data/feeds.opml","bytes":13,"lines":1}`, "c9", "files"),
 	)
 	again := compact(t, model, more)
 	if !strings.Contains(messageText(model.lastInput()[1]), "follow_up #4 waits for it") {
 		t.Fatal("second compaction did not see the first summary")
 	}
 	summary = messageText(again[1])
-	wantFiles = "## Files read\n- /home/agent/out/digest.epub\n- data/feeds.opml\n\n## Files changed\n- work/c12/report.md\n- notes/rss-digest.md"
+	wantFiles = "## Files read\n- /home/agent/out/digest.epub\n\n## Files changed\n- work/c12/report.md\n- notes/rss-digest.md\n- data/feeds.opml"
 	if len(again) != 2 || !strings.Contains(summary, summaryText(second)+"\n\n"+wantFiles) {
 		t.Fatalf("second summary=%s", summary)
 	}

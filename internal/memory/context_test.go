@@ -232,14 +232,15 @@ func TestThreadSummaryKeepsIdsPathsAndFilesAcrossUpdates(t *testing.T) {
 		toolCall{"shell", `{"command":"cat notes/feeds.opml"}`, `{"job_id":"job_7f3a2c","state":"done"}`},
 		toolCall{"files", `{"action":"write","path":"notes/declined.md","content":"x"}`, "The owner declined this files call. Do not retry it; continue without it or ask the owner what to do instead."},
 		toolCall{"send_file", `{"path":"/home/agent/out/digest.epub"}`, `{"file_id":"f1","name":"digest.epub"}`},
-		toolCall{"files", `{"action":"read","path":"notes/rss-digest.md"}`, `{"path":"/home/agent/notes/rss-digest.md","content":"digest"}`})
+		toolCall{"files", `{"action":"read","path":"notes/rss-digest.md"}`, `{"path":"/home/agent/notes/rss-digest.md","content":"digest"}`},
+		toolCall{"files", `{"action":"edit","path":"notes/feeds.md","edits":[{"old":"weekly","new":"daily"}]}`, `{"path":"/home/agent/notes/feeds.md","bytes":42,"lines":3}`})
 	recordRun(t, db, "goal-thread", "run-3", 3, core.RunStatusRunning,
 		toolCall{"files", `{"action":"write","path":"notes/in-progress.md","content":"x"}`, `{"path":"/home/agent/notes/in-progress.md","bytes":1}`})
 	got, err := e.History(ctx, "goal-thread", 0, ids[4], 3000)
 	if err != nil {
 		t.Fatal(err)
 	}
-	files := "\n\n## Files read\n- /home/agent/out/digest.epub\n- notes/rss-digest.md\n\n## Files changed\n- work/c12/report.md"
+	files := "\n\n## Files read\n- /home/agent/out/digest.epub\n- notes/rss-digest.md\n\n## Files changed\n- work/c12/report.md\n- notes/feeds.md"
 	if len(got.Messages) != 1 || got.Summary == nil || got.Summary.ThroughMessageID != ids[3] || got.Summary.Content != second+files {
 		t.Fatalf("history=%+v summary=%+v", got, got.Summary)
 	}
@@ -264,10 +265,10 @@ func TestThreadSummaryKeepsIdsPathsAndFilesAcrossUpdates(t *testing.T) {
 		t.Fatalf("saved summary=%+v err=%v", saved, err)
 	}
 	calls, err := db.ThreadToolCalls(ctx, "goal-thread", ids[3], fileTools)
-	if err != nil || len(calls) != 5 {
+	if err != nil || len(calls) != 6 {
 		t.Fatalf("calls=%+v err=%v", calls, err)
 	}
-	for _, i := range []int{0, 1, 3, 4} {
+	for _, i := range []int{0, 1, 3, 4, 5} {
 		if !slices.Contains(saved.SourceIDs, calls[i].SourceID) {
 			t.Errorf("summary sources %v lack %s", saved.SourceIDs, calls[i].SourceID)
 		}
@@ -291,7 +292,7 @@ func TestThreadSummaryKeepsIdsPathsAndFilesAcrossUpdates(t *testing.T) {
 	if err != nil || rebuilt.Summary == nil {
 		t.Fatalf("rebuilt=%+v err=%v", rebuilt, err)
 	}
-	if want := "\n\n## Files read\n- notes/rss-digest.md\n\n## Files changed\n- work/c12/report.md"; !strings.HasSuffix(rebuilt.Summary.Content, want) || slices.Contains(rebuilt.Summary.SourceIDs, calls[3].SourceID) {
+	if want := "\n\n## Files read\n- notes/rss-digest.md\n\n## Files changed\n- work/c12/report.md\n- notes/feeds.md"; !strings.HasSuffix(rebuilt.Summary.Content, want) || slices.Contains(rebuilt.Summary.SourceIDs, calls[3].SourceID) {
 		t.Fatalf("rebuilt summary=%+v", rebuilt.Summary)
 	}
 }
