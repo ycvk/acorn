@@ -9,9 +9,9 @@ import (
 // Shell is a shell command split into the parts review cares about.
 type Shell struct {
 	// ReadOnly is set when every simple command is a listed program run by
-	// its bare name with nothing that makes it run another program, and no
-	// redirection can reach the network or write a file bash runs at login,
-	// so the command needs no review.
+	// its bare name with nothing that makes it run another program or write
+	// a file of its own, and no redirection can reach the network or write
+	// a file bash runs at login, so the command needs no review.
 	ReadOnly bool
 	// Other is set when a part that is neither read-only nor a bsk page
 	// action needs review as a whole command.
@@ -104,17 +104,20 @@ var loginFiles = map[string]bool{
 
 // riskyTarget reports whether a redirection target may be one of bash's
 // network paths, /dev/tcp/host/port and /dev/udp/host/port, which open a
-// connection, or a file a login shell runs; a target built from a variable
-// or a pattern may be one too.
+// connection, or a file a login shell runs; a target built from a variable,
+// a brace list or a pattern may be one too.
 func riskyTarget(target string) bool {
 	clean := path.Clean(target)
 	return strings.HasPrefix(clean, "/dev/tcp/") || strings.HasPrefix(clean, "/dev/udp/") ||
-		strings.ContainsAny(target, "$*?[") || loginFiles[path.Base(clean)]
+		strings.ContainsAny(target, "$*?[{") || loginFiles[path.Base(clean)]
 }
 
-func classify(words []string) (bool, *BrowserCall) {
-	for len(words) > 0 && isAssignment(words[0]) {
-		if !plainAssignment(words[0]) {
+// classify judges a simple command. A program judged by its arguments is
+// read-only only when every argument is the word the program gets: an open
+// one can become the option the check looks for.
+func classify(words []word) (bool, *BrowserCall) {
+	for len(words) > 0 && isAssignment(words[0].text) {
+		if !plainAssignment(words[0].text) {
 			return false, nil
 		}
 		words = words[1:]
@@ -122,16 +125,27 @@ func classify(words []string) (bool, *BrowserCall) {
 	if len(words) == 0 {
 		return true, nil
 	}
-	switch program := words[0]; program {
+	args, literal := make([]string, 0, len(words)-1), true
+	for _, w := range words[1:] {
+		args = append(args, w.text)
+		literal = literal && !w.open
+	}
+	switch program := words[0].text; program {
 	case "find":
-		return !slices.ContainsFunc(words[1:], func(w string) bool { return findActions[w] }), nil
+		return literal && !slices.ContainsFunc(args, func(a string) bool { return findActions[a] }), nil
 	case "sort":
-		return !slices.ContainsFunc(words[1:], runsProgram), nil
+		return literal && !slices.ContainsFunc(args, sortRunsOrWrites), nil
+	case "uniq":
+		// uniq writes to its second operand.
+		return literal && operands(args) < 2, nil
+	case "tree":
+		return literal && !slices.ContainsFunc(args, func(a string) bool { return shortOption(a, 'o') }), nil
 	case "printf":
-		// printf -v assigns a variable, PATH among them.
-		return len(words) < 2 || !strings.HasPrefix(words[1], "-v"), nil
+		// printf -v assigns a variable, PATH among them; only its first
+		// argument can be the option.
+		return len(args) == 0 || !words[1].open && !strings.HasPrefix(args[0], "-v"), nil
 	case "bsk":
-		return classifyBsk(words[1:])
+		return classifyBsk(args)
 	default:
 		return readOnlyPrograms[program], nil
 	}
@@ -195,15 +209,37 @@ func plainAssignment(word string) bool {
 	return strings.HasPrefix(name, "BSK_") || name == strings.ToLower(name)
 }
 
-// runsProgram reports whether a sort argument is --compress-program, which
-// runs the program it names, or an abbreviation of it that getopt accepts.
-func runsProgram(arg string) bool {
+// sortRunsOrWrites reports whether a sort argument is --compress-program,
+// which runs the program it names, or --output or -o, which write the file
+// they name; a long option counts in any abbreviation getopt accepts.
+func sortRunsOrWrites(arg string) bool {
 	name, ok := strings.CutPrefix(arg, "--")
 	if !ok {
-		return false
+		return shortOption(arg, 'o')
 	}
 	name, _, _ = strings.Cut(name, "=")
-	return name != "" && strings.HasPrefix("compress-program", name) && !strings.HasPrefix("check", name)
+	return name != "" && (strings.HasPrefix("output", name) || strings.HasPrefix("compress-program", name) && !strings.HasPrefix("check", name))
+}
+
+// shortOption reports whether arg is a group of short options that may hold
+// flag; a value written onto an option counts as more of the group.
+func shortOption(arg string, flag byte) bool {
+	return strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && strings.IndexByte(arg, flag) > 0
+}
+
+// operands counts the arguments that are not options. An option's value
+// written apart from it counts as one.
+func operands(args []string) int {
+	n := 0
+	for i, a := range args {
+		if a == "--" {
+			return n + len(args) - i - 1
+		}
+		if a == "-" || !strings.HasPrefix(a, "-") {
+			n++
+		}
+	}
+	return n
 }
 
 func isAssignment(word string) bool {
@@ -230,17 +266,26 @@ func isNameRune(i int, r rune) bool {
 	}
 }
 
+// word is a command word with its quotes and escapes resolved. open is set
+// when bash expands it further than splitWords does: a parameter, a brace
+// list or a pattern in it can make it other words than the text shows.
+type word struct {
+	text string
+	open bool
+}
+
 // splitWords tokenizes like a POSIX shell, enough to find simple commands:
 // quotes and escapes join words, control operators end a command, and
 // redirection targets are returned apart from the command words; the
 // delimiter of a here-document and the word of a here-string are neither.
 // It reports false on substitutions and unbalanced quotes.
-func splitWords(command string) ([][]string, []string, bool) {
+func splitWords(command string) ([][]word, []string, bool) {
 	var (
-		commands   [][]string
+		commands   [][]word
 		targets    []string
-		current    []string
-		word       strings.Builder
+		current    []word
+		text       strings.Builder
+		open       bool
 		inWord     bool
 		skipNext   bool
 		targetNext bool
@@ -251,15 +296,15 @@ func splitWords(command string) ([][]string, []string, bool) {
 		}
 		switch {
 		case skipNext && targetNext:
-			targets = append(targets, word.String())
+			targets = append(targets, text.String())
 			skipNext, targetNext = false, false
 		case skipNext:
 			skipNext = false
 		default:
-			current = append(current, word.String())
+			current = append(current, word{text: text.String(), open: open})
 		}
-		word.Reset()
-		inWord = false
+		text.Reset()
+		inWord, open = false, false
 	}
 	endCommand := func() {
 		endWord()
@@ -275,15 +320,18 @@ func splitWords(command string) ([][]string, []string, bool) {
 		case r == '\\':
 			if i+1 < len(runes) {
 				i++
-				word.WriteRune(runes[i])
-				inWord = true
+				// A backslash before a newline continues the line.
+				if runes[i] != '\n' {
+					text.WriteRune(runes[i])
+					inWord = true
+				}
 			}
 		case r == '\'':
 			end := indexRune(runes, i+1, '\'')
 			if end < 0 {
 				return nil, nil, false
 			}
-			word.WriteString(string(runes[i+1 : end]))
+			text.WriteString(string(runes[i+1 : end]))
 			inWord = true
 			i = end
 		case r == '"':
@@ -291,13 +339,16 @@ func splitWords(command string) ([][]string, []string, bool) {
 			for ; j < len(runes) && runes[j] != '"'; j++ {
 				if runes[j] == '\\' && j+1 < len(runes) {
 					j++
-					word.WriteRune(runes[j])
+					if runes[j] != '\n' {
+						text.WriteRune(runes[j])
+					}
 					continue
 				}
 				if runes[j] == '`' || runes[j] == '$' && j+1 < len(runes) && runes[j+1] == '(' {
 					return nil, nil, false
 				}
-				word.WriteRune(runes[j])
+				open = open || runes[j] == '$'
+				text.WriteRune(runes[j])
 			}
 			if j >= len(runes) {
 				return nil, nil, false
@@ -317,8 +368,8 @@ func splitWords(command string) ([][]string, []string, bool) {
 		case r == '>' || r == '<':
 			// A redirection: the descriptor before it and the target after it
 			// are not command words.
-			if inWord && isDigits(word.String()) {
-				word.Reset()
+			if inWord && isDigits(text.String()) {
+				text.Reset()
 				inWord = false
 			} else {
 				endWord()
@@ -337,7 +388,8 @@ func splitWords(command string) ([][]string, []string, bool) {
 		case r == ' ' || r == '\t':
 			endWord()
 		default:
-			word.WriteRune(r)
+			open = open || strings.ContainsRune("$*?[{", r)
+			text.WriteRune(r)
 			inWord = true
 		}
 	}
