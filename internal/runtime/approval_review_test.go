@@ -265,6 +265,32 @@ func TestGateReadsPageActionsAsBskDoes(t *testing.T) {
 	}
 }
 
+// A command that may run a page action the gate cannot read goes to review
+// marked as hiding one, which sends it to the owner. Naming bsk for a
+// read-only subcommand marks nothing.
+func TestGateMarksACommandThatHidesAPageAction(t *testing.T) {
+	for command, hidden := range map[string]bool{
+		"env bsk click @e3 --session s1":                                 true,
+		"sh -c 'bsk click @e3 --session s1'":                             true,
+		"echo $(bsk click @e3 --session s1)":                             true,
+		"a=click; bsk $a @e3 --session s1":                               true,
+		"s=$(bsk session start --no-focus --json | jq -r .session_id)":   false,
+		"bsk observe --session s1 > page.txt; python3 parse.py page.txt": false,
+	} {
+		f := newGateFixture(t, core.ApprovalRules{})
+		if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.call(t, "shell", shellArgs(command)); err != nil {
+			t.Fatal(err)
+		}
+		want := review.Call{OwnerRequest: f.store.input, Tool: "shell", Command: command, Hidden: hidden}
+		if len(f.reviewer.calls) != 1 || f.reviewer.calls[0] != want {
+			t.Errorf("%q reviewed as %+v", command, f.reviewer.calls)
+		}
+	}
+}
+
 // The page memory holds what bsk printed about a session and nothing else:
 // output another program or a page's text could shape never names a ref.
 func TestGateKeepsPageMemoryToWhatBskShowed(t *testing.T) {

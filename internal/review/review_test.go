@@ -40,6 +40,7 @@ func TestParseShellReadOnlyCommands(t *testing.T) {
 		`printf '%s\n' "$total" $count`,
 		"ls *.txt && echo {a,b} && grep -c TODO notes/{a,b}.md",
 		"cat notes/a.md \\\n  | wc -l",
+		"grep -c TODO notes.md &> count.txt",
 	} {
 		shell := ParseShell(command)
 		want := !strings.HasPrefix(command, "s=$(")
@@ -247,6 +248,99 @@ func TestParseShellDoesNotGuessAPageActionsTarget(t *testing.T) {
 
 // bsk takes its subcommand first: a word that follows an option's value is
 // not it.
+// A page action ParseShell cannot read is not lost in the command around it.
+// Wherever something in the command can run a program of its own choosing,
+// naming bsk for anything but a read-only subcommand marks the command.
+func TestParseShellFindsThePageActionACommandHides(t *testing.T) {
+	for _, command := range []string{
+		// Another program runs bsk.
+		"env bsk click @e7 --session s",
+		"command bsk click @e7 --session s",
+		"timeout 5 bsk fill @e3 --value hi --session s",
+		"sudo -u agent bsk press Enter --session s",
+		"echo @e7 | xargs bsk click --session s",
+		"echo click @e7 --session s | xargs bsk",
+		`find . -name go -exec bsk click @e7 --session s \;`,
+		// bsk by its path.
+		"/usr/local/bin/bsk click @e7 --session s",
+		"./bsk click @e7 --session s",
+		// A shell or an interpreter is given the text.
+		"sh -c 'bsk click @e7 --session s'",
+		`bash -c "bsk observe --session s; bsk 'click' @e7 --session s"`,
+		`eval "bsk click @e7 --session s"`,
+		`eval 'b\sk click @e7 --session s'`,
+		`sh <<< "bsk click @e7 --session s"`,
+		`printf 'bsk click @e7 --session s\n' | sh`,
+		`printf 'true\nbsk click @e7 --session s\n' | sh`,
+		`printf 'bsk\tclick\t@e7\n' | sh`,
+		`env -S"bsk click @e7 --session s"`,
+		"echo 'bsk click @e7 --session s' > go.sh; sh go.sh",
+		`python3 -c 'import subprocess; subprocess.run(["bsk", "click", "@e7", "--session", "s"])'`,
+		// One of bash's own words stands before it.
+		"if bsk status; then bsk click @e7 --session s; fi",
+		"{ bsk click @e7 --session s; }",
+		"! bsk click @e7 --session s",
+		"time bsk click @e7 --session s",
+		"for key in Tab Enter; do bsk press $key --session s; done",
+		// A substitution or a subshell runs it.
+		"echo $(bsk click @e7 --session s)",
+		"out=`bsk fill @e3 --value hi --session s`",
+		"(bsk click @e7 --session s)",
+		`s=$(bsk session start --json | jq -r .session_id); bsk click @e7 --session "$s"`,
+		// The name or the subcommand comes from a variable.
+		"b=bsk; $b click @e7 --session s",
+		"a=click; bsk $a @e7 --session s",
+		`bsk "$@"`,
+		"bsk {click,} @e7 --session s",
+		"bsk $flags status",
+		"bsk --tab-id 3 click @e7 --session s",
+		// The text rides on a bsk command for another part to run.
+		`bsk request-help --session s --prompt 'bsk click @e7 --session s'; eval "$_"`,
+		"bsk status # bsk click @e7 --session s\neval \"${BASH_EXECUTION_STRING##*# }\"",
+	} {
+		if shell := ParseShell(command); !shell.Hidden || shell.ReadOnly || !shell.Other || len(shell.Actions()) != 0 {
+			t.Errorf("%q: %+v, want a hidden page action", command, shell)
+		}
+	}
+	for _, command := range []string{
+		`s=$(bsk session start --no-focus --json | jq -r .session_id)`,
+		`s=$(bsk session start --no-focus --json | jq -r .session_id); bsk navigate https://example.com --session "$s" && bsk observe --session "$s" | head -n 200`,
+		"bsk observe --session s > /tmp/p.txt; python3 parse.py /tmp/p.txt",
+		"env BSK_AUTO_START=0 bsk status --json",
+		"timeout 30 bsk observe --session s",
+		"bsk --help",
+		"bsk --version | head -n 1",
+		"bsk evaluate 'document.title' --session s",
+		"bsk daemon pair",
+		"python3 fetch.py > ~/.bsk/cache.json",
+		"ls ~/.bsk && git -C ~/bsk-notes status",
+		"curl -s https://bsk.example.com/feed",
+		"python3 parse.py --out page-bsk.txt ~/.bsk",
+	} {
+		if shell := ParseShell(command); shell.Hidden || shell.ReadOnly || !shell.Other {
+			t.Errorf("%q: %+v, want review of the command with nothing hidden", command, shell)
+		}
+	}
+	// Nothing in a read-only command can run the text.
+	for _, command := range []string{"grep -n 'bsk click' notes.md", `echo "bsk click @e7 --session s"`, "b=bsk; ls"} {
+		if shell := ParseShell(command); shell.Hidden || !shell.ReadOnly {
+			t.Errorf("%q: %+v, want read-only", command, shell)
+		}
+	}
+	// A page action ParseShell reads stays the action it is, whatever stands
+	// next to it and wherever its output goes.
+	for _, command := range []string{
+		"bsk click @e7 --session s && python3 notify.py",
+		"bsk &>/dev/null click @e7 --session s",
+		"bsk click @e7 --session s &>> clicks.log",
+	} {
+		shell := ParseShell(command)
+		if want := []BrowserCall{{Action: "click", Ref: "@e7", Session: "s"}}; shell.Hidden || !reflect.DeepEqual(shell.Actions(), want) {
+			t.Errorf("%q: %+v", command, shell)
+		}
+	}
+}
+
 func TestParseShellFindsTheBskSubcommand(t *testing.T) {
 	for _, command := range []string{
 		"bsk --session navigate click @e3",
@@ -557,6 +651,7 @@ func TestDecide(t *testing.T) {
 		{"fill on checkout", Call{Browser: &BrowserAction{Action: "fill", Target: `textbox "收货人"`}}, with(map[string]float64{"sensitive_page": 0.93}), nil},
 		{"unknown target", Call{Browser: &BrowserAction{Action: "click"}}, quiet, []string{"看不到要操作的是什么"}},
 		{"page scores do not apply to commands", Call{Tool: "shell", Command: "python3 count.py a.txt"}, with(map[string]float64{"addresses_reviewer": 0.54, "sensitive_page": 0.9}), nil},
+		{"hidden page action", Call{Tool: "shell", Command: "env bsk click @e7 --session s", Hidden: true}, quiet, []string{"读不出命令里的页面操作"}},
 	} {
 		v := Decide(tc.call, tc.scores)
 		if v.NeedsApproval != (len(tc.reasons) > 0) || !reflect.DeepEqual(v.Reasons, tc.reasons) {

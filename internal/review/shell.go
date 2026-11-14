@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // Shell is a shell command split into the parts review cares about.
@@ -28,6 +29,11 @@ type Shell struct {
 	// Shows: a page shown next to other output or into a file, a bsk command
 	// ParseShell does not read, or a program that could run bsk itself.
 	Moves bool
+	// Hidden is set when the command may act on a page where ParseShell
+	// cannot read the action: a part of it can run a program of its own
+	// choosing, and text that part may run names bsk other than for one of
+	// its read-only subcommands.
+	Hidden bool
 }
 
 // Page reads the output of a command that Shows a session. whole is false
@@ -160,15 +166,23 @@ const (
 func ParseShell(command string) Shell {
 	script, ok := splitWords(command)
 	if !ok {
-		return Shell{Other: true, Moves: true}
+		return Shell{Other: true, Moves: true, Hidden: hidesAction(command)}
 	}
 	shell := Shell{ReadOnly: !slices.ContainsFunc(script.targets, riskyTarget)}
 	shell.Other = !shell.ReadOnly
 	calls := make([]*BrowserCall, len(script.commands))
 	effects := make([]pageEffect, len(script.commands))
+	// loose is the text ParseShell did not read as bsk and its subcommand,
+	// which a part that runs programs of its own choosing may run: the
+	// words of the here-strings and what each command leaves.
+	loose := slices.Clone(script.heres)
 	for i, simple := range script.commands {
-		var readOnly bool
-		readOnly, calls[i], effects[i] = classify(simple)
+		var (
+			readOnly bool
+			left     string
+		)
+		readOnly, calls[i], effects[i], left = classify(simple)
+		loose = append(loose, left)
 		if !readOnly {
 			shell.ReadOnly = false
 			if calls[i] == nil || !bskActions[calls[i].Action] {
@@ -193,7 +207,68 @@ func ParseShell(command string) Shell {
 		}
 	}
 	shell.Shows, shell.Moves = script.shown(calls, effects)
+	shell.Hidden = shell.Other && slices.ContainsFunc(loose, hidesAction)
 	return shell
+}
+
+// said is a simple command's words as one text.
+func said(words []word) string {
+	texts := make([]string, len(words))
+	for i, w := range words {
+		texts[i] = w.text
+	}
+	return strings.Join(texts, " ")
+}
+
+// quotes are what a shell takes off a word; escape is a backslash with the
+// character after it.
+var (
+	quotes = strings.NewReplacer(`'`, "", `"`, "")
+	escape = regexp.MustCompile(`(?s)\\.`)
+)
+
+// hidesAction reports whether text something may run names bsk other than to
+// start a read-only subcommand. A wrapper, a shell given a script, a variable
+// holding the name and a subcommand built from parts all do. The text is
+// read both ways a backslash can count: dropped, as a shell drops it, and as
+// the break printf makes of \n.
+func hidesAction(text string) bool {
+	text = quotes.Replace(text)
+	return namesAction(strings.ReplaceAll(text, `\`, "")) || namesAction(escape.ReplaceAllString(text, " "))
+}
+
+// namesAction reports whether bsk stands in text without a read-only
+// subcommand as the next word that is not a flag. ~/.bsk, bsk-notes and
+// bsk/ are other names.
+func namesAction(text string) bool {
+	for {
+		before, after, found := strings.Cut(text, "bsk")
+		if !found {
+			return false
+		}
+		text = after
+		next, _ := utf8.DecodeRuneInString(after)
+		if strings.HasSuffix(before, ".") || after != "" && (next == '/' || next == '.' || next == '-' || isNameRune(1, next)) {
+			continue
+		}
+		if !bskReadOnly[subcommand(after)] {
+			return true
+		}
+	}
+}
+
+// subcommand is the first word after bsk that is not a flag, as far as its
+// command goes; it is empty when there is none.
+func subcommand(rest string) string {
+	if end := strings.IndexAny(rest, ";|&()`"); end >= 0 {
+		rest = rest[:end]
+	}
+	for _, w := range strings.Fields(rest) {
+		if !strings.HasPrefix(w, "-") {
+			return w
+		}
+	}
+	return ""
 }
 
 // shown tells what a command's parts leave of the page memory: the session
@@ -208,7 +283,7 @@ func (s script) shown(calls []*BrowserCall, effects []pageEffect) (shows string,
 	}
 	// The output is the page when bsk wrote all of it, about one session,
 	// one command after the other.
-	whole := s.heres == 0 && !slices.ContainsFunc(s.targets, func(t string) bool { return t != "/dev/null" })
+	whole := len(s.heres) == 0 && !slices.ContainsFunc(s.targets, func(t string) bool { return t != "/dev/null" })
 	sessions := map[string]bool{}
 	for i, effect := range effects {
 		switch effect {
@@ -258,23 +333,29 @@ func LoginFile(name string) bool {
 }
 
 // classify judges a simple command: whether it is read-only, the bsk command
-// it is, and what it does to the pages. A program judged by its arguments is
-// read-only only when every argument is the word the program gets: an open
-// one can become the option the check looks for.
-func classify(words []word) (bool, *BrowserCall, pageEffect) {
+// it is, what it does to the pages, and the text it leaves for hidesAction,
+// all of its words unless it is a bsk command. A program judged by its
+// arguments is read-only only when every argument is the word the program
+// gets: an open one can become the option the check looks for.
+func classify(words []word) (bool, *BrowserCall, pageEffect, string) {
+	whole := said(words)
 	assigned := false
 	for len(words) > 0 && isAssignment(words[0].text) {
 		if !plainAssignment(words[0].text) {
-			return false, nil, pageMoves
+			return false, nil, pageMoves, whole
 		}
 		words, assigned = words[1:], true
 	}
 	if len(words) == 0 {
-		return true, nil, pageStill
+		return true, nil, pageStill, whole
 	}
 	program := words[0].text
 	if program == "bsk" {
-		return classifyBsk(words[1:], assigned)
+		readOnly, call, effect, rest, read := classifyBsk(words[1:], assigned)
+		if !read {
+			return readOnly, call, effect, whole
+		}
+		return readOnly, call, effect, said(rest)
 	}
 	args, literal := make([]string, 0, len(words)-1), true
 	for _, w := range words[1:] {
@@ -301,11 +382,11 @@ func classify(words []word) (bool, *BrowserCall, pageEffect) {
 	}
 	switch {
 	case !readOnly:
-		return false, nil, pageMoves
+		return false, nil, pageMoves, whole
 	case literal && !assigned && quiet(program, args):
-		return true, nil, pageQuiet
+		return true, nil, pageQuiet, whole
 	default:
-		return true, nil, pageStill
+		return true, nil, pageStill, whole
 	}
 }
 
@@ -334,14 +415,15 @@ func quiet(program string, args []string) bool {
 // classifyBsk judges a bsk command. Its subcommand says whether it is
 // read-only. What it does to the pages counts as known only when ParseShell
 // reads every argument as bsk does; a command it does not read may have
-// given a session new refs.
-func classifyBsk(args []word, assigned bool) (bool, *BrowserCall, pageEffect) {
+// given a session new refs. rest is the words after the subcommand, and read
+// is false when ParseShell cannot tell which subcommand bsk gets.
+func classifyBsk(args []word, assigned bool) (readOnly bool, call *BrowserCall, effect pageEffect, rest []word, read bool) {
 	cmd := readBsk(args)
-	call := browserCall(cmd)
+	call = browserCall(cmd)
 	// The output is bsk's own report, line for line: no setting changes its
 	// form and no word of the command can break a line of it.
 	plain := cmd.plain && !assigned
-	effect := pageMoves
+	effect = pageMoves
 	switch {
 	case cmd.sub == "wait-ms" && cmd.read && plain:
 		effect = pageQuiet
@@ -357,7 +439,7 @@ func classifyBsk(args []word, assigned bool) (bool, *BrowserCall, pageEffect) {
 	case bskShows[cmd.sub] && plain && call.Session != "" && len(cmd.positional) <= 1 && cmd.only(bskShowOptions):
 		effect = pageShows
 	}
-	return bskReadOnly[cmd.sub], call, effect
+	return bskReadOnly[cmd.sub], call, effect, cmd.rest, !cmd.unread
 }
 
 // bskCommand is a bsk command line taken apart as bsk does.
@@ -372,6 +454,12 @@ type bskCommand struct {
 	// plain is false when a word holds a line break, which bsk may print
 	// back.
 	plain bool
+	// unread is true when the subcommand cannot be told: a word bash expands
+	// further stands where it would be or before it, or an option readBsk
+	// does not place comes first.
+	unread bool
+	// rest is the words after the subcommand.
+	rest []word
 }
 
 // only reports whether every option of the command is in allowed.
@@ -389,19 +477,20 @@ func (c bskCommand) only(allowed map[string]bool) bool {
 // known before it leaves the subcommand unknown.
 func readBsk(args []word) bskCommand {
 	cmd := bskCommand{options: map[string][]string{}, read: true, plain: true}
+	named, early := false, false
 	text := func(w word) string {
 		cmd.read = cmd.read && !w.open
+		cmd.unread = cmd.unread || w.open && !named
 		cmd.plain = cmd.plain && !strings.ContainsAny(w.text, "\n\r")
 		return w.text
 	}
-	named, early := false, false
 	for i := 0; i < len(args); i++ {
 		a := text(args[i])
 		if a == "-" || !strings.HasPrefix(a, "-") {
 			if named {
 				cmd.positional = append(cmd.positional, a)
 			} else {
-				named, cmd.sub = true, a
+				named, cmd.sub, cmd.rest = true, a, args[i+1:]
 			}
 			continue
 		}
@@ -428,6 +517,7 @@ func readBsk(args []word) bskCommand {
 	if early {
 		cmd.sub, cmd.read = "", false
 	}
+	cmd.unread = cmd.unread || early && named
 	return cmd
 }
 
@@ -582,13 +672,14 @@ const (
 )
 
 // script is a command as splitWords reads it: its simple commands, how each
-// is tied to the next, the files its redirections name, and how many
-// here-documents and here-strings feed its commands. Their text is not kept.
+// is tied to the next, the files its redirections name, and the words of its
+// here-strings with the delimiters of its here-documents. A here-document's
+// text reads as commands of its own.
 type script struct {
 	commands [][]word
 	joins    []join
 	targets  []string
-	heres    int
+	heres    []string
 }
 
 // overlaps reports whether command i may still be running when a later one
@@ -619,7 +710,7 @@ func splitWords(command string) (script, bool) {
 		commands   [][]word
 		joins      []join
 		targets    []string
-		heres      int
+		heres      []string
 		current    []word
 		text       strings.Builder
 		open       bool
@@ -637,7 +728,7 @@ func splitWords(command string) (script, bool) {
 			skipNext, targetNext = false, false
 		case skipNext:
 			skipNext = false
-			heres++
+			heres = append(heres, text.String())
 		default:
 			current = append(current, word{text: text.String(), open: open})
 		}
@@ -706,6 +797,12 @@ func splitWords(command string) (script, bool) {
 			next := rune(0)
 			if i+1 < len(runes) {
 				next = runes[i+1]
+			}
+			if r == '&' && next == '>' {
+				// "&>" sends output and errors to a file; the command goes on
+				// after it.
+				endWord()
+				continue
 			}
 			tie := joinThen
 			switch {
