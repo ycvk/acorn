@@ -96,7 +96,8 @@ var findActions = map[string]bool{
 }
 
 // bskReadOnly are bsk subcommands that read the page, move around in it or
-// hand a step to the owner, without submitting anything.
+// hand a step to the owner, without submitting anything. One that takes a tab
+// to an address is read-only for a web page only: see astray.
 var bskReadOnly = map[string]bool{
 	"blur": true, "browsers": true, "console": true, "doctor": true, "emulate": true, "focus": true, "get-html": true, "help": true, "hover": true,
 	"logs": true, "navigate": true, "navigate-back": true, "navigate-forward": true,
@@ -130,7 +131,7 @@ var bskStill = map[string]bool{
 var bskOptions = map[string]bool{
 	"--session": true, "--ref": true, "--selector": true, "--value": true, "--cursor": true,
 	"--max-depth": true, "--max-tokens": true, "--timeout": true, "--wait-until": true,
-	"--out":  true,
+	"--out": true, "--url": true,
 	"--hard": false, "--json": false, "--quiet": false, "--verbose": false, "--overwrite": false,
 }
 
@@ -427,13 +428,14 @@ func quiet(program string, args []string) bool {
 }
 
 // classifyBsk judges a bsk command, whose words are whole. Its subcommand
-// says whether it is read-only. What it does to the pages counts as known
-// only when ParseShell reads every argument as bsk does; a command it does
-// not read may have given a session new refs.
+// says whether it is read-only, together with the address it takes a tab to.
+// What it does to the pages counts as known only when ParseShell reads every
+// argument as bsk does; a command it does not read may have given a session
+// new refs.
 func classifyBsk(args []word, assigned bool, whole string) part {
 	cmd := readBsk(args)
 	call := browserCall(cmd)
-	p := part{readOnly: bskReadOnly[cmd.sub], call: call, effect: pageMoves, left: whole}
+	p := part{readOnly: bskReadOnly[cmd.sub] && !cmd.astray(), call: call, effect: pageMoves, left: whole}
 	if !cmd.unread {
 		p.left = said(cmd.rest)
 	}
@@ -461,7 +463,7 @@ func classifyBsk(args []word, assigned bool, whole string) part {
 		// select reports the labels of the options it picked, which are the
 		// page's text.
 		p.effect = pageStill
-	case bskShows[cmd.sub] && plain && call.Session != "" && len(cmd.positional) <= 1 && cmd.only(bskShowOptions):
+	case p.readOnly && bskShows[cmd.sub] && plain && call.Session != "" && len(cmd.positional) <= 1 && cmd.only(bskShowOptions):
 		p.effect = pageShows
 	}
 	return p
@@ -495,6 +497,39 @@ func (c bskCommand) only(allowed map[string]bool) bool {
 		}
 	}
 	return true
+}
+
+// astray reports whether a bsk command may take a tab somewhere other than a
+// web page. navigate goes to its argument, tab create and record start to
+// their --url, and bsk hands the browser the address as it is: a javascript:
+// one, however it is cased or spaced, runs as a script in the page the tab is
+// on, and a file: one opens a local file. So an address is a web page only
+// when it starts with http:// or https:// as the command writes it.
+func (c bskCommand) astray() bool {
+	addresses := slices.Clone(c.options["--url"])
+	switch c.sub {
+	case "navigate":
+		// Its argument is the address, or back or forward for a step in the
+		// tab's history. A word readBsk does not place may be one too.
+		if !c.read {
+			return true
+		}
+		for _, a := range c.positional {
+			if a != "back" && a != "forward" {
+				addresses = append(addresses, a)
+			}
+		}
+	case "record", "tab":
+		// A word bash expands further may be the option and its address.
+		if slices.ContainsFunc(c.rest, func(w word) bool { return w.open }) {
+			return true
+		}
+	default:
+		return false
+	}
+	return slices.ContainsFunc(addresses, func(a string) bool {
+		return !strings.HasPrefix(a, "http://") && !strings.HasPrefix(a, "https://")
+	})
 }
 
 // readBsk takes a bsk command's arguments apart. bsk takes its subcommand

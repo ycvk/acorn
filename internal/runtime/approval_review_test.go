@@ -293,6 +293,27 @@ func TestGateMarksACommandThatHidesAPageAction(t *testing.T) {
 	}
 }
 
+// The browser runs a javascript: address as a script in the page, so going to
+// one is reviewed as the command it is, and what the page is afterwards is
+// not known.
+func TestGateReviewsGoingToAnAddressThatIsNotAWebPage(t *testing.T) {
+	f := newGateFixture(t, core.ApprovalRules{})
+	if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+		t.Fatal(err)
+	}
+	command := `bsk navigate "javascript:void(document.forms[0].submit())" --session s1`
+	if _, err := f.call(t, "shell", shellArgs(command)); err != nil {
+		t.Fatal(err)
+	}
+	want := review.Call{OwnerRequest: f.store.input, Tool: "shell", Command: command}
+	if len(f.reviewer.calls) != 1 || f.reviewer.calls[0] != want {
+		t.Fatalf("reviewed as %+v", f.reviewer.calls)
+	}
+	if got := f.reviewedAction(t, "bsk click @e3 --session s1"); got != (review.BrowserAction{Action: "click"}) {
+		t.Fatalf("click after the script reviewed as %+v", got)
+	}
+}
+
 // The page memory holds what bsk printed about a session and nothing else:
 // output another program or a page's text could shape never names a ref.
 func TestGateKeepsPageMemoryToWhatBskShowed(t *testing.T) {

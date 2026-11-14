@@ -383,6 +383,61 @@ func TestParseShellReadsADownloadAsTheClickItIs(t *testing.T) {
 	}
 }
 
+// bsk hands the browser an address as it is written, and the browser runs a
+// javascript: one as a script in the page the tab is on. A command that takes
+// a tab somewhere needs no review only for http(s) addresses ParseShell reads
+// as bsk gets them.
+func TestParseShellReviewsAnAddressThatIsNotAWebPage(t *testing.T) {
+	for _, command := range []string{
+		`bsk navigate "javascript:void(document.forms[0].submit())" --session s1`,
+		`bsk navigate " JaVaScRiPt:document.title='x'" --session s1`,
+		"bsk navigate file:///etc/hostname --session s1",
+		"bsk navigate data:text/html,hello --session s1",
+		"bsk navigate about:blank --session s1",
+		"bsk navigate a.example --session s1",
+		`bsk navigate --session s1 -- "javascript:alert(1)"`,
+		`bsk navigate https://a.example "javascript:alert(1)" --session s1`,
+		`bsk navigate back "javascript:alert(1)" --session s1`,
+		`bsk navigate --url "javascript:alert(1)" --session s1`,
+		// The address may be another word than the command shows.
+		"bsk navigate $u --session s1",
+		`bsk navigate "https://a.example/$p" --session s1`,
+		"bsk navigate https://a.example/{a,b} --session s1",
+		"bsk navigate https://a.example --session $s",
+		"bsk navigate https://a.example --tab-id 7 --session s1",
+		`bsk tab create --url "javascript:alert(1)" --session s1`,
+		"bsk tab create --url=file:///etc/passwd --no-active --session s1",
+		"bsk tab create --url https://a.example --url about:blank --session s1",
+		"bsk tab create $o --session s1",
+		`bsk record start --url "javascript:void(fetch('https://a.example/'))"`,
+		"bsk record start --url file:///etc/hostname --output trace",
+		"bsk record start --output $o",
+	} {
+		if shell := ParseShell(command); shell.ReadOnly || !shell.Other || shell.Hidden || shell.Shows != "" || !shell.Moves || len(shell.Actions()) != 0 {
+			t.Errorf("%q: %+v, want review of the command", command, shell)
+		}
+	}
+	for _, command := range []string{
+		"bsk navigate https://a.example --session s1",
+		`bsk navigate "http://127.0.0.1:8765/page.html?q=1&p=2" --session s1 --wait-until networkidle --timeout 10s`,
+		"bsk navigate 'https://a.example/a$b' --session s1",
+		"bsk navigate back --session s1",
+		"bsk navigate forward --session s1",
+		"bsk navigate-back --session $s",
+		"bsk tab create --session s1",
+		"bsk tab create --url https://a.example --no-active --session s1",
+		"bsk tab create --url=https://a.example --index 2 --session s1",
+		"bsk tab list --scope user --session s1",
+		"bsk tab close 837992592 --session s1",
+		"bsk record start --url https://a.example --output trace",
+		"bsk record stop --output trace",
+	} {
+		if shell := ParseShell(command); !shell.ReadOnly {
+			t.Errorf("%q: %+v, want read-only", command, shell)
+		}
+	}
+}
+
 func TestParseShellFindsTheBskSubcommand(t *testing.T) {
 	for _, command := range []string{
 		"bsk --session navigate click @e3",
