@@ -9,7 +9,6 @@ import (
 	"io"
 	"maps"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -376,13 +375,11 @@ func targetName(target string) string {
 	if target == "" {
 		return "未知元素"
 	}
-	if m := quotedName.FindStringSubmatch(target); m != nil {
-		return m[1]
+	if m := quoted.FindStringSubmatch(target); m != nil {
+		return unescape(m[1])
 	}
 	return target
 }
-
-var quotedName = regexp.MustCompile(`"([^"]*)"`)
 
 func clipRunes(s string, n int) string {
 	r := []rune(strings.TrimSpace(s))

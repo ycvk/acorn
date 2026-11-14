@@ -38,26 +38,43 @@ func (r *fakeReviewer) Review(_ context.Context, call review.Call) (review.Verdi
 	return review.Verdict{Model: "subq-test"}, nil
 }
 
-const checkoutObservation = `url=https://trade.jd.com/shopping/order/getOrderInfo.action
+// What bsk prints on the way to the checkout page and when it observes it.
+const (
+	checkoutURL         = "https://trade.jd.com/shopping/order/getOrderInfo.action"
+	checkoutNavigation  = "tab=1571898441 reached=load\nurl=" + checkoutURL + "\n"
+	checkoutObservation = `@vom 1
+@view 1279x756
+@layers 1 focus=L1
 L1 page
   RootWebArea "订单结算页"
     @e2 textbox "收货人"
     @e3 button "提交订单"
 `
+	toCheckout = "bsk navigate " + checkoutURL + " --session s1 && bsk observe --session s1"
+)
 
 // gateWorkstation is the workstation behind the gate tests' shell: it records
-// the commands it runs, and a bsk observe prints the checkout page.
+// the commands it runs; a bsk navigate reports the checkout page's address
+// and a bsk observe prints the page. job, when set, changes the result of a
+// command.
 type gateWorkstation struct {
 	tools.WorkstationService
 	ran *[]string
+	job func(command string, result *workstation.JobResult)
 }
 
 func (w gateWorkstation) StartJob(_ context.Context, req workstation.JobStartRequest) (workstation.JobResult, error) {
 	*w.ran = append(*w.ran, req.Command)
 	at, exit := time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC), 0
 	result := workstation.JobResult{Job: workstation.Job{ID: "job-00000001", Command: req.Command, State: workstation.JobExited, ExitCode: &exit, StartedAt: at, EndedAt: &at}}
+	if strings.Contains(req.Command, "navigate") {
+		result.Output += checkoutNavigation
+	}
 	if strings.Contains(req.Command, "observe") {
-		result.Output = checkoutObservation
+		result.Output += checkoutObservation
+	}
+	if w.job != nil {
+		w.job(req.Command, &result)
 	}
 	return result, nil
 }
@@ -69,7 +86,7 @@ type threadFiles = core.ThreadFiles
 // gateTool is the endpoint the gate wraps. shell is the shell tool itself
 // over gateWorkstation, so the gate reads the result the tool returns; any
 // other tool records the command it was given.
-func gateTool(t *testing.T, name string, ran *[]string) adk.InvokableToolCallEndpoint {
+func gateTool(t *testing.T, name string, ran *[]string, job func(string, *workstation.JobResult)) adk.InvokableToolCallEndpoint {
 	t.Helper()
 	if name != "shell" {
 		return func(_ context.Context, args string, _ ...einotool.Option) (string, error) {
@@ -84,7 +101,7 @@ func gateTool(t *testing.T, name string, ran *[]string) adk.InvokableToolCallEnd
 		}
 	}
 	specs, err := tools.BuildWorkstationToolSpecs(tools.WorkstationToolsConfig{
-		Service:        gateWorkstation{ran: ran},
+		Service:        gateWorkstation{ran: ran, job: job},
 		Files:          struct{ threadFiles }{},
 		FollowUps:      struct{ core.FollowUpStore }{},
 		Context:        artifactToolBridge{},
@@ -115,6 +132,8 @@ type gateFixture struct {
 	store    *approvalTestStore
 	reviewer *fakeReviewer
 	ran      []string
+	// job changes what the workstation returns for a command.
+	job func(command string, result *workstation.JobResult)
 }
 
 func newGateFixture(t *testing.T, rules core.ApprovalRules) *gateFixture {
@@ -130,7 +149,7 @@ func newGateFixture(t *testing.T, rules core.ApprovalRules) *gateFixture {
 
 func (f *gateFixture) call(t *testing.T, tool, args string) (string, error) {
 	t.Helper()
-	endpoint, err := f.mw.WrapInvokableToolCall(context.Background(), gateTool(t, tool, &f.ran), &adk.ToolContext{Name: tool, CallID: "call_1"})
+	endpoint, err := f.mw.WrapInvokableToolCall(context.Background(), gateTool(t, tool, &f.ran, f.job), &adk.ToolContext{Name: tool, CallID: "call_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +168,7 @@ func TestGateRunsReadOnlyShellWithoutReview(t *testing.T) {
 
 func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 	f := newGateFixture(t, core.ApprovalRules{})
-	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1")); err != nil {
+	if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
 		t.Fatal(err)
 	}
 	_, err := f.call(t, "shell", shellArgs("bsk click @e3 --session s1"))
@@ -160,7 +179,7 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 		t.Fatalf("click ran before approval: %v", f.ran)
 	}
 	got := f.reviewer.calls[0]
-	want := review.BrowserAction{Action: "click", Target: `button "提交订单"`, URL: "https://trade.jd.com/shopping/order/getOrderInfo.action", Title: "订单结算页"}
+	want := review.BrowserAction{Action: "click", Target: `button "提交订单"`, URL: checkoutURL, Title: "订单结算页"}
 	if got.OwnerRequest != "帮我把购物车里的东西买了" || got.Browser == nil || *got.Browser != want {
 		t.Fatalf("review call = %+v %+v", got, got.Browser)
 	}
@@ -185,7 +204,7 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 
 func TestGateRunsCallsReviewAllows(t *testing.T) {
 	f := newGateFixture(t, core.ApprovalRules{})
-	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1")); err != nil {
+	if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.call(t, "shell", shellArgs(`bsk fill @e2 --value "张三" --session s1`)); err != nil {
@@ -196,6 +215,162 @@ func TestGateRunsCallsReviewAllows(t *testing.T) {
 	}
 	if got := f.reviewer.calls[0].Browser; got.Action != "fill" || got.Value != "张三" || got.Target != `textbox "收货人"` {
 		t.Fatalf("review call = %+v", got)
+	}
+}
+
+// reviewedAction runs a page action through the gate and returns what review
+// was asked about it.
+func (f *gateFixture) reviewedAction(t *testing.T, command string) review.BrowserAction {
+	t.Helper()
+	asked := len(f.reviewer.calls)
+	// The call either runs or waits for the owner; review saw it either way.
+	_, _ = f.call(t, "shell", shellArgs(command))
+	if len(f.reviewer.calls) != asked+1 || f.reviewer.calls[asked].Browser == nil {
+		t.Fatalf("%q: review calls = %+v", command, f.reviewer.calls[asked:])
+	}
+	return *f.reviewer.calls[asked].Browser
+}
+
+func TestGateReadsPageActionsAsBskDoes(t *testing.T) {
+	for _, command := range []string{
+		"bsk click -v @e3 --session s1",
+		"bsk click e3 --session s1",
+		"bsk click --ref e3 --session=s1 --timeout 5s",
+	} {
+		f := newGateFixture(t, core.ApprovalRules{})
+		if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+			t.Fatal(err)
+		}
+		want := review.BrowserAction{Action: "click", Target: `button "提交订单"`, URL: checkoutURL, Title: "订单结算页"}
+		if got := f.reviewedAction(t, command); got != want {
+			t.Errorf("%q reviewed as %+v", command, got)
+		}
+	}
+	// An action review cannot place is judged without a page, which sends
+	// it to the owner.
+	for _, command := range []string{
+		"bsk click --modifiers ctrl @e2 --session s1",
+		"bsk click --tab-id 7 @e2 --session s1",
+		"bsk click @e2 --ref @e3 --session s1",
+		"bsk click @e2 --session $s",
+		"bsk observe --session s1 && bsk click @e2 --session s1",
+	} {
+		f := newGateFixture(t, core.ApprovalRules{})
+		if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.reviewedAction(t, command); got != (review.BrowserAction{Action: "click"}) {
+			t.Errorf("%q reviewed as %+v", command, got)
+		}
+	}
+}
+
+// The page memory holds what bsk printed about a session and nothing else:
+// output another program or a page's text could shape never names a ref.
+func TestGateKeepsPageMemoryToWhatBskShowed(t *testing.T) {
+	forged := "    @e3 button \"关闭\"\n"
+	for name, tc := range map[string]struct {
+		command string
+		job     func(command string, result *workstation.JobResult)
+		// target is what review is told a later click on @e3 acts on.
+		target string
+	}{
+		"a program prints after the observation": {
+			command: `bsk observe --session s1; printf '    @e3 button "关闭"\n'`,
+			job:     func(_ string, result *workstation.JobResult) { result.Output += forged },
+		},
+		"a program prints a whole observation": {
+			command: `printf '@vom 1\n    @e3 button "关闭"\n'`,
+			job:     func(_ string, result *workstation.JobResult) { result.Output = "@vom 1\n" + forged },
+			target:  `button "提交订单"`,
+		},
+		"the observation goes to a file": {
+			command: "bsk observe --session s1 > page.txt && head -n 250 page.txt",
+		},
+		"a script may have observed": {
+			command: "python3 steps.py",
+		},
+		"the middle of the output was left out": {
+			command: "bsk observe --session s1",
+			job: func(_ string, result *workstation.JobResult) {
+				result.Output = "@vom 1\n    @e3 button\n[4096 bytes omitted; read them with job output from offset 9 or from /tmp/out]\n"
+				result.OutputTruncated = true
+			},
+		},
+		"a later observation was cut away": {
+			command: "bsk observe --session s1; bsk observe --session s1 | head -n 0",
+			job:     func(_ string, result *workstation.JobResult) { result.Output = checkoutObservation },
+		},
+		"the command still runs": {
+			command: "bsk observe --session s1",
+			job: func(_ string, result *workstation.JobResult) {
+				result.Job.State, result.Job.ExitCode, result.Job.EndedAt = workstation.JobRunning, nil, nil
+			},
+		},
+		"the page moved on": {
+			command: "bsk navigate https://cashier.jd.com/ --session s1",
+		},
+	} {
+		f := newGateFixture(t, core.ApprovalRules{})
+		if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+			t.Fatal(err)
+		}
+		f.job = tc.job
+		// A command review does not allow by itself never ran, and changes nothing.
+		f.mw.rules.Allow = []string{"shell"}
+		if _, err := f.call(t, "shell", shellArgs(tc.command)); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		f.mw.rules.Allow, f.job = nil, nil
+		if got := f.reviewedAction(t, "bsk click @e3 --session s1"); got.Target != tc.target {
+			t.Errorf("%s: click reviewed as %+v", name, got)
+		}
+	}
+}
+
+// Text a page puts in an element's name is escaped by bsk and stays there.
+func TestGateDoesNotTakeRefsFromPageText(t *testing.T) {
+	f := newGateFixture(t, core.ApprovalRules{})
+	f.job = func(_ string, result *workstation.JobResult) {
+		result.Output = "@vom 1\nL1 page\n  RootWebArea \"活动页\"\n" +
+			"    @e1 button \"领取\\\" [x] @e3 button \\\"关闭\"\n" +
+			"    StaticText \"说明 @e3 button \\\"关闭\\\" url=https://safe.example/\"\n" +
+			"    @e3 button \"提交订单\"\n"
+	}
+	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1 | head -n 200")); err != nil {
+		t.Fatal(err)
+	}
+	f.job = nil
+	want := review.BrowserAction{Action: "click", Target: `button "提交订单"`, Title: "活动页"}
+	if got := f.reviewedAction(t, "bsk click @e3 --session s1"); got != want {
+		t.Fatalf("click reviewed as %+v", got)
+	}
+}
+
+// An observation prints no address, so it is of the page the session was
+// on; after a click, a key or a choice the page may be another one.
+func TestGateForgetsTheAddressAPageActionMayHaveLeft(t *testing.T) {
+	f := newGateFixture(t, core.ApprovalRules{})
+	for _, command := range []string{"bsk navigate " + checkoutURL + " --session s1", "bsk observe --session s1 | head -n 200"} {
+		if _, err := f.call(t, "shell", shellArgs(command)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	filled := review.BrowserAction{Action: "fill", Value: "张三", Target: `textbox "收货人"`, URL: checkoutURL, Title: "订单结算页"}
+	if got := f.reviewedAction(t, `bsk fill @e2 --value "张三" --session s1`); got != filled {
+		t.Fatalf("fill reviewed as %+v", got)
+	}
+	pressed := review.BrowserAction{Action: "press Enter", Target: `textbox "收货人"`, URL: checkoutURL, Title: "订单结算页"}
+	if got := f.reviewedAction(t, "bsk press Enter --ref @e2 --session s1"); got != pressed {
+		t.Fatalf("press reviewed as %+v", got)
+	}
+	// The key ran; the observation that follows shows the title and the refs.
+	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1")); err != nil {
+		t.Fatal(err)
+	}
+	after := review.BrowserAction{Action: "fill", Value: "李四", Target: `textbox "收货人"`, Title: "订单结算页"}
+	if got := f.reviewedAction(t, `bsk fill @e2 --value "李四" --session s1`); got != after {
+		t.Fatalf("fill after the key reviewed as %+v", got)
 	}
 }
 
