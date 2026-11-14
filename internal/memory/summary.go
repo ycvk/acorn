@@ -146,7 +146,7 @@ func TouchedFile(tool, arguments string) (FileTouch, bool) {
 	switch {
 	case tool == "send_file", in.Action == "read":
 		return FileTouch{Path: in.Path}, true
-	case in.Action == "write":
+	case in.Action == "write", in.Action == "edit":
 		return FileTouch{Path: in.Path, Changed: true}, true
 	}
 	return FileTouch{}, false
