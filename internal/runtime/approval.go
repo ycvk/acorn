@@ -17,6 +17,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/review"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 const toolApprovalInterruptKind = "tool_approval"
@@ -361,9 +362,7 @@ func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) a
 		if !json.Valid([]byte(out)) {
 			return out, nil
 		}
-		var result struct {
-			Stdout string `json:"stdout"`
-		}
+		var result tools.ShellOutput
 		if err := json.Unmarshal([]byte(out), &result); err != nil {
 			return "", fmt.Errorf("observe shell result: %w", err)
 		}
@@ -383,7 +382,7 @@ func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) a
 		if len(sessions) == 1 {
 			m.mu.Lock()
 			for key := range sessions {
-				m.pages[key] = m.pages[key].Merge(review.ObservePage(result.Stdout))
+				m.pages[key] = m.pages[key].Merge(review.ObservePage(result.Output))
 			}
 			m.mu.Unlock()
 		}

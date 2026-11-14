@@ -7,12 +7,15 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/review"
+	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/workstation"
 )
 
 type fakeReviewer struct {
@@ -42,23 +45,64 @@ L1 page
     @e3 button "提交订单"
 `
 
-// fakeShell answers like the shell tool: observe prints the checkout page.
-func fakeShell(ran *[]string) adk.InvokableToolCallEndpoint {
-	return func(_ context.Context, args string, _ ...einotool.Option) (string, error) {
-		var input struct {
-			Command string `json:"command"`
-		}
-		if err := json.Unmarshal([]byte(args), &input); err != nil {
-			return "", err
-		}
-		*ran = append(*ran, input.Command)
-		stdout := ""
-		if strings.Contains(input.Command, "observe") {
-			stdout = checkoutObservation
-		}
-		out, err := json.Marshal(map[string]any{"exit_code": 0, "stdout": stdout})
-		return string(out), err
+// gateWorkstation is the workstation behind the gate tests' shell: it records
+// the commands it runs, and a bsk observe prints the checkout page.
+type gateWorkstation struct {
+	tools.WorkstationService
+	ran *[]string
+}
+
+func (w gateWorkstation) StartJob(_ context.Context, req workstation.JobStartRequest) (workstation.JobResult, error) {
+	*w.ran = append(*w.ran, req.Command)
+	at, exit := time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC), 0
+	result := workstation.JobResult{Job: workstation.Job{ID: "job-00000001", Command: req.Command, State: workstation.JobExited, ExitCode: &exit, StartedAt: at, EndedAt: &at}}
+	if strings.Contains(req.Command, "observe") {
+		result.Output = checkoutObservation
 	}
+	return result, nil
+}
+
+// threadFiles lets a stand-in embed core.ThreadFiles, whose method has the
+// interface's name.
+type threadFiles = core.ThreadFiles
+
+// gateTool is the endpoint the gate wraps. shell is the shell tool itself
+// over gateWorkstation, so the gate reads the result the tool returns; any
+// other tool records the command it was given.
+func gateTool(t *testing.T, name string, ran *[]string) adk.InvokableToolCallEndpoint {
+	t.Helper()
+	if name != "shell" {
+		return func(_ context.Context, args string, _ ...einotool.Option) (string, error) {
+			var input struct {
+				Command string `json:"command"`
+			}
+			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			*ran = append(*ran, input.Command)
+			return "{}", nil
+		}
+	}
+	specs, err := tools.BuildWorkstationToolSpecs(tools.WorkstationToolsConfig{
+		Service:        gateWorkstation{ran: ran},
+		Files:          struct{ threadFiles }{},
+		FollowUps:      struct{ core.FollowUpStore }{},
+		Context:        artifactToolBridge{},
+		Settings:       struct{ core.SettingsReader }{},
+		Clock:          time.Now,
+		MaxOutputBytes: 1 << 16,
+		MaxSendBytes:   1 << 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, spec := range specs {
+		if spec.Name == "shell" {
+			return spec.Tool.(einotool.InvokableTool).InvokableRun
+		}
+	}
+	t.Fatal("the workstation tools have no shell")
+	return nil
 }
 
 func shellArgs(command string) string {
@@ -86,7 +130,7 @@ func newGateFixture(t *testing.T, rules core.ApprovalRules) *gateFixture {
 
 func (f *gateFixture) call(t *testing.T, tool, args string) (string, error) {
 	t.Helper()
-	endpoint, err := f.mw.WrapInvokableToolCall(context.Background(), fakeShell(&f.ran), &adk.ToolContext{Name: tool, CallID: "call_1"})
+	endpoint, err := f.mw.WrapInvokableToolCall(context.Background(), gateTool(t, tool, &f.ran), &adk.ToolContext{Name: tool, CallID: "call_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
