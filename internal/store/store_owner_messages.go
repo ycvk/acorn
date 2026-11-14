@@ -46,12 +46,8 @@ func (s *Store) SendOwnerMessage(ctx context.Context, message core.OwnerMessage)
 	queued := core.QueuedMessage{SessionID: message.SessionID, Content: content, FileIDs: append([]string{}, message.FileIDs...), CreatedAt: time.Now().UTC()}
 	var sent core.SentOwnerMessage
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var exists int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, message.SessionID).Scan(&exists); err != nil {
+		if err := requireSession(ctx, tx, message.SessionID); err != nil {
 			return err
-		}
-		if exists == 0 {
-			return fmt.Errorf("%w: %s", core.ErrSessionNotFound, message.SessionID)
 		}
 		active, err := activeRunOf(ctx, tx, message.SessionID)
 		if err != nil {
@@ -171,7 +167,7 @@ func (s *Store) ListQueuedSessions(ctx context.Context) ([]string, error) {
 // for the owner, else "". Sub-runs belong to the run that delegated them.
 func activeRunOf(ctx context.Context, tx *sql.Tx, sessionID string) (string, error) {
 	var runID string
-	err := tx.QueryRowContext(ctx, `SELECT run_id FROM runs r WHERE session_id = ? AND status IN (?, ?) AND `+notSubRun+` ORDER BY created_at DESC, run_id DESC LIMIT 1`,
+	err := tx.QueryRowContext(ctx, `SELECT run_id FROM runs r WHERE session_id = ? AND status IN (?, ?) AND `+notSubRun("r")+` ORDER BY created_at DESC, run_id DESC LIMIT 1`,
 		sessionID, string(core.RunStatusRunning), string(core.RunStatusInterrupted)).Scan(&runID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
@@ -241,11 +237,7 @@ func startQueuedRun(ctx context.Context, tx *sql.Tx, process, sessionID, runID s
 		}
 	}
 	start.Input = strings.Join(texts, "\n\n")
-	if _, err := tx.ExecContext(ctx, `INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
-		runID, sessionID, start.TurnIndex, string(core.RunStatusRunning), start.Input, formatTimestamp(time.Now())); err != nil {
-		return nil, err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO run_processes(run_id, process) VALUES(?, ?)`, runID, process); err != nil {
+	if err := insertRun(ctx, tx, process, runID, sessionID, start.TurnIndex, start.Input, time.Now()); err != nil {
 		return nil, err
 	}
 	return start, nil

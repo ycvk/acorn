@@ -245,7 +245,7 @@ private fun Pages(shellViewModel: ShellViewModel) {
                 stack.animateOnceDrawn(top) { movePace(move, it) }
             } else if (stack.targetState != top) {
                 // The gesture was called off: the pop runs backwards from where it was held, then the page rests.
-                animate(stack.fraction, 0f, animationSpec = tween(moveMillis(PageMove.Pop, 1f - stack.fraction), easing = AcornMotion.travel)) { value, _ ->
+                animate(stack.fraction, 0f, animationSpec = movePace(PageMove.Pop, 1f - stack.fraction)) { value, _ ->
                     launch { if (value > 0f) stack.seekTo(value) else stack.snapTo(top) }
                 }
             }

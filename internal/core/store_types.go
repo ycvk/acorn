@@ -7,11 +7,10 @@ import (
 
 // RunCreateParams holds the parameters for creating a run record.
 type RunCreateParams struct {
-	RunID          string
-	SessionID      string
-	TurnIndex      int
-	Input          string
-	BoundMessageID int64
+	RunID     string
+	SessionID string
+	TurnIndex int
+	Input     string
 }
 
 // RunEnd is how a run ends: its status, output and error, and its terminal
@@ -58,6 +57,11 @@ type RunStart struct {
 	TurnIndex int
 	Input     string
 	Messages  []SessionMessageRecord
+}
+
+// ExecuteRequest is the request that executes the run.
+func (s RunStart) ExecuteRequest() ExecuteRequest {
+	return ExecuteRequest{RunID: s.RunID, SessionID: s.SessionID, TurnIndex: s.TurnIndex, Input: s.Input, Created: true}
 }
 
 // SentOwnerMessage is what sending an owner message did: RunID is the run

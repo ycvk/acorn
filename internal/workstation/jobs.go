@@ -177,14 +177,8 @@ func (j *jobs) start(ctx context.Context, req JobStartRequest, dir string) (JobR
 	}
 	output := &cappedFile{file: file, limit: MaxJobOutputBytes}
 	// The job outlives the request that started it.
-	cmd := exec.CommandContext(context.WithoutCancel(ctx), "bash", "-lc", req.Command)
-	cmd.Dir = dir
-	cmd.Env = childEnv(j.home, nil)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd := shellCommand(context.WithoutCancel(ctx), j.home, req.Command, dir, nil)
 	cmd.Stdout, cmd.Stderr = output, output
-	// Children the command leaves running keep the output open; the job ends
-	// with the command itself.
-	cmd.WaitDelay = 2 * time.Second
 	job := Job{ID: id, Command: req.Command, Dir: dir, State: JobRunning, StartedAt: time.Now().UTC(), OutputPath: file.Name()}
 	if err := j.save(job); err != nil {
 		return JobResult{}, errors.Join(err, file.Close())

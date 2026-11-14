@@ -24,9 +24,9 @@ const (
 
 // pushBriefing sends the owner the push for a finished briefing, once
 // advanceBriefings has claimed it. The briefing run pushes nothing itself,
-// so its last reply is the whole briefing. A reply without sections is an error; a push that fails, such as
-// with no device registered, leaves the briefing on the now page and is
-// logged, as pending action pushes are.
+// so its last reply is the whole briefing. A reply without sections is an
+// error; a push that fails, such as with no device registered, leaves the
+// briefing on the now page and is logged, as pending action pushes are.
 func (s *Scheduler) pushBriefing(ctx context.Context, briefing core.RoutineOutput) error {
 	if s.notifier == nil {
 		return nil

@@ -17,26 +17,24 @@ import (
 // store's process, and an empty finished_at (filled on completion). Binding of user messages is handled separately via
 // BindLatestUserMessageRunID / BindUserMessageRunIDByID.
 func (s *Store) CreateRun(ctx context.Context, params core.RunCreateParams) error {
-	now := formatTimestamp(time.Now())
+	now := time.Now()
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
-			params.RunID,
-			params.SessionID,
-			params.TurnIndex,
-			string(core.RunStatusRunning),
-			params.Input,
-			now,
-		); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO run_processes(run_id, process) VALUES(?, ?)`, params.RunID, s.process)
-		return err
+		return insertRun(ctx, tx, s.process, params.RunID, params.SessionID, params.TurnIndex, params.Input, now)
 	})
 	if err != nil {
 		return fmt.Errorf("create run: %w", err)
 	}
 	return nil
+}
+
+// insertRun stores a running run that process executes, created at created.
+func insertRun(ctx context.Context, tx *sql.Tx, process, runID, sessionID string, turn int, input string, created time.Time) error {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
+		runID, sessionID, turn, string(core.RunStatusRunning), input, formatTimestamp(created)); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO run_processes(run_id, process) VALUES(?, ?)`, runID, process)
+	return err
 }
 
 func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error) {
@@ -230,7 +228,7 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]core.RunRecord
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT r.run_id, r.session_id, r.turn_index, r.status, r.input_text, r.output_text, r.error_text, r.created_at, r.finished_at
 		 FROM runs r JOIN sessions s ON s.session_id = r.session_id
-		 WHERE r.status = ? AND `+notSubRun+`
+		 WHERE r.status = ? AND `+notSubRun("r")+`
 		 ORDER BY r.created_at DESC
 		 LIMIT ?`,
 		string(core.RunStatusRunning),
@@ -246,7 +244,7 @@ func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]core.R
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT r.run_id, r.session_id, r.turn_index, r.status, r.input_text, r.output_text, r.error_text, r.created_at, r.finished_at
 		 FROM runs r JOIN sessions s ON s.session_id = r.session_id
-		 WHERE r.status IN (?, ?, ?) AND `+notSubRun+`
+		 WHERE r.status IN (?, ?, ?) AND `+notSubRun("r")+`
 		 ORDER BY r.finished_at DESC
 		 LIMIT ?`,
 		string(core.RunStatusSucceeded),

@@ -354,58 +354,48 @@ private fun LazyListScope.nowSections(
         }
     }
 
-    if (now.commitments.isNotEmpty()) {
-        item(key = "commitments:label") { SectionLabel("接下来", Modifier.arrive(arrival), count = now.commitments.size) }
-        itemsIndexed(now.commitments, key = { _, it -> "commitment:${it.id}" }) { index, commitment ->
-            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.commitments.size)) {
-                CommitmentRow(commitment, wakeTime(commitment.wakeAt, today, zone), onCancel = { onCancel(commitment) })
-                if (index < now.commitments.lastIndex) Hairline(inset = ScreenPadding + 63.dp)
-            }
-        }
+    groupSection("接下来", "commitments", now.commitments, { "commitment:${it.id}" }, 63.dp, arrival) { commitment ->
+        CommitmentRow(commitment, wakeTime(commitment.wakeAt, today, zone), onCancel = { onCancel(commitment) })
     }
-
-    if (now.concerns.isNotEmpty()) {
-        item(key = "concerns:label") { SectionLabel("正在跟进", Modifier.arrive(arrival), count = now.concerns.size) }
-        itemsIndexed(now.concerns, key = { _, it -> "concern:${it.id}" }) { index, concern ->
-            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.concerns.size)) {
-                ConcernRow(concern, onClick = { onThreadClick(concern.threadId) })
-                if (index < now.concerns.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
-            }
-        }
+    groupSection("正在跟进", "concerns", now.concerns, { "concern:${it.id}" }, 28.dp, arrival) { concern ->
+        ConcernRow(concern, onClick = { onThreadClick(concern.threadId) })
     }
-
-    if (now.goals.isNotEmpty()) {
-        item(key = "goals:label") { SectionLabel("目标", Modifier.arrive(arrival), count = now.goals.size) }
-        itemsIndexed(now.goals, key = { _, it -> "goal:${it.id}" }) { index, goal ->
-            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.goals.size)) {
-                GoalRow(goal, onClick = { onThreadClick(goal.threadId) }, onStop = { onStopGoal(goal) })
-                if (index < now.goals.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
-            }
-        }
+    groupSection("目标", "goals", now.goals, { "goal:${it.id}" }, 28.dp, arrival) { goal ->
+        GoalRow(goal, onClick = { onThreadClick(goal.threadId) }, onStop = { onStopGoal(goal) })
     }
-
-    if (now.followUps.isNotEmpty()) {
-        item(key = "follow_ups:label") { SectionLabel("等结果", Modifier.arrive(arrival), count = now.followUps.size) }
-        itemsIndexed(now.followUps, key = { _, it -> "follow_up:${it.id}" }) { index, followUp ->
-            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.followUps.size)) {
-                FollowUpRow(
-                    followUp,
-                    deadline = followUpDeadline(followUp, today, zone),
-                    onClick = { onThreadClick(followUp.threadId) },
-                    onCancel = { onCancelFollowUp(followUp) },
-                )
-                if (index < now.followUps.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
-            }
-        }
+    groupSection("等结果", "follow_ups", now.followUps, { "follow_up:${it.id}" }, 28.dp, arrival) { followUp ->
+        FollowUpRow(
+            followUp,
+            deadline = followUpDeadline(followUp, today, zone),
+            onClick = { onThreadClick(followUp.threadId) },
+            onCancel = { onCancelFollowUp(followUp) },
+        )
     }
+    groupSection("追踪", "watches", now.watches, { "watch:${it.id}" }, 28.dp, arrival) { watch ->
+        WatchRow(watch, onPause = { onPause(watch.id) }, onResume = { onResume(watch.id) })
+    }
+}
 
-    if (now.watches.isNotEmpty()) {
-        item(key = "watches:label") { SectionLabel("追踪", Modifier.arrive(arrival), count = now.watches.size) }
-        itemsIndexed(now.watches, key = { _, it -> "watch:${it.id}" }) { index, watch ->
-            Column(Modifier.animateItem().arrive(arrival).groupItem(index, now.watches.size)) {
-                WatchRow(watch, onPause = { onPause(watch.id) }, onResume = { onResume(watch.id) })
-                if (index < now.watches.lastIndex) Hairline(inset = ScreenPadding + 28.dp)
-            }
+/**
+ * A labelled group of rows drawn as one card with hairlines between them,
+ * [inset] past the screen padding; nothing when [rows] is empty. [group]
+ * keys the label and [key] each row.
+ */
+private fun <T> LazyListScope.groupSection(
+    label: String,
+    group: String,
+    rows: List<T>,
+    key: (T) -> String,
+    inset: Dp,
+    arrival: Arrival,
+    row: @Composable (T) -> Unit,
+) {
+    if (rows.isEmpty()) return
+    item(key = "$group:label") { SectionLabel(label, Modifier.arrive(arrival), count = rows.size) }
+    itemsIndexed(rows, key = { _, it -> key(it) }) { index, item ->
+        Column(Modifier.animateItem().arrive(arrival).groupItem(index, rows.size)) {
+            row(item)
+            if (index < rows.lastIndex) Hairline(inset = ScreenPadding + inset)
         }
     }
 }

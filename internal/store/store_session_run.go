@@ -70,7 +70,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 					ORDER BY turn_index DESC, finished_at DESC
 				) AS row_num
 			FROM runs r
-			WHERE session_id IN (%s) AND `+notSubRun+`
+			WHERE session_id IN (%s) AND `+notSubRun("r")+`
 		)
 		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
 		FROM ranked_runs
@@ -101,7 +101,7 @@ func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (
 	row := s.db.QueryRowContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
          FROM runs r
-         WHERE session_id = ? AND `+notSubRun+`
+         WHERE session_id = ? AND `+notSubRun("r")+`
          ORDER BY turn_index DESC, finished_at DESC
          LIMIT 1`,
 		sessionID,

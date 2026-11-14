@@ -87,8 +87,10 @@ const retryDelay = 5 * time.Minute
 // maxChecksPerTick bounds the watches fetched in one tick.
 const maxChecksPerTick = 5
 
-// Scheduler keeps commitments. Tick is safe to call from several processes
-// sharing one database: claiming a commitment is a conditional update.
+// Scheduler wakes the agent for what is due: commitments, follow-ups, goals,
+// watches, skill triggers and the daily routines. Tick is safe to call from
+// several processes sharing one database: claiming a commitment is a
+// conditional update.
 type Scheduler struct {
 	cfg      Config
 	notifier Notifier
@@ -96,7 +98,7 @@ type Scheduler struct {
 	panels   PanelFeeder
 
 	mu     sync.Mutex
-	warned map[string]string // commitment or watch -> local day already warned about the limit
+	warned map[string]string // wake subject -> local day already warned about the limit
 }
 
 func NewScheduler(cfg Config) (*Scheduler, error) {
@@ -223,7 +225,7 @@ func (s *Scheduler) tickMain(ctx context.Context) error {
 	}
 	due, err := s.cfg.Commitments.DueCommitments(ctx, now)
 	if err != nil {
-		return errors.Join(append(errs, fmt.Errorf("list due commitments: %w", err))...)
+		return fmt.Errorf("list due commitments: %w", err)
 	}
 	for _, item := range due {
 		if err := s.wake(ctx, item, now, settings); err != nil {

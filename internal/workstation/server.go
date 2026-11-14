@@ -211,18 +211,26 @@ func childEnv(home string, extra map[string]string) []string {
 	return env
 }
 
+// shellCommand is command as the workstation starts it: a login bash in dir
+// with childEnv, in its own process group. Children the command leaves
+// running keep its output open; the wait ends with the command itself.
+func shellCommand(ctx context.Context, home, command, dir string, env map[string]string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "bash", "-lc", command)
+	cmd.Dir = dir
+	cmd.Env = childEnv(home, env)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.WaitDelay = 2 * time.Second
+	return cmd
+}
+
 // run kills the command's whole process group on timeout or when the caller
 // goes away, so background children cannot outlive the request. env is added
 // to the command's environment.
 func (s *Server) run(ctx context.Context, req ExecRequest, env map[string]string) (ExecResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.TimeoutSeconds)*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "bash", "-lc", req.Command)
-	cmd.Dir = s.resolve(req.Dir)
-	cmd.Env = childEnv(s.home, env)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd := shellCommand(ctx, s.home, req.Command, s.resolve(req.Dir), env)
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
-	cmd.WaitDelay = 2 * time.Second
 	stdout := newCappedBuffer(req.MaxOutputBytes / 2)
 	stderr := newCappedBuffer(req.MaxOutputBytes / 2)
 	cmd.Stdout, cmd.Stderr = stdout, stderr

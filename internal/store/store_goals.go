@@ -59,12 +59,9 @@ func (s *Store) StartGoal(ctx context.Context, g core.Goal) (core.Goal, error) {
 	}
 	g.Runs, g.State, g.Result, g.Announced, g.UpdatedAt = 0, core.GoalActive, "", false, g.CreatedAt
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var exists, active int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, g.SessionID).Scan(&exists); err != nil {
+		var active int
+		if err := requireSession(ctx, tx, g.SessionID); err != nil {
 			return err
-		}
-		if exists == 0 {
-			return fmt.Errorf("%w: %s", core.ErrSessionNotFound, g.SessionID)
 		}
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM goals WHERE session_id = ? AND state = ?`, g.SessionID, core.GoalActive).Scan(&active); err != nil {
 			return err
@@ -144,7 +141,7 @@ func (s *Store) CountGoalRun(ctx context.Context, id int64, runs int, now time.T
 	return s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		changed, err := tx.ExecContext(ctx, `UPDATE goals SET runs = runs + 1, updated_at = ? WHERE id = ? AND state = ? AND runs = ? AND runs < max_runs`,
 			formatTimestamp(now), id, core.GoalActive, runs)
-		return goalChanged(changed, err, core.ErrGoalChanged)
+		return goalChanged(changed, err)
 	})
 }
 
@@ -153,11 +150,11 @@ func (s *Store) MarkGoalAnnounced(ctx context.Context, id int64, now time.Time) 
 	return s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		changed, err := tx.ExecContext(ctx, `UPDATE goals SET announced = 1, updated_at = ? WHERE id = ? AND state IN (?, ?) AND announced = 0`,
 			formatTimestamp(now), id, core.GoalDone, core.GoalBlocked)
-		return goalChanged(changed, err, core.ErrGoalChanged)
+		return goalChanged(changed, err)
 	})
 }
 
-func goalChanged(result sql.Result, err, unchanged error) error {
+func goalChanged(result sql.Result, err error) error {
 	if err != nil {
 		return err
 	}
@@ -166,7 +163,7 @@ func goalChanged(result sql.Result, err, unchanged error) error {
 		return err
 	}
 	if n != 1 {
-		return unchanged
+		return core.ErrGoalChanged
 	}
 	return nil
 }

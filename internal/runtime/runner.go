@@ -266,7 +266,7 @@ type RunnerBuildRequest struct {
 	// budgets.
 	Autonomous bool
 	// SubRuns runs what the run delegates.
-	SubRuns subRunLauncher
+	SubRuns *Executor
 }
 
 // SubRunBuildRequest is a sub-run to build: its run, the conversation of the

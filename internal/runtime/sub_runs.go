@@ -129,15 +129,10 @@ type subRunLaunch struct {
 	Rules core.ApprovalRules
 }
 
-// subRunLauncher records a sub-run and runs it in the background.
-type subRunLauncher interface {
-	startSubRun(ctx context.Context, start core.SubRunStart, launch subRunLaunch) (core.SubRun, error)
-}
-
 // delegation binds delegate to the run that calls it.
 type delegation struct {
 	store      core.SubRunStore
-	launcher   subRunLauncher
+	launcher   *Executor
 	parent     string
 	sessionID  string
 	autonomous bool

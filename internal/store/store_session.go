@@ -27,6 +27,18 @@ func (s *Store) CreateSession(ctx context.Context, sessionID, title string) (*co
 	return &core.SessionRecord{SessionID: sessionID, Title: title, CreatedAt: now, UpdatedAt: now}, nil
 }
 
+// requireSession fails with core.ErrSessionNotFound unless the session exists.
+func requireSession(ctx context.Context, tx *sql.Tx, sessionID string) error {
+	var exists int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, sessionID).Scan(&exists); err != nil {
+		return err
+	}
+	if exists == 0 {
+		return fmt.Errorf("%w: %s", core.ErrSessionNotFound, sessionID)
+	}
+	return nil
+}
+
 func (s *Store) LoadSession(ctx context.Context, sessionID string) (*core.SessionRecord, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT session_id, title, created_at, updated_at FROM sessions WHERE session_id = ?`, sessionID)
 	var (

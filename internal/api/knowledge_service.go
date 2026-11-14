@@ -116,8 +116,7 @@ func (s *KnowledgeService) GetNote(ctx context.Context, path string) (KnowledgeN
 }
 
 // DeleteNote deletes a note and makes Acorn forget it: every revision is
-// excluded from memory before the note is removed. Images the note links
-// stay, since the conversation that shared them may show them too.
+// excluded from memory before the note is removed.
 func (s *KnowledgeService) DeleteNote(ctx context.Context, path string) error {
 	note, err := s.vault.Read(ctx, path)
 	if err != nil {

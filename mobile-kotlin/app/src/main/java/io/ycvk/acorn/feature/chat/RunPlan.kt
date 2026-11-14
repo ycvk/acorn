@@ -79,7 +79,6 @@ fun planStepState(step: PlanStep, live: Boolean): String = when (step.status) {
  */
 @Composable
 fun RunPlan(plan: List<PlanStep>, streaming: Boolean, modifier: Modifier = Modifier) {
-    if (plan.isEmpty()) return
     val colors = AcornTheme.colors
     var expanded by rememberSaveable { mutableStateOf(streaming) }
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "plan_chevron")

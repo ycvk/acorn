@@ -11,8 +11,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -35,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.ycvk.acorn.core.sse.StepStatus
 import io.ycvk.acorn.core.sse.ToolStep
@@ -118,20 +121,14 @@ fun stepDetail(step: ToolStep): String = when {
 /** One line per step: while a call runs it shows what is happening; afterwards it folds into a count. */
 @Composable
 fun ToolSteps(steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Modifier) {
-    if (steps.isEmpty()) return
     val colors = AcornTheme.colors
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "steps_chevron")
     val running = steps.lastOrNull { it.status == StepStatus.Running }.takeIf { streaming }
     val failures = steps.count { it.status == StepStatus.Failed }
-    Column(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .clip(AcornShapes.small)
-                .clickable { expanded = !expanded }
-                .padding(vertical = 4.dp, horizontal = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    FoldedRail(
+        what = "步骤",
+        spacing = 8.dp,
+        modifier = modifier,
+        header = {
             if (running != null) {
                 ThinkingOrb(toolOrb(running.toolName), size = 18.dp)
                 Spacer(Modifier.width(8.dp))
@@ -157,7 +154,38 @@ fun ToolSteps(steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Mo
                     Text("，$failures 步出错", style = AcornTheme.type.footnote, color = colors.warningInk)
                 }
             }
-            Icon(AcornIcons.ChevronDown, contentDescription = if (expanded) "收起步骤" else "展开步骤", tint = colors.inkFaint, modifier = Modifier.size(16.dp).rotate(rotation))
+        },
+    ) {
+        steps.forEach { StepRow(it, streaming) }
+    }
+}
+
+/**
+ * A line that unfolds into rows hung on a rail. [header] fills the line ahead
+ * of its chevron, which a screen reader hears as 展开 or 收起 [what]; the
+ * rows sit [spacing] apart.
+ */
+@Composable
+internal fun FoldedRail(
+    what: String,
+    spacing: Dp,
+    modifier: Modifier,
+    header: @Composable RowScope.() -> Unit,
+    rows: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = AcornTheme.colors
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "fold_chevron")
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .clip(AcornShapes.small)
+                .clickable { expanded = !expanded }
+                .padding(vertical = 4.dp, horizontal = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            header()
+            Icon(AcornIcons.ChevronDown, contentDescription = if (expanded) "收起$what" else "展开$what", tint = colors.inkFaint, modifier = Modifier.size(16.dp).rotate(rotation))
         }
         AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Row(modifier = Modifier.padding(start = 7.dp, top = 4.dp, bottom = 2.dp).height(IntrinsicSize.Min)) {
@@ -168,9 +196,7 @@ fun ToolSteps(steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Mo
                         .background(colors.line, RoundedCornerShape(1.dp)),
                 )
                 Spacer(Modifier.width(12.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    steps.forEach { StepRow(it, streaming) }
-                }
+                Column(verticalArrangement = Arrangement.spacedBy(spacing), content = rows)
             }
         }
     }

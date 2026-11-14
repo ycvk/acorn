@@ -105,7 +105,7 @@ func (s *Scheduler) announceGoals(ctx context.Context, now time.Time) error {
 			errs = append(errs, err)
 			continue
 		}
-		if latest != nil && (latest.Status == core.RunStatusRunning || latest.Status == core.RunStatusInterrupted) {
+		if runGoing(latest) {
 			continue
 		}
 		notified := false

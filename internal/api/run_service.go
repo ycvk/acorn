@@ -139,7 +139,7 @@ func (s *RunService) SendMessage(ctx context.Context, threadID, input string, fi
 		return nil, err
 	}
 	if sent.Started != nil {
-		run, err := s.launch(ctx, createdRunRequest(*sent.Started))
+		run, err := s.launch(ctx, sent.Started.ExecuteRequest())
 		if err != nil {
 			return nil, err
 		}
@@ -179,14 +179,10 @@ func (s *RunService) StartQueuedRuns(ctx context.Context) error {
 			continue
 		}
 		if start != nil {
-			s.ContinueRun(ctx, createdRunRequest(*start))
+			s.ContinueRun(ctx, start.ExecuteRequest())
 		}
 	}
 	return errors.Join(errs...)
-}
-
-func createdRunRequest(start core.RunStart) core.ExecuteRequest {
-	return core.ExecuteRequest{RunID: start.RunID, SessionID: start.SessionID, TurnIndex: start.TurnIndex, Input: start.Input, Created: true}
 }
 
 // CreateScheduledRun starts a scheduler input with explicit provenance and budget ownership.
@@ -409,7 +405,7 @@ func (s *clientRunStartSignal) RunStarted() {
 }
 
 func (s *clientRunStartSignal) MarkFailed(err error) bool {
-	if err == nil || s.hasStarted.Load() {
+	if s.hasStarted.Load() {
 		return false
 	}
 	s.failureOnce.Do(func() { s.failed <- err })
@@ -445,9 +441,6 @@ func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteReques
 // runStartSignalSink adapts a clientRunStartSignal into a core.StreamSink
 // that fires RunStarted() when the RunStarted stream event is emitted.
 func runStartSignalSink(started *clientRunStartSignal) core.StreamSink {
-	if started == nil {
-		return nil
-	}
 	return func(item core.StreamItem) error {
 		if item.Kind == core.StreamKindRunStarted {
 			started.RunStarted()
@@ -465,9 +458,6 @@ func (s *RunService) reportBackgroundRunFailure(ctx context.Context, runID strin
 }
 
 func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {
-	if strings.TrimSpace(runID) == "" || cause == nil {
-		return nil
-	}
 	record, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
 		return err
@@ -480,7 +470,7 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
 	if next != nil {
-		s.ContinueRun(ctx, createdRunRequest(*next))
+		s.ContinueRun(ctx, next.ExecuteRequest())
 	}
 	return nil
 }

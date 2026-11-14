@@ -3,7 +3,6 @@ package io.ycvk.acorn.core.sse
 import io.ycvk.acorn.api.models.PlanStep
 import io.ycvk.acorn.api.models.SubRunData
 import io.ycvk.acorn.api.models.View
-import io.ycvk.acorn.feature.chat.withSubRun
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -148,6 +147,10 @@ class RunEventProjection @Inject constructor() {
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }
+
+    /** [tasks] with [update] in place of its task's earlier attempt, in task order. */
+    private fun withSubRun(tasks: List<SubRunData>, update: SubRunData): List<SubRunData> =
+        (tasks.filterNot { it.task == update.task } + update).sortedBy { it.task }
 
     private fun List<ActivityItem>.withoutResumeRows(): List<ActivityItem> =
         filter { it.kind != ActivityKind.ResumeRequested }

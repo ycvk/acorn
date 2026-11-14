@@ -22,14 +22,9 @@ const (
 	maxPlanNoteRunes  = 20
 )
 
-// PlanStore records each plan on its run.
-type PlanStore interface {
-	AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error)
-}
-
-// PlanToolDeps configure plan.
+// PlanToolDeps configure plan; Store records each plan on its run.
 type PlanToolDeps struct {
-	Store   PlanStore
+	Store   core.EventAppender
 	Context core.ToolCallContextBridge
 }
 

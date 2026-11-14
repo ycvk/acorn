@@ -78,7 +78,7 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 	// message from the card.
 	for _, status := range []core.RunStatus{core.RunStatusRunning, core.RunStatusInterrupted} {
 		runID := "run_s_" + string(status)
-		if err := s.CreateRun(ctx, core.RunCreateParams{RunID: runID, SessionID: "thread_s", TurnIndex: discuss.TurnIndex, Input: discuss.Content, BoundMessageID: discuss.ID}); err != nil {
+		if err := s.CreateRun(ctx, core.RunCreateParams{RunID: runID, SessionID: "thread_s", TurnIndex: discuss.TurnIndex, Input: discuss.Content}); err != nil {
 			t.Fatal(err)
 		}
 		if status != core.RunStatusRunning {

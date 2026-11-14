@@ -250,7 +250,7 @@ func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time,
 		if err != nil {
 			return routineInput{}, err
 		}
-		if latest != nil && (latest.Status == core.RunStatusRunning || latest.Status == core.RunStatusInterrupted) {
+		if runGoing(latest) {
 			continue
 		}
 		review := "not set"

@@ -23,20 +23,17 @@ func (s *Store) ThreadMemorySourceIDs(ctx context.Context, sessionID string) ([]
 }
 
 // DeleteThread removes a thread with what its runs left behind: messages,
-// queued messages, follow-ups, goals, files, views, runs and sub-runs, events, pending
-// actions, checkpoints, notifications, briefing picks, the messages sent from
-// briefing stories, artifacts and the context snapshots no other run used.
-// The thread's memory
-// sources stay, so the exclusions that forget them keep holding.
+// queued messages, follow-ups, goals, files, views, runs and sub-runs,
+// events, pending actions, checkpoints, notifications, briefing picks, the
+// messages sent from briefing stories, artifacts and the context snapshots
+// no other run used. The thread's memory sources stay, so the exclusions
+// that forget them keep holding.
 func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
 	var paths, files []string
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var exists, running int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, sessionID).Scan(&exists); err != nil {
+		var running int
+		if err := requireSession(ctx, tx, sessionID); err != nil {
 			return err
-		}
-		if exists == 0 {
-			return fmt.Errorf("%w: %s", core.ErrSessionNotFound, sessionID)
 		}
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs WHERE session_id = ? AND status = ?`, sessionID, string(core.RunStatusRunning)).Scan(&running); err != nil {
 			return err

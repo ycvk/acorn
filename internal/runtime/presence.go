@@ -218,8 +218,7 @@ func wakeOrDefault(ctx context.Context) string {
 
 func (m *presenceMiddleware) checkBudget(ctx context.Context, messages []*schema.AgenticMessage, opts []einomodel.Option) error {
 	options := einomodel.GetCommonOptions(nil, opts...)
-	tools := append(append([]*schema.ToolInfo(nil), options.Tools...), options.DeferredTools...)
-	n, err := m.counter.CountMessages(ctx, messages, tools)
+	n, err := m.counter.CountMessages(ctx, messages, options.Tools)
 	if err != nil {
 		return err
 	}

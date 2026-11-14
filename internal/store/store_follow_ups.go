@@ -63,12 +63,8 @@ func (s *Store) AddFollowUp(ctx context.Context, f core.FollowUp) (core.FollowUp
 	}
 	f.State, f.ScannedOffset, f.PathSize, f.Reason, f.RunID, f.UpdatedAt = core.FollowUpWaiting, 0, nil, "", "", f.CreatedAt
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var exists int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, f.SessionID).Scan(&exists); err != nil {
+		if err := requireSession(ctx, tx, f.SessionID); err != nil {
 			return err
-		}
-		if exists == 0 {
-			return fmt.Errorf("%w: %s", core.ErrSessionNotFound, f.SessionID)
 		}
 		result, err := tx.ExecContext(ctx, `INSERT INTO follow_ups(session_id,source_run_id,task,job_id,output_contains,path,deadline_at,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
 			f.SessionID, f.SourceRunID, f.Task, f.JobID, f.OutputContains, f.Path, formatTimestamp(f.DeadlineAt), f.State, formatTimestamp(f.CreatedAt), formatTimestamp(f.UpdatedAt))

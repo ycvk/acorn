@@ -181,7 +181,7 @@ func (s *Scheduler) threadIdle(ctx context.Context, sessionID string) (bool, err
 	if err != nil {
 		return false, err
 	}
-	if latest != nil && (latest.Status == core.RunStatusRunning || latest.Status == core.RunStatusInterrupted) {
+	if runGoing(latest) {
 		return false, nil
 	}
 	queued, err := s.cfg.RunRecords.ListQueuedMessages(ctx, sessionID)
@@ -189,6 +189,11 @@ func (s *Scheduler) threadIdle(ctx context.Context, sessionID string) (bool, err
 		return false, err
 	}
 	return len(queued) == 0, nil
+}
+
+// runGoing reports whether run is running or waiting for the owner.
+func runGoing(run *core.RunRecord) bool {
+	return run != nil && (run.Status == core.RunStatusRunning || run.Status == core.RunStatusInterrupted)
 }
 
 func jobEnd(job workstation.Job) string {

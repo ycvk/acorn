@@ -405,9 +405,6 @@ type RunOnceResult struct {
 // prepare failure) surfaces here as a real error or failed result instead of
 // staying hidden until the first remote-client message.
 func (c *Container) RunOnce(ctx context.Context, input string) (*RunOnceResult, error) {
-	if c == nil {
-		return nil, errors.New("container is nil")
-	}
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
 		return nil, errors.New("run input is required")
@@ -421,9 +418,6 @@ func (c *Container) RunOnce(ctx context.Context, input string) (*RunOnceResult, 
 	}, nil)
 	if err != nil {
 		return nil, err
-	}
-	if result == nil {
-		return nil, errors.New("runtime executor returned nil result")
 	}
 	return &RunOnceResult{
 		RunID:  result.RunID,
