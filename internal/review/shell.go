@@ -284,7 +284,8 @@ type word struct {
 // quotes and escapes join words, control operators end a command, and
 // redirection targets are returned apart from the command words; the
 // delimiter of a here-document and the word of a here-string are neither.
-// It reports false on substitutions and unbalanced quotes.
+// It reports false on substitutions, unbalanced quotes and parentheses,
+// which group commands or define a function under a program's name.
 func splitWords(command string) ([][]word, []string, bool) {
 	var (
 		commands   [][]word
@@ -364,6 +365,8 @@ func splitWords(command string) ([][]word, []string, bool) {
 		case r == '`', r == '$' && i+1 < len(runes) && runes[i+1] == '(':
 			return nil, nil, false
 		case (r == '<' || r == '>') && i+1 < len(runes) && runes[i+1] == '(':
+			return nil, nil, false
+		case r == '(' || r == ')':
 			return nil, nil, false
 		case r == '|' || r == ';' || r == '&' || r == '\n':
 			if r == '&' && i > 0 && runes[i-1] == '>' {
