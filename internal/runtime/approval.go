@@ -312,8 +312,8 @@ func (m *approvalMiddleware) review(toolName string) func(context.Context, strin
 // reviewCalls turns a tool call into what review judges. Read-only shell
 // commands need none; each bsk page action is judged with the page bsk last
 // showed of its session, and any other part as the whole command. An action
-// review cannot place is judged without a page or a target, which sends it
-// to the owner.
+// review cannot place is judged without a page or a target, and a command
+// that may hide one is marked so; both go to the owner.
 func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args string) ([]review.Call, error) {
 	owner, err := m.ownerRequest(ctx)
 	if err != nil {
@@ -355,7 +355,7 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 	}
 	m.mu.Unlock()
 	if shell.Other {
-		calls = append(calls, review.Call{OwnerRequest: owner, Tool: "shell", Command: command})
+		calls = append(calls, review.Call{OwnerRequest: owner, Tool: "shell", Command: command, Hidden: shell.Hidden})
 	}
 	return calls, nil
 }

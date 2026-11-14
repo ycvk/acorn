@@ -20,6 +20,9 @@ type Call struct {
 	// Command is set for shell, Arguments for any other tool.
 	Command   string
 	Arguments string
+	// Hidden is set for a shell command that may act on a page where
+	// ParseShell cannot read the action.
+	Hidden bool
 	// Browser is set for one bsk interaction and the page it acts on.
 	Browser *BrowserAction
 }
@@ -285,6 +288,10 @@ func Decide(call Call, scores map[string]float64) Verdict {
 		if b.Target == "" {
 			add("看不到要操作的是什么")
 		}
+	}
+	// A page action the command keeps out of reading can be judged no better.
+	if call.Hidden {
+		add("读不出命令里的页面操作")
 	}
 	return v
 }
