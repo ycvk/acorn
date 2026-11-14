@@ -104,6 +104,29 @@ func TestJobsAfterARestart(t *testing.T) {
 	}
 }
 
+// A job's record sits in the directory of its id. A record that names another
+// job is refused, so pruning and saving never reach outside that directory.
+func TestJobsRefuseARecordNamingAnotherJob(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home")
+	kept := filepath.Join(home, "kept")
+	record := filepath.Join(home, ".jobs", "job-0000beef")
+	for _, dir := range []string{kept, record} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-8 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(filepath.Join(record, "job.json"), []byte(`{"id":"../kept","command":"true","state":"exited","started_at":"`+old+`","ended_at":"`+old+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newJobs(home); err == nil || !strings.Contains(err.Error(), "job-0000beef") {
+		t.Errorf("opening jobs with a record naming another job: err = %v", err)
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Errorf("a directory outside the jobs directory was touched: %v", err)
+	}
+}
+
 // A search finds text anywhere in the output, also across the chunks it
 // reads, and continues where text cut at the end could still complete.
 func TestJobsFindTextInTheirOutput(t *testing.T) {

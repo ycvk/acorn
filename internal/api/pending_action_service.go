@@ -117,9 +117,9 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 }
 
 // toolDetail is the whole text a tool approval acts on when its summary
-// cannot hold it: the skill a skill_write or skill_import would store, its
-// package's manifest first. A package no longer staged shows as such, and the
-// import fails.
+// cannot hold it: the text a files call writes, or the skill a skill_write
+// or skill_import would store, its package's manifest first. A package no
+// longer staged shows as such, and the import fails.
 func (s *PendingActionService) toolDetail(ctx context.Context, toolName, arguments string) (string, error) {
 	switch toolName {
 	case "news_source", "news_sections":
@@ -127,6 +127,8 @@ func (s *PendingActionService) toolDetail(ctx context.Context, toolName, argumen
 			return "", fmt.Errorf("pending action service: news is required to show %s", toolName)
 		}
 		return tools.ApprovalDescriber{News: s.news}.DescribeApproval(ctx, toolName, arguments)
+	case "files":
+		return tools.FilesApproval(arguments)
 	case "skill_write", "skill_import":
 	default:
 		return "", nil

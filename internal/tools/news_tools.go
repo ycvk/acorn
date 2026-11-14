@@ -252,7 +252,8 @@ type NewsLoader interface {
 
 // ApprovalDescriber says, in the owner's words, what a call the owner
 // decides on does: which news source a news_source call takes in or stops,
-// or how a news_sections call changes the sections, and why.
+// how a news_sections call changes the sections, and why, or the text a
+// files call writes.
 type ApprovalDescriber struct {
 	News NewsLoader
 }
@@ -263,6 +264,8 @@ func (d ApprovalDescriber) DescribeApproval(ctx context.Context, toolName, argum
 		return NewsSourceApproval(ctx, d.News, arguments)
 	case "news_sections":
 		return NewsSectionsApproval(ctx, d.News, arguments)
+	case "files":
+		return FilesApproval(arguments)
 	default:
 		return "", fmt.Errorf("no approval description for %s", toolName)
 	}

@@ -301,9 +301,9 @@ func (j *jobs) job(id string) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
-	var job Job
-	if err := json.Unmarshal(data, &job); err != nil {
-		return Job{}, fmt.Errorf("job %s record: %w", id, err)
+	job, err := decodeRecord(id, data)
+	if err != nil {
+		return Job{}, err
 	}
 	info, err := os.Stat(job.OutputPath)
 	if err != nil {
@@ -420,13 +420,27 @@ func (j *jobs) records() ([]Job, error) {
 		if err != nil {
 			return nil, err
 		}
-		var job Job
-		if err := json.Unmarshal(data, &job); err != nil {
-			return nil, fmt.Errorf("job %s record: %w", entry.Name(), err)
+		job, err := decodeRecord(entry.Name(), data)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, job)
 	}
 	return out, nil
+}
+
+// decodeRecord reads the record kept in the directory of job id. A record
+// names its own job: save and prune build paths from the id, and a command
+// on the workstation can rewrite the record.
+func decodeRecord(id string, data []byte) (Job, error) {
+	var job Job
+	if err := json.Unmarshal(data, &job); err != nil {
+		return Job{}, fmt.Errorf("job %s record: %w", id, err)
+	}
+	if job.ID != id {
+		return Job{}, fmt.Errorf("job %s record names job %q", id, job.ID)
+	}
+	return job, nil
 }
 
 // save writes the job's record whole, in place of the old one.

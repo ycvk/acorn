@@ -648,6 +648,8 @@ review:
 
 Commands that only read, such as reading a page with `bsk observe`, run without review. For a click, fill, key press or select, Acorn sends SubQ the element's name and the page it is on, as the agent last observed them, together with what you asked for. Calls that would pay, send, publish, delete, follow, change settings or otherwise change something outside the workstation wait for your approval, and the approval card says what the call does and why. A click on a checkout, payment or security page, text that tries to talk the reviewer into allowing it, an element the agent never observed on that page, and a review that fails also wait for you.
 
+Every workstation command runs in a login shell, so whatever `.bashrc`, `.bash_profile`, `.profile`, `.bash_login`, `.bash_logout` or `.bash_aliases` holds runs with each of them. A `files` call that writes or edits one of these waits for your approval whether review is on or not, and the approval shows the text it would write. With review on, a shell command that writes one is reviewed like any other. Add `files` to `approval.allow` to let the agent change them on its own.
+
 The calls you are asked about, their target and page, and your request go to SubQ. `acorn doctor` shows whether review works.
 
 ## 16. Current Limits

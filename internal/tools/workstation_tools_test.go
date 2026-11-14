@@ -268,3 +268,21 @@ func TestSendFileHandsTheOwnerAWorkstationFile(t *testing.T) {
 		t.Fatalf("thread files = %+v err = %v", files, err)
 	}
 }
+
+// The approval of a files call shows the text it would write: a write whole,
+// an edit change by change.
+func TestFilesApprovalShowsWhatIsWritten(t *testing.T) {
+	describe := ApprovalDescriber{}
+	for args, want := range map[string]string{
+		`{"action":"write","path":"~/.bashrc","content":"export PATH=~/bin:$PATH\n"}`:                                  "写入 ~/.bashrc，全文如下：\n\nexport PATH=~/bin:$PATH\n",
+		`{"action":"edit","path":".profile","edits":[{"old":"umask 022","new":"umask 077"},{"old":"# end","new":""}]}`: "修改 .profile 的 2 处：\n\n第 1 处，原文：\numask 022\n改为：\numask 077\n\n第 2 处，原文：\n# end\n改为：\n",
+		`{"action":"read","path":"~/.bashrc"}`:                                                                         "",
+	} {
+		if got, err := describe.DescribeApproval(context.Background(), "files", args); err != nil || got != want {
+			t.Errorf("%s:\n got %q, %v\nwant %q", args, got, err, want)
+		}
+	}
+	if _, err := describe.DescribeApproval(context.Background(), "files", `{`); err == nil {
+		t.Error("arguments that do not parse must fail")
+	}
+}
