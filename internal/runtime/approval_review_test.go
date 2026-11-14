@@ -236,6 +236,8 @@ func TestGateReadsPageActionsAsBskDoes(t *testing.T) {
 		"bsk click -v @e3 --session s1",
 		"bsk click e3 --session s1",
 		"bsk click --ref e3 --session=s1 --timeout 5s",
+		// download clicks the element that starts it.
+		"bsk download @e3 --out order.pdf --session s1",
 	} {
 		f := newGateFixture(t, core.ApprovalRules{})
 		if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {

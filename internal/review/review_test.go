@@ -341,6 +341,48 @@ func TestParseShellFindsThePageActionACommandHides(t *testing.T) {
 	}
 }
 
+// bsk download clicks the element that starts the download, so it is the
+// click it makes, and the file it writes is judged like a redirection's.
+func TestParseShellReadsADownloadAsTheClickItIs(t *testing.T) {
+	for command, want := range map[string]BrowserCall{
+		"bsk download @e3 --out ./report.pdf --session s":                              {Action: "click", Ref: "@e3", Session: "s"},
+		"bsk download --ref e3 --out report.pdf --overwrite --session s --timeout 30s": {Action: "click", Ref: "@e3", Session: "s"},
+		"bsk download --selector a.invoice --out report.pdf --session s":               {Action: "click", Selector: "a.invoice", Session: "s"},
+		"bsk download @e3 --out report.pdf --tab-id 7 --session s":                     {Action: "click", Session: "s", Unsure: true},
+		"bsk download @e3 --out $dir/report.pdf --session s":                           {Action: "click", Ref: "@e3", Session: "s", Unsure: true},
+	} {
+		shell := ParseShell(command)
+		if shell.ReadOnly || !shell.Moves || !reflect.DeepEqual(shell.Actions(), []BrowserCall{want}) {
+			t.Errorf("%q: %+v", command, shell)
+		}
+	}
+	if shell := ParseShell("timeout 60 bsk download @e3 --out report.pdf --session s"); !shell.Hidden {
+		t.Errorf("a download behind timeout: %+v", shell)
+	}
+	// A file bsk writes by --out counts like one a redirection writes.
+	for _, command := range []string{
+		"bsk get-html --selector pre --out ~/.profile --session s",
+		"bsk get-html --out=.bashrc --session s",
+		"bsk screenshot --out ~/.bash_profile --session s",
+		"bsk screenshot --out $f --session s",
+		"o=--out; bsk get-html $o ~/.profile --session s",
+		"bsk download @e3 --out ~/.bashrc --session s",
+	} {
+		if shell := ParseShell(command); shell.ReadOnly || !shell.Other {
+			t.Errorf("%q: %+v, want review of the command", command, shell)
+		}
+	}
+	for _, command := range []string{
+		"bsk get-html --out page.html --session s",
+		"bsk screenshot --session s --full-page --out page.png",
+		"bsk screenshot --session s --ref @e3 --out element.png --json",
+	} {
+		if shell := ParseShell(command); !shell.ReadOnly {
+			t.Errorf("%q: %+v, want read-only", command, shell)
+		}
+	}
+}
+
 func TestParseShellFindsTheBskSubcommand(t *testing.T) {
 	for _, command := range []string{
 		"bsk --session navigate click @e3",

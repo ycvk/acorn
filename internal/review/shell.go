@@ -98,8 +98,7 @@ var findActions = map[string]bool{
 // bskReadOnly are bsk subcommands that read the page, move around in it or
 // hand a step to the owner, without submitting anything.
 var bskReadOnly = map[string]bool{
-	"blur": true, "browsers": true, "console": true, "doctor": true, "download": true,
-	"emulate": true, "focus": true, "get-html": true, "help": true, "hover": true,
+	"blur": true, "browsers": true, "console": true, "doctor": true, "emulate": true, "focus": true, "get-html": true, "help": true, "hover": true,
 	"logs": true, "navigate": true, "navigate-back": true, "navigate-forward": true,
 	"network": true, "observe": true, "record": true, "reload": true, "request-help": true,
 	"screenshot": true, "scroll-to": true, "session": true, "snapshot": true, "status": true,
@@ -131,8 +130,14 @@ var bskStill = map[string]bool{
 var bskOptions = map[string]bool{
 	"--session": true, "--ref": true, "--selector": true, "--value": true, "--cursor": true,
 	"--max-depth": true, "--max-tokens": true, "--timeout": true, "--wait-until": true,
-	"--hard": false, "--json": false, "--quiet": false, "--verbose": false,
+	"--out":  true,
+	"--hard": false, "--json": false, "--quiet": false, "--verbose": false, "--overwrite": false,
 }
+
+// bskWrites are the bsk subcommands that write the file --out names: what a
+// site sends as a download, the HTML of a page or of one element, a picture
+// of the page.
+var bskWrites = map[string]bool{"download": true, "get-html": true, "screenshot": true}
 
 // bskShowOptions are the options a command may carry and still print the
 // page in the lines readPage reads.
@@ -177,15 +182,15 @@ func ParseShell(command string) Shell {
 	// words of the here-strings and what each command leaves.
 	loose := slices.Clone(script.heres)
 	for i, simple := range script.commands {
-		var (
-			readOnly bool
-			left     string
-		)
-		readOnly, calls[i], effects[i], left = classify(simple)
-		loose = append(loose, left)
-		if !readOnly {
+		p := classify(simple)
+		calls[i], effects[i] = p.call, p.effect
+		loose = append(loose, p.left)
+		if slices.ContainsFunc(p.writes, riskyTarget) {
+			shell.ReadOnly, shell.Other = false, true
+		}
+		if !p.readOnly {
 			shell.ReadOnly = false
-			if calls[i] == nil || !bskActions[calls[i].Action] {
+			if p.call == nil || !bskActions[p.call.Action] {
 				shell.Other = true
 			}
 		}
@@ -332,62 +337,71 @@ func LoginFile(name string) bool {
 	return loginFiles[path.Base(path.Clean(name))]
 }
 
-// classify judges a simple command: whether it is read-only, the bsk command
-// it is, what it does to the pages, and the text it leaves for hidesAction,
-// all of its words unless it is a bsk command. A program judged by its
-// arguments is read-only only when every argument is the word the program
-// gets: an open one can become the option the check looks for.
-func classify(words []word) (bool, *BrowserCall, pageEffect, string) {
-	whole := said(words)
+// part is what classify makes of a simple command.
+type part struct {
+	// readOnly is set when the command needs no review.
+	readOnly bool
+	// call is the bsk command it is.
+	call *BrowserCall
+	// effect is what it does to the pages.
+	effect pageEffect
+	// left is the text hidesAction reads: all of the command's words, or
+	// those after bsk and the subcommand ParseShell read.
+	left string
+	// writes are the files it writes by an option of its own.
+	writes []string
+}
+
+// classify judges a simple command. A program judged by its arguments is
+// read-only only when every argument is the word the program gets: an open
+// one can become the option the check looks for.
+func classify(words []word) part {
+	p := part{effect: pageMoves, left: said(words)}
 	assigned := false
 	for len(words) > 0 && isAssignment(words[0].text) {
 		if !plainAssignment(words[0].text) {
-			return false, nil, pageMoves, whole
+			return p
 		}
 		words, assigned = words[1:], true
 	}
 	if len(words) == 0 {
-		return true, nil, pageStill, whole
+		p.readOnly, p.effect = true, pageStill
+		return p
 	}
 	program := words[0].text
 	if program == "bsk" {
-		readOnly, call, effect, rest, read := classifyBsk(words[1:], assigned)
-		if !read {
-			return readOnly, call, effect, whole
-		}
-		return readOnly, call, effect, said(rest)
+		return classifyBsk(words[1:], assigned, p.left)
 	}
 	args, literal := make([]string, 0, len(words)-1), true
 	for _, w := range words[1:] {
 		args = append(args, w.text)
 		literal = literal && !w.open
 	}
-	var readOnly bool
 	switch program {
 	case "find":
-		readOnly = literal && !slices.ContainsFunc(args, func(a string) bool { return findActions[a] })
+		p.readOnly = literal && !slices.ContainsFunc(args, func(a string) bool { return findActions[a] })
 	case "sort":
-		readOnly = literal && !slices.ContainsFunc(args, sortRunsOrWrites)
+		p.readOnly = literal && !slices.ContainsFunc(args, sortRunsOrWrites)
 	case "uniq":
 		// uniq writes to its second operand.
-		readOnly = literal && operands(args) < 2
+		p.readOnly = literal && operands(args) < 2
 	case "tree":
-		readOnly = literal && !slices.ContainsFunc(args, func(a string) bool { return shortOption(a, 'o') })
+		p.readOnly = literal && !slices.ContainsFunc(args, func(a string) bool { return shortOption(a, 'o') })
 	case "printf":
 		// printf -v assigns a variable, PATH among them; only its first
 		// argument can be the option.
-		readOnly = len(args) == 0 || !words[1].open && !strings.HasPrefix(args[0], "-v")
+		p.readOnly = len(args) == 0 || !words[1].open && !strings.HasPrefix(args[0], "-v")
 	default:
-		readOnly = readOnlyPrograms[program]
+		p.readOnly = readOnlyPrograms[program]
 	}
 	switch {
-	case !readOnly:
-		return false, nil, pageMoves, whole
+	case !p.readOnly:
 	case literal && !assigned && quiet(program, args):
-		return true, nil, pageQuiet, whole
+		p.effect = pageQuiet
 	default:
-		return true, nil, pageStill, whole
+		p.effect = pageStill
 	}
+	return p
 }
 
 // sleepTime is a pause as sleep takes it.
@@ -412,34 +426,45 @@ func quiet(program string, args []string) bool {
 	}
 }
 
-// classifyBsk judges a bsk command. Its subcommand says whether it is
-// read-only. What it does to the pages counts as known only when ParseShell
-// reads every argument as bsk does; a command it does not read may have
-// given a session new refs. rest is the words after the subcommand, and read
-// is false when ParseShell cannot tell which subcommand bsk gets.
-func classifyBsk(args []word, assigned bool) (readOnly bool, call *BrowserCall, effect pageEffect, rest []word, read bool) {
+// classifyBsk judges a bsk command, whose words are whole. Its subcommand
+// says whether it is read-only. What it does to the pages counts as known
+// only when ParseShell reads every argument as bsk does; a command it does
+// not read may have given a session new refs.
+func classifyBsk(args []word, assigned bool, whole string) part {
 	cmd := readBsk(args)
-	call = browserCall(cmd)
+	call := browserCall(cmd)
+	p := part{readOnly: bskReadOnly[cmd.sub], call: call, effect: pageMoves, left: whole}
+	if !cmd.unread {
+		p.left = said(cmd.rest)
+	}
+	if bskWrites[cmd.sub] {
+		p.writes = cmd.options["--out"]
+		// A word bash expands further may be the option and its file.
+		for _, w := range args {
+			if w.open {
+				p.writes = append(p.writes, w.text)
+			}
+		}
+	}
 	// The output is bsk's own report, line for line: no setting changes its
 	// form and no word of the command can break a line of it.
 	plain := cmd.plain && !assigned
-	effect = pageMoves
 	switch {
 	case cmd.sub == "wait-ms" && cmd.read && plain:
-		effect = pageQuiet
+		p.effect = pageQuiet
 	case bskStill[cmd.sub]:
-		effect = pageStill
+		p.effect = pageStill
 	case call.Unsure:
 	case bskActions[cmd.sub] && plain && cmd.sub != "select":
-		effect = pageActs
+		p.effect = pageActs
 	case bskActions[cmd.sub]:
 		// select reports the labels of the options it picked, which are the
 		// page's text.
-		effect = pageStill
+		p.effect = pageStill
 	case bskShows[cmd.sub] && plain && call.Session != "" && len(cmd.positional) <= 1 && cmd.only(bskShowOptions):
-		effect = pageShows
+		p.effect = pageShows
 	}
-	return bskReadOnly[cmd.sub], call, effect, cmd.rest, !cmd.unread
+	return p
 }
 
 // bskCommand is a bsk command line taken apart as bsk does.
@@ -524,7 +549,13 @@ func readBsk(args []word) bskCommand {
 // browserCall is the bsk command as review judges it. A page action names its
 // element once: as its argument, with --ref or with --selector.
 func browserCall(cmd bskCommand) *BrowserCall {
-	call := &BrowserCall{Action: cmd.sub, Unsure: !cmd.read}
+	action := cmd.sub
+	if action == "download" {
+		// download clicks the element that starts the download. Where the
+		// page is afterwards is not read from its report.
+		action = "click"
+	}
+	call := &BrowserCall{Action: action, Unsure: !cmd.read}
 	once := func(name string) (string, bool) {
 		values := cmd.options[name]
 		if len(values) == 0 {
@@ -534,7 +565,7 @@ func browserCall(cmd bskCommand) *BrowserCall {
 		return values[0], true
 	}
 	call.Session, _ = once("--session")
-	if !bskActions[cmd.sub] {
+	if !bskActions[action] {
 		return call
 	}
 	elements := cmd.positional
