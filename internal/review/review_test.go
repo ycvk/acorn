@@ -49,6 +49,38 @@ func TestParseShellReadOnlyCommands(t *testing.T) {
 	}
 }
 
+// ParseShell knows a program by its bare name. The workstation looks a name
+// up in its image's own directories before the agent's, so the name means
+// the image's program only when the image has one. bash has some built in
+// and every Debian has coreutils, diffutils, findutils and grep; the
+// Containerfile installs the rest.
+func TestProgramsKnownByNameShipWithTheWorkstation(t *testing.T) {
+	image, err := os.ReadFile("../../deploy/workstation/Containerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, packages, found := strings.Cut(string(image), "apt-get install -y --no-install-recommends")
+	packages, _, ended := strings.Cut(packages, "&&")
+	if !found || !ended {
+		t.Fatal("the Containerfile's package list was not found")
+	}
+	shipped := map[string]bool{"bsk": strings.Contains(string(image), " /usr/local/bin/bsk;")}
+	for _, name := range strings.Fields(packages + " [ cd echo printf pwd test true" +
+		" basename cat cut date dirname du head ls md5sum readlink realpath sha256sum sleep sort stat tail tr uniq wc" +
+		" diff find egrep grep") {
+		shipped[name] = true
+	}
+	names := []string{"bsk", "find"}
+	for name := range readOnlyPrograms {
+		names = append(names, name)
+	}
+	for _, name := range names {
+		if !shipped[name] {
+			t.Errorf("ParseShell knows %s by its name, and the workstation image does not install it", name)
+		}
+	}
+}
+
 func TestParseShellNeedsReview(t *testing.T) {
 	for _, command := range []string{
 		"curl -X POST -d '{}' https://hooks.slack.com/x",

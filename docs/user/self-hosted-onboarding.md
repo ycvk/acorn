@@ -650,6 +650,8 @@ Commands that only read, such as reading a page with `bsk observe`, run without 
 
 Every workstation command runs in a login shell, so whatever `.bashrc`, `.bash_profile`, `.profile`, `.bash_login`, `.bash_logout` or `.bash_aliases` holds runs with each of them. A `files` call that writes or edits one of these waits for your approval whether review is on or not, and the approval shows the text it would write. With review on, a shell command that writes one is reviewed like any other. Add `files` to `approval.allow` to let the agent change them on its own.
 
+A command finds a program named without a path in the image's own directories first, `/usr/local/bin`, `/usr/bin` and `/bin`, and only then in the ones the login files add, such as `~/bin` and `~/.local/bin`. A file there that has a system program's name does not run in its place; name it by its path to run it.
+
 The calls you are asked about, their target and page, and your request go to SubQ. `acorn doctor` shows whether review works.
 
 ## 16. Current Limits

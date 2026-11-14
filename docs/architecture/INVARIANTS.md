@@ -445,6 +445,9 @@
 - **shell 的命令是任务，长命令留在后台**：工作机为每条命令建 `~/.jobs/<id>/`，记下命令、状态与起止时间，stdout 与 stderr 交错写进 `output.log`，超过 64 MiB 的部分计数后丢弃；命令在自己的进程组里运行，至多 24 小时，到时或经 `job stop` 先 SIGTERM、5 秒后 SIGKILL 整组。`shell` 等到 `wait_seconds`（0 到 600，默认 120）为止：结束了就返回退出码与输出的首尾，还在跑就返回任务 id 与输出的末尾，任务继续。输出摘录与分页读取都不切断 UTF-8 字符，摘录写明省略了多少字节、从哪读回。工作机重启时仍记为 running 的任务标为 lost，结束超过 7 天的任务目录被删除。
   - `internal/workstation/jobs_test.go`
   - `internal/tools/workstation_tools_test.go`
+- **不带路径的程序先在系统目录里找**：工作机启动每条命令时，在登录文件执行完之后把 `/usr/local/bin`、`/usr/bin`、`/bin` 排到 `PATH` 最前，登录文件加进来的目录（`~/bin`、`~/.local/bin` 等）排在其后。agent 用户不经 `sudo` 写不了这三个目录，主目录里的同名文件顶替不了系统的程序；系统没有的名字仍在主目录里找到。审查按名字放行的只读程序与 `bsk` 都随镜像装在这三个目录里。
+  - `internal/workstation/workstation_test.go`
+  - `internal/review/review_test.go`
 - **工作机里的进程用不了工作机 API**：监听非 loopback 地址时，serve 拒绝来自自己地址（loopback 与本机网卡地址）的请求；启动时把 token 从进程环境里移除，它运行的命令、技能包 MCP 服务器与触发器都继承不到。
 - **后端的 stdio MCP 服务器只继承少数环境变量**：Acorn 进程的环境里只有 `PATH`、`HOME`、`USER`、语言与时区、临时目录、证书与代理变量到服务器，API key 与工作机 token 在内的其余变量只有写进 provider 的 `env` 才到；`env` 的值展开环境变量。
   - `internal/workstation/token_test.go`

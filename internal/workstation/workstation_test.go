@@ -78,6 +78,45 @@ func TestExecReportsOutputExitCodeAndDirectory(t *testing.T) {
 	}
 }
 
+// A file in the home directory does not stand in for one of the system's
+// programs: Debian's ~/.profile puts ~/bin first, and review lets cat run
+// unseen on its name. A name the system does not have is still found there.
+func TestCommandsFindTheSystemsProgramsFirst(t *testing.T) {
+	client, home := newTestClient(t)
+	for name, file := range map[string]struct {
+		content string
+		mode    os.FileMode
+	}{
+		".profile":      {"PATH=\"$HOME/bin:$PATH\"\n", 0o644},
+		"bin/cat":       {"#!/bin/sh\necho planted\n", 0o755},
+		"bin/only-here": {"#!/bin/sh\necho mine\n", 0o755},
+		"note.txt":      {"the note\n", 0o644},
+	} {
+		path := filepath.Join(home, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(file.content), file.mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const command, want = "cat note.txt; only-here", "the note\nmine\n"
+	ran, err := client.Exec(t.Context(), ExecRequest{Command: command, TimeoutSeconds: 10, MaxOutputBytes: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ran.Stdout != want {
+		t.Fatalf("exec = %+v", ran)
+	}
+	job, err := client.StartJob(t.Context(), JobStartRequest{Command: command, WaitSeconds: 10, MaxOutputBytes: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Output != want {
+		t.Fatalf("job = %+v", job)
+	}
+}
+
 func TestExecTimeoutKillsBackgroundChildren(t *testing.T) {
 	client, home := newTestClient(t)
 	marker := filepath.Join(home, "survived")

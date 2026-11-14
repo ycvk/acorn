@@ -211,11 +211,18 @@ func childEnv(home string, extra map[string]string) []string {
 	return env
 }
 
+// systemFirst puts the system's own directories, which the agent user cannot
+// write, ahead of whatever the login files made of PATH. Review lets a
+// program run on its bare name, and ~/.profile puts ~/bin and ~/.local/bin
+// first, where a file of the same name would run in its place.
+const systemFirst = "export PATH=/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}; "
+
 // shellCommand is command as the workstation starts it: a login bash in dir
-// with childEnv, in its own process group. Children the command leaves
-// running keep its output open; the wait ends with the command itself.
+// with childEnv, in its own process group, that looks a program up in the
+// system's directories first. Children the command leaves running keep its
+// output open; the wait ends with the command itself.
 func shellCommand(ctx context.Context, home, command, dir string, env map[string]string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "bash", "-lc", command)
+	cmd := exec.CommandContext(ctx, "bash", "-lc", systemFirst+command)
 	cmd.Dir = dir
 	cmd.Env = childEnv(home, env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
