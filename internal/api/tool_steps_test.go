@@ -269,6 +269,10 @@ func TestNewsSourceApprovalNamesTheSource(t *testing.T) {
 	if got, err := service.toolDetail(ctx, "news_sections", sections); err != nil || got != "板块「国际与财经」的偏好改为：\n1. 大国关系\n2. 小国央行少报\n原来是：\n1. 大国关系\n理由：两次少报小国央行加息" {
 		t.Fatalf("sections detail = %q, %v", got, err)
 	}
+	write := `{"action":"write","path":"~/.bashrc","content":"umask 077\n"}`
+	if got, err := service.toolDetail(ctx, "files", write); err != nil || got != "写入 ~/.bashrc，全文如下：\n\numask 077\n" {
+		t.Fatalf("files detail = %q, %v", got, err)
+	}
 	// The list and the phone read the description stored with the approval.
 	payload, err := json.Marshal(map[string]any{"tool_name": "news_source", "arguments": args, "summary": "把新闻源「知乎热榜」（板块：热榜）转正"})
 	if err != nil {

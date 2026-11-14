@@ -109,7 +109,13 @@ var loginFiles = map[string]bool{
 func riskyTarget(target string) bool {
 	clean := path.Clean(target)
 	return strings.HasPrefix(clean, "/dev/tcp/") || strings.HasPrefix(clean, "/dev/udp/") ||
-		strings.ContainsAny(target, "$*?[{") || loginFiles[path.Base(clean)]
+		strings.ContainsAny(target, "$*?[{") || LoginFile(target)
+}
+
+// LoginFile reports whether name is a file a login shell runs, in whatever
+// directory.
+func LoginFile(name string) bool {
+	return loginFiles[path.Base(path.Clean(name))]
 }
 
 // classify judges a simple command. A program judged by its arguments is

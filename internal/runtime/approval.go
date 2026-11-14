@@ -128,14 +128,16 @@ const (
 	reviewReason       = "审查判断这一步需要你确认"
 	ownerDecidesReason = "新闻源进出早安卡由你决定"
 	sectionsReason     = "Acorn 自己提出的早安卡板块改动由你决定"
+	loginFileReason    = "这个文件会随工作机上的每条命令一起执行，改动由你决定"
 )
 
 // ownerDecides are the tools whose calls wait for the owner unless
 // approval.allow names them: news_source changes which sources the briefing
 // takes, news_sections what its sections are and want when Acorn changes
-// them in a run it woke itself.
+// them in a run it woke itself, and files what every later command runs
+// when it writes a file bash runs at login.
 func ownerDecides(name string) bool {
-	return name == "news_source" || name == "news_sections"
+	return name == "news_source" || name == "news_sections" || name == "files"
 }
 
 // reviewed are the tools whose effects can leave Acorn and the workstation.
@@ -177,7 +179,13 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 func (m *approvalMiddleware) ownerDecision(toolName string) func(context.Context, string) (*approvalRequest, error) {
 	return func(ctx context.Context, args string) (*approvalRequest, error) {
 		reason := ownerDecidesReason
-		if toolName == "news_sections" {
+		switch toolName {
+		case "files":
+			if !changesLoginFile(args) {
+				return nil, nil
+			}
+			reason = loginFileReason
+		case "news_sections":
 			if !changesSections(args) {
 				return nil, nil
 			}
@@ -200,6 +208,14 @@ func (m *approvalMiddleware) ownerDecision(toolName string) func(context.Context
 		}
 		return &approvalRequest{reason: reason, summary: summary}, nil
 	}
+}
+
+// changesLoginFile reports whether a files call writes or edits a file bash
+// runs at login. The tool rejects arguments it cannot read without touching
+// a file.
+func changesLoginFile(args string) bool {
+	var call tools.FilesInput
+	return json.Unmarshal([]byte(args), &call) == nil && call.Action != "read" && review.LoginFile(call.Path)
 }
 
 // changesSections reports whether a news_sections call would change the

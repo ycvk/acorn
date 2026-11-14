@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -108,6 +109,28 @@ type FilesInput struct {
 type TextEdit struct {
 	Old string `json:"old" jsonschema:"required" jsonschema_description:"Text to replace, copied from the file with enough around it to occur only once. Whitespace at line ends and typographic quotes and dashes may differ."`
 	New string `json:"new" jsonschema:"required" jsonschema_description:"Replacement text; empty removes the old text."`
+}
+
+// FilesApproval shows the text a files call would write: a write whole, an
+// edit change by change. A call that writes nothing has none.
+func FilesApproval(arguments string) (string, error) {
+	var args FilesInput
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return "", fmt.Errorf("files arguments: %w", err)
+	}
+	switch args.Action {
+	case "write":
+		return fmt.Sprintf("写入 %s，全文如下：\n\n%s", args.Path, args.Content), nil
+	case "edit":
+		var b strings.Builder
+		fmt.Fprintf(&b, "修改 %s 的 %d 处：", args.Path, len(args.Edits))
+		for i, e := range args.Edits {
+			fmt.Fprintf(&b, "\n\n第 %d 处，原文：\n%s\n改为：\n%s", i+1, e.Old, e.New)
+		}
+		return b.String(), nil
+	default:
+		return "", nil
+	}
 }
 
 func textEdits(edits []TextEdit) []textedit.Edit {
