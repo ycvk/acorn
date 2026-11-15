@@ -57,7 +57,7 @@ func (b *skillBackend) List(context.Context) ([]skill.FrontMatter, error) {
 func (b *skillBackend) Get(_ context.Context, name string) (skill.Skill, error) {
 	view, ok := b.byName[strings.TrimSpace(name)]
 	if !ok {
-		return skill.Skill{}, fmt.Errorf("skill %q is not available; use a name from the skill tool's list", name)
+		return skill.Skill{}, fmt.Errorf("skill %q is not available in this run. A run keeps the skills it started with: a skill written or imported during the run, and its files on the workstation, come with the next run; use a name from the skill tool's list", name)
 	}
 	return skill.Skill{FrontMatter: skill.FrontMatter{Name: view.Name, Description: view.Description}, Content: view.Markdown}, nil
 }

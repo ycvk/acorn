@@ -190,7 +190,7 @@
 
 ## 技能
 
-- **技能的每次写入是一个 revision**：技能是 Agent Skills 格式的包，存在 SQLite 的 `skills`/`skill_revisions`/`skill_files`，每次写入记下 `SKILL.md`、哈希、附带文件、作者（agent、owner 或 release）与 run。写入必须基于当前 revision（新技能为 0），否则以 `ErrSkillConflict` 失败。frontmatter 严格解析，要求合法的 name、不超过 1024 字符的 description 和正文，`metadata.acorn-requires-tools` 经 `skill_write` 写入时只能列出本地工具、内置工具或 `mcp__` 工具；附带文件是包内相对路径，包有大小与文件数上限。`skill_write` 在 base revision 的文件上增删文件，写已停用的技能使它恢复；`skill_retire` 写一个停用 revision。run 只加载在用的技能，加载结果是全文加 revision，带文件的技能还给出文件所在目录。
+- **技能的每次写入是一个 revision**：技能是 Agent Skills 格式的包，存在 SQLite 的 `skills`/`skill_revisions`/`skill_files`，每次写入记下 `SKILL.md`、哈希、附带文件、作者（agent、owner 或 release）与 run。写入必须基于当前 revision（新技能为 0），否则以 `ErrSkillConflict` 失败。frontmatter 严格解析，要求合法的 name、不超过 1024 字符的 description 和正文，`metadata.acorn-requires-tools` 经 `skill_write` 写入时只能列出本地工具、内置工具或 `mcp__` 工具；附带文件是包内相对路径，包有大小与文件数上限。`skill_write` 在 base revision 的文件上增删文件，写已停用的技能使它恢复；`skill_retire` 写一个停用 revision。run 只加载在用的技能，加载结果是全文加 revision，带文件的技能还给出文件所在目录。run 沿用开始时的技能与工作机上的技能文件：run 中写入、导入或停用的技能从之后开始的 run 起生效，`skill_write`、`skill_import`、`skill_retire` 的结果以 `takes_effect` 说明这一点；`skill` 工具加载本 run 没有的技能时报错说明这条规则。
   - `internal/store/store_skills_test.go`
   - `internal/skills/library_test.go`
   - `internal/tools/skill_tools_test.go`

@@ -63,14 +63,20 @@ type SkillImportInput struct {
 	BaseRevision int64  `json:"base_revision,omitempty" jsonschema_description:"When a skill of that name exists, the current_revision skill_inspect reported. Omit for a new skill."`
 }
 
-// SkillWriteOutput reports the stored revision of a skill.
+// SkillWriteOutput reports the stored revision of a skill and when runs use
+// it.
 type SkillWriteOutput struct {
-	Name     string `json:"name"`
-	Revision int64  `json:"revision"`
-	Retired  bool   `json:"retired,omitempty"`
-	Files    int    `json:"files,omitempty"`
-	Updated  string `json:"updated"`
+	Name        string `json:"name"`
+	Revision    int64  `json:"revision"`
+	Retired     bool   `json:"retired,omitempty"`
+	Files       int    `json:"files,omitempty"`
+	Updated     string `json:"updated"`
+	TakesEffect string `json:"takes_effect"`
 }
+
+// skillTakesEffect says that a run keeps the skills, and their files on the
+// workstation, as they were when it started.
+const skillTakesEffect = "Runs that start from now on use this revision. This run keeps the skills it started with: the skill tool loads them as they were, and their files on the workstation stay as they were."
 
 // SkillInspectOutput describes a package ready for skill_import.
 type SkillInspectOutput struct {
@@ -203,10 +209,11 @@ func checkRequiredTools(markdown string) error {
 
 func skillOutput(skill core.Skill, loc *time.Location) SkillWriteOutput {
 	return SkillWriteOutput{
-		Name:     skill.ID,
-		Revision: skill.Revision,
-		Retired:  skill.Retired,
-		Files:    len(skill.Files),
-		Updated:  skill.UpdatedAt.In(loc).Format(localTimeLayout),
+		Name:        skill.ID,
+		Revision:    skill.Revision,
+		Retired:     skill.Retired,
+		Files:       len(skill.Files),
+		Updated:     skill.UpdatedAt.In(loc).Format(localTimeLayout),
+		TakesEffect: skillTakesEffect,
 	}
 }

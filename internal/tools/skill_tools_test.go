@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	einotool "github.com/cloudwego/eino/components/tool"
+
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/settings"
 	"github.com/ycvk/acorn/internal/skills"
@@ -93,6 +95,39 @@ func TestSkillToolsCarryTheRunAndBaseRevision(t *testing.T) {
 	library.err = core.ErrSkillConflict
 	if _, err := runPresenceTool(t, write, string(args)); !errors.Is(err, core.ErrSkillConflict) {
 		t.Fatalf("write err = %v", err)
+	}
+}
+
+// A run keeps the skills it started with. An agent that wrote a skill and
+// then tried to load it ten times in the same run was told nothing of it.
+func TestSkillChangesSayTheyApplyFromTheNextRun(t *testing.T) {
+	library := &fakeSkillLibrary{}
+	deps := SkillToolDeps{Library: library, Context: fixedArtifactContext{runID: "run_9", sessionID: "thread_1", callID: "call_1"}, Settings: settings.Fixed(core.Settings{Location: time.UTC})}
+	for _, tc := range []struct {
+		build func(SkillToolDeps) (einotool.BaseTool, error)
+		args  string
+	}{
+		{buildSkillWriteTool, `{"markdown":"---\nname: shop-orders\ndescription: Orders.\n---\nsteps"}`},
+		{buildSkillImportTool, `{"name":"pdf","sha256":"abc"}`},
+		{buildSkillRetireTool, `{"name":"shop-orders","base_revision":3}`},
+	} {
+		tool, err := tc.build(deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := runPresenceTool(t, tool, tc.args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got struct {
+			TakesEffect string `json:"takes_effect"`
+		}
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(got.TakesEffect, "Runs that start from now on") || !strings.Contains(got.TakesEffect, "This run keeps the skills it started with") {
+			t.Errorf("output = %s", out)
+		}
 	}
 }
 
