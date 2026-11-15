@@ -97,25 +97,13 @@ func toolCallSummary(arguments string) string {
 	return ""
 }
 
-// toolApprovalSummary says what a call waiting for approval is about. A skill
-// write reads as the skill's name and description.
-func toolApprovalSummary(toolName, arguments string) string {
-	if toolName == "skill_write" {
-		if spec, err := skills.Parse(skillWriteArgs(arguments).Markdown); err == nil {
-			return clip(spec.Name+": "+spec.Description, reviewSummaryRunes)
-		}
-	}
-	return toolCallSummary(arguments)
-}
-
-// skillWriteDetail is the skill skill_write would store. kept is the
-// manifest the write keeps from its base revision, nil when it keeps none.
-func skillWriteDetail(args skillWriteArguments, kept []byte) string {
+// skillWriteFiles are the files a skill_write adds or replaces.
+func skillWriteFiles(args skillWriteArguments) []core.SkillFile {
 	files := make([]core.SkillFile, 0, len(args.Files))
 	for path, content := range args.Files {
 		files = append(files, core.SkillFile{Path: path, Content: []byte(content)})
 	}
-	return skillPackageDetail(args.Markdown, files, args.Delete, kept)
+	return files
 }
 
 type skillWriteArguments struct {
@@ -137,21 +125,45 @@ func skillWriteArgs(arguments string) skillWriteArguments {
 // are listed by path and size.
 const skillDetailBytes = 256 << 10
 
-// skillPackageDetail shows what a package's manifest makes the workstation
-// run, then the skill's SKILL.md, each file it adds or replaces and each file
-// it removes. kept is the manifest a write keeps from its base revision, nil
-// when it keeps none.
-func skillPackageDetail(markdown string, files []core.SkillFile, deletes []string, kept []byte) string {
-	var b strings.Builder
+// skillApprovalDetail is what the owner reads before deciding on a skill
+// write: what the write changes in the stored skills, what the package's
+// manifest makes the workstation run, the lines it changes in the files the
+// stored skill has, and the text it stores. Empty parts are left out.
+func skillApprovalDetail(statement, manifest, changedLines, text string) string {
+	if changedLines != "" && text != "" {
+		text = "── 写入的全文 ──\n" + text
+	}
+	parts := make([]string, 0, 4)
+	for _, part := range []string{statement, manifest, changedLines, text} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// packageManifestDetail says what a package's manifest makes the workstation
+// run, or that a write removes it. kept is the manifest a write keeps from
+// its base revision, nil when it keeps none. A package without a manifest
+// has nothing to say.
+func packageManifestDetail(files []core.SkillFile, deletes []string, kept []byte) string {
 	i := slices.IndexFunc(files, func(f core.SkillFile) bool { return f.Path == skills.ManifestFileName })
 	switch {
 	case i >= 0:
-		b.WriteString(manifestDetail(files[i].Content, "") + "\n\n")
+		return manifestDetail(files[i].Content, "")
 	case slices.Contains(deletes, skills.ManifestFileName):
-		b.WriteString("Removes " + skills.ManifestFileName + ": the package no longer runs an MCP server or triggers.\n\n")
+		return "Removes " + skills.ManifestFileName + ": the package no longer runs an MCP server or triggers."
 	case kept != nil:
-		b.WriteString(manifestDetail(kept, " (unchanged)") + "\n\n")
+		return manifestDetail(kept, " (unchanged)")
+	default:
+		return ""
 	}
+}
+
+// packageText is a skill's SKILL.md, each file a write adds or replaces and
+// each file it removes.
+func packageText(markdown string, files []core.SkillFile, deletes []string) string {
+	var b strings.Builder
 	b.WriteString(strings.TrimSpace(markdown))
 	sorted := slices.Clone(files)
 	slices.SortFunc(sorted, func(a, b core.SkillFile) int { return strings.Compare(a.Path, b.Path) })

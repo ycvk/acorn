@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 func TestProjectToolCallEventsCarrySummaryNotOutput(t *testing.T) {
@@ -113,127 +116,241 @@ func TestToolApprovalSummaryNamesTheToolAndItsTarget(t *testing.T) {
 	}
 }
 
-func TestSkillWriteApprovalCarriesTheWholeSkill(t *testing.T) {
+// newSkillApprovals is the pending-action service and the describer the gate
+// asks, over one skill library.
+func newSkillApprovals(t *testing.T) (skillTestEnv, *PendingActionService, tools.ApprovalDescriber) {
+	t.Helper()
+	env := newSkillTestEnv(t)
+	return env, NewPendingActionService(nil).WithSkillPackages(env.db).WithSkillChanges(env.library), tools.ApprovalDescriber{Skills: env.library}
+}
+
+func callArguments(t *testing.T, args map[string]any) string {
+	t.Helper()
+	data, err := json.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func TestSkillWriteApprovalSaysWhatTheWriteChanges(t *testing.T) {
+	env, service, describe := newSkillApprovals(t)
+	ctx := t.Context()
 	markdown := "---\nname: shop-orders\ndescription: Look up recent orders on the shop site.\n---\n1. Run scripts/orders.py.\n"
-	arguments, err := json.Marshal(map[string]any{"markdown": markdown, "files": map[string]string{"scripts/orders.py": "print('orders')\n"}, "delete": []string{"old.md"}, "base_revision": 2})
-	if err != nil {
+	create := callArguments(t, map[string]any{"markdown": markdown, "files": map[string]string{"scripts/orders.py": "print('orders')\n"}})
+	created := "新建技能 shop-orders，附 1 个文件：Look up recent orders on the shop site."
+	if got, err := describe.DescribeApproval(ctx, "skill_write", create); err != nil || got != created {
+		t.Fatalf("new skill = %q, %v", got, err)
+	}
+	want := created + "\n\n" + strings.TrimSpace(markdown) + "\n\n── scripts/orders.py (16 bytes) ──\nprint('orders')"
+	if got, err := service.toolDetail(ctx, "skill_write", create); err != nil || got != want {
+		t.Fatalf("new skill detail = %q, %v", got, err)
+	}
+
+	if _, err := env.library.Write(ctx, skills.WriteRequest{Markdown: markdown, Put: map[string]string{"scripts/orders.py": "print('orders')\n", "old.md": "old\n"}}); err != nil {
 		t.Fatal(err)
 	}
-	payload, err := json.Marshal(map[string]any{"tool_name": "skill_write", "arguments": string(arguments)})
-	if err != nil {
-		t.Fatal(err)
+	next := strings.Replace(markdown, "orders.py.", "orders.py --all.", 1)
+	rewrite := callArguments(t, map[string]any{
+		"markdown": next, "files": map[string]string{"scripts/orders.py": "print('all orders')\n", "notes.md": "n\n"}, "delete": []string{"old.md"}, "base_revision": 1,
+	})
+	rewritten := "改写技能 shop-orders（现为第 1 版）：SKILL.md 删 1 行、加 1 行；新增文件 notes.md；改动文件 scripts/orders.py；删除文件 old.md"
+	if got, err := describe.DescribeApproval(ctx, "skill_write", rewrite); err != nil || got != rewritten {
+		t.Fatalf("rewrite = %q, %v", got, err)
 	}
+	want = rewritten +
+		"\n\n── SKILL.md 相对第 1 版的改动 ──\n@@ -2 +2 @@\n name: shop-orders\n description: Look up recent orders on the shop site.\n ---\n-1. Run scripts/orders.py.\n+1. Run scripts/orders.py --all." +
+		"\n\n── scripts/orders.py 相对第 1 版的改动 ──\n@@ -1 +1 @@\n-print('orders')\n+print('all orders')" +
+		"\n\n── 写入的全文 ──\n" + strings.TrimSpace(next) +
+		"\n\n── notes.md (2 bytes) ──\nn\n\n── scripts/orders.py (20 bytes) ──\nprint('all orders')\n\n── old.md (removed) ──"
+	if got, err := service.toolDetail(ctx, "skill_write", rewrite); err != nil || got != want {
+		t.Fatalf("rewrite detail = %q, %v", got, err)
+	}
+
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"another revision", map[string]any{"markdown": next, "base_revision": 7}, "技能 shop-orders 现在是第 1 版，这次写入基于第 7 版，会失败。"},
+		{"as a new skill", map[string]any{"markdown": next}, "技能 shop-orders 已经有了（第 1 版），这次写入按新建提交，会失败。"},
+		{"a skill that is not there", map[string]any{"markdown": strings.Replace(next, "shop-orders", "shop-returns", 1), "base_revision": 2}, "技能 shop-returns 不存在，这次写入基于第 2 版，会失败。"},
+		{"a file that is not there", map[string]any{"markdown": next, "delete": []string{"gone.md"}, "base_revision": 1}, `技能 shop-orders 的这次写入会失败：skill shop-orders has no file "gone.md" to delete`},
+		{"the same package", map[string]any{"markdown": markdown, "base_revision": 1}, "改写技能 shop-orders（现为第 1 版）：内容与当前版本相同"},
+	} {
+		got, err := describe.DescribeApproval(ctx, "skill_write", callArguments(t, tc.args))
+		if err != nil || got != tc.want {
+			t.Errorf("%s = %q, %v", tc.name, got, err)
+		}
+	}
+	if current, err := env.library.Skill(ctx, "shop-orders"); err != nil || current.Revision != 1 {
+		t.Fatalf("describing a write stored something: %+v, %v", current, err)
+	}
+
+	// The card reads what the gate recorded when it asked; a tool that
+	// writes no skill reads as its arguments say.
 	record := core.PendingActionRecord{
-		ActionID: "action_1", RunID: "run_1", Kind: core.PendingActionKindToolApproval, Status: core.PendingActionStatusPending,
-		Subject: "Approve skill_write", PayloadJSON: string(payload),
+		ActionID: "action_1", RunID: "run_1", Kind: core.PendingActionKindToolApproval, Status: core.PendingActionStatusPending, Subject: "Approve skill_write",
+		PayloadJSON: callArguments(t, map[string]any{"tool_name": "skill_write", "arguments": rewrite, "summary": rewritten}),
 	}
 	summary, err := buildPendingActionSummary(record, core.RunRecord{RunID: "run_1", SessionID: "thread_1"})
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || summary.ToolSummary != rewritten {
+		t.Fatalf("summary = %q, %v", summary.ToolSummary, err)
 	}
-	if summary.ToolSummary != "shop-orders: Look up recent orders on the shop site." {
-		t.Fatalf("summary = %q", summary.ToolSummary)
-	}
-	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{})
-	want := strings.TrimSpace(markdown) + "\n\n── scripts/orders.py (16 bytes) ──\nprint('orders')\n\n── old.md (removed) ──"
-	if got, err := service.toolDetail(context.Background(), "skill_write", string(arguments)); err != nil || got != want {
-		t.Fatalf("detail = %q, %v", got, err)
-	}
-	if got, err := service.toolDetail(context.Background(), "shell", `{"command":"ls"}`); err != nil || got != "" {
+	if got, err := service.toolDetail(ctx, "shell", `{"command":"ls"}`); err != nil || got != "" {
 		t.Fatalf("shell detail = %q, %v", got, err)
 	}
-	if got := toolApprovalSummary("skill_retire", `{"name":"shop-orders","base_revision":3}`); got != "shop-orders" {
+	if got := toolCallSummary(`{"name":"shop-orders","base_revision":3}`); got != "shop-orders" {
 		t.Fatalf("retire summary = %q", got)
 	}
-	if got := toolApprovalSummary("skill_import", `{"name":"pdf","sha256":"abc"}`); got != "pdf" {
-		t.Fatalf("import summary = %q", got)
+}
+
+// The agent once rewrote the skill that says how to write skills with a text
+// of its own and two files named after another tool's arguments, and the
+// approval read like one for the skill the owner had asked for.
+func TestRewritingABuiltInSkillSaysSoOnItsApproval(t *testing.T) {
+	env, service, describe := newSkillApprovals(t)
+	ctx := t.Context()
+	if err := env.library.Seed(ctx); err != nil {
+		t.Fatal(err)
 	}
-}
-
-type stagedPackagesStub map[string]core.SkillPackage
-
-func (s stagedPackagesStub) StagedSkillPackage(_ context.Context, sha256 string) (core.SkillPackage, error) {
-	pkg, ok := s[sha256]
-	if !ok {
-		return core.SkillPackage{}, core.ErrSkillPackageNotStaged
-	}
-	return pkg, nil
-}
-
-// SkillFiles reads a revision stored as the package staged under
-// "<id>@<revision>".
-func (s stagedPackagesStub) SkillFiles(_ context.Context, id string, revision int64) ([]core.SkillFile, error) {
-	return s[fmt.Sprintf("%s@%d", id, revision)].Files, nil
-}
-
-func TestSkillImportApprovalShowsTheStagedPackage(t *testing.T) {
-	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{"abc": {
-		SHA256: "abc", Name: "pdf", Markdown: "---\nname: pdf\ndescription: Fill PDF forms.\n---\nRun the script.\n",
-		Files: []core.SkillFile{{Path: "scripts/fill.py", Content: []byte("print(1)\n")}, {Path: "assets/logo.png", Content: []byte{0x89, 0xff, 0x00}}},
-	}})
-	got, err := service.toolDetail(context.Background(), "skill_import", `{"name":"pdf","sha256":"abc"}`)
+	shipped, err := env.library.Skill(ctx, "skill-creator")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "---\nname: pdf\ndescription: Fill PDF forms.\n---\nRun the script.\n\n── assets/logo.png (3 bytes) ──\n(binary)\n\n── scripts/fill.py (9 bytes) ──\nprint(1)"
-	if got != want {
-		t.Fatalf("detail = %q", got)
+	arguments := callArguments(t, map[string]any{
+		"markdown":      "---\nname: skill-creator\ndescription: Create new skills, modify and improve existing skills, and measure skill performance.\n---\nA skill is a folder of files.\n",
+		"files":         map[string]string{"action": "read", "file": "skill-creator"},
+		"base_revision": shipped.Revision,
+	})
+	summary, err := describe.DescribeApproval(ctx, "skill_write", arguments)
+	if err != nil {
+		t.Fatal(err)
 	}
-	got, err = service.toolDetail(context.Background(), "skill_import", `{"name":"pdf","sha256":"gone"}`)
-	if err != nil || !strings.Contains(got, "not staged") {
-		t.Fatalf("unstaged detail = %q, %v", got, err)
+	lead := fmt.Sprintf("改写内置技能 skill-creator（现为第 %d 版）：SKILL.md 删 ", shipped.Revision)
+	if !strings.HasPrefix(summary, lead) || !strings.HasSuffix(summary, " 行；新增文件 action、file") {
+		t.Fatalf("summary = %q", summary)
+	}
+	detail, err := service.toolDetail(ctx, "skill_write", arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The shipped text says what never goes into a skill; the rewrite drops
+	// it, and the owner sees the line go.
+	dropped := slices.IndexFunc(strings.Split(shipped.Markdown, "\n"), func(line string) bool { return strings.Contains(line, "never go into a skill") })
+	if dropped < 0 {
+		t.Fatal("the shipped skill-creator no longer says what never goes into a skill")
+	}
+	changed := fmt.Sprintf("\n\n── SKILL.md 相对第 %d 版的改动 ──\n@@ -1 +1 @@\n", shipped.Revision)
+	if !strings.HasPrefix(detail, summary+changed) || !strings.Contains(detail, "\n-"+strings.Split(shipped.Markdown, "\n")[dropped]+"\n") ||
+		!strings.Contains(detail, "\n\n── 写入的全文 ──\n---\nname: skill-creator\n") || !strings.HasSuffix(detail, "\n\n── action (4 bytes) ──\nread\n\n── file (13 bytes) ──\nskill-creator") {
+		t.Fatalf("detail = %q", detail)
+	}
+	if current, err := env.library.Skill(ctx, "skill-creator"); err != nil || current.Revision != shipped.Revision {
+		t.Fatalf("describing the write stored something: %+v, %v", current, err)
 	}
 }
 
-func TestSkillApprovalsListThePackageManifestFirst(t *testing.T) {
+func TestSkillImportApprovalSaysWhatThePackageChanges(t *testing.T) {
+	env, service, describe := newSkillApprovals(t)
+	ctx := t.Context()
+	markdown := "---\nname: pdf\ndescription: Fill PDF forms.\n---\nRun the script.\n"
+	staged, err := env.library.Stage(ctx, []core.SkillFile{
+		{Path: "pdf/SKILL.md", Content: []byte(markdown)}, {Path: "pdf/scripts/fill.py", Content: []byte("print(1)\n")}, {Path: "pdf/assets/logo.png", Content: []byte{0x89, 0xff, 0x00}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	arguments := callArguments(t, map[string]any{"name": "pdf", "sha256": staged.SHA256})
+	created := "导入技能包，新建技能 pdf，附 2 个文件：Fill PDF forms."
+	if got, err := describe.DescribeApproval(ctx, "skill_import", arguments); err != nil || got != created {
+		t.Fatalf("new skill = %q, %v", got, err)
+	}
+	want := created + "\n\n" + strings.TrimSpace(markdown) + "\n\n── assets/logo.png (3 bytes) ──\n(binary)\n\n── scripts/fill.py (9 bytes) ──\nprint(1)"
+	if got, err := service.toolDetail(ctx, "skill_import", arguments); err != nil || got != want {
+		t.Fatalf("detail = %q, %v", got, err)
+	}
+	unstaged := "技能 pdf 的这次导入会失败：skill package not staged: gone"
+	if got, err := service.toolDetail(ctx, "skill_import", `{"name":"pdf","sha256":"gone"}`); err != nil || got != unstaged {
+		t.Fatalf("unstaged detail = %q, %v", got, err)
+	}
+	misnamed := fmt.Sprintf("技能 docx 的这次导入会失败：staged package %s holds skill pdf, not docx", staged.SHA256)
+	if got, err := describe.DescribeApproval(ctx, "skill_import", callArguments(t, map[string]any{"name": "docx", "sha256": staged.SHA256})); err != nil || got != misnamed {
+		t.Fatalf("misnamed import = %q, %v", got, err)
+	}
+
+	if _, err := env.library.ImportStaged(ctx, "pdf", staged.SHA256, 0, "run_1"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := env.library.Stage(ctx, []core.SkillFile{
+		{Path: "pdf/SKILL.md", Content: []byte(markdown)}, {Path: "pdf/scripts/fill.py", Content: []byte("print(2)\n")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaced := "导入技能包，改写技能 pdf（现为第 1 版）：SKILL.md 不变；改动文件 scripts/fill.py；删除文件 assets/logo.png"
+	arguments = callArguments(t, map[string]any{"name": "pdf", "sha256": again.SHA256, "base_revision": 1})
+	if got, err := describe.DescribeApproval(ctx, "skill_import", arguments); err != nil || got != replaced {
+		t.Fatalf("replacement = %q, %v", got, err)
+	}
+	want = replaced + "\n\n── scripts/fill.py 相对第 1 版的改动 ──\n@@ -1 +1 @@\n-print(1)\n+print(2)\n\n── 写入的全文 ──\n" + strings.TrimSpace(markdown) + "\n\n── scripts/fill.py (9 bytes) ──\nprint(2)"
+	if got, err := service.toolDetail(ctx, "skill_import", arguments); err != nil || got != want {
+		t.Fatalf("replacement detail = %q, %v", got, err)
+	}
+	if _, err := env.db.StagedSkillPackage(ctx, again.SHA256); err != nil {
+		t.Fatalf("describing an import took the package off the stage: %v", err)
+	}
+}
+
+func TestSkillApprovalsListThePackageManifestBeforeTheText(t *testing.T) {
+	env, service, _ := newSkillApprovals(t)
+	ctx := t.Context()
 	manifest := "mcp:\n  command: uvx\n  args: [mcp-server-github, --read-only]\ntriggers:\n  - name: issues\n    schedule: \"*/30 * * * *\"\n    run: scripts/issues.py --open\n    deliver: immediate\n  - name: weekly\n    schedule: \"0 9 * * 1\"\n    run: scripts/weekly.py\n    deliver: digest\nsecrets: [GITHUB_TOKEN]\n"
 	markdown := "---\nname: github\ndescription: Read GitHub issues.\n---\nUse the tools.\n"
-	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{
-		"abc": {SHA256: "abc", Name: "github", Markdown: markdown, Files: []core.SkillFile{{Path: "acorn-package.yaml", Content: []byte(manifest)}}},
-		// Revision 1 of the stored skill.
-		"github@1": {Files: []core.SkillFile{{Path: "acorn-package.yaml", Content: []byte(manifest)}, {Path: "notes.md", Content: []byte("n")}}},
+	staged, err := env.library.Stage(ctx, []core.SkillFile{
+		{Path: "github/SKILL.md", Content: []byte(markdown)}, {Path: "github/acorn-package.yaml", Content: []byte(manifest)}, {Path: "github/notes.md", Content: []byte("n")},
 	})
-	ctx := context.Background()
+	if err != nil {
+		t.Fatal(err)
+	}
 	header := "Runs on the workstation from the package's directory:\nMCP server: uvx mcp-server-github --read-only\nTrigger issues at \"*/30 * * * *\" (owner's time), events start a run at once: scripts/issues.py --open\nTrigger weekly at \"0 9 * * 1\" (owner's time), events wait for the morning briefing: scripts/weekly.py\nSecrets: GITHUB_TOKEN\n\n"
-	imported, err := service.toolDetail(ctx, "skill_import", `{"name":"github","sha256":"abc"}`)
-	if err != nil || !strings.HasPrefix(imported, header+"---\nname: github") || !strings.Contains(imported, "── acorn-package.yaml (") {
+	created := "新建技能 github，附 1 个文件：Read GitHub issues.\n\n"
+	imported, err := service.toolDetail(ctx, "skill_import", callArguments(t, map[string]any{"name": "github", "sha256": staged.SHA256}))
+	if err != nil || !strings.HasPrefix(imported, "导入技能包，新建技能 github，附 2 个文件：Read GitHub issues.\n\n"+header+"---\nname: github") || !strings.Contains(imported, "── acorn-package.yaml (") {
 		t.Fatalf("import detail = %q, %v", imported, err)
 	}
 
 	write := func(args map[string]any) string {
 		t.Helper()
 		args["markdown"] = markdown
-		data, err := json.Marshal(args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := service.toolDetail(ctx, "skill_write", string(data))
+		got, err := service.toolDetail(ctx, "skill_write", callArguments(t, args))
 		if err != nil {
 			t.Fatal(err)
 		}
 		return got
 	}
-	if got := write(map[string]any{"files": map[string]string{"acorn-package.yaml": manifest}}); !strings.HasPrefix(got, header) {
+	if got := write(map[string]any{"files": map[string]string{"acorn-package.yaml": manifest}}); !strings.HasPrefix(got, created+header+"---") {
 		t.Fatalf("new package detail = %q", got)
-	}
-	kept := write(map[string]any{"files": map[string]string{"notes.md": "m"}, "base_revision": 1})
-	if !strings.HasPrefix(kept, strings.Replace(header, "directory:", "directory (unchanged):", 1)+"---") {
-		t.Fatalf("edit detail = %q", kept)
-	}
-	if got := write(map[string]any{"delete": []string{"acorn-package.yaml"}, "base_revision": 1}); !strings.HasPrefix(got, "Removes acorn-package.yaml: the package no longer runs an MCP server or triggers.\n\n---") {
-		t.Fatalf("removal detail = %q", got)
-	}
-	if got := write(map[string]any{"files": map[string]string{"acorn-package.yaml": "mcp:\n  command: uvx\nextra: 1\n"}}); !strings.HasPrefix(got, "acorn-package.yaml does not parse, and the write will fail") {
-		t.Fatalf("bad manifest detail = %q", got)
 	}
 	if got := write(map[string]any{"files": map[string]string{"notes.md": "m"}}); strings.Contains(got, "MCP server") {
 		t.Fatalf("a package without a manifest shows none: %q", got)
 	}
-	data, err := json.Marshal(map[string]any{"markdown": "no frontmatter", "base_revision": 1})
-	if err != nil {
+	if got := write(map[string]any{"files": map[string]string{"acorn-package.yaml": "mcp:\n  command: uvx\nextra: 1\n"}}); !strings.HasPrefix(got, "技能 github 的这次写入会失败：") || !strings.Contains(got, "\n\nacorn-package.yaml does not parse, and the write will fail") {
+		t.Fatalf("bad manifest detail = %q", got)
+	}
+
+	if _, err := env.library.ImportStaged(ctx, "github", staged.SHA256, 0, "run_1"); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := service.toolDetail(ctx, "skill_write", string(data)); err != nil || !strings.HasPrefix(got, "SKILL.md does not parse, and the write will fail: ") || !strings.HasSuffix(got, "no frontmatter") {
+	kept := write(map[string]any{"files": map[string]string{"notes.md": "m"}, "base_revision": 1})
+	if !strings.HasPrefix(kept, "改写技能 github（现为第 1 版）：SKILL.md 不变；改动文件 notes.md\n\n"+strings.Replace(header, "directory:", "directory (unchanged):", 1)+"── notes.md 相对第 1 版的改动 ──\n@@ -1 +1 @@\n-n\n+m\n\n── 写入的全文 ──\n---") {
+		t.Fatalf("edit detail = %q", kept)
+	}
+	if got := write(map[string]any{"delete": []string{"acorn-package.yaml"}, "base_revision": 1}); !strings.HasPrefix(got, "改写技能 github（现为第 1 版）：SKILL.md 不变；删除文件 acorn-package.yaml\n\nRemoves acorn-package.yaml: the package no longer runs an MCP server or triggers.\n\n---") {
+		t.Fatalf("removal detail = %q", got)
+	}
+	unparsable := callArguments(t, map[string]any{"markdown": "no frontmatter", "base_revision": 1})
+	if got, err := service.toolDetail(ctx, "skill_write", unparsable); err != nil || !strings.HasPrefix(got, "这次写入会失败：") || !strings.HasSuffix(got, "\n\nno frontmatter") {
 		t.Fatalf("unparsable skill detail = %q, %v", got, err)
 	}
 }

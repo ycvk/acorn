@@ -177,7 +177,7 @@ func buildAcceptDeclinePendingActionSummary(record core.PendingActionRecord, run
 			return PendingActionSummary{}, err
 		}
 		summary.ToolName = topLevelString(payload, "tool_name")
-		summary.ToolSummary = toolApprovalSummary(summary.ToolName, topLevelString(payload, "arguments"))
+		summary.ToolSummary = toolCallSummary(topLevelString(payload, "arguments"))
 		if reviewed := topLevelString(payload, "summary"); reviewed != "" {
 			summary.ToolSummary = clip(reviewed, reviewSummaryRunes)
 		}

@@ -42,11 +42,11 @@ import com.squareup.moshi.JsonClass
  * @param payload 
  * @param body 
  * @param toolName Set on tool approvals; the tool waiting to run.
- * @param toolSummary Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query.
+ * @param toolSummary Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query. For a skill_write or skill_import, what the call changes in the stored skills.
  * @param allowFreeform Set on operator questions that take a typed answer, sent as `answer` with decision `answer`.
  * @param reason 
  * @param rule 
- * @param toolDetail Set on tool approvals whose summary cannot hold what the call acts on; the SKILL.md and files a skill_write or skill_import would store.
+ * @param toolDetail Set on tool approvals whose summary cannot hold what the call acts on; for a skill_write or skill_import, what the call changes in the stored skills, the lines it changes, and the SKILL.md and files it would store.
  */
 
 
@@ -86,7 +86,7 @@ data class PendingActionDetail (
     @Json(name = "tool_name")
     val toolName: kotlin.String? = null,
 
-    /* Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query. */
+    /* Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query. For a skill_write or skill_import, what the call changes in the stored skills. */
     @Json(name = "tool_summary")
     val toolSummary: kotlin.String? = null,
 
@@ -100,7 +100,7 @@ data class PendingActionDetail (
     @Json(name = "rule")
     val rule: kotlin.String? = null,
 
-    /* Set on tool approvals whose summary cannot hold what the call acts on; the SKILL.md and files a skill_write or skill_import would store. */
+    /* Set on tool approvals whose summary cannot hold what the call acts on; for a skill_write or skill_import, what the call changes in the stored skills, the lines it changes, and the SKILL.md and files it would store. */
     @Json(name = "tool_detail")
     val toolDetail: kotlin.String? = null
 

@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -325,6 +326,85 @@ func TestNewsSourceWaitsForTheOwnerUnlessAllowed(t *testing.T) {
 				t.Fatalf("the approval the owner reads = %+v", payload)
 			}
 		})
+	}
+}
+
+// skillTool stands in for a skill tool of that name.
+type skillTool struct {
+	echoTool
+	name string
+}
+
+func (t *skillTool) Info(context.Context) (*schema.ToolInfo, error) {
+	return &schema.ToolInfo{Name: t.name, Desc: "stands in for " + t.name}, nil
+}
+
+// failingDescriber cannot say what a call does.
+type failingDescriber struct{}
+
+func (failingDescriber) DescribeApproval(context.Context, string, string) (string, error) {
+	return "", errors.New("the skills cannot be read")
+}
+
+// A skill write the owner's rule sends to them waits with what it would
+// change in the stored skills; other tools under a rule wait as they are.
+func TestRequiredSkillWritesWaitWithWhatTheyChange(t *testing.T) {
+	RegisterTypes()
+	run := func(t *testing.T, describe ApprovalDescriber, toolName, args string) (*approvalTestStore, *skillTool, *adk.InterruptInfo, error) {
+		t.Helper()
+		ctx := core.WithRunID(context.Background(), "run_skill")
+		store := &approvalTestStore{}
+		tool := &skillTool{name: toolName}
+		mw, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"skill_*"}}, nil, describe, store, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		model := &scriptedModel{replies: []*schema.AgenticMessage{toolCallReply("call_1", toolName, args), assistantMessage("done", nil)}}
+		agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
+			Name: "skill_write_test", Description: "skill write approval", Model: model,
+			ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{Tools: []einotool.BaseTool{tool}, ExecuteSequentially: true}},
+			Handlers:    []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{mw}, MaxIterations: 5,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true, CheckPointStore: &memoryCheckpointStore{data: map[string][]byte{}}})
+		interrupted, err := drainEvents(t, runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("go")}, adk.WithCheckPointID("run_skill")))
+		return store, tool, interrupted, err
+	}
+	payloadOf := func(t *testing.T, store *approvalTestStore) map[string]any {
+		t.Helper()
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(store.actions[0].PayloadJSON), &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+
+	for _, toolName := range []string{"skill_write", "skill_import"} {
+		args := `{"markdown":"---\nname: skill-creator\n---\ntext","base_revision":6}`
+		store, tool, interrupted, err := run(t, describedCalls{}, toolName, args)
+		if err != nil || interrupted == nil || len(store.actions) != 1 || store.actions[0].Reason != requireReason || tool.callCount() != 0 {
+			t.Fatalf("%s: interrupted %v, actions %+v, calls %d, %v", toolName, interrupted, store.actions, tool.callCount(), err)
+		}
+		payload, want := payloadOf(t, store), "owner decides "+toolName+" "+args
+		if payload["summary"] != want || payload["message"] != want || payload["rule"] != "skill_*" || payload["arguments"] != args {
+			t.Fatalf("%s: the approval the owner reads = %+v", toolName, payload)
+		}
+	}
+
+	store, tool, interrupted, err := run(t, describedCalls{}, "skill_retire", `{"name":"shop-orders","base_revision":3}`)
+	if err != nil || interrupted == nil || len(store.actions) != 1 || tool.callCount() != 0 {
+		t.Fatalf("retire: interrupted %v, actions %+v, calls %d, %v", interrupted, store.actions, tool.callCount(), err)
+	}
+	if payload := payloadOf(t, store); payload["summary"] != nil || !strings.HasPrefix(payload["message"].(string), "skill_retire wants to run with arguments:") {
+		t.Fatalf("retire: the approval the owner reads = %+v", payload)
+	}
+
+	// A write nobody can describe neither runs nor reaches the owner.
+	store, tool, interrupted, err = run(t, failingDescriber{}, "skill_write", `{"markdown":"text"}`)
+	if interrupted != nil || len(store.actions) != 0 || tool.callCount() != 0 {
+		t.Fatalf("undescribed write: interrupted %v, actions %+v, calls %d, %v", interrupted, store.actions, tool.callCount(), err)
 	}
 }
 

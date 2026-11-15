@@ -256,7 +256,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.runResume.WithContinue(container.runs.ContinueRun)
 	container.events = api.NewEventService(db, db)
-	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithNews(db).WithResumer(container.runResume)
+	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithSkillChanges(deps.skills).WithNews(db).WithResumer(container.runResume)
 
 	if container.capabilities, err = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory.BuildCapabilitySpecs); err != nil {
 		return nil, err
