@@ -36,6 +36,11 @@ func TestSkillBackendServesEligibleSkills(t *testing.T) {
 	if _, err := backend.Get(ctx, "web-browser-research"); err == nil {
 		t.Fatal("an ineligible skill must not load")
 	}
+	// A skill written during the run is not in its snapshot: the run is
+	// told it comes with the next run, where an agent once kept retrying.
+	if _, err := backend.Get(ctx, "lookingin-bpp-affinity"); err == nil || !strings.Contains(err.Error(), `skill "lookingin-bpp-affinity" is not available in this run. A run keeps the skills it started with: a skill written or imported during the run, and its files on the workstation, come with the next run; use a name from the skill tool's list`) {
+		t.Fatalf("a skill this run did not start with = %v", err)
+	}
 	pdf, err := backend.Get(ctx, "pdf")
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +94,7 @@ func TestSkillToolLoadsSkillsThroughTheToolChain(t *testing.T) {
 	if !strings.Contains(loaded, "Skill link-to-note, revision 3.\n\n---\nname: link-to-note\n---\nFetch the link, then knowledge_write.") {
 		t.Fatalf("skill tool result = %q", loaded)
 	}
-	assertLastToolMessage(t, model, `skill "made-up" is not available`)
+	assertLastToolMessage(t, model, `skill "made-up" is not available in this run. A run keeps the skills it started with`)
 
 	for _, content := range store.snapshots {
 		if !strings.Contains(content, "You are Acorn.") || !strings.Contains(content, "The skill tool lists the skills you have") {
