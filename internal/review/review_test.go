@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1043,6 +1045,7 @@ func TestSubQReportsFinalFailure(t *testing.T) {
 	}
 }
 
+// labelled is a call with the verdict wanted for it.
 type labelled struct {
 	ID   string `json:"id"`
 	Want string `json:"want"`
@@ -1050,7 +1053,13 @@ type labelled struct {
 		OwnerRequest string `json:"owner_request"`
 		Tool         string `json:"tool"`
 		Command      string `json:"command"`
-		Browser      *struct {
+		// Scripts are the files the command runs: Path as the command names
+		// one, File its text under testdata.
+		Scripts []struct {
+			Path string `json:"path"`
+			File string `json:"file"`
+		} `json:"scripts"`
+		Browser *struct {
 			Action string `json:"action"`
 			Value  string `json:"value"`
 			Target string `json:"target"`
@@ -1058,6 +1067,72 @@ type labelled struct {
 			Title  string `json:"title"`
 		} `json:"browser"`
 	} `json:"call"`
+}
+
+var labelledFiles = []string{"testdata/labelled.json", "testdata/holdout.json"}
+
+func readLabelled(t *testing.T, file string) []labelled {
+	t.Helper()
+	f, err := os.Open(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	decoder := json.NewDecoder(f)
+	decoder.DisallowUnknownFields()
+	var cases []labelled
+	if err := decoder.Decode(&cases); err != nil {
+		t.Fatalf("%s: %v", file, err)
+	}
+	return cases
+}
+
+// call is the call review gets for c.
+func (c labelled) call(t *testing.T) Call {
+	t.Helper()
+	call := Call{OwnerRequest: c.Call.OwnerRequest, Tool: c.Call.Tool, Command: c.Call.Command}
+	for _, s := range c.Call.Scripts {
+		text, err := os.ReadFile(filepath.Join("testdata", s.File))
+		if err != nil {
+			t.Fatal(err)
+		}
+		call.Scripts = append(call.Scripts, Script{Path: s.Path, Text: string(text)})
+	}
+	if b := c.Call.Browser; b != nil {
+		call.Browser = &BrowserAction{Action: b.Action, Value: b.Value, Target: b.Target, URL: b.URL, Title: b.Title}
+	}
+	return call
+}
+
+// A labelled call with scripts is the call the gate makes for its command:
+// the scripts are the files the command runs.
+func TestLabelledScriptsAreTheFilesTheirCommandsRun(t *testing.T) {
+	withScripts := 0
+	for _, file := range labelledFiles {
+		for _, c := range readLabelled(t, file) {
+			call := c.call(t)
+			if len(call.Scripts) == 0 {
+				continue
+			}
+			withScripts++
+			var runs, scripts []string
+			for _, run := range ParseShell(call.Command).Runs {
+				runs = append(runs, run.Path)
+			}
+			for _, s := range call.Scripts {
+				if s.Text == "" {
+					t.Errorf("%s: %s has no text", c.ID, s.Path)
+				}
+				scripts = append(scripts, s.Path)
+			}
+			if !slices.Equal(runs, scripts) {
+				t.Errorf("%s: the command runs %q, its scripts are %q", c.ID, runs, scripts)
+			}
+		}
+	}
+	if withScripts == 0 {
+		t.Fatal("no labelled call comes with a script")
+	}
 }
 
 // TestSubQOnLabelledCalls replays the labelled calls against the real model.
@@ -1071,22 +1146,10 @@ func TestSubQOnLabelledCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, file := range []string{"testdata/labelled.json", "testdata/holdout.json"} {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var cases []labelled
-		if err := json.Unmarshal(data, &cases); err != nil {
-			t.Fatal(err)
-		}
-		for _, c := range cases {
-			call := Call{OwnerRequest: c.Call.OwnerRequest, Tool: c.Call.Tool, Command: c.Call.Command}
-			if b := c.Call.Browser; b != nil {
-				call.Browser = &BrowserAction{Action: b.Action, Value: b.Value, Target: b.Target, URL: b.URL, Title: b.Title}
-			}
+	for _, file := range labelledFiles {
+		for _, c := range readLabelled(t, file) {
 			ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-			v, err := subq.Review(ctx, call)
+			v, err := subq.Review(ctx, c.call(t))
 			cancel()
 			if err != nil {
 				t.Fatalf("%s: %v", c.ID, err)
@@ -1098,7 +1161,6 @@ func TestSubQOnLabelledCalls(t *testing.T) {
 	}
 }
 
-// The doctor's check asks a question the Decisions API accepts.
 func TestSubQCheckAsksAWellFormedQuestion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var got map[string]any
