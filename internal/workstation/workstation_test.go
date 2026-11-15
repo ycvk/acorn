@@ -1,6 +1,7 @@
 package workstation
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -168,10 +169,12 @@ func TestFilesRoundTripAndReportFailures(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, "blob"), []byte{0xff, 0xfe, 0x00}, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.ReadFile(t.Context(), ReadRequest{Path: "blob", MaxBytes: 1000}); err == nil || !strings.Contains(err.Error(), ErrNotText.Error()) {
+	// Review tells a compiled program from a file it cannot read by the status.
+	var refused *HTTPError
+	if _, err := client.ReadFile(t.Context(), ReadRequest{Path: "blob", MaxBytes: 1000}); !errors.As(err, &refused) || refused.Status != http.StatusUnprocessableEntity || !strings.Contains(err.Error(), ErrNotText.Error()) {
 		t.Fatalf("binary err = %v", err)
 	}
-	if _, err := client.ReadFile(t.Context(), ReadRequest{Path: "nope.txt", MaxBytes: 1000}); err == nil || !strings.Contains(err.Error(), "no such file") {
+	if _, err := client.ReadFile(t.Context(), ReadRequest{Path: "nope.txt", MaxBytes: 1000}); !errors.As(err, &refused) || refused.Status != http.StatusNotFound || !strings.Contains(err.Error(), "no such file") {
 		t.Fatalf("missing err = %v", err)
 	}
 }

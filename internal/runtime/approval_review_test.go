@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -32,7 +35,8 @@ func (r *fakeReviewer) Review(_ context.Context, call review.Call) (review.Verdi
 	if r.err != nil {
 		return review.Verdict{}, r.err
 	}
-	if call.Browser != nil && strings.Contains(call.Browser.Target, "提交订单") || strings.Contains(call.Command, "POST") {
+	posts := func(s review.Script) bool { return strings.Contains(s.Text, "POST") }
+	if call.Browser != nil && strings.Contains(call.Browser.Target, "提交订单") || strings.Contains(call.Command, "POST") || slices.ContainsFunc(call.Scripts, posts) {
 		return review.Verdict{NeedsApproval: true, Reasons: []string{"涉及付款"}, Scores: map[string]float64{"spends_money": 0.9}, Model: "subq-test"}, nil
 	}
 	return review.Verdict{Model: "subq-test"}, nil
@@ -77,6 +81,30 @@ func (w gateWorkstation) StartJob(_ context.Context, req workstation.JobStartReq
 		w.job(req.Command, &result)
 	}
 	return result, nil
+}
+
+// gateFiles are the workstation's files behind the gate tests, by the path
+// the gate asks for: text holds the ones that are text and compiled names
+// the ones that are not.
+type gateFiles struct {
+	text     map[string]string
+	compiled map[string]bool
+	asked    []string
+}
+
+func (g *gateFiles) ReadFile(_ context.Context, req workstation.ReadRequest) (workstation.ReadResult, error) {
+	g.asked = append(g.asked, req.Path)
+	if g.compiled[req.Path] {
+		return workstation.ReadResult{}, &workstation.HTTPError{Path: "/v1/files/read", Status: http.StatusUnprocessableEntity, Message: req.Path + ": file is not UTF-8 text; inspect it with shell"}
+	}
+	text, ok := g.text[req.Path]
+	if !ok {
+		return workstation.ReadResult{}, &workstation.HTTPError{Path: "/v1/files/read", Status: http.StatusNotFound, Message: "open " + req.Path + ": no such file or directory"}
+	}
+	if len(text) > req.MaxBytes {
+		return workstation.ReadResult{Path: req.Path, Content: text[:req.MaxBytes], Size: int64(len(text)), Truncated: true}, nil
+	}
+	return workstation.ReadResult{Path: req.Path, Content: text, Size: int64(len(text))}, nil
 }
 
 // threadFiles lets a stand-in embed core.ThreadFiles, whose method has the
@@ -131,6 +159,7 @@ type gateFixture struct {
 	mw       *approvalMiddleware
 	store    *approvalTestStore
 	reviewer *fakeReviewer
+	files    *gateFiles
 	ran      []string
 	// job changes what the workstation returns for a command.
 	job func(command string, result *workstation.JobResult)
@@ -138,8 +167,8 @@ type gateFixture struct {
 
 func newGateFixture(t *testing.T, rules core.ApprovalRules) *gateFixture {
 	t.Helper()
-	f := &gateFixture{store: &approvalTestStore{input: "帮我把购物车里的东西买了"}, reviewer: &fakeReviewer{}}
-	mw, err := newApprovalMiddleware(rules, f.reviewer, describedCalls{}, f.store)
+	f := &gateFixture{store: &approvalTestStore{input: "帮我把购物车里的东西买了"}, reviewer: &fakeReviewer{}, files: &gateFiles{text: map[string]string{}, compiled: map[string]bool{}}}
+	mw, err := newApprovalMiddleware(rules, f.reviewer, describedCalls{}, f.store, f.files)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,15 +309,16 @@ func TestGateMarksACommandThatHidesAPageAction(t *testing.T) {
 		"bsk observe --session s1 > page.txt; python3 parse.py page.txt": false,
 	} {
 		f := newGateFixture(t, core.ApprovalRules{})
+		f.files.text["parse.py"] = "print(open('page.txt').read())\n"
 		if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := f.call(t, "shell", shellArgs(command)); err != nil {
 			t.Fatal(err)
 		}
-		want := review.Call{OwnerRequest: f.store.input, Tool: "shell", Command: command, Hidden: hidden}
-		if len(f.reviewer.calls) != 1 || f.reviewer.calls[0] != want {
-			t.Errorf("%q reviewed as %+v", command, f.reviewer.calls)
+		got := f.reviewer.calls
+		if len(got) != 1 || got[0].OwnerRequest != f.store.input || got[0].Tool != "shell" || got[0].Command != command || got[0].Hidden != hidden || got[0].Unread != nil {
+			t.Errorf("%q reviewed as %+v", command, got)
 		}
 	}
 }
@@ -306,11 +336,114 @@ func TestGateReviewsGoingToAnAddressThatIsNotAWebPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := review.Call{OwnerRequest: f.store.input, Tool: "shell", Command: command}
-	if len(f.reviewer.calls) != 1 || f.reviewer.calls[0] != want {
+	if len(f.reviewer.calls) != 1 || !reflect.DeepEqual(f.reviewer.calls[0], want) {
 		t.Fatalf("reviewed as %+v", f.reviewer.calls)
 	}
 	if got := f.reviewedAction(t, "bsk click @e3 --session s1"); got != (review.BrowserAction{Action: "click"}) {
 		t.Fatalf("click after the script reviewed as %+v", got)
+	}
+}
+
+// A command that runs a file as a program is reviewed with the file's text,
+// so what a script does is judged as what a command line does.
+func TestGateReviewsACommandWithTheScriptsItRuns(t *testing.T) {
+	const buy = "curl -s -X POST https://shop.example/api/orders -d @order.json\n"
+	f := newGateFixture(t, core.ApprovalRules{})
+	f.files.text["/home/agent/buy.sh"] = buy
+	command := "bash /home/agent/buy.sh"
+	if _, err := f.call(t, "shell", shellArgs(command)); err == nil {
+		t.Fatal("expected the approval interrupt")
+	}
+	if len(f.ran) != 0 {
+		t.Fatalf("the script ran before approval: %v", f.ran)
+	}
+	want := review.Call{OwnerRequest: f.store.input, Tool: "shell", Command: command, Scripts: []review.Script{{Path: "/home/agent/buy.sh", Text: buy}}}
+	if len(f.reviewer.calls) != 1 || !reflect.DeepEqual(f.reviewer.calls[0], want) {
+		t.Fatalf("reviewed as %+v", f.reviewer.calls)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(f.store.actions[0].PayloadJSON), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["summary"] != "运行命令："+command+" —— 涉及付款" {
+		t.Fatalf("summary = %v", payload["summary"])
+	}
+	state := f.store.payloads[0].(map[string]any)["state"].(map[string]any)
+	if !reflect.DeepEqual(state["scripts"], want.Scripts) {
+		t.Fatalf("tool_review state = %v", state)
+	}
+}
+
+// The file is read where the command runs it: under the directory the call
+// names and after the command's own cd.
+func TestGateReadsAScriptWhereTheCommandRunsIt(t *testing.T) {
+	for name, tc := range map[string]struct{ args, asks string }{
+		"the home directory":   {`{"command":"python3 fetch.py"}`, "fetch.py"},
+		"the call's directory": {`{"command":"python3 fetch.py","dir":"work/feeds"}`, "work/feeds/fetch.py"},
+		"a cd in it":           {`{"command":"cd tools && ./run.sh","dir":"~/proj"}`, "~/proj/tools/run.sh"},
+		"an absolute path":     {`{"command":"cd /tmp && bash /home/agent/go.sh","dir":"work"}`, "/home/agent/go.sh"},
+		"under $HOME":          {`{"command":"bash \"$HOME/go.sh\"","dir":"work"}`, "~/go.sh"},
+		"read once":            {`{"command":"python3 fetch.py a && python3 fetch.py b"}`, "fetch.py"},
+	} {
+		f := newGateFixture(t, core.ApprovalRules{})
+		f.files.text[tc.asks] = "print('ok')\n"
+		if _, err := f.call(t, "shell", tc.args); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		got := f.reviewer.calls
+		if !reflect.DeepEqual(f.files.asked, []string{tc.asks}) || len(got) != 1 || len(got[0].Scripts) != 1 || got[0].Unread != nil || len(f.ran) != 1 {
+			t.Errorf("%s: asked for %v, reviewed as %+v, ran %v", name, f.files.asked, got, f.ran)
+		}
+	}
+}
+
+// A command that runs a file review has no text of is marked so, which sends
+// it to the owner. A compiled program named by its path has no text to bring
+// and is reviewed as the command it is.
+func TestGateMarksACommandWhoseScriptItCannotRead(t *testing.T) {
+	for name, tc := range map[string]struct {
+		command string
+		unread  int
+		scripts int
+		// asked is how many files the gate asks the workstation for.
+		asked int
+		// noWorkstation leaves the gate nothing to read from.
+		noWorkstation bool
+	}{
+		"missing":                     {command: "bash missing.sh", unread: 1, asked: 1},
+		"too long":                    {command: "bash long.sh", unread: 1, asked: 1},
+		"too long together":           {command: "bash most.sh && bash rest.sh", unread: 1, scripts: 1, asked: 2},
+		"past the limit":              {command: "bash full.sh; bash fetch.sh", unread: 1, scripts: 1, asked: 1},
+		"named by a variable":         {command: `python3 "$script"`, unread: 1},
+		"after a cd it cannot follow": {command: "cd $dir && python3 fetch.py", unread: 1},
+		"written by the command":      {command: "echo 'curl -X PUT https://a.example' > fetch.sh; bash fetch.sh", unread: 1},
+		"not text for python":         {command: "python3 tool.bin", unread: 1, asked: 1},
+		"no workstation":              {command: "bash fetch.sh", unread: 1, noWorkstation: true},
+		"a compiled program":          {command: "./tool.bin --version", asked: 1},
+		"read":                        {command: "bash fetch.sh", scripts: 1, asked: 1},
+	} {
+		f := newGateFixture(t, core.ApprovalRules{})
+		f.files.text["fetch.sh"] = "curl -s https://a.example/feed.xml\n"
+		f.files.text["long.sh"] = strings.Repeat("echo ok\n", maxScriptBytes/8+1)
+		f.files.text["most.sh"] = strings.Repeat("echo ok\n", maxScriptBytes/8-1)
+		f.files.text["rest.sh"] = "echo the last lines\n"
+		f.files.text["full.sh"] = strings.Repeat("echo ok\n", maxScriptBytes/8)
+		f.files.compiled["tool.bin"] = true
+		if tc.noWorkstation {
+			f.mw.files = nil
+		}
+		if _, err := f.call(t, "shell", shellArgs(tc.command)); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		got := f.reviewer.calls
+		if len(got) != 1 || len(got[0].Unread) != tc.unread || len(got[0].Scripts) != tc.scripts || len(f.files.asked) != tc.asked {
+			t.Errorf("%s: reviewed as %+v, asked for %v", name, got, f.files.asked)
+			continue
+		}
+		recorded, _ := f.store.payloads[0].(map[string]any)["unread_scripts"].([]string)
+		if !reflect.DeepEqual(recorded, got[0].Unread) {
+			t.Errorf("%s: tool_review records %v of %v", name, recorded, got[0].Unread)
+		}
 	}
 }
 

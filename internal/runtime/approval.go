@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"path"
 	"slices"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/review"
 	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/workstation"
 )
 
 const toolApprovalInterruptKind = "tool_approval"
@@ -48,6 +50,15 @@ type ActionReviewer interface {
 	Review(ctx context.Context, call review.Call) (review.Verdict, error)
 }
 
+// scriptFiles reads the workstation's files, for the scripts a command runs.
+type scriptFiles interface {
+	ReadFile(ctx context.Context, req workstation.ReadRequest) (workstation.ReadResult, error)
+}
+
+// maxScriptBytes bounds the text of the scripts one command brings to
+// review.
+const maxScriptBytes = 32 << 10
+
 // approvalMiddleware gates tool calls by the owner's rules and, for calls the
 // rules leave open, by review. A gated call records a tool_approval pending
 // action and interrupts; on resume an accepted call runs with the recorded
@@ -59,6 +70,7 @@ type approvalMiddleware struct {
 	reviewer ActionReviewer
 	describe ApprovalDescriber
 	store    approvalStore
+	files    scriptFiles
 	subRun   bool
 
 	mu    sync.Mutex
@@ -80,8 +92,9 @@ type approvalRequest struct {
 }
 
 // newApprovalMiddleware builds the gate for one run. A nil reviewer leaves
-// calls no rule settles to run unreviewed.
-func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, describe ApprovalDescriber, store approvalStore) (*approvalMiddleware, error) {
+// calls no rule settles to run unreviewed; nil files, which is no
+// workstation, leaves no script to read.
+func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, describe ApprovalDescriber, store approvalStore, files scriptFiles) (*approvalMiddleware, error) {
 	if store == nil || describe == nil {
 		return nil, errors.New("approval middleware requires a store and an approval describer")
 	}
@@ -102,6 +115,7 @@ func newApprovalMiddleware(rules core.ApprovalRules, reviewer ActionReviewer, de
 		reviewer: reviewer,
 		describe: describe,
 		store:    store,
+		files:    files,
 		pages:    map[pageKey]review.Page{},
 	}, nil
 }
@@ -311,9 +325,11 @@ func (m *approvalMiddleware) review(toolName string) func(context.Context, strin
 
 // reviewCalls turns a tool call into what review judges. Read-only shell
 // commands need none; each bsk page action is judged with the page bsk last
-// showed of its session, and any other part as the whole command. An action
-// review cannot place is judged without a page or a target, and a command
-// that may hide one is marked so; both go to the owner.
+// showed of its session, and any other part as the whole command, with the
+// text of the files it runs as programs. An action review cannot place is
+// judged without a page or a target, a command that may hide one is marked
+// so, and so is one that runs a file review has no text of; all go to the
+// owner.
 func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args string) ([]review.Call, error) {
 	owner, err := m.ownerRequest(ctx)
 	if err != nil {
@@ -322,7 +338,7 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 	if toolName != "shell" {
 		return []review.Call{{OwnerRequest: owner, Tool: toolName, Arguments: args}}, nil
 	}
-	command, ok := shellCommand(args)
+	command, dir, ok := shellCall(args)
 	if !ok {
 		// The shell tool rejects the same arguments, so the call fails as a
 		// tool result without running a command.
@@ -355,21 +371,73 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 	}
 	m.mu.Unlock()
 	if shell.Other {
-		calls = append(calls, review.Call{OwnerRequest: owner, Tool: "shell", Command: command, Hidden: shell.Hidden})
+		call := review.Call{OwnerRequest: owner, Tool: "shell", Command: command, Hidden: shell.Hidden}
+		if call.Scripts, call.Unread, err = m.scripts(ctx, shell.Runs, dir); err != nil {
+			return nil, err
+		}
+		calls = append(calls, call)
 	}
 	return calls, nil
 }
 
-// shellCommand reads the command from shell arguments; ok is false when they
-// do not decode, which the shell tool rejects too.
-func shellCommand(args string) (command string, ok bool) {
+// scripts reads the files a command that starts in dir runs as programs.
+// unread names those that bring no text, each with why: the command's words
+// do not say which file it is, the workstation does not return it, a shell,
+// python or node is given one that is not text, or the texts together pass
+// maxScriptBytes. A program named by its path that is not text is a compiled
+// one and has none to bring.
+func (m *approvalMiddleware) scripts(ctx context.Context, runs []review.Run, dir string) (scripts []review.Script, unread []string, err error) {
+	left := maxScriptBytes
+	read := map[string]bool{}
+	for _, run := range runs {
+		name := run.In(dir)
+		switch {
+		case run.Path == "":
+			unread = append(unread, "the command does not say which file, or writes it itself")
+			continue
+		case read[name]:
+			continue
+		case m.files == nil:
+			unread = append(unread, name+": no workstation to read it from")
+			continue
+		case left == 0:
+			unread = append(unread, fmt.Sprintf("%s: the scripts are longer than %d bytes together", name, maxScriptBytes))
+			continue
+		}
+		read[name] = true
+		got, failed := m.files.ReadFile(ctx, workstation.ReadRequest{Path: name, MaxBytes: left})
+		var refused *workstation.HTTPError
+		switch {
+		case failed == nil && got.Truncated:
+			unread = append(unread, fmt.Sprintf("%s: the scripts are longer than %d bytes together", name, maxScriptBytes))
+		case failed == nil:
+			scripts = append(scripts, review.Script{Path: got.Path, Text: got.Content})
+			left -= len(got.Content)
+		case ctx.Err() != nil:
+			return nil, nil, fmt.Errorf("read script %s for review: %w", name, failed)
+		case run.Program && errors.As(failed, &refused) && refused.Status == http.StatusUnprocessableEntity:
+		default:
+			unread = append(unread, name+": "+failed.Error())
+		}
+	}
+	return scripts, unread, nil
+}
+
+// shellCall reads the command and the directory it starts in from shell
+// arguments; ok is false when the command does not decode, which the shell
+// tool rejects too. A dir that is not text is one the tool rejects as well.
+func shellCall(args string) (command, dir string, ok bool) {
 	var input struct {
 		Command string `json:"command"`
+		Dir     any    `json:"dir"`
 	}
 	if json.Unmarshal([]byte(args), &input) != nil {
-		return "", false
+		return "", "", false
 	}
-	return input.Command, true
+	if text, isText := input.Dir.(string); isText {
+		dir = text
+	}
+	return input.Command, dir, true
 }
 
 // observing keeps what bsk showed of each session, so a later click on @eN
@@ -383,7 +451,7 @@ func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) a
 		if err != nil {
 			return out, err
 		}
-		command, ok := shellCommand(args)
+		command, _, ok := shellCall(args)
 		if !ok {
 			// The shell tool rejected the arguments without running a command.
 			return out, nil
@@ -453,6 +521,9 @@ func (m *approvalMiddleware) recordReview(ctx context.Context, toolName string, 
 		"model":          v.Model,
 		"duration_ms":    took.Milliseconds(),
 		"state":          review.State(call),
+	}
+	if len(call.Unread) > 0 {
+		payload["unread_scripts"] = call.Unread
 	}
 	if reviewErr != nil {
 		payload["error"] = reviewErr.Error()
