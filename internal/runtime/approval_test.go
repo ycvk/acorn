@@ -98,7 +98,7 @@ func (t *echoTool) callCount() int {
 func newApprovalTestRunner(t *testing.T, model *scriptedModel, tool *echoTool, store *approvalTestStore, checkpoints adk.CheckPointStore) *adk.TypedRunner[*schema.AgenticMessage] {
 	t.Helper()
 	ctx := context.Background()
-	mw, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_*"}}, nil, describedCalls{}, store)
+	mw, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_*"}}, nil, describedCalls{}, store, nil)
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestApprovalDeclineSkipsCall(t *testing.T) {
 
 func TestApprovalRejectsMalformedPatterns(t *testing.T) {
 	for _, rules := range []core.ApprovalRules{{Require: []string{"["}}, {Block: []string{"["}}, {Allow: []string{"["}}} {
-		if _, err := newApprovalMiddleware(rules, nil, describedCalls{}, &approvalTestStore{}); err == nil {
+		if _, err := newApprovalMiddleware(rules, nil, describedCalls{}, &approvalTestStore{}, nil); err == nil {
 			t.Fatalf("expected malformed pattern in %+v to be rejected", rules)
 		}
 	}
@@ -286,7 +286,7 @@ func TestNewsSourceWaitsForTheOwnerUnlessAllowed(t *testing.T) {
 			ctx := core.WithRunID(context.Background(), "run_news")
 			store := &approvalTestStore{}
 			tool := &newsSourceTool{}
-			mw, err := newApprovalMiddleware(tc.rules, nil, describedCalls{}, store)
+			mw, err := newApprovalMiddleware(tc.rules, nil, describedCalls{}, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -355,7 +355,7 @@ func TestNewsSectionsWaitsOnlyForChangesInRunsAcornWoke(t *testing.T) {
 			ctx := core.WithRunID(context.Background(), "run_sections")
 			store := &approvalTestStore{woken: tc.woken}
 			tool := &newsSectionsTool{}
-			mw, err := newApprovalMiddleware(tc.rules, nil, describedCalls{}, store)
+			mw, err := newApprovalMiddleware(tc.rules, nil, describedCalls{}, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

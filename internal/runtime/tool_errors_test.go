@@ -70,7 +70,7 @@ func TestShellFailureUnderApprovalBecomesModelVisibleResult(t *testing.T) {
 		"reviewed mistyped arguments":  {reviewer: &fakeReviewer{}, args: `{"command":5}`},
 	} {
 		t.Run(name, func(t *testing.T) {
-			approval, err := newApprovalMiddleware(core.ApprovalRules{}, tc.reviewer, describedCalls{}, &approvalTestStore{})
+			approval, err := newApprovalMiddleware(core.ApprovalRules{}, tc.reviewer, describedCalls{}, &approvalTestStore{}, nil)
 			if err != nil {
 				t.Fatalf("approval middleware: %v", err)
 			}
@@ -102,7 +102,7 @@ func TestUnknownToolBecomesModelVisibleResult(t *testing.T) {
 
 func TestApprovalInterruptPassesThroughToolErrorMiddleware(t *testing.T) {
 	RegisterTypes()
-	approval, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_tool"}}, nil, describedCalls{}, &approvalTestStore{})
+	approval, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_tool"}}, nil, describedCalls{}, &approvalTestStore{}, nil)
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
@@ -129,7 +129,7 @@ func (*failingApprovalStore) CreatePendingAction(context.Context, core.PendingAc
 }
 
 func TestApprovalStoreFailureFailsRun(t *testing.T) {
-	approval, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_tool"}}, nil, describedCalls{}, &failingApprovalStore{})
+	approval, err := newApprovalMiddleware(core.ApprovalRules{Require: []string{"echo_tool"}}, nil, describedCalls{}, &failingApprovalStore{}, nil)
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}

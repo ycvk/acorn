@@ -148,7 +148,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	approval, err := newApprovalMiddleware(req.Settings.Approval, deps.Reviewer, deps.Describer, deps.Store)
+	approval, err := newApprovalMiddleware(req.Settings.Approval, deps.Reviewer, deps.Describer, deps.Store, deps.Workstation.Service)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func buildSubRunHandlers(ctx context.Context, deps RuntimeDeps, req subRunRunner
 	if err != nil {
 		return nil, err
 	}
-	approval, err := newApprovalMiddleware(req.Rules, deps.Reviewer, deps.Describer, deps.Store)
+	approval, err := newApprovalMiddleware(req.Rules, deps.Reviewer, deps.Describer, deps.Store, deps.Workstation.Service)
 	if err != nil {
 		return nil, err
 	}

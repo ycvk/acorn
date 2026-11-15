@@ -34,6 +34,36 @@ type Shell struct {
 	// choosing, and text that part may run names bsk other than for one of
 	// its read-only subcommands.
 	Hidden bool
+	// Runs are the files the command runs as programs, where ParseShell can
+	// tell that a part runs one. Review reads them to judge the command.
+	Runs []Run
+}
+
+// Run is a file a command runs as a program: the one a shell, python, node
+// or source is given, or the program itself when the command names it by a
+// path outside the system's directories.
+type Run struct {
+	// Path is the file: absolute, under ~, or relative to the directory the
+	// command starts in. It is empty when the command's words do not say
+	// which file runs, or the command writes the file with a redirection:
+	// either way there is no text to read before the command runs.
+	Path string
+	// Program is set for the program itself, which may be a compiled one.
+	Program bool
+}
+
+// In is the file's path for a command that starts in dir, as the workstation
+// reads both: absolute, under ~, or relative to the home directory.
+func (r Run) In(dir string) string {
+	if dir == "" || rooted(r.Path) {
+		return r.Path
+	}
+	return path.Join(dir, r.Path)
+}
+
+// rooted reports whether a path stands on its own: absolute, or under ~.
+func rooted(name string) bool {
+	return strings.HasPrefix(name, "/") || strings.HasPrefix(name, "~")
 }
 
 // Page reads the output of a command that Shows a session. whole is false
@@ -172,7 +202,11 @@ const (
 func ParseShell(command string) Shell {
 	script, ok := splitWords(command)
 	if !ok {
-		return Shell{Other: true, Moves: true, Hidden: hidesAction(command)}
+		shell := Shell{Other: true, Moves: true, Hidden: hidesAction(command)}
+		if first, ok := beforeText(command); ok {
+			shell.Runs = ParseShell(first).Runs
+		}
+		return shell
 	}
 	shell := Shell{ReadOnly: !slices.ContainsFunc(script.targets, riskyTarget)}
 	shell.Other = !shell.ReadOnly
@@ -182,10 +216,15 @@ func ParseShell(command string) Shell {
 	// which a part that runs programs of its own choosing may run: the
 	// words of the here-strings and what each command leaves.
 	loose := slices.Clone(script.heres)
+	var at place
 	for i, simple := range script.commands {
 		p := classify(simple)
 		calls[i], effects[i] = p.call, p.effect
 		loose = append(loose, p.left)
+		for _, f := range ran(simple) {
+			shell.Runs = append(shell.Runs, at.run(f, script.targets))
+		}
+		at = at.after(simple, script.overlaps(i) || i > 0 && script.joins[i-1] == joinPipe)
 		if slices.ContainsFunc(p.writes, riskyTarget) {
 			shell.ReadOnly, shell.Other = false, true
 		}
@@ -215,6 +254,22 @@ func ParseShell(command string) Shell {
 	shell.Shows, shell.Moves = script.shown(calls, effects)
 	shell.Hidden = shell.Other && slices.ContainsFunc(loose, hidesAction)
 	return shell
+}
+
+// beforeText is what a command says before the text of its first
+// here-document: the lines up to the one that starts it, which the whole
+// command runs first. A command splitWords does not read is mostly one that
+// feeds a program its text this way, and the lines before may still read.
+func beforeText(command string) (string, bool) {
+	start := strings.Index(command, "<<")
+	if start < 0 {
+		return "", false
+	}
+	end := strings.IndexByte(command[start:], '\n')
+	if end < 0 || strings.HasSuffix(command[:start+end], `\`) {
+		return "", false
+	}
+	return command[:start+end], true
 }
 
 // said is a simple command's words as one text.
