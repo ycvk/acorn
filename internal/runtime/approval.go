@@ -154,6 +154,12 @@ func ownerDecides(name string) bool {
 	return name == "news_source" || name == "news_sections" || name == "files"
 }
 
+// writesSkill reports a tool that stores a revision of a skill's text and
+// files.
+func writesSkill(name string) bool {
+	return name == "skill_write" || name == "skill_import"
+}
+
 // reviewed are the tools whose effects can leave Acorn and the workstation.
 func reviewed(name string) bool {
 	return name == "shell" || strings.HasPrefix(name, "mcp__")
@@ -175,15 +181,30 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 			return fmt.Sprintf("The owner's rules block %s (approval.block). Do not retry it; tell the owner what you wanted to do.", tCtx.Name), nil
 		}, nil
 	case required != "":
-		return m.gated(run, tCtx, func(context.Context, string) (*approvalRequest, error) {
-			return &approvalRequest{reason: requireReason, rule: required}, nil
-		}), nil
+		return m.gated(run, tCtx, m.required(tCtx.Name, required)), nil
 	case ownerDecides(tCtx.Name) && !matchesAny(m.rules.Allow, tCtx.Name):
 		return m.gated(run, tCtx, m.ownerDecision(tCtx.Name)), nil
 	case matchesAny(m.rules.Allow, tCtx.Name) || m.reviewer == nil || !reviewed(tCtx.Name):
 		return run, nil
 	default:
 		return m.gated(run, tCtx, m.review(tCtx.Name)), nil
+	}
+}
+
+// required returns the check for a tool the owner's rule sends to them. A
+// skill write waits with what it would change in the stored skills.
+func (m *approvalMiddleware) required(toolName, rule string) func(context.Context, string) (*approvalRequest, error) {
+	return func(ctx context.Context, args string) (*approvalRequest, error) {
+		request := &approvalRequest{reason: requireReason, rule: rule}
+		if !writesSkill(toolName) {
+			return request, nil
+		}
+		summary, err := m.describe.DescribeApproval(ctx, toolName, args)
+		if err != nil {
+			return nil, fmt.Errorf("describe %s for approval: %w", toolName, err)
+		}
+		request.summary = summary
+		return request, nil
 	}
 }
 

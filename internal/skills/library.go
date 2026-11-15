@@ -343,16 +343,27 @@ func (l *Library) Write(ctx context.Context, req WriteRequest) (core.Skill, erro
 	if err != nil {
 		return core.Skill{}, err
 	}
-	var files []core.SkillFile
+	var base []core.SkillFile
 	if req.BaseRevision > 0 {
-		if files, err = l.store.SkillFiles(ctx, spec.Name, req.BaseRevision); err != nil {
+		if base, err = l.store.SkillFiles(ctx, spec.Name, req.BaseRevision); err != nil {
 			return core.Skill{}, err
 		}
 	}
+	files, err := l.written(spec.Name, markdown, base, req)
+	if err != nil {
+		return core.Skill{}, err
+	}
+	return l.store.WriteSkill(ctx, core.SkillWrite{ID: spec.Name, Markdown: markdown, Files: files, Author: core.SkillAuthorAgent, RunID: req.RunID, At: l.clock(), BaseRevision: req.BaseRevision})
+}
+
+// written is the file set req makes of base, the files of the revision it
+// builds on, checked as every write is. base is left as it is.
+func (l *Library) written(name, markdown string, base []core.SkillFile, req WriteRequest) ([]core.SkillFile, error) {
+	files := slices.Clone(base)
 	for _, p := range req.Delete {
 		i := slices.IndexFunc(files, func(f core.SkillFile) bool { return f.Path == p })
 		if i < 0 {
-			return core.Skill{}, fmt.Errorf("skill %s has no file %q to delete", spec.Name, p)
+			return nil, fmt.Errorf("skill %s has no file %q to delete", name, p)
 		}
 		files = slices.Delete(files, i, i+1)
 	}
@@ -360,10 +371,8 @@ func (l *Library) Write(ctx context.Context, req WriteRequest) (core.Skill, erro
 		files = slices.DeleteFunc(files, func(f core.SkillFile) bool { return f.Path == p })
 		files = append(files, core.SkillFile{Path: p, Content: []byte(content)})
 	}
-	if _, files, err = l.check(markdown, files); err != nil {
-		return core.Skill{}, err
-	}
-	return l.store.WriteSkill(ctx, core.SkillWrite{ID: spec.Name, Markdown: markdown, Files: files, Author: core.SkillAuthorAgent, RunID: req.RunID, At: l.clock(), BaseRevision: req.BaseRevision})
+	_, files, err := l.check(markdown, files)
+	return files, err
 }
 
 // check validates a package as every write does: its SKILL.md, its files
@@ -485,14 +494,7 @@ func (l *Library) ImportStaged(ctx context.Context, name, sha256 string, baseRev
 	if err != nil {
 		return core.Skill{}, err
 	}
-	if pkg.Name != strings.TrimSpace(name) {
-		return core.Skill{}, fmt.Errorf("staged package %s holds skill %s, not %s", pkg.SHA256, pkg.Name, name)
-	}
-	server, err := mcpOf(pkg.Files)
-	if err != nil {
-		return core.Skill{}, err
-	}
-	if err := l.checkProvider(pkg.Name, server); err != nil {
+	if err := l.importable(name, pkg); err != nil {
 		return core.Skill{}, err
 	}
 	skill, err := l.store.WriteSkill(ctx, core.SkillWrite{ID: pkg.Name, Markdown: pkg.Markdown, Files: pkg.Files, Author: core.SkillAuthorAgent, RunID: runID, At: l.clock(), BaseRevision: baseRevision})
@@ -500,6 +502,19 @@ func (l *Library) ImportStaged(ctx context.Context, name, sha256 string, baseRev
 		return core.Skill{}, err
 	}
 	return skill, l.store.DeleteStagedSkillPackage(ctx, sha256)
+}
+
+// importable checks that a staged package holds the named skill and that
+// this library may serve its MCP server.
+func (l *Library) importable(name string, pkg core.SkillPackage) error {
+	if pkg.Name != strings.TrimSpace(name) {
+		return fmt.Errorf("staged package %s holds skill %s, not %s", pkg.SHA256, pkg.Name, name)
+	}
+	server, err := mcpOf(pkg.Files)
+	if err != nil {
+		return err
+	}
+	return l.checkProvider(pkg.Name, server)
 }
 
 // Import stores a package the owner installs. An existing skill of the same

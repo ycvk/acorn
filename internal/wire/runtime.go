@@ -228,7 +228,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Goals:           db,
 		Workstation:     workstationTools,
 		Reviewer:        actionReviewer,
-		Describer:       tools.ApprovalDescriber{News: db},
+		Describer:       tools.ApprovalDescriber{News: db, Skills: skillLibrary},
 		Clock:           options.clock,
 		Settings:        ownerSettings,
 	})

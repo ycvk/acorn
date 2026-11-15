@@ -471,3 +471,119 @@ func TestSyncKeepsExactlyTheEligiblePackagesOnTheHost(t *testing.T) {
 		}
 	}
 }
+
+// changedPaths are the files of a change with what happens to each.
+func changedPaths(c Change) []string {
+	out := make([]string, 0, len(c.Files))
+	for _, f := range c.Files {
+		out = append(out, string(f.Change)+" "+f.Path)
+	}
+	return out
+}
+
+func TestWriteChangeSaysWhatAWriteWouldDoAndStoresNothing(t *testing.T) {
+	ctx := context.Background()
+	library, store := newTestLibrary(t)
+	create := WriteRequest{Markdown: ordersSkill, Put: map[string]string{"scripts/fetch.sh": "curl x", "references/fields.md": "a"}}
+	change, err := library.WriteChange(ctx, create)
+	if err != nil || change.Name != "shop-orders" || change.Description != "Look up the owner's recent orders on the shop site." || change.Current != nil || change.Stale() || change.Fails != nil ||
+		!slices.Equal(changedPaths(change), []string{"added SKILL.md", "added references/fields.md", "added scripts/fetch.sh"}) {
+		t.Fatalf("new skill = %+v, %v", change, err)
+	}
+	if len(store.writes) != 0 {
+		t.Fatalf("a change stored %+v", store.writes)
+	}
+	if _, err := library.Write(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+
+	edit := WriteRequest{Markdown: strings.Replace(ordersSkill, "Open the orders page.", "Open the page.", 1), Put: map[string]string{"references/fields.md": "b", "notes.md": "n"}, Delete: []string{"scripts/fetch.sh"}, BaseRevision: 1}
+	change, err = library.WriteChange(ctx, edit)
+	if err != nil || change.Current == nil || change.Current.Revision != 1 || change.Stale() || change.Fails != nil ||
+		!slices.Equal(changedPaths(change), []string{"modified SKILL.md", "added notes.md", "modified references/fields.md", "removed scripts/fetch.sh"}) {
+		t.Fatalf("rewrite = %+v, %v", change, err)
+	}
+	if files, err := store.SkillFiles(ctx, "shop-orders", 1); err != nil || len(files) != 2 || len(store.writes) != 1 {
+		t.Fatalf("a change touched the stored revision: %+v, %v, %d writes", files, err, len(store.writes))
+	}
+	// The write it describes stores exactly those files.
+	if _, err := library.Write(ctx, edit); err != nil {
+		t.Fatal(err)
+	}
+	if same, err := library.WriteChange(ctx, WriteRequest{Markdown: edit.Markdown, BaseRevision: 2}); err != nil || same.Current.Revision != 2 || len(same.Files) != 0 {
+		t.Fatalf("the same package again = %+v, %v", same, err)
+	}
+
+	for name, req := range map[string]WriteRequest{
+		"an older revision":         {Markdown: ordersSkill, BaseRevision: 1},
+		"no revision":               {Markdown: ordersSkill},
+		"a skill that is not there": {Markdown: strings.Replace(ordersSkill, "shop-orders", "shop-returns", 1), BaseRevision: 1},
+	} {
+		if change, err := library.WriteChange(ctx, req); err != nil || !change.Stale() || change.Fails != nil || len(change.Files) != 0 {
+			t.Errorf("%s = %+v, %v", name, change, err)
+		}
+	}
+	if change, err := library.WriteChange(ctx, WriteRequest{Markdown: ordersSkill, Delete: []string{"missing.md"}, BaseRevision: 2}); err != nil || change.Fails == nil || change.Name != "shop-orders" || len(change.Files) != 0 {
+		t.Fatalf("deleting a missing file = %+v, %v", change, err)
+	}
+	if change, err := library.WriteChange(ctx, WriteRequest{Markdown: "no frontmatter"}); err != nil || change.Fails == nil || change.Name != "" || change.Stale() {
+		t.Fatalf("an unreadable SKILL.md = %+v, %v", change, err)
+	}
+}
+
+func TestWriteChangeNamesABuiltInSkill(t *testing.T) {
+	ctx := context.Background()
+	library, store := newTestLibrary(t)
+	if err := library.Seed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	shipped, err := library.Skill(ctx, "skill-creator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seeded := len(store.writes)
+	change, err := library.WriteChange(ctx, WriteRequest{
+		Markdown: "---\nname: skill-creator\ndescription: Create new skills.\n---\nA skill is a folder of files.\n", Put: map[string]string{"action": "read", "file": "skill-creator"}, BaseRevision: shipped.Revision,
+	})
+	if err != nil || change.Current == nil || change.Current.SeedSHA256 == "" || change.Stale() || change.Fails != nil ||
+		!slices.Equal(changedPaths(change), []string{"modified SKILL.md", "added action", "added file"}) || len(store.writes) != seeded {
+		t.Fatalf("change = %+v, %v; %d writes", change, err, len(store.writes)-seeded)
+	}
+}
+
+func TestImportChangeSaysWhatAStagedPackageWouldDo(t *testing.T) {
+	ctx := context.Background()
+	library, store := newTestLibrary(t)
+	markdown := strings.Replace(ordersSkill, "shop-orders", "pdf", 1)
+	staged, err := library.Stage(ctx, []core.SkillFile{{Path: "pdf/SKILL.md", Content: []byte(markdown)}, {Path: "pdf/scripts/fill.py", Content: []byte("print('fill')")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	change, err := library.ImportChange(ctx, " pdf ", staged.SHA256, 0)
+	if err != nil || change.Name != "pdf" || change.Current != nil || change.Stale() || change.Fails != nil || !slices.Equal(changedPaths(change), []string{"added SKILL.md", "added scripts/fill.py"}) {
+		t.Fatalf("new skill = %+v, %v", change, err)
+	}
+	if change, err := library.ImportChange(ctx, "pdf", strings.Repeat("0", 64), 0); err != nil || !errors.Is(change.Fails, core.ErrSkillPackageNotStaged) || change.Name != "pdf" {
+		t.Fatalf("unknown hash = %+v, %v", change, err)
+	}
+	if change, err := library.ImportChange(ctx, "docx", staged.SHA256, 0); err != nil || change.Fails == nil || !strings.Contains(change.Fails.Error(), "holds skill pdf") || change.Name != "docx" {
+		t.Fatalf("wrong name = %+v, %v", change, err)
+	}
+	if _, ok := store.staged[staged.SHA256]; !ok || len(store.writes) != 0 {
+		t.Fatalf("a change imported the package: staged %v, %d writes", ok, len(store.writes))
+	}
+
+	if _, err := library.ImportStaged(ctx, "pdf", staged.SHA256, 0, "run-1"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := library.Stage(ctx, []core.SkillFile{{Path: "pdf/SKILL.md", Content: []byte(markdown)}, {Path: "pdf/scripts/fill.py", Content: []byte("print('fill all')")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if change, err := library.ImportChange(ctx, "pdf", again.SHA256, 1); err != nil || change.Current == nil || change.Stale() || !slices.Equal(changedPaths(change), []string{"modified scripts/fill.py"}) {
+		t.Fatalf("replacement = %+v, %v", change, err)
+	}
+	if change, err := library.ImportChange(ctx, "pdf", again.SHA256, 0); err != nil || !change.Stale() || len(change.Files) != 0 {
+		t.Fatalf("replacement as a new skill = %+v, %v", change, err)
+	}
+}

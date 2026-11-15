@@ -19,6 +19,7 @@ type PendingActionService struct {
 	store    core.SessionStore
 	resumer  runResumer
 	packages skillPackages
+	changes  tools.SkillChanges
 	news     tools.NewsLoader
 }
 
@@ -45,6 +46,13 @@ func (s *PendingActionService) WithSkillPackages(packages skillPackages) *Pendin
 	return s
 }
 
+// WithSkillChanges says in their detail what a skill_write or skill_import
+// changes in the stored skills.
+func (s *PendingActionService) WithSkillChanges(changes tools.SkillChanges) *PendingActionService {
+	s.changes = changes
+	return s
+}
+
 // WithNews says in their detail which news source a news_source call
 // changes and how a news_sections call changes a section.
 func (s *PendingActionService) WithNews(news tools.NewsLoader) *PendingActionService {
@@ -64,8 +72,8 @@ type PendingActionDetail struct {
 	Reason  string
 	Rule    string
 	// ToolDetail is the whole text a tool approval acts on when its summary
-	// cannot hold it, such as the skill skill_write or skill_import would
-	// store with its package's manifest first.
+	// cannot hold it, such as what a skill_write or skill_import changes in
+	// the stored skills and the skill it would store.
 	ToolDetail string
 }
 
@@ -117,9 +125,10 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 }
 
 // toolDetail is the whole text a tool approval acts on when its summary
-// cannot hold it: the text a files call writes, or the skill a skill_write
-// or skill_import would store, its package's manifest first. A package no
-// longer staged shows as such, and the import fails.
+// cannot hold it: the text a files call writes, or, for a skill_write or
+// skill_import, what the call changes in the stored skills, what its
+// package's manifest runs, the lines it changes and the skill it stores. A
+// write that would fail says why in place of its changes.
 func (s *PendingActionService) toolDetail(ctx context.Context, toolName, arguments string) (string, error) {
 	switch toolName {
 	case "news_source", "news_sections":
@@ -133,24 +142,24 @@ func (s *PendingActionService) toolDetail(ctx context.Context, toolName, argumen
 	default:
 		return "", nil
 	}
-	if s.packages == nil {
-		return "", fmt.Errorf("pending action service: skill packages are required to show %s", toolName)
+	if s.packages == nil || s.changes == nil {
+		return "", fmt.Errorf("pending action service: skill packages and changes are required to show %s", toolName)
 	}
+	change, err := tools.SkillChange(ctx, s.changes, toolName, arguments)
+	if err != nil {
+		return "", err
+	}
+	statement, changedLines := tools.SkillChangeStatement(toolName, change), tools.SkillChangedLines(change)
 	if toolName == "skill_write" {
 		args := skillWriteArgs(arguments)
-		spec, parseErr := skills.Parse(args.Markdown)
 		var kept []byte
-		if parseErr == nil {
-			var err error
-			if kept, err = s.keptManifest(ctx, spec.Name, args); err != nil {
+		if change.Name != "" {
+			if kept, err = s.keptManifest(ctx, change.Name, args); err != nil {
 				return "", err
 			}
 		}
-		detail := skillWriteDetail(args, kept)
-		if parseErr != nil {
-			detail = fmt.Sprintf("SKILL.md does not parse, and the write will fail: %v\n\n%s", parseErr, detail)
-		}
-		return detail, nil
+		files := skillWriteFiles(args)
+		return skillApprovalDetail(statement, packageManifestDetail(files, args.Delete, kept), changedLines, packageText(args.Markdown, files, args.Delete)), nil
 	}
 	var args struct {
 		SHA256 string `json:"sha256"`
@@ -161,11 +170,11 @@ func (s *PendingActionService) toolDetail(ctx context.Context, toolName, argumen
 	pkg, err := s.packages.StagedSkillPackage(ctx, strings.TrimSpace(args.SHA256))
 	switch {
 	case errors.Is(err, core.ErrSkillPackageNotStaged):
-		return fmt.Sprintf("Package %s is not staged; the import will fail.", args.SHA256), nil
+		return statement, nil
 	case err != nil:
 		return "", err
 	}
-	return skillPackageDetail(pkg.Markdown, pkg.Files, nil, nil), nil
+	return skillApprovalDetail(statement, packageManifestDetail(pkg.Files, nil, nil), changedLines, packageText(pkg.Markdown, pkg.Files, nil)), nil
 }
 
 // keptManifest is the manifest a skill_write keeps from its base revision:
