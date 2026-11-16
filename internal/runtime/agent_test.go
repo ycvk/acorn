@@ -29,16 +29,16 @@ func (t namedTool) InvokableRun(context.Context, string, ...einotool.Option) (st
 	return t.name, nil
 }
 
-func TestStableInstructionJoinsPersonaAndRules(t *testing.T) {
-	got := buildStableInstruction("You are Acorn.", "")
-	if got != "You are Acorn.\n\n"+operatingRules {
+func TestStableInstructionIsTheOperatingRules(t *testing.T) {
+	got := buildStableInstruction("")
+	if got != operatingRules {
 		t.Fatalf("instruction = %s", got)
 	}
 }
 
 func TestStableInstructionNamesTheOwner(t *testing.T) {
-	got := buildStableInstruction("You are Acorn.", " 温遥 ")
-	want := "You are Acorn.\n\nThe owner is 温遥. In sources with speaker \"owner\", \"I\" and \"me\" refer to 温遥; other sources and questions may name the owner 温遥.\n\n" + operatingRules
+	got := buildStableInstruction(" 温遥 ")
+	want := "The owner is 温遥. In sources with speaker \"owner\", \"I\" and \"me\" refer to 温遥; other sources and questions may name the owner 温遥.\n\n" + operatingRules
 	if got != want {
 		t.Fatalf("instruction = %s", got)
 	}
@@ -46,7 +46,7 @@ func TestStableInstructionNamesTheOwner(t *testing.T) {
 
 func TestBuildAgentHandlersOrder(t *testing.T) {
 	deps := handlerTestDeps(config.DefaultConfig())
-	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Instruction: "You are Acorn.", Memory: &runMemory{}, Settings: settings.Defaults(), Reports: newSubRunReportMiddleware(nil, nil, &runMemory{}, "run_1")}
+	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Instruction: "Operating rules:", Persona: "You are Acorn.", Memory: &runMemory{}, Settings: settings.Defaults(), Reports: newSubRunReportMiddleware(nil, nil, &runMemory{}, "run_1")}
 
 	handlers, err := buildAgentHandlers(context.Background(), deps, req)
 	if err != nil {

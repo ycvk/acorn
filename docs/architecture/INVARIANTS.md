@@ -113,11 +113,12 @@
   - `internal/runtime/agent_test.go`
   - `internal/wire/approval_restart_e2e_test.go`
   - `internal/config/config_load_test.go`
-- **Instruction = 人格 + 称呼 + 内置规则 + 技能说明**：人格是 run 开始时的当前人格，有称呼时其后一句说明 owner 是谁；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
+- **Instruction = 称呼 + 内置规则 + 技能说明，人格在每次模型调用的最后**：有称呼时 Instruction 先用一句话说明 owner 是谁；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。人格是 run 开始时的当前人格，每次模型调用都把它作为最后一条消息放在 `<presence>` 之后，不写回 agent state，所以不管前面有多少工具输出和历史，模型动笔前最后读到的都是人格。这些都不参与总结。context 快照记录 skill middleware 追加之后的 Instruction、`<presence>` 与人格。
   - `internal/runtime/agent_test.go`
+  - `internal/runtime/presence_test.go`
   - `internal/runtime/skill_backend_test.go`
   - `internal/wire/persona_e2e_test.go`
-- **临时上下文有独立预算和来源**：每次模型调用追加 `<memory_context>` 与 `<presence>`；保存上下文快照及 source/record 引用。近期原文与线程摘要按 token 选择,线程摘要占历史预算的八分之一并限制在 1024 到 8192 token 之间（历史预算不足 8192 时取四分之一、不超过 1024），生成的摘要超过该预算即报错,最终模型输入检查容量。念头、关切和约定按各自生命周期显示。
+- **临时上下文有独立预算和来源**：每次模型调用依次追加 `<memory_context>`、`<presence>` 与人格；保存上下文快照及 source/record 引用。近期原文与线程摘要按 token 选择,线程摘要占历史预算的八分之一并限制在 1024 到 8192 token 之间（历史预算不足 8192 时取四分之一、不超过 1024），生成的摘要超过该预算即报错,最终模型输入检查容量。念头、关切和约定按各自生命周期显示。
   - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`
   - `internal/memory/context_test.go`

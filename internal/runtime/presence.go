@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,11 +19,13 @@ import (
 	"github.com/ycvk/acorn/internal/presence"
 )
 
-// presenceMiddleware appends the rendered present as a system message to the
-// input of every model call. The message is not written back to agent state:
-// it never reaches history or summarization, and the unchanged prefix keeps
-// prompt caching across iterations. Each distinct rendering is saved as a
-// context snapshot and referenced by a presence.snapshot event.
+// presenceMiddleware appends the rendered present and then the owner's
+// persona as system messages to the input of every model call, so the persona
+// is the last text before every reply, however much tool output and history
+// come before it. Neither message is written back to agent state: they never
+// reach history or summarization, and the unchanged prefix keeps prompt
+// caching across iterations. Each distinct rendering is saved as a context
+// snapshot and referenced by a presence.snapshot event.
 type presenceMiddleware struct {
 	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
 	store       core.ActivityStore
@@ -37,6 +40,7 @@ type presenceMiddleware struct {
 	inputLimit  int
 	counter     TokenCounter
 	instruction string
+	persona     string
 	runID       string
 	runMemory   *runMemory
 
@@ -44,9 +48,12 @@ type presenceMiddleware struct {
 	lastHash string
 }
 
-func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string, location *time.Location) (*presenceMiddleware, error) {
+func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string, location *time.Location, persona string) (*presenceMiddleware, error) {
 	if location == nil {
 		return nil, errors.New("presence middleware requires a location")
+	}
+	if strings.TrimSpace(persona) == "" {
+		return nil, errors.New("presence middleware requires the persona")
 	}
 	inputBudget, err := deps.Config.InputTokenBudget()
 	if err != nil {
@@ -65,6 +72,7 @@ func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string,
 		location:                          location,
 		maxTokens:                         config.PresenceMaxTokens,
 		counter:                           counter,
+		persona:                           persona,
 		runID:                             runID,
 	}, nil
 }
@@ -112,7 +120,8 @@ func (p *presenceModel) Stream(ctx context.Context, input []*schema.AgenticMessa
 	return p.inner.Stream(ctx, withPresence, opts...)
 }
 
-// withPresence returns a new slice: input followed by the present.
+// withPresence returns a new slice: input followed by the present and the
+// persona.
 func (m *presenceMiddleware) withPresence(ctx context.Context, input []*schema.AgenticMessage) ([]*schema.AgenticMessage, error) {
 	rendered, err := m.render(ctx)
 	if err != nil {
@@ -121,7 +130,7 @@ func (m *presenceMiddleware) withPresence(ctx context.Context, input []*schema.A
 	if err := m.recordSnapshot(ctx, rendered); err != nil {
 		return nil, err
 	}
-	out := make([]*schema.AgenticMessage, 0, len(input)+2)
+	out := make([]*schema.AgenticMessage, 0, len(input)+3)
 	out = append(out, input...)
 	if m.runMemory != nil {
 		memoryText, err := m.runMemory.render(ctx)
@@ -130,7 +139,7 @@ func (m *presenceMiddleware) withPresence(ctx context.Context, input []*schema.A
 		}
 		out = append(out, schema.SystemAgenticMessage(memoryText))
 	}
-	return append(out, schema.SystemAgenticMessage(rendered)), nil
+	return append(out, schema.SystemAgenticMessage(rendered), schema.SystemAgenticMessage(m.persona)), nil
 }
 
 func (m *presenceMiddleware) render(ctx context.Context) (string, error) {
@@ -194,12 +203,13 @@ func (m *presenceMiddleware) conversationWork(ctx context.Context) ([]core.Follo
 func (m *presenceMiddleware) recordSnapshot(ctx context.Context, rendered string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	sum := sha256.Sum256([]byte(m.instruction + "\n" + rendered))
+	content := m.instruction + "\n\n" + rendered + "\n\n" + m.persona
+	sum := sha256.Sum256([]byte(content))
 	hash := hex.EncodeToString(sum[:])
 	if hash == m.lastHash {
 		return nil
 	}
-	if err := m.store.SaveContextSnapshot(ctx, hash, m.instruction+"\n\n"+rendered); err != nil {
+	if err := m.store.SaveContextSnapshot(ctx, hash, content); err != nil {
 		return err
 	}
 	if _, err := m.events.AppendEvent(ctx, m.runID, "presence.snapshot", map[string]any{"hash": hash}); err != nil {

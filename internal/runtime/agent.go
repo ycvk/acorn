@@ -25,6 +25,9 @@ type agentRunnerRequest struct {
 	Skills      *skills.Snapshot
 	SkillDir    string
 	Instruction string
+	// Persona is the owner's persona the run started with; it ends every
+	// model call.
+	Persona     string
 	FailedCalls *failedToolCalls
 	// Settings are the owner's settings the run started with.
 	Settings core.Settings
@@ -143,7 +146,13 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	inputBudget -= req.Memory.budget + 64
+	// The persona is appended to every call outside agent state, so
+	// summarization does not count it.
+	personaTokens, err := counter.CountText(ctx, req.Persona)
+	if err != nil {
+		return nil, err
+	}
+	inputBudget -= req.Memory.budget + personaTokens + 64
 	contextHandlers, err := newContextHandlers(ctx, deps, req.ChatModel, counter, inputBudget)
 	if err != nil {
 		return nil, err
@@ -152,7 +161,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	present, err := newPresenceMiddleware(deps, counter, req.RunID, req.Settings.Location)
+	present, err := newPresenceMiddleware(deps, counter, req.RunID, req.Settings.Location, req.Persona)
 	if err != nil {
 		return nil, err
 	}

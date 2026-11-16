@@ -47,7 +47,7 @@ type runMemory struct {
 	clock       func() time.Time
 }
 
-func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest, instruction string, catalogTokens int, owner ownerFiles) (*runMemory, error) {
+func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest, instruction, persona string, catalogTokens int, owner ownerFiles) (*runMemory, error) {
 	counter, err := NewTokenCounter()
 	if err != nil {
 		return nil, err
@@ -60,7 +60,11 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, err
 	}
-	available -= instructionTokens + catalogTokens + 512
+	personaTokens, err := counter.CountText(ctx, persona)
+	if err != nil {
+		return nil, err
+	}
+	available -= instructionTokens + personaTokens + catalogTokens + 512
 	sources, err := deps.MemoryStore.RunMemorySources(ctx, req.RunID)
 	if err != nil {
 		return nil, err

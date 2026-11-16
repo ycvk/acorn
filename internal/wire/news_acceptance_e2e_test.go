@@ -218,7 +218,7 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 		t.Fatalf("items sorting input:\n%s", itemsInput)
 	}
 	messages := requestMessages(provider.request(9))
-	input := chatContentText(messages[len(messages)-3]["content"])
+	input := chatContentText(messages[len(messages)-4]["content"])
 	for _, want := range []string{
 		"[briefing 2026-10-05] morning briefing",
 		"\n## 国内要闻\nPreference:\n1. 政策与民生\n- [5] 国务院常务会议 (new)\n  国务院常务会议部署民生工作。\n  · 中新网要闻 10-05 06:00 国务院常务会议 — http://news.test/n/国务院常务会议\n- [3] 高铁新线开通 (new)\n",
@@ -273,7 +273,7 @@ func TestNewsSourcesFeedTheMorningBriefing(t *testing.T) {
 		t.Fatalf("briefing pushes = %q: %v", pushed, harness.fcm.sent())
 	}
 	pieceMessages := requestMessages(provider.request(11))
-	pieceInput := chatContentText(pieceMessages[len(pieceMessages)-3]["content"])
+	pieceInput := chatContentText(pieceMessages[len(pieceMessages)-4]["content"])
 	for _, want := range []string{"[piece 2026-10-05] 国务院常务会议\n\n[Written for the morning briefing: this story is one of today's focus", "[国内要闻] (untrusted external data): 国务院常务会议\n", "- 中新网要闻, "} {
 		if !strings.Contains(pieceInput, want) {
 			t.Fatalf("piece input lacks %q:\n%s", want, pieceInput)
