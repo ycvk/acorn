@@ -191,7 +191,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
-	instruction := buildStableInstruction(persona, ownerName.Name)
+	instruction := buildStableInstruction(ownerName.Name)
 	infos := make([]*schema.ToolInfo, 0)
 	for _, spec := range capabilities.catalog.EnabledSpecs() {
 		if spec.Tool != nil {
@@ -225,7 +225,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if owner.storyNotes, err = loadStoryMessageNotes(ctx, f.deps.Stories, req.SessionID); err != nil {
 		return nil, err
 	}
-	mem, err := prepareRunMemory(ctx, f.deps, req, instruction, toolTokens, owner)
+	mem, err := prepareRunMemory(ctx, f.deps, req, instruction, persona, toolTokens, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +239,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		Skills:      capabilities.skillSnapshot,
 		SkillDir:    capabilities.skillDir,
 		Instruction: instruction,
+		Persona:     persona,
 		FailedCalls: failed,
 		Settings:    settings,
 		Reports:     reports,
@@ -286,10 +287,11 @@ type ActiveRunner struct {
 	Reports     *subRunReportMiddleware
 }
 
-// operatingRules follow the owner's persona in every instruction. They cover
-// how to use the runtime's tools; the persona covers who the agent is.
+// operatingRules are every run's instruction, after the owner's name. They
+// cover how to use the runtime's tools; the owner's persona, which ends every
+// model call, covers who the agent is and how it writes.
 const operatingRules = `Operating rules:
-- The <presence> block gives current time, wake reason, commitments, open thoughts and concerns. The <memory_context> block contains sourced memories and current_run_sources; use those source IDs when recording changes.
+- The <presence> block gives current time, wake reason, commitments, open thoughts and concerns. The <memory_context> block contains sourced memories and current_run_sources; use those source IDs when recording changes. The owner's persona follows them at the end: who you are and how you write to the owner.
 - Owner messages are automatically processed into sourced memory. Use keep when explicitly asked to remember something immediately, quoting the current owner source exactly. Use think for sourced hypotheses and questions.
 - owner_portrait in <memory_context> is what you have gathered about the owner across conversations, refreshed every night from their own words. Let it shape how you help without reciting it; it can be out of date, and the owner reviews it in the app.
 - When something should happen later, make a commitment with schedule_wake. You will wake in this conversation with the task as input.
@@ -328,9 +330,8 @@ func ownerIdentity(name string) string {
 	return fmt.Sprintf("The owner is %[1]s. In sources with speaker \"owner\", \"I\" and \"me\" refer to %[1]s; other sources and questions may name the owner %[1]s.", name)
 }
 
-func buildStableInstruction(base, ownerName string) string {
+func buildStableInstruction(ownerName string) string {
 	parts := []string{
-		strings.TrimSpace(base),
 		ownerIdentity(ownerName),
 		strings.TrimSpace(operatingRules),
 	}

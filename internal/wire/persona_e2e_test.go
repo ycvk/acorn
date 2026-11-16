@@ -41,7 +41,19 @@ func TestTheNextRunSpeaksWithTheSavedPersona(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(body), "你是小橡，说话像老朋友。") || strings.Contains(string(body), "You are Acorn, the owner") {
-		t.Fatalf("run instruction does not carry the saved persona: %s", body)
+		t.Fatalf("run does not carry the saved persona: %s", body)
+	}
+	messages, _ := requests[0]["messages"].([]any)
+	if len(messages) < 2 {
+		t.Fatalf("model request messages = %v", messages)
+	}
+	first, _ := messages[0].(map[string]any)
+	last, _ := messages[len(messages)-1].(map[string]any)
+	if first["role"] != "system" || strings.Contains(chatContentText(first["content"]), "你是小橡") {
+		t.Fatalf("the instruction must not carry the persona: %v", first)
+	}
+	if last["role"] != "system" || chatContentText(last["content"]) != "你是小橡，说话像老朋友。" {
+		t.Fatalf("the model call must end with the persona: %v", last)
 	}
 
 	reopened, err := NewContainer(ctx, cfg)

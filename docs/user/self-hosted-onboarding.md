@@ -316,7 +316,7 @@ acorn persona show
 acorn persona set my-persona.md
 ```
 
-Every save is a new revision on top of the one it replaces and fails when the persona changed in the meantime. A persona is trimmed, must not be empty and holds at most 8 KiB, because it goes into every model call. The agent cannot change it; preferences you tell it in conversation become memories.
+Every save is a new revision on top of the one it replaces and fails when the persona changed in the meantime. A persona is trimmed, must not be empty and holds at most 8 KiB, because it goes into every model call: it comes last, after the conversation and the results of the tools the agent used, so how it tells the agent to write is the last thing it reads before it replies. The agent cannot change it; preferences you tell it in conversation become memories.
 
 The app asks what Acorn should call you when it first connects and opens only once you answer. Change the name later in the app, under 设置 → Acorn → 怎么称呼你, or on the server:
 

@@ -10,7 +10,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// MaxPersonaBytes bounds the persona, which enters every run's instruction.
+// MaxPersonaBytes bounds the persona, which ends every model call.
 const MaxPersonaBytes = 8 << 10
 
 // DefaultPersona is the release's first persona revision. The owner edits it

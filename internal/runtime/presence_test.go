@@ -92,6 +92,8 @@ func (s *memPresenceStore) snapshotEvents() int {
 
 var presenceNow = time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC)
 
+const testPersona = "You are Acorn. 写给 owner 的话用白话。"
+
 func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceMiddleware {
 	t.Helper()
 	counter, err := NewTokenCounter()
@@ -111,6 +113,7 @@ func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceM
 		maxTokens:                         2000,
 		inputLimit:                        200000,
 		counter:                           counter,
+		persona:                           testPersona,
 		runID:                             "run_1",
 	}
 }
@@ -139,7 +142,17 @@ func countPresence(messages []*schema.AgenticMessage) int {
 	return n
 }
 
-func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
+func countPersona(messages []*schema.AgenticMessage) int {
+	n := 0
+	for _, msg := range messages {
+		if strings.Contains(messageText(msg), testPersona) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestPresenceAndPersonaEndEveryCallAndStayOutOfState(t *testing.T) {
 	store := newMemPresenceStore()
 	store.items = append(store.items, core.MemoryRecord{ID: "morning", Kind: "thought", State: "open", Content: "我喜欢早上看新闻", UpdatedAt: presenceNow})
 	model := &scriptedModel{replies: []*schema.AgenticMessage{
@@ -150,7 +163,7 @@ func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
 	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:        "presence_test",
 		Description: "presence test agent",
-		Instruction: "You are Acorn.",
+		Instruction: "Operating rules.",
 		Model:       model,
 		ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{
 			Tools:               []einotool.BaseTool{thinkTool{store: store}},
@@ -173,17 +186,24 @@ func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
 	}
 	for i, input := range model.inputs {
 		last := input[len(input)-1]
-		if last.Role != schema.AgenticRoleTypeSystem || !strings.HasPrefix(messageText(last), "<presence>") {
-			t.Fatalf("call %d: last message = %s %q, want the present", i, last.Role, messageText(last))
+		if last.Role != schema.AgenticRoleTypeSystem || messageText(last) != testPersona {
+			t.Fatalf("call %d: last message = %s %q, want the persona", i, last.Role, messageText(last))
+		}
+		present := input[len(input)-2]
+		if present.Role != schema.AgenticRoleTypeSystem || !strings.HasPrefix(messageText(present), "<presence>") {
+			t.Fatalf("call %d: message before the persona = %s %q, want the present", i, present.Role, messageText(present))
 		}
 		if got := countPresence(input); got != 1 {
 			t.Fatalf("call %d carries %d presence blocks; earlier ones leaked into state", i, got)
 		}
-		if !strings.Contains(messageText(last), "Woken by: commitment #9") || !strings.Contains(messageText(last), "我喜欢早上看新闻") {
-			t.Fatalf("call %d present = %q", i, messageText(last))
+		if got := countPersona(input); got != 1 {
+			t.Fatalf("call %d carries the persona %d times; it must end the call only", i, got)
+		}
+		if !strings.Contains(messageText(present), "Woken by: commitment #9") || !strings.Contains(messageText(present), "我喜欢早上看新闻") {
+			t.Fatalf("call %d present = %q", i, messageText(present))
 		}
 	}
-	if !strings.Contains(messageText(model.inputs[1][len(model.inputs[1])-1]), `noted {"x":1}`) {
+	if !strings.Contains(messageText(model.inputs[1][len(model.inputs[1])-2]), `noted {"x":1}`) {
 		t.Fatal("second call must see the thought written by the tool")
 	}
 	if got := store.snapshotEvents(); got != 2 || len(store.snapshots) != 2 {
@@ -200,15 +220,23 @@ func TestPresenceSnapshotOnlyWhenRenderChanges(t *testing.T) {
 		if err != nil {
 			t.Fatalf("with presence: %v", err)
 		}
-		if len(out) != 2 || len(input) != 1 {
-			t.Fatalf("presence must be appended to a copy: out=%d input=%d", len(out), len(input))
+		if len(out) != 3 || len(input) != 1 {
+			t.Fatalf("presence and persona must be appended to a copy: out=%d input=%d", len(out), len(input))
 		}
 		if !strings.Contains(messageText(out[1]), "Woken by: owner message") {
 			t.Fatalf("default wake missing: %q", messageText(out[1]))
 		}
+		if messageText(out[2]) != testPersona {
+			t.Fatalf("last message = %q, want the persona", messageText(out[2]))
+		}
 	}
 	if got := store.snapshotEvents(); got != 1 {
 		t.Fatalf("snapshot events = %d, want 1 for an unchanged present", got)
+	}
+	for _, content := range store.snapshots {
+		if !strings.HasSuffix(content, "\n\n"+testPersona) {
+			t.Fatalf("snapshot must end with the persona the call ends with: %q", content)
+		}
 	}
 }
 

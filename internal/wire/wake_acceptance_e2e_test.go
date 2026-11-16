@@ -283,12 +283,12 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	if !sawWakeInput {
 		t.Fatalf("wake run input missing from the model request: %v", messages)
 	}
-	last := messages[len(messages)-1]
-	present := fmt.Sprint(last["content"])
-	if last["role"] != "system" || !strings.Contains(present, "<presence>") ||
+	presentMessage := messages[len(messages)-2]
+	present := fmt.Sprint(presentMessage["content"])
+	if presentMessage["role"] != "system" || !strings.Contains(present, "<presence>") ||
 		!strings.Contains(present, "Woken by: commitment #1: 提醒 owner 看 X") ||
 		!strings.Contains(present, "#1 occurrence #1") {
-		t.Fatalf("last message is not the presence with the woken commitment: %v", last)
+		t.Fatalf("the message before the persona is not the presence with the woken commitment: %v", presentMessage)
 	}
 
 	history, err := second.threads.ListMessages(ctx, thread.ID, 20)

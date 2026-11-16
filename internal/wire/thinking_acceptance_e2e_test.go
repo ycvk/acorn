@@ -111,7 +111,7 @@ func TestThinkingBriefingReplyReachesNowAndPush(t *testing.T) {
 	}
 	waitNewRun(t, c, brief, "")
 	msgs := requestMessages(provider.request(0))
-	input := chatContentText(msgs[len(msgs)-3]["content"])
+	input := chatContentText(msgs[len(msgs)-4]["content"])
 	if !strings.Contains(input, "Commitments today") || !strings.Contains(input, "交电费") {
 		t.Fatalf("briefing=%s", input)
 	}
