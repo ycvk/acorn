@@ -138,6 +138,43 @@ func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
 	}
 }
 
+func TestWebFetchToolSendsAPageJavaScriptBuildsToTheBrowser(t *testing.T) {
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
+	if err != nil {
+		t.Fatalf("corestore.NewArtifactService: %v", err)
+	}
+	fetchService, err := webaccess.NewFetchService(webaccess.FetchConfig{
+		UserAgent:        "Acorn test",
+		Timeout:          time.Second,
+		MaxResponseBytes: 1024 * 1024,
+		Policy: webaccess.URLPolicy{Resolver: toolWebFetchResolver{
+			"example.com": {"93.184.216.34"},
+		}},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"text/html; charset=utf-8"}},
+				Body: io.NopCloser(strings.NewReader(`<!doctype html>
+<html><head><title>BazaarPlusPlus</title><script type="module" src="/assets/index-7d1e.js"></script></head>
+<body><div id="root"></div></body></html>`)),
+				Request: req,
+			}, nil
+		})},
+	})
+	if err != nil {
+		t.Fatalf("webaccess.NewFetchService: %v", err)
+	}
+	fetchTool, err := buildWebFetchTool(fetchService, artifactService, fixedArtifactContext{runID: "run_web", sessionID: "session_web", callID: "call_web"})
+	if err != nil {
+		t.Fatalf("buildWebFetchTool: %v", err)
+	}
+	tool := mustToolByName(t, []einotool.BaseTool{fetchTool}, "web_fetch")
+	_, err = tool.InvokableRun(context.Background(), `{"url":"https://example.com/download"}`)
+	if !errors.Is(err, webaccess.ErrNoText) || !strings.Contains(err.Error(), "JavaScript") || !strings.Contains(err.Error(), "open it with the browser skill") {
+		t.Fatalf("web_fetch error = %v, want one that names JavaScript and the browser skill", err)
+	}
+}
+
 func TestInlineMarkdownCutsBeforeACharacterAndPointsAtTheRest(t *testing.T) {
 	page := strings.Repeat("厄尔尼诺", 2000)
 	inline, next := inlineMarkdown(page, webFetchInlineBytes)

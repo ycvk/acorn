@@ -129,6 +129,9 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService core.ArtifactSer
 			URL:         input.URL,
 			ExtractMode: webaccess.ExtractionMode(strings.TrimSpace(input.ExtractMode)),
 		})
+		if errors.Is(err, webaccess.ErrNoText) {
+			return WebFetchOutput{}, fmt.Errorf("the page's HTML has no text, most likely because JavaScript builds it in the browser; open it with the browser skill (%w)", err)
+		}
 		if err != nil {
 			return WebFetchOutput{}, err
 		}

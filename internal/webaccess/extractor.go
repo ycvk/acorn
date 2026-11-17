@@ -23,6 +23,10 @@ const (
 	ExtractionModeVisibleText      ExtractionMode = "visible_text"
 )
 
+// ErrNoText reports an HTML page with no text in it, as a page that
+// JavaScript builds in the browser answers.
+var ErrNoText = errors.New("the page's HTML has no text")
+
 type ExtractRequest struct {
 	URL  string
 	HTML []byte
@@ -134,7 +138,7 @@ func extractFullPageMarkdown(raw []byte, pageURL *url.URL) (ExtractResult, error
 	}
 	trimmed := strings.TrimSpace(markdown)
 	if trimmed == "" {
-		return ExtractResult{}, errors.New("full-page extraction produced empty markdown")
+		return ExtractResult{}, ErrNoText
 	}
 	return ExtractResult{
 		URL:      pageURL.String(),
