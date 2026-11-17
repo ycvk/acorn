@@ -122,6 +122,9 @@ type EditResult struct {
 type RenderRequest struct {
 	URL            string `json:"url"`
 	TimeoutSeconds int    `json:"timeout_seconds"`
+	// AllowPrivateNetworks is the backend's web_access.allow_private_networks:
+	// the page may load from private addresses.
+	AllowPrivateNetworks bool `json:"allow_private_networks,omitempty"`
 }
 
 // RenderResult is a page's HTML after its scripts ran.

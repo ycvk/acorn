@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// ErrBlocked reports a host the policy does not let Acorn reach.
+var ErrBlocked = errors.New("blocked")
+
 type Resolver interface {
 	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
 }
@@ -58,7 +61,7 @@ func (p URLPolicy) Validate(ctx context.Context, raw string) (ValidatedURL, erro
 		return ValidatedURL{Normalized: parsed.String(), Scheme: strings.ToLower(parsed.Scheme), Host: host}, nil
 	}
 	if isLocalhostName(host) {
-		return ValidatedURL{}, fmt.Errorf("blocked localhost host %q", host)
+		return ValidatedURL{}, fmt.Errorf("%w localhost host %q", ErrBlocked, host)
 	}
 
 	ips, err := p.validateHost(ctx, host)
@@ -81,7 +84,7 @@ func (p URLPolicy) validateHost(ctx context.Context, host string) ([]netip.Addr,
 	if ip, err := netip.ParseAddr(host); err == nil {
 		addr := ip.Unmap()
 		if reason := blockedAddrReason(addr, p.AllowPrivateNetworks); reason != "" {
-			return nil, fmt.Errorf("blocked url host %q: %s", host, reason)
+			return nil, fmt.Errorf("%w url host %q: %s", ErrBlocked, host, reason)
 		}
 		return []netip.Addr{addr}, nil
 	}
@@ -105,7 +108,7 @@ func (p URLPolicy) validateHost(ctx context.Context, host string) ([]netip.Addr,
 		}
 		addr = addr.Unmap()
 		if reason := blockedAddrReason(addr, p.AllowPrivateNetworks); reason != "" {
-			return nil, fmt.Errorf("blocked url host %q resolved to %s: %s", host, addr.String(), reason)
+			return nil, fmt.Errorf("%w url host %q resolved to %s: %s", ErrBlocked, host, addr.String(), reason)
 		}
 		addrs = append(addrs, addr)
 	}
@@ -135,7 +138,7 @@ func (p URLPolicy) Dial(dial DialFunc) DialFunc {
 			return dial(ctx, network, address)
 		}
 		if isLocalhostName(host) {
-			return nil, fmt.Errorf("blocked localhost host %q", host)
+			return nil, fmt.Errorf("%w localhost host %q", ErrBlocked, host)
 		}
 		addrs, err := p.validateHost(ctx, host)
 		if err != nil {

@@ -178,10 +178,11 @@ func responseError(path string, status int, body []byte) error {
 	return &HTTPError{Path: path, Status: status, Message: fmt.Sprintf("HTTP %d", status)}
 }
 
-// RenderHTML returns a page's HTML after its scripts ran.
-func (c *Client) RenderHTML(ctx context.Context, target string) (string, error) {
+// RenderHTML returns a page's HTML after its scripts ran; allowPrivate lets
+// the page load from private addresses.
+func (c *Client) RenderHTML(ctx context.Context, target string, allowPrivate bool) (string, error) {
 	var out RenderResult
-	if err := c.call(ctx, http.MethodPost, "/v1/render", RenderRequest{URL: target, TimeoutSeconds: 45}, &out); err != nil {
+	if err := c.call(ctx, http.MethodPost, "/v1/render", RenderRequest{URL: target, TimeoutSeconds: 45, AllowPrivateNetworks: allowPrivate}, &out); err != nil {
 		return "", err
 	}
 	return out.HTML, nil

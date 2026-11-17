@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ycvk/acorn/internal/textedit"
+	"github.com/ycvk/acorn/internal/webaccess"
 )
 
 // Server executes requests inside the workstation. Every request needs the
@@ -34,9 +35,13 @@ type Server struct {
 	token       string
 	refuseLocal bool
 	chromium    string
-	view        *View
-	mcp         *mcpHost
-	jobs        *jobs
+	// renderResolver and renderDial are how the render proxy resolves and
+	// connects; nil renderResolver is the system's.
+	renderResolver webaccess.Resolver
+	renderDial     webaccess.DialFunc
+	view           *View
+	mcp            *mcpHost
+	jobs           *jobs
 }
 
 // ServerConfig sets up a Server. Chromium is the browser that renders pages
@@ -79,7 +84,8 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{home: home, token: token, refuseLocal: cfg.RefuseLocal, chromium: cfg.Chromium, view: cfg.View, mcp: newMCPHost(home, cfg.Supervisor), jobs: jobs}, nil
+	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	return &Server{home: home, token: token, refuseLocal: cfg.RefuseLocal, chromium: cfg.Chromium, renderDial: dialer.DialContext, view: cfg.View, mcp: newMCPHost(home, cfg.Supervisor), jobs: jobs}, nil
 }
 
 // Close stops the running jobs and the skill packages' MCP servers and waits
@@ -446,7 +452,8 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, errors.New("timeout_seconds must be between 1 and 120"))
 		return
 	}
-	html, err := s.dumpDOM(r.Context(), u.String(), time.Duration(req.TimeoutSeconds)*time.Second)
+	policy := webaccess.URLPolicy{AllowPrivateNetworks: req.AllowPrivateNetworks, Resolver: s.renderResolver}
+	html, err := s.dumpDOM(r.Context(), u.String(), policy, time.Duration(req.TimeoutSeconds)*time.Second)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
@@ -455,8 +462,11 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request) {
 }
 
 // dumpDOM runs a throwaway headless browser with its own profile, so pages
-// rendered for watches never see the agent's browser state.
-func (s *Server) dumpDOM(ctx context.Context, target string, timeout time.Duration) (string, error) {
+// rendered for watches never see the agent's browser state. The browser
+// reaches the network only through a proxy that applies policy to the page,
+// its redirects and everything it loads, loopback included; WebRTC sends no
+// UDP outside it. A page that asked for an address policy refuses fails.
+func (s *Server) dumpDOM(ctx context.Context, target string, policy webaccess.URLPolicy, timeout time.Duration) (string, error) {
 	profile, err := os.MkdirTemp("", "acorn-render-*")
 	if err != nil {
 		return "", err
@@ -464,20 +474,32 @@ func (s *Server) dumpDOM(ctx context.Context, target string, timeout time.Durati
 	defer os.RemoveAll(profile)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	proxy, err := startRenderProxy(ctx, policy, s.renderDial)
+	if err != nil {
+		return "", err
+	}
 	budget := strconv.Itoa(int(timeout.Milliseconds() / 2))
 	cmd := exec.CommandContext(ctx, s.chromium, "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
-		"--no-first-run", "--user-data-dir="+profile, "--virtual-time-budget="+budget, "--dump-dom", target)
+		"--no-first-run", "--user-data-dir="+profile, "--proxy-server=http://"+proxy.Addr(), "--proxy-bypass-list=<-loopback>",
+		"--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--virtual-time-budget="+budget, "--dump-dom", target)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 2 * time.Second
 	stdout := newCappedBuffer(maxRenderBytes)
 	stderr := newCappedBuffer(4096)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
-	if err := cmd.Run(); err != nil {
+	err = cmd.Run()
+	if closeErr := proxy.Close(); closeErr != nil {
+		return "", fmt.Errorf("render %s: %w", target, closeErr)
+	}
+	if err != nil {
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("render %s: timed out after %s", target, timeout)
 		}
 		return "", fmt.Errorf("render %s: %w: %s", target, err, strings.TrimSpace(stderr.String()))
+	}
+	if refused := proxy.Refused(); len(refused) > 0 {
+		return "", fmt.Errorf("render %s: the page reached for hosts the URL policy refuses: %s", target, strings.Join(refused, ", "))
 	}
 	if stdout.Truncated() {
 		return "", fmt.Errorf("render %s: page is larger than %d bytes", target, maxRenderBytes)
