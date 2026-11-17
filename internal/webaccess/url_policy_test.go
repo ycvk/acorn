@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 type fakeResolver map[string][]string
@@ -165,5 +169,57 @@ func TestURLPolicyReachesOnlyTheOriginOfATrustedBaseURL(t *testing.T) {
 	}
 	if _, err := (URLPolicy{Trusted: []string{"rsshub"}}).Validate(context.Background(), "http://127.0.0.1:1200/"); err == nil || !strings.Contains(err.Error(), "trusted base url") {
 		t.Fatalf("a relative trusted url err = %v", err)
+	}
+}
+
+// rebinding answers a public address the first time a name is looked up and
+// loopback after that, as a DNS rebinding attacker's server does.
+type rebinding struct {
+	mu      sync.Mutex
+	lookups map[string]int
+}
+
+func (r *rebinding) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lookups[host]++
+	if r.lookups[host] == 1 {
+		return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
+	}
+	return []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, nil
+}
+
+func TestFetchChecksTheAddressItConnectsTo(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/hop" {
+			http.Redirect(w, r, "http://rebind.test:"+r.Host[strings.LastIndex(r.Host, ":")+1:]+"/inside", http.StatusFound)
+			return
+		}
+		_, _ = w.Write([]byte("inside"))
+	}))
+	defer server.Close()
+	port := server.URL[strings.LastIndex(server.URL, ":")+1:]
+	fetcher := func(resolver Resolver) *FetchService {
+		service, err := NewFetchService(FetchConfig{
+			UserAgent:        "Acorn test",
+			Timeout:          2 * time.Second,
+			MaxResponseBytes: 1 << 20,
+			Policy:           URLPolicy{Resolver: resolver, Trusted: []string{server.URL}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return service
+	}
+
+	got, err := fetcher(fakeResolver{}).FetchRaw(context.Background(), server.URL+"/trusted", nil)
+	if err != nil || string(got.Body) != "inside" {
+		t.Fatalf("trusted origin = %q, %v", got.Body, err)
+	}
+	for _, target := range []string{"http://rebind.test:" + port + "/inside", server.URL + "/hop"} {
+		_, err := fetcher(&rebinding{lookups: map[string]int{}}).FetchRaw(context.Background(), target, nil)
+		if err == nil || !strings.Contains(err.Error(), `blocked url host "rebind.test" resolved to 127.0.0.1: loopback_address`) {
+			t.Fatalf("FetchRaw(%s) error = %v, want the loopback address refused", target, err)
+		}
 	}
 }

@@ -339,7 +339,7 @@
   - `internal/store/store_watch_test.go`
   - `internal/tools/watch_tools_test.go`
   - `internal/webaccess/feed_test.go`
-- **抓取只经 URL policy**：feed、GitHub、网页与 `feed_discover` 试探的地址都经 `webaccess.FetchRaw`（与 `web_fetch` 共用超时与大小上限），渲染页面经浏览器服务的 policy；loopback 与未放开的内网地址拒绝，唯一例外是追踪用的 policy 放行 `watch.rsshub_base_url` 的 origin（协议、主机与端口），`web_fetch` 与视图链接不放行。
+- **抓取只经 URL policy**：feed、GitHub、网页与 `feed_discover` 试探的地址都经 `webaccess.FetchRaw`（与 `web_fetch` 共用超时与大小上限），渲染页面经浏览器服务的 policy；loopback 与未放开的内网地址拒绝，唯一例外是追踪用的 policy 放行 `watch.rsshub_base_url` 的 origin（协议、主机与端口），`web_fetch` 与视图链接不放行。抓取直连，不经环境变量里的代理；每次建立连接时再解析一次主机，每个地址都要过 policy，只连这些检查过的地址，重定向同样如此，校验与连接之间换了解析结果（DNS rebinding）的主机连不上。
   - `internal/watch/watch_test.go`
   - `internal/webaccess/discover_test.go`
   - `internal/webaccess/url_policy_test.go`

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -78,7 +79,7 @@ func NewFetchService(cfg FetchConfig) (*FetchService, error) {
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Transport: policyTransport(cfg.Policy)}
 	}
 	return &FetchService{
 		userAgent:        userAgent,
@@ -88,6 +89,21 @@ func NewFetchService(cfg FetchConfig) (*FetchService, error) {
 		httpClient:       client,
 		now:              now,
 	}, nil
+}
+
+// policyTransport connects directly, never through a proxy from the
+// environment, and only to addresses policy allows when each connection is
+// made, redirects included. The rest is http.DefaultTransport's settings.
+func policyTransport(policy URLPolicy) *http.Transport {
+	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	return &http.Transport{
+		DialContext:           policy.Dial(dialer.DialContext),
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	}
 }
 
 func (s *FetchService) Fetch(ctx context.Context, req FetchRequest) (FetchResult, error) {

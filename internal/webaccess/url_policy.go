@@ -112,6 +112,61 @@ func (p URLPolicy) validateHost(ctx context.Context, host string) ([]netip.Addr,
 	return addrs, nil
 }
 
+// DialFunc opens a network connection, as net.Dialer.DialContext does.
+type DialFunc func(ctx context.Context, network, address string) (net.Conn, error)
+
+// Dial connects with dial only to addresses the policy allows, checked as
+// the connection is made: the host is resolved again and every address it
+// gives must pass, and the connection goes to those addresses. A name that
+// resolves to a public address when a URL is validated and to a private one
+// when it is fetched (DNS rebinding) is refused. A trusted origin is dialed
+// as it is.
+func (p URLPolicy) Dial(dial DialFunc) DialFunc {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("dial %q: %w", address, err)
+		}
+		trusted, err := p.trustsHost(host, port)
+		if err != nil {
+			return nil, err
+		}
+		if trusted {
+			return dial(ctx, network, address)
+		}
+		if isLocalhostName(host) {
+			return nil, fmt.Errorf("blocked localhost host %q", host)
+		}
+		addrs, err := p.validateHost(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		var errs []error
+		for _, addr := range addrs {
+			conn, err := dial(ctx, network, net.JoinHostPort(addr.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			errs = append(errs, err)
+		}
+		return nil, errors.Join(errs...)
+	}
+}
+
+// trustsHost reports whether host and port are those of a trusted base URL.
+func (p URLPolicy) trustsHost(host, port string) (bool, error) {
+	for _, raw := range p.Trusted {
+		base, err := url.Parse(raw)
+		if err != nil || base.Host == "" {
+			return false, fmt.Errorf("trusted base url %q is not an absolute url", raw)
+		}
+		if strings.EqualFold(base.Hostname(), host) && originPort(base) == port {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // trusts reports whether u has the origin of a trusted base URL.
 func (p URLPolicy) trusts(u *url.URL) (bool, error) {
 	for _, raw := range p.Trusted {
@@ -128,12 +183,15 @@ func (p URLPolicy) trusts(u *url.URL) (bool, error) {
 
 // origin is a URL's scheme, host and port, with the scheme's default port.
 func origin(u *url.URL) string {
-	scheme := strings.ToLower(u.Scheme)
-	port := u.Port()
-	if port == "" {
-		port = map[string]string{"http": "80", "https": "443"}[scheme]
+	return strings.ToLower(u.Scheme) + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), originPort(u))
+}
+
+// originPort is a URL's port, or its scheme's default port.
+func originPort(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
 	}
-	return scheme + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), port)
+	return map[string]string{"http": "80", "https": "443"}[strings.ToLower(u.Scheme)]
 }
 
 func isLocalhostName(host string) bool {
