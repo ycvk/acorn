@@ -72,6 +72,19 @@ class ThreadSnapshotsTest {
     }
 
     @Test
+    fun `a copy that cannot be written leaves no older one on the phone`() {
+        val snapshots = ThreadSnapshots(dir)
+        snapshots.write(phone, "thread_1", "t", listOf(message("m1", "旧")))
+        // The next write's temporary file cannot be made, as on a full disk.
+        File(dir, "thread_1.json.new").mkdir()
+
+        snapshots.write(phone, "thread_1", "t", listOf(message("m1", "旧"), message("m2", "新")))
+
+        assertEquals(listOf("m1", "m2"), snapshots.remembered(phone, "thread_1")!!.messages.map { it.id })
+        assertNull(ThreadSnapshots(dir).read(phone, "thread_1"))
+    }
+
+    @Test
     fun `a deleted conversation's copy goes, from memory and from the phone`() {
         val snapshots = ThreadSnapshots(dir)
         snapshots.write(phone, "thread_1", "t", listOf(message("m1", "a")))
