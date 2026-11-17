@@ -49,8 +49,8 @@ import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.arrive
+import io.ycvk.acorn.core.ui.linkHost
 import io.ycvk.acorn.core.ui.rememberArrival
-import java.net.URI
 import java.time.OffsetDateTime
 
 @Composable
@@ -163,7 +163,7 @@ private fun NoteBody(note: KnowledgeNote, modifier: Modifier = Modifier) {
                 Icon(Icons.Outlined.Link, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    runCatching { URI(source).host }.getOrNull() ?: source,
+                    linkHost(source),
                     style = AcornTheme.type.footnote,
                     color = colors.inkSoft,
                     maxLines = 1,

@@ -57,8 +57,8 @@ import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.core.ui.clockTime
+import io.ycvk.acorn.core.ui.linkHost
 import kotlinx.coroutines.delay
-import java.net.URI
 import java.time.ZoneId
 
 /**
@@ -219,7 +219,7 @@ private fun SourceLink(url: String) {
         Icon(Icons.Outlined.Link, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
         Text(
-            "原文 · ${sourceHost(url)}",
+            "原文 · ${linkHost(url)}",
             style = AcornTheme.type.footnote,
             color = colors.inkSoft,
             maxLines = 1,
@@ -227,10 +227,6 @@ private fun SourceLink(url: String) {
         )
     }
 }
-
-/** A link's host without a leading "www.", or the link itself when it has none. */
-fun sourceHost(url: String): String =
-    runCatching { URI(url).host }.getOrNull()?.removePrefix("www.")?.takeIf { it.isNotEmpty() } ?: url
 
 /** Something the owner asks of a story, on or off: a tinted pill when on. Following is on until the owner ends it in the conversation. */
 @Composable

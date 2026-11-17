@@ -148,11 +148,4 @@ class NowLabelsTest {
         assertEquals("让 Acorn 展开讲讲", storyAskLabel(brief))
         assertEquals("接着问这件事", storyAskLabel(brief.copy(threadId = "thread_story")))
     }
-
-    @Test
-    fun `a source link is named by its host`() {
-        assertEquals("chinanews.com.cn", sourceHost("https://www.chinanews.com.cn/sh/2026/11-09/10728761.shtml"))
-        assertEquals("daily.ai225.com", sourceHost("https://daily.ai225.com/daily/2026-11-10"))
-        assertEquals("not a link", sourceHost("not a link"))
-    }
 }
