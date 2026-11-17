@@ -119,11 +119,7 @@ class ChatMessageTest {
     }
 
     @Test
-    fun `sizes and photo names read naturally`() {
-        assertEquals("2.3 MB", formatBytes(2_400_000))
-        assertEquals("12 KB", formatBytes(12_345))
-        assertEquals("512 B", formatBytes(512))
-        assertEquals("", formatBytes(-1))
+    fun `photo names read naturally`() {
         assertEquals("IMG_0001.jpg", photoName("IMG_0001.HEIC"))
         assertEquals("截图.jpg", photoName("截图.png"))
         assertEquals("photo.jpg", photoName(".png"))

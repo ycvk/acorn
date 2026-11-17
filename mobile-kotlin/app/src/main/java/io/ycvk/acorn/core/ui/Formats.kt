@@ -6,6 +6,7 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private val clock = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -39,6 +40,14 @@ fun listTime(at: OffsetDateTime, today: LocalDate, zone: ZoneId): String {
         date.year == today.year -> "${date.monthValue}月${date.dayOfMonth}日"
         else -> "${date.year}年${date.monthValue}月${date.dayOfMonth}日"
     }
+}
+
+/** A size such as 2.3 MB, or blank when unknown. */
+fun formatBytes(bytes: Long): String = when {
+    bytes < 0 -> ""
+    bytes >= 1L shl 20 -> String.format(Locale.ROOT, "%.1f MB", bytes / 1048576.0)
+    bytes >= 1L shl 10 -> String.format(Locale.ROOT, "%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
 }
 
 /** How long ago: "刚刚", "5 分钟前", "3 小时前", "2 天前", or a date. */

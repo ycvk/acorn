@@ -63,6 +63,7 @@ import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.StatusDot
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.core.ui.arrive
+import io.ycvk.acorn.core.ui.formatBytes
 import io.ycvk.acorn.core.ui.rememberArrival
 import java.time.OffsetDateTime
 
@@ -336,7 +337,7 @@ internal fun SkillFiles(files: List<SkillFile>) {
             ) {
                 Text(file.path, style = AcornTheme.type.mono, color = colors.ink, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(10.dp))
-                Text(fileSize(file.propertySize), style = AcornTheme.type.caption, color = colors.inkFaint)
+                Text(formatBytes(file.propertySize), style = AcornTheme.type.caption, color = colors.inkFaint)
             }
             AnimatedVisibility(open == file.path) {
                 val content = file.content
