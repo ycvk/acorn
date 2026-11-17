@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -28,7 +29,8 @@ type Feed struct {
 }
 
 // FeedItem is one feed entry. Key is its guid or id (see entryID), else its
-// link, else a hash of its title and date; Summary is plain text.
+// link, else a hash of its title and date; URL is its link when that is an
+// http or https address, else empty; Summary is plain text.
 type FeedItem struct {
 	Key         string
 	Title       string
@@ -172,6 +174,7 @@ func feedEntry(id, link, title, summary, published string) FeedItem {
 		sum := sha256.Sum256([]byte(title + "\x00" + published))
 		key = hex.EncodeToString(sum[:16])
 	}
+	link = webLink(link)
 	return FeedItem{
 		Key:         key,
 		Title:       firstNonEmpty(title, link, "(untitled)"),
@@ -194,6 +197,17 @@ func entryID(id string) string {
 		return id
 	}
 	return base
+}
+
+// webLink is link when it is an absolute http or https address, else empty:
+// an entry's link reaches the briefing and the owner's phone, and a feed can
+// put any scheme there.
+func webLink(link string) string {
+	u, err := url.Parse(link)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ""
+	}
+	return link
 }
 
 func atomHref(links []atomLink) string {

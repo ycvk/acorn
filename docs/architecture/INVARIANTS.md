@@ -334,7 +334,7 @@
   - `internal/notify/notify_test.go`
   - `internal/store/store_push_action_test.go`
   - `internal/store/store_owner_messages_test.go`
-- **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；订阅源条目的 key 是 guid 或 id，它是带纯数字片段的 http(s) 地址时去掉片段（BBC 以 `#0`、`#1` 记文章的修订），条目改版不算新条目。网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
+- **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；订阅源条目的 key 是 guid 或 id，它是带纯数字片段的 http(s) 地址时去掉片段（BBC 以 `#0`、`#1` 记文章的修订），条目改版不算新条目。条目的链接只留绝对的 http(s) 地址，别的协议与相对地址的链接不进条目（key 照旧可以取它），因为链接会进早安卡和 owner 的手机。网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/tools/watch_tools_test.go`
