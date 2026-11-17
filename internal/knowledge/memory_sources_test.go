@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/redact"
 )
 
 func TestKnowledgeRevisionsAreSourcesAndDerivedExclusion(t *testing.T) {
@@ -67,5 +69,40 @@ func TestKnowledgeRevisionsAreSourcesAndDerivedExclusion(t *testing.T) {
 	// A later revision is an independently attributed source.
 	if _, err = db.LoadMemorySource(ctx, b.ID); err != nil {
 		t.Fatalf("independent revision hidden: %v", err)
+	}
+}
+
+func TestAgentReadsHideAQuoteOfMemorysRedactedText(t *testing.T) {
+	ctx := context.Background()
+	v := openTestVault(t)
+	db := v.db
+	note, err := v.Write(ctx, WriteNote{Path: "bank.md", Title: "银行", Body: "我的验证码是 482913，开户行在杭州"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := core.KnowledgeSourceID(note.Path, note.Revision)
+	// Memory shows the note with the code redacted; the owner forgets a fact
+	// whose evidence quotes that text.
+	facts, err := db.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "fact", Content: "owner 收到一个验证码",
+		Evidence: []core.MemoryEvidence{{SourceID: id, Quote: "我的验证码是 [REDACTED:otp]"}}}, Reason: "note"}}, Now: v.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: "owner:forget-code", Kind: "standalone", ObjectID: "forget-code", Version: "1", Speaker: "owner", Body: "忘掉验证码", RecordedAt: v.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{facts[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: v.now.Add(time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	view := &MemoryView{Vault: v.Vault, Store: db}
+	want := redact.ExcludedPlaceholder + "，开户行在杭州"
+	got, err := view.Read(ctx, "bank.md")
+	if err != nil || got.Body != want {
+		t.Fatalf("agent read = %q, %v, want %q", got.Body, err, want)
+	}
+	hits, err := view.Search(ctx, "杭州", 10)
+	if err != nil || len(hits) != 1 || hits[0].Snippet != want {
+		t.Fatalf("agent search = %+v, %v", hits, err)
 	}
 }
