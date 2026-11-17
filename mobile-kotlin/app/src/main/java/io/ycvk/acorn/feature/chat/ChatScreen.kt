@@ -56,13 +56,16 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.Redo
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.QuestionAnswer
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
@@ -509,23 +512,29 @@ private fun Welcome(modifier: Modifier = Modifier) {
 private fun wakeLabel(source: WakeSource) = when (source) {
     WakeSource.Commitment -> "约定提醒"
     WakeSource.Watch -> "追踪有更新"
+    WakeSource.Trigger -> "触发器有新事件"
+    WakeSource.Questions -> "等答案的问题"
     WakeSource.Briefing -> "早安简报"
     WakeSource.Piece -> "简报短文"
     WakeSource.Night -> "夜思"
     WakeSource.Wander -> "游思"
     WakeSource.FollowUp -> "等到结果"
     WakeSource.Goal -> "继续目标"
+    WakeSource.Other -> "Acorn 自己醒来"
 }
 
 private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Commitment -> Icons.Outlined.NotificationsNone
     WakeSource.Watch -> Icons.Outlined.Visibility
+    WakeSource.Trigger -> Icons.Outlined.Bolt
+    WakeSource.Questions -> Icons.Outlined.QuestionAnswer
     WakeSource.Briefing -> Icons.Outlined.WbSunny
     WakeSource.Piece -> Icons.AutoMirrored.Outlined.Article
     WakeSource.Night -> Icons.Outlined.DarkMode
     WakeSource.Wander -> Icons.Outlined.Lightbulb
     WakeSource.FollowUp -> Icons.Outlined.HourglassBottom
     WakeSource.Goal -> Icons.Outlined.Flag
+    WakeSource.Other -> Icons.Outlined.Alarm
 }
 
 /** How long a conversation with nothing to show stays empty before its skeleton appears. */

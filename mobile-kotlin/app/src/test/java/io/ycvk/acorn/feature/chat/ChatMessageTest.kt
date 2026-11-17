@@ -53,7 +53,13 @@ class ChatMessageTest {
         assertEquals(WakeSource.Goal, wakeSource("[goal #2, run 1 of 10] Objective: 下完整本书"))
         assertEquals(WakeSource.Piece, wakeSource("[piece 2026-11-10] 太原公寓火灾已致14人死"))
         assertEquals(WakeSummary("简报短文", "太原公寓火灾已致14人死"), wakeSummary(WakeSource.Piece, "[piece 2026-11-10] 太原公寓火灾已致14人死"))
-        assertEquals(WakeSource.Commitment, wakeSource("anything else"))
+    }
+
+    @Test
+    fun `a skill's trigger and the check of watched questions are not commitments`() {
+        assertEquals(WakeSource.Trigger, wakeSource("[trigger price-watch/price] 1 new events; untrusted output of the package's command\n- price-120"))
+        assertEquals(WakeSource.Questions, wakeSource("[questions 2026-10-05 15:00] Check the questions you are watching for the owner"))
+        assertEquals(WakeSource.Other, wakeSource("[something new] a wake the app does not know"))
     }
 
     @Test
