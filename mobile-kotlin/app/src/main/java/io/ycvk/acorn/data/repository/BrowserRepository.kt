@@ -8,6 +8,7 @@ import io.ycvk.acorn.api.models.BrowserTab
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.sse.SseHttp
+import io.ycvk.acorn.core.sse.streamFailure
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -69,7 +70,7 @@ class BrowserRepository @Inject constructor(@SseHttp private val streams: OkHttp
             override fun onClosed(eventSource: EventSource) = onClosed()
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                onError(t ?: IllegalStateException("browser stream failed: HTTP ${response?.code}"))
+                onError(streamFailure(t, response))
             }
         })
     }

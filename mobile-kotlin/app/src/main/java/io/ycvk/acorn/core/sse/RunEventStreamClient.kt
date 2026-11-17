@@ -109,7 +109,7 @@ class RunEventStreamClient @Inject constructor(@SseHttp client: OkHttpClient) {
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                onError(t ?: RuntimeException("SSE failure: ${response?.code}"))
+                onError(streamFailure(t, response))
             }
         })
     }
