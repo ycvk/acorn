@@ -137,7 +137,8 @@ fun threadPreview(thread: Thread): String? {
     return if (thread.previewRole == Thread.PreviewRole.user) "你：$text" else text
 }
 
-fun threadTitle(thread: Thread): String = thread.title.takeIf { it.isNotBlank() && it != "New Thread" } ?: "新对话"
+/** The thread's title as the server has it; one without a title yet is a new conversation. */
+fun threadTitle(thread: Thread): String = thread.title.ifBlank { "新对话" }
 
 @Composable
 private fun ThreadList(
