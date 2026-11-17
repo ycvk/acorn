@@ -127,7 +127,7 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            "配对码只能用一次，默认 10 分钟内有效。",
+            "配对码只能用一次，在 acorn pair 显示的过期时间之前有效。",
             style = AcornTheme.type.caption,
             color = colors.inkFaint,
             textAlign = TextAlign.Center,
