@@ -137,12 +137,7 @@ class ChatViewModel @Inject constructor(
     /** Bumped when the thread changes or reloads, so an older check of the inbox is dropped. */
     private val loadGeneration = java.util.concurrent.atomic.AtomicLong(0)
 
-    /**
-     * Numbers the chat pages that opened a thread. A page that replaces another
-     * opens before the old one leaves the screen, so leaving acts only for the
-     * page that opened last.
-     */
-    private var page = 0L
+    private val openings = ChatOpenings()
 
     init {
         viewModelScope.launch { follower.updates.collect(::onRunUpdate) }
@@ -150,9 +145,9 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { _threadId.collect(shade::showThread) }
     }
 
-    /** Opens a thread, or a new conversation when [threadId] is null, and returns the page's number for [leave]. */
+    /** Opens a thread, or a new conversation when [threadId] is null, and returns the opening's number for [leave]. */
     fun loadThread(threadId: String?): Long {
-        val opened = ++page
+        val opened = openings.open()
         loadGeneration.incrementAndGet()
         _threadId.value?.let(follower::unwatch)
         _threadId.value = threadId
@@ -161,6 +156,7 @@ class ChatViewModel @Inject constructor(
         _queued.value = emptyList()
         taken.clear()
         _attachments.value = emptyList()
+        _uploading.value = null
         _chatState.value = ChatState()
         _error.value = null
         _loading.value = false
@@ -184,12 +180,12 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * Ends the watch of page [page]'s thread when that page leaves the screen:
-     * a run this phone does not show as a Live Update is followed only while
-     * its conversation is open.
+     * Ends the watch of opening [opening]'s thread when its page leaves the
+     * screen: a run this phone does not show as a Live Update is followed only
+     * while its conversation is open.
      */
-    fun leave(page: Long) {
-        if (page != this.page) return
+    fun leave(opening: Long) {
+        if (!openings.leave(opening)) return
         loadGeneration.incrementAndGet()
         _threadId.value?.let(follower::unwatch)
         _threadId.value = null
@@ -311,7 +307,9 @@ class ChatViewModel @Inject constructor(
     /**
      * Sends the owner's message. While a run of the thread is going the
      * message waits for it, shown queued until a run takes it; otherwise it
-     * starts a run, followed as a Live Update.
+     * starts a run, followed as a Live Update. The server's answer changes
+     * the screen only while the page it was sent from is still open; the run
+     * it starts is followed either way.
      */
     fun sendMessage(text: String) {
         val profile = profile() ?: run {
@@ -337,8 +335,11 @@ class ChatViewModel @Inject constructor(
         }
         _error.value = null
         val title = threadTitleFor(text.ifBlank { attachments.firstOrNull { !it.photo }?.name ?: "图片" })
+        val sentTitle = _threadTitle.value ?: title
         // Shown as sending now, while the app is in front and its Live Update may start.
-        val sendKey = if (busy) null else follower.beginSend(_threadTitle.value ?: title)
+        val sendKey = if (busy) null else follower.beginSend(sentTitle)
+        val opening = openings.current
+        val here = { openings.showing(opening) }
 
         viewModelScope.launch {
             try {
@@ -346,15 +347,17 @@ class ChatViewModel @Inject constructor(
                 val threadId = existing ?: withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientCreateThread(CreateThreadRequest(title = title)).id
                 }.also {
-                    _threadId.value = it
-                    _threadTitle.value = title
-                    follower.watch(it)
+                    if (here()) {
+                        _threadId.value = it
+                        _threadTitle.value = title
+                        follower.watch(it)
+                    }
                 }
                 val fileIds = attachments.mapIndexed { index, attachment ->
-                    _uploading.value = if (attachments.size == 1) "正在上传 ${attachment.name}" else "正在上传 ${index + 1}/${attachments.size}：${attachment.name}"
+                    if (here()) _uploading.value = if (attachments.size == 1) "正在上传 ${attachment.name}" else "正在上传 ${index + 1}/${attachments.size}：${attachment.name}"
                     withContext(Dispatchers.IO) { files.upload(profile, threadId, attachment).id }
                 }
-                _uploading.value = null
+                if (here()) _uploading.value = null
                 val sent = withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientCreateRun(
                         threadId = threadId,
@@ -364,6 +367,7 @@ class ChatViewModel @Inject constructor(
                 val queued = sent.queued
                 if (queued != null) {
                     sendKey?.let(follower::endSend)
+                    if (!here()) return@launch
                     _messages.value = _messages.value - bubble
                     _queued.value = if (queued.id in taken) {
                         _queued.value.filterNot { it.key == waiting.key }
@@ -373,23 +377,26 @@ class ChatViewModel @Inject constructor(
                     // The run it waits for is followed here, as when the app had not seen it start.
                     if (streamingRunId != sent.run.id) {
                         streamingRunId = sent.run.id
-                        follower.follow(profile, sent.run.id, threadId, _threadTitle.value ?: title, live = false)
+                        follower.follow(profile, sent.run.id, threadId, sentTitle, live = false)
                     }
                     return@launch
                 }
-                if (busy) {
-                    // The run ended meanwhile, and the message started the next one.
-                    _queued.value = _queued.value.filterNot { it.key == waiting.key }
-                    _messages.value = _messages.value + bubble
-                    _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                if (here()) {
+                    if (busy) {
+                        // The run ended meanwhile, and the message started the next one.
+                        _queued.value = _queued.value.filterNot { it.key == waiting.key }
+                        _messages.value = _messages.value + bubble
+                        _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                    }
+                    streamingRunId = sent.run.id
                 }
-                streamingRunId = sent.run.id
-                follower.follow(profile, sent.run.id, threadId, _threadTitle.value ?: title, live = true, sendKey = sendKey)
+                follower.follow(profile, sent.run.id, threadId, sentTitle, live = true, sendKey = sendKey)
             } catch (e: CancellationException) {
                 sendKey?.let(follower::endSend)
                 throw e
             } catch (e: Exception) {
                 sendKey?.let(follower::endSend)
+                if (!here()) return@launch
                 _uploading.value = null
                 _messages.value = _messages.value - bubble
                 _queued.value = _queued.value.filterNot { it.key == waiting.key }
@@ -694,6 +701,34 @@ class ChatViewModel @Inject constructor(
         shade.showThread(null)
         super.onCleared()
     }
+}
+
+/**
+ * The openings of the chat screen: each page that opens a conversation is
+ * one until it leaves. A page that replaces another opens before the old one
+ * leaves, so leaving ends an opening only while it is the latest.
+ */
+class ChatOpenings {
+    private var latest = 0L
+    private var shown = false
+
+    /** The latest opening. */
+    val current: Long get() = latest
+
+    fun open(): Long {
+        shown = true
+        return ++latest
+    }
+
+    /** Ends [opening]; false when a later opening has taken its place or it has already ended. */
+    fun leave(opening: Long): Boolean {
+        if (opening != latest || !shown) return false
+        shown = false
+        return true
+    }
+
+    /** Whether [opening] is still the one on screen. */
+    fun showing(opening: Long): Boolean = shown && opening == latest
 }
 
 /** The most files one message sends; the server takes no more. */
