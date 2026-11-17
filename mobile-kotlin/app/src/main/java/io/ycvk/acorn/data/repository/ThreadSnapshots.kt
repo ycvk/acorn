@@ -61,13 +61,21 @@ class ThreadSnapshots(private val dir: File) {
         return snapshot
     }
 
-    /** Keeps what the server just gave for a conversation; blocking. */
+    /**
+     * Keeps what the server just gave for a conversation; blocking. A copy
+     * that cannot be written, on a full disk or a cleared cache, stays in
+     * memory only, and the older one on disk is removed.
+     */
     @Synchronized
     fun write(profile: ConnectionProfile, threadId: String, title: String?, messages: List<Message>) {
         val snapshot = ThreadSnapshot(owner(profile), title, messages)
         recent[threadId] = snapshot
         dir.mkdirs()
-        writeAtomically(file(threadId)) { it.write(adapter.toJson(snapshot).toByteArray(Charsets.UTF_8)) }
+        try {
+            writeAtomically(file(threadId)) { it.write(adapter.toJson(snapshot).toByteArray(Charsets.UTF_8)) }
+        } catch (_: IOException) {
+            file(threadId).delete()
+        }
         files().sortedByDescending { it.lastModified() }.drop(ON_DISK).forEach { it.delete() }
     }
 
