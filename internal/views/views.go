@@ -16,6 +16,11 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	gmtext "github.com/yuin/goldmark/text"
 )
 
 // Catalog is the catalog version views are written in and checked against.
@@ -140,22 +145,70 @@ var actionName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 var componentID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
-// markdownLink finds the targets of inline Markdown links in a Text, and
-// bareLink the addresses the app's Markdown turns into links by themselves.
+// markdown parses a Text as CommonMark, as the app's renderer does; bareLink
+// finds the web addresses the renderer's autolink extension turns into links
+// in plain text (it takes any host, a bare IP address too).
 var (
-	markdownLink = regexp.MustCompile(`\]\(([^)\s]+)\)`)
-	bareLink     = regexp.MustCompile(`(?:https?://|www\.)[^\s<>()\[\]]+`)
+	markdown = goldmark.New(goldmark.WithExtensions(extension.Table, extension.Strikethrough)).Parser()
+	bareLink = regexp.MustCompile(`(?i)(?:https?://|www\.)[^\s<>()\[\]]+`)
 )
 
-// textLinks lists the addresses a Text links to.
-func textLinks(text string) []string {
+// textLinks lists the addresses the app makes links of in a Text: inline and
+// reference links, images (the app shows them as links), autolinks and web
+// addresses in plain text. An email address is not one: the app opens web
+// links only.
+func textLinks(text string) ([]string, error) {
+	source := []byte(text)
 	var links []string
-	for _, m := range markdownLink.FindAllStringSubmatch(text, -1) {
-		links = append(links, m[1])
+	err := ast.Walk(markdown.Parse(gmtext.NewReader(source)), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch n := n.(type) {
+		case *ast.Link:
+			links = append(links, string(n.Destination))
+			return ast.WalkSkipChildren, nil
+		case *ast.Image:
+			links = append(links, string(n.Destination))
+			return ast.WalkSkipChildren, nil
+		case *ast.AutoLink:
+			if n.AutoLinkType == ast.AutoLinkURL {
+				links = append(links, string(n.URL(source)))
+			}
+		case *ast.CodeSpan:
+			return ast.WalkSkipChildren, nil
+		case *ast.Text:
+			if _, continues := n.PreviousSibling().(*ast.Text); !continues {
+				links = append(links, bareLinks(textRun(n, source))...)
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+	return links, err
+}
+
+// textRun is the text of n and the text nodes right after it, which the
+// parser splits at characters that could have started markup.
+func textRun(n *ast.Text, source []byte) string {
+	var run strings.Builder
+	for next := ast.Node(n); next != nil; next = next.NextSibling() {
+		t, ok := next.(*ast.Text)
+		if !ok {
+			break
+		}
+		run.Write(t.Segment.Value(source))
+		if t.SoftLineBreak() || t.HardLineBreak() {
+			run.WriteByte('\n')
+		}
 	}
-	for _, link := range bareLink.FindAllString(markdownLink.ReplaceAllString(text, "]"), -1) {
+	return run.String()
+}
+
+func bareLinks(text string) []string {
+	var links []string
+	for _, link := range bareLink.FindAllString(text, -1) {
 		link = strings.TrimRight(link, `.,;:!?'"`)
-		if strings.HasPrefix(link, "www.") {
+		if strings.HasPrefix(strings.ToLower(link), "www.") {
 			link = "http://" + link
 		}
 		links = append(links, link)
@@ -485,7 +538,11 @@ func (c *checker) walk(id string, scopes []any, where string) {
 			}
 		case propText:
 			if text, ok := c.resolveText(at, name, value, scopes); ok {
-				for _, link := range textLinks(text) {
+				links, err := textLinks(text)
+				if err != nil {
+					c.add(fmt.Sprintf("%s: %s: read the Markdown: %v", at, name, err))
+				}
+				for _, link := range links {
 					c.checkLink(at, name, link)
 				}
 			}

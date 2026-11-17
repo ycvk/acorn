@@ -273,7 +273,7 @@
   - `internal/store/thread_files_test.go`
   - `internal/core/thread_file_test.go`
   - `internal/wire/thread_files_e2e_test.go`
-- **视图经后端校验后挂在回复上**：`show_view` 的视图由 `internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里的 Markdown 链接）、不是本对话图片文件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
+- **视图经后端校验后挂在回复上**：`show_view` 的视图由 `internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里 App 会做成链接的地址：按 CommonMark 读出的行内与引用链接、图片、尖括号自动链接，以及正文里裸露的 http(s) 与 www. 网址，代码里的不算）、不是本对话图片文件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
   - `internal/views/views_test.go`
   - `internal/tools/views_tool_test.go`
   - `internal/store/thread_views_test.go`

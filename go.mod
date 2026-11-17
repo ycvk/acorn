@@ -21,6 +21,7 @@ require (
 	github.com/pkoukk/tiktoken-go-loader v0.0.2
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/sergi/go-diff v1.4.0
+	github.com/yuin/goldmark v1.8.2
 	golang.org/x/net v0.61.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/term v0.47.0

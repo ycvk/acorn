@@ -90,6 +90,17 @@ func TestCheckAcceptsAViewThatDrawsCompletely(t *testing.T) {
 	}
 }
 
+func TestCheckLeavesTextTheAppDoesNotLink(t *testing.T) {
+	components, _ := decode(t, `[{"id": "root", "component": "Text", "text": "run `+"`curl http://10.0.0.1/admin`"+` or mail <a@b.test>, c@d.test"}]`, "")
+	refs := newRefs()
+	if _, err := Check(context.Background(), "t", components, nil, refs); err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if len(refs.linkCalls) != 0 {
+		t.Fatalf("checked links %v, want none", refs.linkCalls)
+	}
+}
+
 func TestCheckWithoutDataUsesAnEmptyObject(t *testing.T) {
 	components, _ := decode(t, `[{"id": "root", "component": "Text", "text": "hi"}]`, "")
 	checked, err := Check(context.Background(), "t", components, nil, newRefs())
@@ -129,7 +140,12 @@ func TestCheckRejectsWithAProblemTheAgentCanFix(t *testing.T) {
 		{"chart point", `[{"id": "root", "component": "Chart", "variant": "line", "points": [{"label": "a", "value": "1"}]}]`, ``, `point 0 must be {"label": string, "value": number}`},
 		{"empty chart", `[{"id": "root", "component": "Chart", "variant": "line", "points": []}]`, ``, `a chart needs at least one point`},
 		{"link policy", `[{"id": "root", "component": "Link", "label": "x", "url": "http://10.0.0.1/admin"}]`, ``, `link "http://10.0.0.1/admin" cannot be shown: only https addresses`},
-		{"markdown link policy", `[{"id": "root", "component": "Text", "text": "see [this](javascript:alert(1))"}]`, ``, `link "javascript:alert(1" cannot be shown`},
+		{"markdown link policy", `[{"id": "root", "component": "Text", "text": "see [this](javascript:alert(1))"}]`, ``, `link "javascript:alert(1)" cannot be shown`},
+		{"link with a title", `[{"id": "root", "component": "Text", "text": "see [this](<javascript:alert(1)> \"t\")"}]`, ``, `link "javascript:alert(1)" cannot be shown`},
+		{"reference link policy", `[{"id": "root", "component": "Text", "text": "see [this][1]\n\n[1]: intent://scan/#Intent;package=x;end"}]`, ``, `link "intent://scan/#Intent;package=x;end" cannot be shown`},
+		{"autolink policy", `[{"id": "root", "component": "Text", "text": "open <file:///data/data/io.ycvk.acorn/a.xml>"}]`, ``, `link "file:///data/data/io.ycvk.acorn/a.xml" cannot be shown`},
+		{"image link policy", `[{"id": "root", "component": "Text", "text": "![pic](http://10.0.0.1/a.png)"}]`, ``, `link "http://10.0.0.1/a.png" cannot be shown`},
+		{"upper-case bare link policy", `[{"id": "root", "component": "Text", "text": "see HTTP://10.0.0.1/admin"}]`, ``, `link "HTTP://10.0.0.1/admin" cannot be shown`},
 		{"bare link policy", `[{"id": "root", "component": "Text", "text": "router at http://192.168.1.1/admin, see"}]`, ``, `link "http://192.168.1.1/admin" cannot be shown`},
 		{"www link policy", `[{"id": "root", "component": "Text", "text": "on www.example.com today"}]`, ``, `link "http://www.example.com" cannot be shown`},
 		{"image", `[{"id": "root", "component": "Image", "file": "file_ffffffffffffffffffffffffffffffff"}]`, ``, `file: file_ffffffffffffffffffffffffffffffff is not a file of this conversation`},
