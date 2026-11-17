@@ -21,22 +21,32 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.net.URI
+
+/**
+ * [url] as the phone opens it when it is an http or https address, or null.
+ * Links come from the server, which takes some from feeds and web pages, so
+ * a javascript:, intent:, file: or content: link must never reach the
+ * system's opener.
+ */
+fun webLink(url: String): String? = url.toHttpUrlOrNull()?.toString()
 
 /** A link's host without a leading "www.", or the link itself when it has none. */
 fun linkHost(url: String): String =
     runCatching { URI(url).host }.getOrNull()?.removePrefix("www.")?.takeIf { it.isNotEmpty() } ?: url
 
-/** The source a story or a note came from, named by its host; a tap opens it. */
+/** The source a story or a note came from, named by its host; a tap opens it. A source that is not a web address shows nothing. */
 @Composable
 fun SourceLink(url: String, modifier: Modifier = Modifier) {
+    val target = webLink(url) ?: return
     val colors = AcornTheme.colors
     val uriHandler = LocalUriHandler.current
     Row(
         modifier = modifier
             .clip(AcornShapes.small)
             .background(colors.surfaceMuted)
-            .clickable(onClickLabel = "打开原文") { uriHandler.openUri(url) }
+            .clickable(onClickLabel = "打开原文") { uriHandler.openUri(target) }
             .heightIn(min = 40.dp)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
