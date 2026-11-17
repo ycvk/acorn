@@ -93,6 +93,9 @@ func TestURLPolicyRejectsBlockedLiteralAddresses(t *testing.T) {
 		{"http://[2002:a00:1::1]", "private_address"},
 		{"http://[2002:7f00:1::1]", "loopback_address"},
 		{"http://[2002:a9fe:a9fe::1]", "metadata_address"},
+		{"http://[64:ff9b:1::a00:1]", "tunneled_address"},
+		{"http://[64:ff9b:1:a00:0:100::]", "tunneled_address"},
+		{"http://[2001:0:4136:e378:8000:63bf:80ff:fffe]", "tunneled_address"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.raw, func(t *testing.T) {

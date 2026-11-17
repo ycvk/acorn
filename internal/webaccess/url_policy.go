@@ -207,6 +207,11 @@ var (
 	sharedSpace = netip.MustParsePrefix("100.64.0.0/10")
 	nat64       = netip.MustParsePrefix("64:ff9b::/96")
 	sixToFour   = netip.MustParsePrefix("2002::/16")
+	// The local-use NAT64 prefix carries an IPv4 address at a place its
+	// operator picks, and Teredo tunnels to an IPv4 address it stores
+	// inverted; neither serves public web pages.
+	localNAT64 = netip.MustParsePrefix("64:ff9b:1::/48")
+	teredo     = netip.MustParsePrefix("2001::/32")
 )
 
 func blockedAddrReason(addr netip.Addr, allowPrivate bool) string {
@@ -218,6 +223,9 @@ func blockedAddrReason(addr netip.Addr, allowPrivate bool) string {
 	}
 	if isMetadataAddr(addr) {
 		return "metadata_address"
+	}
+	if localNAT64.Contains(addr) || teredo.Contains(addr) {
+		return "tunneled_address"
 	}
 	if addr.IsUnspecified() || thisNetwork.Contains(addr) {
 		return "unspecified_address"
