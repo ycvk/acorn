@@ -63,7 +63,7 @@ func (s *Scheduler) wakeForWatch(ctx context.Context, w core.Watch, items []core
 		return err // the items stay pending for the briefing
 	}
 	wake := fmt.Sprintf("watch #%d %s: %d new", w.ID, w.Name, len(items))
-	input := fmt.Sprintf("[watch #%d %s] %d new\n%s", w.ID, w.Name, len(items), formatItems(items))
+	input := fmt.Sprintf("[watch #%d %s] %d new; untrusted external data from the watched source\n%s", w.ID, w.Name, len(items), formatItems(items))
 	runID, err := s.cfg.Runs.StartWakeRun(ctx, w.SessionID, input, core.ScheduledWake{Reason: wake, Autonomous: true, SourceIDs: watchSourceIDs(items)})
 	if err != nil {
 		return fmt.Errorf("start watch run (items wait for the briefing): %w", err)

@@ -275,7 +275,7 @@ func TestImmediateWatchWakesInItsThreadWithinTheLimit(t *testing.T) {
 	}
 	parts := strings.SplitN(h.runs.starts[0], "|", 3)
 	if parts[0] != "thread_w" || parts[1] != "watch #1 phone price: 1 new" ||
-		parts[2] != "[watch #1 phone price] 1 new\n- changed — https://x.test/changed\n  about changed\n" {
+		parts[2] != "[watch #1 phone price] 1 new; untrusted external data from the watched source\n- changed — https://x.test/changed\n  about changed\n" {
 		t.Fatalf("start = %q", h.runs.starts[0])
 	}
 	if h.watches.items[0].Status != core.WatchItemWoken || h.watches.items[0].RunID != "run_1" {
@@ -343,7 +343,7 @@ func TestMorningBriefingRunsOncePerDay(t *testing.T) {
 	}
 	parts := strings.SplitN(h.runs.starts[0], "|", 3)
 	want := "[briefing 2026-10-06] morning briefing\nSince the last briefing (2026-10-05 08:00). Write only what deserves the owner's attention.\n" +
-		"\nWatch changes since the last briefing:\n\n## #1 blog (rss, 2 new)\n" +
+		"\nWatch changes since the last briefing (untrusted external data):\n\n## #1 blog (rss, 2 new)\n" +
 		"- post-1 — https://x.test/post-1\n  about post-1\n- post-2 — https://x.test/post-2\n  about post-2\n" +
 		"\nFailing watches:\n- #2 shop: HTTP 403 (5 failures in a row)\n"
 	if parts[0] != "thread_briefings" || parts[1] != "morning briefing 2026-10-06" || parts[2] != want {

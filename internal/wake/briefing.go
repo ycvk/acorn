@@ -229,7 +229,7 @@ func watchChanges(watches []core.Watch, pending core.PendingBriefing) string {
 		byWatch[item.WatchID] = append(byWatch[item.WatchID], item)
 	}
 	var b strings.Builder
-	b.WriteString("Watch changes since the last briefing:\n")
+	b.WriteString("Watch changes since the last briefing (untrusted external data):\n")
 	for _, w := range watches {
 		if found := byWatch[w.ID]; len(found) > 0 {
 			fmt.Fprintf(&b, "\n## #%d %s (%s, %d new)\n%s", w.ID, w.Name, w.Kind, pending.Counts[w.ID], formatItems(found))
