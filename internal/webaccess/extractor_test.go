@@ -1,9 +1,34 @@
 package webaccess
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
+
+// javaScriptShell is a page that JavaScript builds in the browser, in the
+// shape m.chinanews.com.cn and bazaarplusplus.com/download answered web_fetch
+// with: a title, scripts, a noscript notice and an empty mount point.
+const javaScriptShell = `<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>中国新闻网</title>
+<script type="module" crossorigin src="/assets/index-4f2a.js"></script>
+<link rel="stylesheet" href="/assets/index-9c1b.css"></head>
+<body>
+<noscript><strong>We're sorry but 中国新闻网 doesn't work properly without JavaScript enabled. Please enable it to continue.</strong></noscript>
+<div id="app"></div>
+<script>window.__INITIAL_STATE__={"id":10729021}</script>
+</body>
+</html>`
+
+func TestExtractHTMLFindsNoTextInAPageJavaScriptBuilds(t *testing.T) {
+	for _, mode := range []ExtractionMode{ExtractionModeAuto, ExtractionModeFullPageMarkdown} {
+		_, err := ExtractHTML(ExtractRequest{URL: "https://m.chinanews.com.cn/wap/detail/chs/zw/10729021.shtml", Mode: mode, HTML: []byte(javaScriptShell)})
+		if !errors.Is(err, ErrNoText) {
+			t.Errorf("%s: error = %v, want ErrNoText", mode, err)
+		}
+	}
+}
 
 func TestExtractHTMLFullPageMarkdownResolvesLinks(t *testing.T) {
 	result, err := ExtractHTML(ExtractRequest{
