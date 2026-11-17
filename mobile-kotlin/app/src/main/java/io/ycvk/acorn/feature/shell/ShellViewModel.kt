@@ -219,6 +219,8 @@ class ShellViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _ownerGate.value = ownerGateFor(withContext(Dispatchers.IO) { ownerRepository.setName(profile, name) }.name)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _nameError.value = userMessage(e)
             } finally {

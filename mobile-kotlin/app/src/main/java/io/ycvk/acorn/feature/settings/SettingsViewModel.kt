@@ -14,6 +14,7 @@ import io.ycvk.acorn.core.theme.ThemeMode
 import io.ycvk.acorn.core.theme.ThemePreference
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.OwnerRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,6 +83,8 @@ class SettingsViewModel @Inject constructor(
 				}
 				_systemStatus.value = status
 				_error.value = null
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				_error.value = userMessage(e)
             }
@@ -89,6 +92,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _ownerName.value = withContext(Dispatchers.IO) { ownerRepository.current(profile) }.name
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = userMessage(e)
             }
@@ -104,6 +109,8 @@ class SettingsViewModel @Inject constructor(
             try {
                 _ownerName.value = withContext(Dispatchers.IO) { ownerRepository.setName(profile, name) }.name
                 onSaved()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _nameError.value = userMessage(e)
             } finally {

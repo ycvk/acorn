@@ -4,6 +4,7 @@ import io.ycvk.acorn.api.infrastructure.ClientException
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.AuthRepository
 import io.ycvk.acorn.data.repository.ThreadSnapshots
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -72,6 +73,8 @@ class AuthController @Inject constructor(
                 }
                 _authState.value = AuthState.Connected(profile)
                 _pairingState.value = PairingState.Success
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _pairingState.value = PairingState.Error(pairingMessage(e))
             }

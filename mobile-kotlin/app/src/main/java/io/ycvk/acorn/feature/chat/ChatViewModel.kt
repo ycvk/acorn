@@ -231,6 +231,8 @@ class ChatViewModel @Inject constructor(
                 ClientApi(basePath = profile.serverUrl).authorized(profile).clientGetInbox()
             }
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         if (loadGeneration.get() == gen) connectionLost(e)
         null
@@ -276,6 +278,8 @@ class ChatViewModel @Inject constructor(
             try {
                 val local = withContext(Dispatchers.IO) { files.download(profile, threadId, file) }
                 onReady(local)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = "没能下载 ${file.name}：${userMessage(e)}"
             } finally {
@@ -291,6 +295,8 @@ class ChatViewModel @Inject constructor(
                 try {
                     withContext(Dispatchers.IO) { files.saveTo(local, destination) }
                     onSaved()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = "没能保存 ${file.name}：${userMessage(e)}"
                 }
@@ -379,6 +385,9 @@ class ChatViewModel @Inject constructor(
                 }
                 streamingRunId = sent.run.id
                 follower.follow(profile, sent.run.id, threadId, _threadTitle.value ?: title, live = true, sendKey = sendKey)
+            } catch (e: CancellationException) {
+                sendKey?.let(follower::endSend)
+                throw e
             } catch (e: Exception) {
                 sendKey?.let(follower::endSend)
                 _uploading.value = null
@@ -439,6 +448,9 @@ class ChatViewModel @Inject constructor(
                 _messages.value = withView(_messages.value, sent.view) + ChatMessage.User(sent.text)
                 _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
                 streamingRunId = sent.run.id
+            } catch (e: CancellationException) {
+                follower.endSend(sendKey)
+                throw e
             } catch (e: Exception) {
                 follower.endSend(sendKey)
                 if (_threadId.value != threadId) return@launch
@@ -468,6 +480,8 @@ class ChatViewModel @Inject constructor(
                 if (_threadId.value != threadId) return@launch
                 _messages.value = withView(_messages.value, changed)
                 _chatState.value = _chatState.value.copy(views = _chatState.value.views.map { if (it.id == changed.id) changed else it })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (_threadId.value == threadId) _error.value = (if (view.pinnedAt != null) "没能取消固定：" else "没能固定：") + userMessage(e)
             } finally {
@@ -517,6 +531,8 @@ class ChatViewModel @Inject constructor(
                     snapshots.forget(threadId)
                 }
                 onDeleted()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = userMessage(e)
             }
@@ -533,6 +549,8 @@ class ChatViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientInterruptRun(runId)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 follower.stopping(runId, false)
                 _error.value = "没能停下：${userMessage(e)}"

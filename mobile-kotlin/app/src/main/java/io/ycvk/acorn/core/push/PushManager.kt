@@ -18,6 +18,7 @@ import io.ycvk.acorn.api.models.PushInstallationRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.SecureStore
 import io.ycvk.acorn.core.auth.authorized
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -84,6 +85,8 @@ class PushManager @Inject constructor(
         scope.launch {
             try {
                 FirebaseMessaging.getInstance().register().await()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _status.value = PushStatus.Failed(e.message ?: e.javaClass.simpleName)
             }

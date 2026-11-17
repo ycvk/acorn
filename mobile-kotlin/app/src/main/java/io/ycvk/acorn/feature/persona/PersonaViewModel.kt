@@ -12,6 +12,7 @@ import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.PersonaRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -137,12 +138,16 @@ class PersonaViewModel @Inject constructor(
                 _save.value = Save.Idle
                 onSaved()
                 load()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (e is ClientException && e.statusCode == 409) {
                     try {
                         val latest = withContext(Dispatchers.IO) { repository.current(profile) }
                         onChanged(latest)
                         load()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
                     } catch (reload: Exception) {
                         _save.value = Save.Failed("人格刚在别处改过，没能载入最新的版本：${userMessage(reload)}")
                     }

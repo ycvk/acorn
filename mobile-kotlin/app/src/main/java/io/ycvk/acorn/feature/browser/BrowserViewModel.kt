@@ -15,6 +15,7 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.BrowserRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -141,6 +142,8 @@ class BrowserViewModel @Inject constructor(
         val profile = profile() ?: return
         val tabs = try {
             withContext(Dispatchers.IO) { repository.tabs(profile) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _state.update { it.copy(status = BrowserStatus.Failed(userMessage(e))) }
             return
@@ -255,6 +258,8 @@ class BrowserViewModel @Inject constructor(
     private suspend fun input(profile: ConnectionProfile, request: BrowserInputRequest) {
         try {
             withContext(Dispatchers.IO) { repository.input(profile, request) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _state.update { it.copy(inputError = userMessage(e)) }
         }

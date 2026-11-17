@@ -17,6 +17,7 @@ import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.ui.userMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -124,6 +125,8 @@ class RunFollowService : Service() {
                 withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientInterruptRun(runId)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 follower.stopping(runId, false)
                 notifications.stopFailed(title, userMessage(e))
