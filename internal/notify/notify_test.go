@@ -48,6 +48,10 @@ func TestFCMSendBuildsMessage(t *testing.T) {
 	if n := msg["notification"].(map[string]any); n["title"] != "提醒" || n["body"] != "该看 X 了" {
 		t.Fatalf("notification = %v", n)
 	}
+	// A tap opens the app only through the activity other apps cannot start.
+	if a := msg["android"].(map[string]any); a["priority"] != "high" || a["notification"].(map[string]any)["click_action"] != "io.ycvk.acorn.OPEN_NOTIFICATION" {
+		t.Fatalf("android = %v", a)
+	}
 	if d := msg["data"].(map[string]any); d["thread_id"] != "thread_1" || d["run_id"] != "run_1" || d["browser_url"] != nil {
 		t.Fatalf("data = %v", d)
 	}
