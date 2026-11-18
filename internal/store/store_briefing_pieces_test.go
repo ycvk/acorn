@@ -93,7 +93,7 @@ func TestABriefingPieceIsWrittenInTheStorysConversation(t *testing.T) {
 	if got := listed(); !reflect.DeepEqual(got, []string{"thread_b"}) {
 		t.Fatalf("conversations with only a piece are listed: %v", got)
 	}
-	discuss, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: core.SnapshotOf(story), NewThreadID: "thread_unused"})
+	discuss, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: core.SnapshotOf(story), NewThreadID: "thread_unused", ClientID: core.NewActionID()})
 	if err != nil || discuss.SessionID != "thread_p" || discuss.Role != "user" {
 		t.Fatalf("the owner's ask after a piece = %+v, %v", discuss, err)
 	}
@@ -126,7 +126,7 @@ func TestUpgradeTo38MarksRecordedBriefingsDone(t *testing.T) {
 	s, bbc, ft, _ := newsStoryFixture(t)
 	ctx := context.Background()
 	story := pickedStory(t, s, bbc, ft)
-	if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: core.SnapshotOf(story), NewThreadID: "thread_s"}); err != nil {
+	if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: core.SnapshotOf(story), NewThreadID: "thread_s", ClientID: core.NewActionID()}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {

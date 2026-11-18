@@ -92,6 +92,9 @@ type StoryMessageWrite struct {
 	Title       string
 	Story       StorySnapshot
 	NewThreadID string
+	// ClientID is the client's id for this ask; asked again under it, the
+	// message is not written twice.
+	ClientID string
 }
 
 // StoryPieceWrite records the wake input of a piece in the story's

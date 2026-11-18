@@ -299,8 +299,10 @@ func scanThreadView(scan func(...any) error) (core.ThreadView, error) {
 }
 
 // SendViewAction records an action of a view together with the owner's
-// message saying its text, in one transaction. An action already sent fails
-// with ErrViewActionTaken and adds no message.
+// message saying its text, in one transaction. An action already sent adds
+// no message: it fails with ErrViewActionTaken once its message has a run,
+// and before that, when the run that should take the message never started,
+// it returns the action and its message again, so the press starts it.
 func (s *Store) SendViewAction(ctx context.Context, in core.ViewActionWrite) (core.SessionMessageRecord, core.ViewAction, error) {
 	switch {
 	case strings.TrimSpace(in.Text) == "":
@@ -322,6 +324,7 @@ func (s *Store) SendViewAction(ctx context.Context, in core.ViewActionWrite) (co
 	}
 	now := time.Now().UTC()
 	message := core.SessionMessageRecord{SessionID: in.SessionID, Role: "user", Content: strings.TrimSpace(in.Text), CreatedAt: now}
+	var sentBefore *core.ViewAction
 	err = s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		var views int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM thread_views WHERE view_id = ? AND session_id = ?`, in.ViewID, in.SessionID).Scan(&views); err != nil {
@@ -330,22 +333,37 @@ func (s *Store) SendViewAction(ctx context.Context, in core.ViewActionWrite) (co
 		if views == 0 {
 			return fmt.Errorf("%w: %s in thread %s", core.ErrThreadViewNotFound, in.ViewID, in.SessionID)
 		}
-		var sent int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM thread_view_actions WHERE view_id = ? AND action_key = ?`, in.ViewID, in.Key).Scan(&sent); err != nil {
+		earlier, err := viewActionsIn(ctx, tx, `view_id = ? AND action_key = ?`, in.ViewID, in.Key)
+		if err != nil {
 			return err
 		}
-		if sent > 0 {
-			return fmt.Errorf("%w: %s of %s", core.ErrViewActionTaken, in.Key, in.ViewID)
+		if len(earlier) > 0 {
+			var created string
+			if err := tx.QueryRowContext(ctx, `SELECT turn_index, content, run_id, created_at FROM session_messages WHERE id = ?`, earlier[0].MessageID).Scan(&message.TurnIndex, &message.Content, &message.RunID, &created); err != nil {
+				return fmt.Errorf("message of view action %s: %w", in.Key, err)
+			}
+			if message.RunID != "" {
+				return fmt.Errorf("%w: %s of %s", core.ErrViewActionTaken, in.Key, in.ViewID)
+			}
+			message.ID = earlier[0].MessageID
+			if message.CreatedAt, err = parseTimestamp(created, "session_messages.created_at"); err != nil {
+				return err
+			}
+			sentBefore = &earlier[0]
+			return nil
 		}
 		if err := appendUnboundMessage(ctx, tx, &message); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO thread_view_actions (`+threadViewActionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		_, err = tx.ExecContext(ctx, `INSERT INTO thread_view_actions (`+threadViewActionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			in.ViewID, in.Key, in.SessionID, in.ComponentID, string(scope), in.Name, string(selected), string(carried), message.ID, formatTimestamp(now))
 		return err
 	})
 	if err != nil {
 		return core.SessionMessageRecord{}, core.ViewAction{}, fmt.Errorf("send view action %s: %w", in.Key, err)
+	}
+	if sentBefore != nil {
+		return message, *sentBefore, nil
 	}
 	action := core.ViewAction{
 		ViewID: in.ViewID, SessionID: in.SessionID, Key: in.Key, ComponentID: in.ComponentID, Scope: append([]int{}, in.Scope...),
@@ -360,7 +378,11 @@ func (s *Store) ViewActions(ctx context.Context, sessionID string) ([]core.ViewA
 }
 
 func (s *Store) viewActionsWhere(ctx context.Context, where string, args ...any) ([]core.ViewAction, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+threadViewActionColumns+` FROM thread_view_actions WHERE `+where+` ORDER BY created_at, message_id`, args...)
+	return viewActionsIn(ctx, s.db, where, args...)
+}
+
+func viewActionsIn(ctx context.Context, q memorySQL, where string, args ...any) ([]core.ViewAction, error) {
+	rows, err := q.QueryContext(ctx, `SELECT `+threadViewActionColumns+` FROM thread_view_actions WHERE `+where+` ORDER BY created_at, message_id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list view actions: %w", err)
 	}

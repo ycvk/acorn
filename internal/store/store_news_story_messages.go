@@ -88,7 +88,10 @@ func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite)
 	if !in.Intent.Valid() {
 		return core.SessionMessageRecord{}, fmt.Errorf("send story message: intent %q must be discuss or follow", in.Intent)
 	}
-	return s.writeStoryMessage(ctx, "user", in.Intent, in.Text, in.Title, in.Story, in.NewThreadID)
+	if strings.TrimSpace(in.ClientID) == "" {
+		return core.SessionMessageRecord{}, errors.New("send story message: ClientID is required")
+	}
+	return s.writeStoryMessage(ctx, "user", in.Intent, in.Text, in.Title, in.Story, in.NewThreadID, in.ClientID)
 }
 
 // WriteStoryPiece records the wake input of a piece in the story's
@@ -96,10 +99,14 @@ func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite)
 // conversation whose latest run is running or waits for the owner is refused
 // with ErrThreadBusy.
 func (s *Store) WriteStoryPiece(ctx context.Context, in core.StoryPieceWrite) (core.SessionMessageRecord, error) {
-	return s.writeStoryMessage(ctx, core.MessageRoleWake, core.StoryPiece, in.Text, in.Title, in.Story, in.NewThreadID)
+	return s.writeStoryMessage(ctx, core.MessageRoleWake, core.StoryPiece, in.Text, in.Title, in.Story, in.NewThreadID, "")
 }
 
-func (s *Store) writeStoryMessage(ctx context.Context, role string, intent core.StoryIntent, text, title string, snapshot core.StorySnapshot, newThreadID string) (core.SessionMessageRecord, error) {
+// writeStoryMessage records the message in the story's conversation. A
+// message whose clientID (the owner's sends have one) was recorded before is
+// not written again: the earlier message comes back as it is, with the run
+// that took it or with none when that run never started.
+func (s *Store) writeStoryMessage(ctx context.Context, role string, intent core.StoryIntent, text, title string, snapshot core.StorySnapshot, newThreadID, clientID string) (core.SessionMessageRecord, error) {
 	switch {
 	case strings.TrimSpace(text) == "" || strings.TrimSpace(title) == "":
 		return core.SessionMessageRecord{}, errors.New("story message: text and title are required")
@@ -115,6 +122,13 @@ func (s *Store) writeStoryMessage(ctx context.Context, role string, intent core.
 	now := time.Now().UTC()
 	message := core.SessionMessageRecord{Role: role, Content: strings.TrimSpace(text), CreatedAt: now}
 	err = s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		if clientID != "" {
+			earlier, found, err := sentMessage(ctx, tx, clientID)
+			if err != nil || found {
+				message = earlier
+				return err
+			}
+		}
 		err := tx.QueryRowContext(ctx, storyThread("?"), snapshot.ID).Scan(&message.SessionID)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -138,14 +152,40 @@ func (s *Store) writeStoryMessage(ctx context.Context, role string, intent core.
 		if err := appendUnboundMessage(ctx, tx, &message); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO news_story_messages (message_id, session_id, story_id, intent, story, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			message.ID, message.SessionID, snapshot.ID, string(intent), string(story), formatTimestamp(now))
+		if _, err := tx.ExecContext(ctx, `INSERT INTO news_story_messages (message_id, session_id, story_id, intent, story, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			message.ID, message.SessionID, snapshot.ID, string(intent), string(story), formatTimestamp(now)); err != nil {
+			return err
+		}
+		if clientID == "" {
+			return nil
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO owner_message_sends(client_id, session_id, message_id, created_at) VALUES(?, ?, ?, ?)`,
+			clientID, message.SessionID, message.ID, formatTimestamp(now))
 		return err
 	})
 	if err != nil {
 		return core.SessionMessageRecord{}, fmt.Errorf("%s message from story %d: %w", intent, snapshot.ID, err)
 	}
 	return message, nil
+}
+
+// sentMessage is the conversation message recorded under clientID.
+func sentMessage(ctx context.Context, tx *sql.Tx, clientID string) (core.SessionMessageRecord, bool, error) {
+	var message core.SessionMessageRecord
+	var created string
+	err := tx.QueryRowContext(ctx, `SELECT m.id, m.session_id, m.turn_index, m.role, m.content, m.run_id, m.created_at
+		FROM owner_message_sends o JOIN session_messages m ON m.id = o.message_id WHERE o.client_id = ?`, clientID).
+		Scan(&message.ID, &message.SessionID, &message.TurnIndex, &message.Role, &message.Content, &message.RunID, &created)
+	if errors.Is(err, sql.ErrNoRows) {
+		return core.SessionMessageRecord{}, false, nil
+	}
+	if err != nil {
+		return core.SessionMessageRecord{}, false, fmt.Errorf("message of client id %s: %w", clientID, err)
+	}
+	if message.CreatedAt, err = parseTimestamp(created, "session_messages.created_at"); err != nil {
+		return core.SessionMessageRecord{}, false, err
+	}
+	return message, true, nil
 }
 
 // StoryMessages lists the messages sent from stories in a conversation,

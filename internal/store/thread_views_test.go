@@ -68,11 +68,26 @@ func TestThreadViewsAreListedOldestFirstAndLeaveWithTheirThread(t *testing.T) {
 	if message.Content != "整理成笔记" || message.Role != "user" || message.ID == 0 || action.MessageID != message.ID || action.Key != "save/1" {
 		t.Fatalf("message = %+v action = %+v", message, action)
 	}
+	// Its run never started, so the press is taken again, with the same
+	// message, for the run to start this time.
+	again, againAction, err := s.SendViewAction(ctx, press)
+	if err != nil || again.ID != message.ID || again.Content != "整理成笔记" || again.TurnIndex != message.TurnIndex || againAction.Key != "save/1" || againAction.MessageID != message.ID {
+		t.Fatalf("press while its run never started = %+v %+v, %v", again, againAction, err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_press", SessionID: "eino", TurnIndex: message.TurnIndex, Input: message.Content}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.BindUserMessageRunIDByID(ctx, message.ID, "run_press"); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := s.SendViewAction(ctx, press); !errors.Is(err, core.ErrViewActionTaken) {
-		t.Fatalf("second press err = %v, want ErrViewActionTaken", err)
+		t.Fatalf("press once its message has a run err = %v, want ErrViewActionTaken", err)
+	}
+	if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: "run_press", Status: core.RunStatusSucceeded, Output: "好", Event: "run.completed", Payload: map[string]any{"message": "好"}}); err != nil {
+		t.Fatal(err)
 	}
 	if listed, err := s.ListSessionMessages(ctx, "eino", 50); err != nil || len(listed) != 1 {
-		t.Fatalf("messages after two presses = %+v, %v", listed, err)
+		t.Fatalf("messages after three presses = %+v, %v", listed, err)
 	}
 	if _, _, err := s.SendViewAction(ctx, core.ViewActionWrite{ViewID: elsewhere.ID, SessionID: "eino", Key: "x", ComponentID: "x", Name: "x", Text: "x"}); !errors.Is(err, core.ErrThreadViewNotFound) {
 		t.Fatalf("a view of another thread err = %v", err)

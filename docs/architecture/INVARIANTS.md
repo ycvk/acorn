@@ -279,7 +279,7 @@
   - `internal/tools/views_tool_test.go`
   - `internal/store/thread_views_test.go`
   - `internal/wire/thread_views_e2e_test.go`
-- **视图动作是 owner 的一条消息，只发一次**：App 只发组件 id、List 里的位置与选中的选项 id，后端从存着的视图解析动作：不是 `Button` 或 `ChoicePicker` 的组件、位置不对、不在声明里的选项、单选时选了多个都以 400 拒绝，动作名、选项文字与 context 都取自视图。登记动作与写 owner 消息在同一事务里，主键是（视图, 组件 id 加位置），重复发返回 409 且不多写消息、不多起 run；之后按 owner 发消息的规则起 run，模型在这条消息旁看到视图 id、组件、动作名、选项与 context。`update_view` 只能改本对话的视图，整个视图重新校验，写 `view.updated` 事件，已发的动作保留；删除对话一并删除动作。
+- **视图动作是 owner 的一条消息，只发一次**：App 只发组件 id、List 里的位置与选中的选项 id，后端从存着的视图解析动作：不是 `Button` 或 `ChoicePicker` 的组件、位置不对、不在声明里的选项、单选时选了多个都以 400 拒绝，动作名、选项文字与 context 都取自视图。登记动作与写 owner 消息在同一事务里，主键是（视图, 组件 id 加位置），重复发不多写消息：消息已有 run 时返回 409、不多起 run，消息的 run 没能起来（消息没有 run）时在这条消息上起 run；之后按 owner 发消息的规则起 run，模型在这条消息旁看到视图 id、组件、动作名、选项与 context。`update_view` 只能改本对话的视图，整个视图重新校验，写 `view.updated` 事件，已发的动作保留；删除对话一并删除动作。
   - `internal/views/actions_test.go`
   - `internal/runtime/view_actions_test.go`
   - `internal/store/thread_views_test.go`
@@ -403,7 +403,7 @@
   - `internal/api/story_messages_test.go`
   - `internal/api/now_test.go`
   - `internal/runtime/story_messages_test.go`
-- **从早安卡的事件发出的消息进这件事的对话**：`POST /v1/news/stories/{story_id}:discuss` 与 `:follow` 在同一事务里找这件事最新的对话（没有就新建）、写 owner 消息「展开讲讲：<标题>」或「持续跟进：<标题>」，标题与新对话的标题取最近一份挑中它的早安卡写的标题，没进过早安卡时取事件标题；并登记消息、对话、事件、意图与发消息时的事件快照（板块、标题、摘要、最新进展与至多 10 条最新条目的来源、标题、链接和时间）；之后按 owner 发消息的规则起 run。事件不存在时 404，对话最新 run 仍在运行或等待审批时 409 且不写消息。模型在这条消息旁看到意图与快照，快照标为外部数据；跟进时要求建一个没有 outcome、以这条消息为来源的关切，复查时间设在第二天开始。事件清理后快照保留；删除对话一并删除这些登记，之后再从事件发消息会新建对话。`/v1/now` 的早安卡事件带上这件事的对话与 `following`：那个对话里有可见的 active 或 waiting 关切。
+- **从早安卡的事件发出的消息进这件事的对话**：`POST /v1/news/stories/{story_id}:discuss` 与 `:follow` 在同一事务里找这件事最新的对话（没有就新建）、写 owner 消息「展开讲讲：<标题>」或「持续跟进：<标题>」，标题与新对话的标题取最近一份挑中它的早安卡写的标题，没进过早安卡时取事件标题；并登记消息、对话、事件、意图与发消息时的事件快照（板块、标题、摘要、最新进展与至多 10 条最新条目的来源、标题、链接和时间）；之后按 owner 发消息的规则起 run。事件不存在时 404，对话最新 run 仍在运行或等待审批时 409 且不写消息。请求带客户端给的 `client_id`，与消息一同记下；以同一 `client_id` 再问时不写消息，先于忙碌判断回答这条消息：已有 run 时返回它（200），run 没能起来时在它上面起 run（201）。模型在这条消息旁看到意图与快照，快照标为外部数据；跟进时要求建一个没有 outcome、以这条消息为来源的关切，复查时间设在第二天开始。事件清理后快照保留；删除对话一并删除这些登记，之后再从事件发消息会新建对话。`/v1/now` 的早安卡事件带上这件事的对话与 `following`：那个对话里有可见的 active 或 waiting 关切。
   - `internal/store/store_news_story_messages_test.go`
   - `internal/api/story_messages_test.go`
   - `internal/runtime/story_messages_test.go`

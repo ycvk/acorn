@@ -309,12 +309,11 @@ CREATE TABLE owner (
     updated_at TEXT NOT NULL
 );
 CREATE TABLE owner_message_sends (
+    client_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    client_id TEXT NOT NULL,
     queued_id INTEGER,
     message_id INTEGER,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (session_id, client_id)
+    created_at TEXT NOT NULL
 );
 CREATE TABLE owner_settings (
     key TEXT PRIMARY KEY,

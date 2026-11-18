@@ -35,16 +35,16 @@ func addQueuedMessages(ctx context.Context, tx *sql.Tx) error {
 }
 
 // ownerMessageSendsTable is shared with the migration that adds it. A row is
-// the client's id for an owner message it sent, with the message while it
-// waits (queued_id) or once it is in the conversation (message_id), so the
-// same send made again finds it.
+// the client's id for an owner message it sent, typed or asked from a
+// story, with the message while it waits (queued_id) or once it is in the
+// conversation (message_id), so the same send made again finds it. A client
+// id names one message in all conversations.
 const ownerMessageSendsTable = `CREATE TABLE IF NOT EXISTS owner_message_sends (
+    client_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    client_id TEXT NOT NULL,
     queued_id INTEGER,
     message_id INTEGER,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (session_id, client_id)
+    created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_owner_message_sends_queued ON owner_message_sends(queued_id) WHERE queued_id IS NOT NULL;`
 
@@ -93,8 +93,8 @@ func (s *Store) SendOwnerMessage(ctx context.Context, message core.OwnerMessage)
 			sent = core.SentOwnerMessage{RunID: active, Queued: &queued}
 			queuedID = sql.NullInt64{Int64: queued.ID, Valid: true}
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO owner_message_sends(session_id, client_id, queued_id, message_id, created_at) VALUES(?, ?, ?, ?, ?)`,
-			message.SessionID, message.ClientID, queuedID, messageID, formatTimestamp(queued.CreatedAt)); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO owner_message_sends(client_id, session_id, queued_id, message_id, created_at) VALUES(?, ?, ?, ?, ?)`,
+			message.ClientID, message.SessionID, queuedID, messageID, formatTimestamp(queued.CreatedAt)); err != nil {
 			return err
 		}
 		if title := strings.TrimSpace(message.Title); title != "" {

@@ -262,16 +262,25 @@ type ViewActionResult struct {
 // starts a run on it. The message and the conversation use the title the
 // newest briefing gave the story, as the owner saw it on the card, else the
 // story's own. The model sees the story as it stands now beside the message.
-func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent core.StoryIntent) (*StoryMessageResult, error) {
+// Asked again under clientID, the ask writes nothing: it answers the run its
+// message went to (Repeat), or starts the run that never started on it.
+func (s *RunService) SendStoryMessage(ctx context.Context, storyID int64, intent core.StoryIntent, clientID string) (*StoryMessageResult, error) {
 	story, title, err := s.storyOnCard(ctx, storyID)
 	if err != nil {
 		return nil, err
 	}
 	message, err := s.threads.stories.SendStoryMessage(ctx, core.StoryMessageWrite{
-		Intent: intent, Text: storyMessageText(intent, title), Title: title, Story: core.SnapshotOf(story), NewThreadID: core.NewSessionID(),
+		Intent: intent, Text: storyMessageText(intent, title), Title: title, Story: core.SnapshotOf(story), NewThreadID: core.NewSessionID(), ClientID: clientID,
 	})
 	if err != nil {
 		return nil, err
+	}
+	if message.RunID != "" {
+		run, err := s.GetRun(ctx, message.RunID)
+		if err != nil {
+			return nil, err
+		}
+		return &StoryMessageResult{ThreadID: message.SessionID, Run: *run, Text: message.Content, Repeat: true}, nil
 	}
 	run, err := s.startRun(ctx, message.SessionID, &message, "", nil)
 	if err != nil {
@@ -326,6 +335,9 @@ type StoryMessageResult struct {
 	ThreadID string
 	Run      Run
 	Text     string
+	// Repeat says the ask was made before under its client id and Run is
+	// the run its message went to.
+	Repeat bool
 }
 
 // storyMessageText is the owner's message for an ask about a story, as the

@@ -34,6 +34,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.util.UUID
 import javax.inject.Inject
 
 /** Backs the Today tab. Every change is followed by a fresh load; nothing is changed locally. */
@@ -93,21 +94,29 @@ class NowViewModel @Inject constructor(
         }
     }
 
-    /** Opens a story's conversation; the first time, asks Acorn there to explain the story. */
+    /**
+     * Opens a story's conversation; the first time, asks Acorn there to explain the story. An ask
+     * that got no answer is made again, as its conversation may have the message with no run on it.
+     */
     fun openStory(story: NowBriefingStory) {
         val threadId = story.threadId
-        if (threadId != null) {
+        val retry = unansweredAsk?.let { it.storyId == story.storyId && it.kind == StoryAsk.Discuss } == true
+        if (threadId != null && !retry) {
             _openThread.tryEmit(threadId)
             return
         }
-        ask(story) { repository.discussStory(it, story.storyId) }
+        ask(story, StoryAsk.Discuss) { profile, clientId -> repository.discussStory(profile, story.storyId, clientId) }
     }
 
     /** Asks Acorn to keep following a story, in the story's conversation. */
-    fun followStory(story: NowBriefingStory) = ask(story) { repository.followStory(it, story.storyId) }
+    fun followStory(story: NowBriefingStory) =
+        ask(story, StoryAsk.Follow) { profile, clientId -> repository.followStory(profile, story.storyId, clientId) }
+
+    /** The last ask about a story that got no answer, which an ask of the same kind repeats. */
+    private var unansweredAsk: UnansweredAsk? = null
 
     /** Sends the owner's ask about a story, follows the run it starts and opens the story's conversation. */
-    private fun ask(story: NowBriefingStory, send: (ConnectionProfile) -> StoryMessageResponse) {
+    private fun ask(story: NowBriefingStory, kind: StoryAsk, send: (ConnectionProfile, String) -> StoryMessageResponse) {
         val profile = profile() ?: run {
             _actionError.value = "还没有连接服务器"
             return
@@ -116,9 +125,11 @@ class NowViewModel @Inject constructor(
         _askingStory.value = story.storyId
         _actionError.value = null
         val sendKey = follower.beginSend(story.title)
+        val clientId = askClientId(unansweredAsk, story.storyId, kind) { UUID.randomUUID().toString() }
         viewModelScope.launch {
             try {
-                val sent = withContext(Dispatchers.IO) { send(profile) }
+                val sent = withContext(Dispatchers.IO) { send(profile, clientId) }
+                unansweredAsk = null
                 follower.follow(profile, sent.run.id, sent.threadId, story.title, live = true, sendKey = sendKey)
                 _openThread.emit(sent.threadId)
             } catch (e: CancellationException) {
@@ -126,6 +137,8 @@ class NowViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 follower.endSend(sendKey)
+                // The ask may have reached the story's conversation; made again, it is not written twice.
+                unansweredAsk = UnansweredAsk(story.storyId, kind, clientId)
                 _actionError.value = userMessage(e)
             } finally {
                 _askingStory.value = null

@@ -101,6 +101,12 @@ type StoryMessageResponse struct {
 	Text     string `json:"text"`
 }
 
+// StoryMessageRequest is the body of an ask about a story: the client's id
+// for the ask, the same when it asks again.
+type StoryMessageRequest struct {
+	ClientID string `json:"client_id"`
+}
+
 // handleDiscussStory asks Acorn to explain a story in its conversation.
 func (s *Server) handleDiscussStory(w http.ResponseWriter, r *http.Request) {
 	s.respondStoryMessage(w, r, core.StoryDiscuss)
@@ -117,12 +123,25 @@ func (s *Server) respondStoryMessage(w http.ResponseWriter, r *http.Request, int
 	if !ok {
 		return
 	}
-	result, err := s.runs.SendStoryMessage(r.Context(), id, intent)
+	var req StoryMessageRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		s.respondBadRequest(w, r, err.Error())
+		return
+	}
+	if !clientIDPattern.MatchString(req.ClientID) {
+		s.respondBadRequest(w, r, "client_id must be 1 to 64 letters, digits, '-' or '_'")
+		return
+	}
+	result, err := s.runs.SendStoryMessage(r.Context(), id, intent, req.ClientID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusCreated, StoryMessageResponse{ThreadID: result.ThreadID, Run: runDTOFromDomain(result.Run), Text: result.Text})
+	status := http.StatusCreated
+	if result.Repeat {
+		status = http.StatusOK
+	}
+	s.respondJSON(w, r, status, StoryMessageResponse{ThreadID: result.ThreadID, Run: runDTOFromDomain(result.Run), Text: result.Text})
 }
 
 // pathID reads a positive integer path parameter, answering 400 when it is not one.

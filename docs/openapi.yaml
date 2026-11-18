@@ -862,11 +862,26 @@ paths:
         newest briefing that picked the story gave it, else the story's own. The model reads
         the story as it stands now beside the message; the conversation keeps
         it after the story is pruned. A conversation whose latest run is
-        running or waits for the owner takes no message.
+        running or waits for the owner takes no message. An ask made again
+        under its client_id, as when the answer to the first was lost, writes
+        nothing: it answers the run its message went to (200), or starts the
+        run that never started on it (201).
       operationId: clientDiscussStory
       parameters:
         - $ref: '#/components/parameters/StoryID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryMessageRequest'
       responses:
+        '200':
+          description: The ask was made before under its client_id; its message and the run it went to
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryMessageResponse'
         '201':
           description: Message recorded and run started
           content:
@@ -899,10 +914,23 @@ paths:
         which idle thought checks for developments; `following` on the
         briefing's story holds while it is active or waiting. A conversation
         whose latest run is running or waits for the owner takes no message.
+        An ask made again under its client_id is answered as for discuss.
       operationId: clientFollowStory
       parameters:
         - $ref: '#/components/parameters/StoryID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryMessageRequest'
       responses:
+        '200':
+          description: The ask was made before under its client_id; its message and the run it went to
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryMessageResponse'
         '201':
           description: Message recorded and run started
           content:
@@ -4188,6 +4216,18 @@ components:
           type: string
           format: date-time
           description: When the piece was finished; present when ready.
+
+    StoryMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [client_id]
+      properties:
+        client_id:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,64}$'
+          description: >-
+            The client's id for this ask, made once and given again when the
+            client asks again.
 
     StoryMessageResponse:
       type: object
