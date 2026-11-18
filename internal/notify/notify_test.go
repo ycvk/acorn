@@ -616,6 +616,9 @@ func TestAnnounceRunPushesOnlyPendingActions(t *testing.T) {
 			{ActionID: "a1", Kind: core.PendingActionKindToolApproval, Subject: "发送邮件", PayloadJSON: `{"message":"给张三"}`, Status: core.PendingActionStatusPending},
 			{ActionID: "a2", Kind: core.PendingActionKindOperatorQuestion, PayloadJSON: `{"question":"周几方便？"}`, Status: core.PendingActionStatusPending},
 			{ActionID: "a3", Kind: core.PendingActionKindToolApproval, Subject: "已经决定", PayloadJSON: `{}`, Status: core.PendingActionStatusApproved},
+			// The push does not carry the payload, so one that does not parse
+			// does not keep the owner from hearing of the action.
+			{ActionID: "a4", Kind: core.PendingActionKindToolApproval, Subject: "写技能", PayloadJSON: `{broken`, Status: core.PendingActionStatusPending},
 		},
 	}
 	notifier := &recordingNotifier{}
@@ -627,8 +630,9 @@ func TestAnnounceRunPushesOnlyPendingActions(t *testing.T) {
 		t.Fatalf("announce: %v", err)
 	}
 	want := []core.Notification{
-		{Title: "发送邮件", Body: "给张三", ThreadID: "thread_1", RunID: "run_1", ActionID: "a1"},
-		{Title: "operator_question", Body: "周几方便？", ThreadID: "thread_1", RunID: "run_1", ActionID: "a2"},
+		{Title: "发送邮件", Body: "发送邮件", ThreadID: "thread_1", RunID: "run_1", ActionID: "a1"},
+		{Title: "operator_question", Body: "operator_question", ThreadID: "thread_1", RunID: "run_1", ActionID: "a2"},
+		{Title: "写技能", Body: "写技能", ThreadID: "thread_1", RunID: "run_1", ActionID: "a4"},
 	}
 	if len(notifier.sent) != len(want) {
 		t.Fatalf("sent = %+v", notifier.sent)

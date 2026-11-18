@@ -330,7 +330,7 @@
   - `internal/store/store_presence_test.go`
   - `internal/api/push_installation_handler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **等待 owner 的操作会推送**：run 以 interrupted 结束后，它每个仍 pending 的操作经 `notify.Sender` 推送一次，同样受每小时上限约束，推送失败只记录日志、不改变 run 结果。免打扰时段内，操作产生时距 owner 在这个对话里最近一条消息不超过 30 分钟的立即推送（owner 刚交代的事在等它），其余的排到时段结束；owner 的消息指对话里 role 为 `user` 的消息，wake 输入与还在排队的消息不算。这类推送是只含 data 的 FCM 消息（`type=pending_action`，带 `action_id`、`thread_id`、`run_id` 与标题），不带操作的正文与参数，大小不随调用内容增长；通知记录保存 `action_id` 与正文；App 收到后读取操作的内容与当前状态，已决定或已不存在的操作不显示。
+- **等待 owner 的操作会推送**：run 以 interrupted 结束后，它每个仍 pending 的操作经 `notify.Sender` 推送一次，同样受每小时上限约束，推送失败只记录日志、不改变 run 结果。免打扰时段内，操作产生时距 owner 在这个对话里最近一条消息不超过 30 分钟的立即推送（owner 刚交代的事在等它），其余的排到时段结束；owner 的消息指对话里 role 为 `user` 的消息，wake 输入与还在排队的消息不算。这类推送是只含 data 的 FCM 消息（`type=pending_action`，带 `action_id`、`thread_id`、`run_id` 与标题），不带操作的正文与参数，大小不随调用内容增长；通知记录保存 `action_id` 与标题（操作的 subject，没有时是它的种类），不读操作的 payload，payload 解析不了也照常推送；App 收到后读取操作的内容与当前状态，已决定或已不存在的操作不显示。
   - `internal/wire/approval_push_e2e_test.go`
   - `internal/notify/notify_test.go`
   - `internal/store/store_push_action_test.go`
