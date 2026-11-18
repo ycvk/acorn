@@ -454,10 +454,11 @@
   - `internal/workstation/workstation_test.go`
   - `internal/review/review_test.go`
 - **工作机里的进程用不了工作机 API**：监听非 loopback 地址时，serve 拒绝来自自己地址（loopback 与本机网卡地址）的请求；启动时把 token 从进程环境里移除，它运行的命令、技能包 MCP 服务器与触发器都继承不到。
-- **后端的 stdio MCP 服务器只继承少数环境变量**：Acorn 进程的环境里只有 `PATH`、`HOME`、`USER`、语言与时区、临时目录、证书与代理变量到服务器，API key 与工作机 token 在内的其余变量只有写进 provider 的 `env` 才到；`env` 的值展开环境变量。
   - `internal/workstation/token_test.go`
   - `internal/tools/workstation_tools_test.go`
   - `internal/config/config_workstation_test.go`
+- **后端的 stdio MCP 服务器只继承少数环境变量**：Acorn 进程的环境里只有 `PATH`、`HOME`、`USER`、语言与时区、临时目录、证书与代理变量到服务器，API key 与工作机 token 在内的其余变量只有写进 provider 的 `env` 才到；`env` 的值展开环境变量。
+  - `internal/mcp/manager_connection_test.go`
 - **文件经工作机往返**：每次 run 前，对话里已发送的 owner 文件按 id 复制到工作机 `~/uploads/<file_id>/<文件名>`（写在旁边再整体换入），不再属于任何对话的副本被删除；复制失败时 run 继续，模型从消息附注里得知原因。模型看到每条 owner 消息附带的文件名、类型、大小与工作机路径，≤10 MiB 的 JPEG/PNG/WebP/GIF 作为图片输入随消息交给模型并按 `core.ImageInputTokens` 计入输入预算。`send_file` 是 eager 工具，经工作机 `/v1/files/raw` 读取文件，超过 `files.max_send_mib` 时失败，存为本 run 的 agent 文件。对话的消息把 agent 文件列在本 run 的回复下；run 没有回复时，列在它的输入之后一条以 run id 为 id 的无文本 assistant 消息里。
   - `internal/workstation/files_test.go`
   - `internal/tools/workstation_tools_test.go`
