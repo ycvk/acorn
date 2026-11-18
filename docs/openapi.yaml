@@ -1116,6 +1116,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ToolListResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /v1/skills:
     get:

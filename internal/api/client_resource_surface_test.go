@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -305,5 +306,31 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	if !strings.Contains(systemStatusRec.Body.String(), `"provider_readiness":[{"scope":"mcp","provider":"fixture","status":"passed"`) {
 		t.Fatalf("system status should include provider readiness, got %s", systemStatusRec.Body.String())
+	}
+}
+
+// A tool catalog that cannot be built is the server's failure, not an
+// empty list.
+func TestClientToolsReportsAToolCatalogFailure(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Providers[0].APIKey = "test-key"
+	server := newClientHotPathServer(&clientHandlerStub{})
+	capabilities, err := NewCapabilitiesService(cfg,
+		func(context.Context) (*skills.Snapshot, error) { return &skills.Snapshot{}, nil },
+		func(context.Context, []core.ProviderConfig) []core.ProviderInfo { return nil },
+		func(context.Context) ([]core.ToolSpec, error) { return nil, errors.New("tool registry is closed") },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.capabilities = capabilities
+	server.deviceAuth = newDeviceAuthTestService(&deviceAuthHandlerStub{})
+	server.cfg = cfg
+	server.logger = slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil))
+	router := chi.NewRouter()
+	server.registerRoutes(router)
+	rec := performClientRequest(router, http.MethodGet, "/v1/tools", "")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
