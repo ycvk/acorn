@@ -29,9 +29,9 @@ fun sendIdentity(
     attachmentKeys: List<String>,
     newId: () -> String,
 ): SendIdentity {
-    val repeats = unanswered != null &&
-        unanswered.text == text &&
+    if (unanswered == null) return SendIdentity(newId(), emptyMap())
+    val repeats = unanswered.text == text &&
         unanswered.attachmentKeys == attachmentKeys &&
         (unanswered.threadId == null || unanswered.threadId == threadId)
-    return if (repeats) SendIdentity(unanswered!!.clientId, unanswered.uploaded) else SendIdentity(newId(), emptyMap())
+    return if (repeats) SendIdentity(unanswered.clientId, unanswered.uploaded) else SendIdentity(newId(), emptyMap())
 }
