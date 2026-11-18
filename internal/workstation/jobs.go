@@ -70,9 +70,11 @@ type Job struct {
 	Note      string     `json:"note,omitempty"`
 	StartedAt time.Time  `json:"started_at"`
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
-	// OutputPath is the file holding the output on the workstation.
+	// OutputPath is the file holding the output on the workstation;
+	// OutputGone says it was removed, and with it the output.
 	OutputPath  string `json:"output_path"`
 	OutputBytes int64  `json:"output_bytes"`
+	OutputGone  bool   `json:"output_gone,omitempty"`
 }
 
 // JobStartRequest starts Command and waits up to WaitSeconds for it to end.
@@ -305,9 +307,19 @@ func (j *jobs) job(id string) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
+	return withOutputSize(job)
+}
+
+// withOutputSize fills in how much output the job has, or that its output
+// file is gone.
+func withOutputSize(job Job) (Job, error) {
 	info, err := os.Stat(job.OutputPath)
+	if errors.Is(err, os.ErrNotExist) {
+		job.OutputGone = true
+		return job, nil
+	}
 	if err != nil {
-		return Job{}, fmt.Errorf("job %s output: %w", id, err)
+		return Job{}, fmt.Errorf("job %s output: %w", job.ID, err)
 	}
 	job.OutputBytes = info.Size()
 	return job, nil
@@ -319,6 +331,9 @@ func (j *jobs) result(id string, maxBytes int) (JobResult, error) {
 	job, err := j.job(id)
 	if err != nil {
 		return JobResult{}, err
+	}
+	if job.OutputGone {
+		return JobResult{Job: job}, nil
 	}
 	text, truncated, err := outputExcerpt(job, maxBytes)
 	if err != nil {
@@ -338,8 +353,8 @@ func (j *jobs) list() ([]Job, error) {
 		all = all[:maxListedJobs]
 	}
 	for i := range all {
-		if info, err := os.Stat(all[i].OutputPath); err == nil {
-			all[i].OutputBytes = info.Size()
+		if all[i], err = withOutputSize(all[i]); err != nil {
+			return nil, err
 		}
 	}
 	return all, nil
@@ -351,6 +366,9 @@ func (j *jobs) read(id string, offset int64, limit int) (JobOutput, error) {
 	job, err := j.job(id)
 	if err != nil {
 		return JobOutput{}, err
+	}
+	if job.OutputGone {
+		return JobOutput{}, fmt.Errorf("job %s's output file %s is gone", id, job.OutputPath)
 	}
 	if offset < 0 || offset > job.OutputBytes {
 		return JobOutput{}, fmt.Errorf("offset %d is outside the job's %d bytes of output", offset, job.OutputBytes)
@@ -375,6 +393,9 @@ func (j *jobs) find(id string, req JobFindRequest) (JobFind, error) {
 	job, err := j.job(id)
 	if err != nil {
 		return JobFind{}, err
+	}
+	if job.OutputGone {
+		return JobFind{}, fmt.Errorf("job %s's output file %s is gone", id, job.OutputPath)
 	}
 	if req.Offset < 0 || req.Offset > job.OutputBytes {
 		return JobFind{}, fmt.Errorf("offset %d is outside the job's %d bytes of output", req.Offset, job.OutputBytes)
