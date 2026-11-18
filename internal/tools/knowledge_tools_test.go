@@ -133,3 +133,25 @@ func TestKnowledgeToolErrors(t *testing.T) {
 		t.Fatalf("read err = %v", err)
 	}
 }
+
+type brokenSettings struct{}
+
+func (brokenSettings) Settings(context.Context) (core.Settings, error) {
+	return core.Settings{}, errors.New("settings table is locked")
+}
+
+// A tool reads the owner's time zone before it writes, so a failed read
+// leaves nothing written behind a reported failure.
+func TestAWriteToolThatCannotReadTheSettingsWritesNothing(t *testing.T) {
+	vault := &fakeVault{}
+	tool, err := buildKnowledgeWriteTool(KnowledgeToolDeps{Vault: vault, Context: fixedArtifactContext{runID: "run_9"}, Settings: brokenSettings{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPresenceTool(t, tool, `{"path":"inbox/tokio.md","title":"Tokio","body":"Async runtime."}`); err == nil || !strings.Contains(err.Error(), "settings table is locked") {
+		t.Fatalf("err = %v", err)
+	}
+	if vault.written.Path != "" {
+		t.Fatalf("written %+v after the settings read failed", vault.written)
+	}
+}

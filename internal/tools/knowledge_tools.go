@@ -104,6 +104,10 @@ func buildKnowledgeWriteTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) 
 	return inferLocalTool("knowledge_write",
 		"Create a note in the knowledge base, or replace a note's whole body. Every write is kept as a new revision.",
 		func(ctx context.Context, input KnowledgeWriteInput) (KnowledgeWriteOutput, error) {
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_write: %w", err)
+			}
 			note, err := deps.Vault.Write(ctx, knowledge.WriteNote{
 				Path:   input.Path,
 				Title:  input.Title,
@@ -115,10 +119,6 @@ func buildKnowledgeWriteTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) 
 			if err != nil {
 				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_write: %w", err)
 			}
-			loc, err := ownerLocation(ctx, deps.Settings)
-			if err != nil {
-				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_write: %w", err)
-			}
 			return writeOutput(note, loc), nil
 		})
 }
@@ -127,11 +127,11 @@ func buildKnowledgeEditTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool("knowledge_edit",
 		"Change parts of an existing note by replacing pieces of its body. Use it to add to or correct a note without rewriting it.",
 		func(ctx context.Context, input KnowledgeEditInput) (KnowledgeWriteOutput, error) {
-			note, err := deps.Vault.Edit(ctx, input.Path, textEdits(input.Edits), deps.Context.CurrentRunID(ctx))
+			loc, err := ownerLocation(ctx, deps.Settings)
 			if err != nil {
 				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_edit: %w", err)
 			}
-			loc, err := ownerLocation(ctx, deps.Settings)
+			note, err := deps.Vault.Edit(ctx, input.Path, textEdits(input.Edits), deps.Context.CurrentRunID(ctx))
 			if err != nil {
 				return KnowledgeWriteOutput{}, fmt.Errorf("knowledge_edit: %w", err)
 			}

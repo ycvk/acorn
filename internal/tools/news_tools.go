@@ -232,12 +232,12 @@ func buildNewsSourceTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			default:
 				return WatchOutput{}, fmt.Errorf("news_source: action %q must be promote or stop", input.Action)
 			}
-			w.UpdatedAt = now
-			if err := deps.Store.UpdateWatch(ctx, w); err != nil {
-				return WatchOutput{}, fmt.Errorf("news_source: %w", err)
-			}
 			loc, err := ownerLocation(ctx, deps.Settings)
 			if err != nil {
+				return WatchOutput{}, fmt.Errorf("news_source: %w", err)
+			}
+			w.UpdatedAt = now
+			if err := deps.Store.UpdateWatch(ctx, w); err != nil {
 				return WatchOutput{}, fmt.Errorf("news_source: %w", err)
 			}
 			return watchOutput(w, 0, loc), nil

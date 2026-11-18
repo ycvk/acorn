@@ -125,13 +125,17 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if err := deps.Checker.Validate(kind, target, selector); err != nil {
 				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 			}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
+			}
 			now := deps.Clock()
 			w := core.Watch{
 				Name: name, Kind: kind, Target: target, Selector: selector, Mode: mode, Section: section, Issue: input.Issue, Trial: mode == core.WatchModeNews, Interval: every,
 				Status: core.WatchActive, SessionID: deps.Context.CurrentSessionID(ctx), NextCheckAt: now, CreatedAt: now,
 			}
 			if kind == core.WatchTrigger {
-				return createTriggerSource(ctx, deps, w)
+				return createTriggerSource(ctx, deps, w, loc)
 			}
 			fetched, err := deps.Checker.Fetch(ctx, w)
 			if err != nil {
@@ -141,10 +145,6 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 			}
 			result, err := deps.Checker.Apply(ctx, w, fetched)
-			if err != nil {
-				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
-			}
-			loc, err := ownerLocation(ctx, deps.Settings)
 			if err != nil {
 				return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 			}
@@ -159,7 +159,7 @@ func buildWatchCreateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 
 // createTriggerSource adds a news source that follows a trigger of a skill in
 // use. The trigger's next output is its baseline.
-func createTriggerSource(ctx context.Context, deps WatchToolDeps, w core.Watch) (WatchCreateOutput, error) {
+func createTriggerSource(ctx context.Context, deps WatchToolDeps, w core.Watch, loc *time.Location) (WatchCreateOutput, error) {
 	if w.Mode != core.WatchModeNews || w.Issue {
 		return WatchCreateOutput{}, errors.New("watch_create: a trigger source is a news source: mode news with a section, and not an issue source")
 	}
@@ -167,10 +167,6 @@ func createTriggerSource(ctx context.Context, deps WatchToolDeps, w core.Watch) 
 		return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 	}
 	w, err := deps.Store.AddWatch(ctx, w)
-	if err != nil {
-		return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
-	}
-	loc, err := ownerLocation(ctx, deps.Settings)
 	if err != nil {
 		return WatchCreateOutput{}, fmt.Errorf("watch_create: %w", err)
 	}
@@ -200,18 +196,18 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return WatchOutput{}, err
 			}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
+			}
 			if selector := strings.TrimSpace(input.Selector); selector != "" && selector != w.Selector {
 				if err := deps.Checker.Validate(w.Kind, w.Target, selector); err != nil {
 					return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 				}
 				w.Selector = selector
-				return rebaseline(ctx, deps, w)
+				return rebaseline(ctx, deps, w, loc)
 			}
 			if err := deps.Store.UpdateWatch(ctx, w); err != nil {
-				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
-			}
-			loc, err := ownerLocation(ctx, deps.Settings)
-			if err != nil {
 				return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 			}
 			return watchOutput(w, 0, loc), nil
@@ -274,7 +270,7 @@ func applyWatchUpdate(w core.Watch, input WatchUpdateInput, now time.Time) (core
 
 // rebaseline fetches a watch whose selector changed and records the result as
 // a fresh baseline.
-func rebaseline(ctx context.Context, deps WatchToolDeps, w core.Watch) (WatchOutput, error) {
+func rebaseline(ctx context.Context, deps WatchToolDeps, w core.Watch, loc *time.Location) (WatchOutput, error) {
 	fetched, err := deps.Checker.Fetch(ctx, w)
 	if err != nil {
 		return WatchOutput{}, fmt.Errorf("watch_update: the check with the new selector failed, nothing changed: %w", err)
@@ -284,10 +280,6 @@ func rebaseline(ctx context.Context, deps WatchToolDeps, w core.Watch) (WatchOut
 		return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 	}
 	result, err := deps.Checker.Apply(ctx, w, fetched)
-	if err != nil {
-		return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
-	}
-	loc, err := ownerLocation(ctx, deps.Settings)
 	if err != nil {
 		return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
 	}

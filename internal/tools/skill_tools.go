@@ -102,6 +102,10 @@ func buildSkillWriteTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 			if err := checkRequiredTools(input.Markdown); err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_write: %w", err)
 			}
+			loc, err := ownerLocation(ctx, deps.Settings)
+			if err != nil {
+				return SkillWriteOutput{}, fmt.Errorf("skill_write: %w", err)
+			}
 			skill, err := deps.Library.Write(ctx, skills.WriteRequest{
 				Markdown:     input.Markdown,
 				Put:          input.Files,
@@ -109,10 +113,6 @@ func buildSkillWriteTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 				BaseRevision: input.BaseRevision,
 				RunID:        deps.Context.CurrentRunID(ctx),
 			})
-			if err != nil {
-				return SkillWriteOutput{}, fmt.Errorf("skill_write: %w", err)
-			}
-			loc, err := ownerLocation(ctx, deps.Settings)
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_write: %w", err)
 			}
@@ -124,11 +124,11 @@ func buildSkillRetireTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool("skill_retire",
 		"Take a skill out of use when it no longer applies or another skill covers it. The skill stays in its history and skill_write brings it back.",
 		func(ctx context.Context, input SkillRetireInput) (SkillWriteOutput, error) {
-			skill, err := deps.Library.Retire(ctx, input.Name, input.BaseRevision, deps.Context.CurrentRunID(ctx))
+			loc, err := ownerLocation(ctx, deps.Settings)
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_retire: %w", err)
 			}
-			loc, err := ownerLocation(ctx, deps.Settings)
+			skill, err := deps.Library.Retire(ctx, input.Name, input.BaseRevision, deps.Context.CurrentRunID(ctx))
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_retire: %w", err)
 			}
@@ -172,11 +172,11 @@ func buildSkillImportTool(deps SkillToolDeps) (einotool.BaseTool, error) {
 	return inferLocalTool("skill_import",
 		"Add a package that skill_inspect checked to your skills, or replace a skill with it. The owner sees the package's SKILL.md and files when approving.",
 		func(ctx context.Context, input SkillImportInput) (SkillWriteOutput, error) {
-			skill, err := deps.Library.ImportStaged(ctx, input.Name, input.SHA256, input.BaseRevision, deps.Context.CurrentRunID(ctx))
+			loc, err := ownerLocation(ctx, deps.Settings)
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_import: %w", err)
 			}
-			loc, err := ownerLocation(ctx, deps.Settings)
+			skill, err := deps.Library.ImportStaged(ctx, input.Name, input.SHA256, input.BaseRevision, deps.Context.CurrentRunID(ctx))
 			if err != nil {
 				return SkillWriteOutput{}, fmt.Errorf("skill_import: %w", err)
 			}
