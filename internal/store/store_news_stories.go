@@ -308,13 +308,10 @@ func (s *Store) RecentNewsStories(ctx context.Context, sections []string, since 
 	if len(sections) == 0 {
 		return nil, nil
 	}
-	args := []any{formatTimestamp(since)}
-	for _, section := range sections {
-		args = append(args, section)
-	}
-	args = append(args, limit)
+	marks, names := inClause(sections)
+	args := append(append([]any{formatTimestamp(since)}, names...), limit)
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+newsStoryColumns+` FROM news_stories st WHERE st.updated_at >= ? AND st.section IN (`+placeholders(len(sections))+`)
+		`SELECT `+newsStoryColumns+` FROM news_stories st WHERE st.updated_at >= ? AND st.section IN (`+marks+`)
 		 ORDER BY st.updated_at DESC, st.id DESC LIMIT ?`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("recent news stories: %w", err)
@@ -547,10 +544,6 @@ func (s *Store) PruneNews(ctx context.Context, before time.Time) (pruned int, er
 }
 
 // placeholders is n comma-separated SQL parameters.
-func placeholders(n int) string {
-	return strings.TrimSuffix(strings.Repeat("?, ", n), ", ")
-}
-
 func scanNewsStories(rows *sql.Rows) ([]core.NewsStory, error) {
 	var stories []core.NewsStory
 	err := scanRows(rows, func(scan func(...any) error) error {
