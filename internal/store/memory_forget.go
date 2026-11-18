@@ -91,8 +91,8 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) (c
 	}
 	// Derived messages and summaries inherit their input source dependencies.
 	// Sources derived so far read what this request excludes, so they go
-	// whole. Sources derived after an earlier fragment exclusion read their
-	// parent without it and stay.
+	// whole, also when the request quotes them too. Sources derived after an
+	// earlier fragment exclusion read their parent without it and stay.
 	rows, err := tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT source_id FROM memory_exclusions WHERE epoch=? UNION SELECT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id) SELECT DISTINCT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id`, epoch)
 	if err != nil {
 		return forgotten, err
@@ -102,7 +102,7 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) (c
 		return forgotten, err
 	}
 	for _, id := range affected {
-		if slices.ContainsFunc(fragments, func(f core.MemoryExcludedFragment) bool { return f.SourceID == id }) {
+		if slices.ContainsFunc(fragments, func(f core.MemoryExcludedFragment) bool { return f.SourceID == id && f.Quote == "" }) {
 			continue
 		}
 		if err := insertMemoryExclusion(ctx, tx, core.MemoryExcludedFragment{SourceID: id}, request, epoch); err != nil {
