@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +31,14 @@ type approvalTestStore struct {
 	payloads []any
 	input    string
 	woken    bool
+	// subRuns are the sub-runs the run delegated.
+	subRuns []core.SubRun
+}
+
+func (s *approvalTestStore) SubRuns(context.Context, string) ([]core.SubRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.subRuns), nil
 }
 
 func (s *approvalTestStore) LoadRun(_ context.Context, runID string) (*core.RunRecord, error) {
