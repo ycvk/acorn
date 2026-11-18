@@ -192,7 +192,7 @@ func TestStaleWatchedQuestionsAreReleased(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := memoryTestNow.Add(15 * 24 * time.Hour)
-	released, err := s.ReleaseStaleQuestions(ctx, now.Add(-14*24*time.Hour), now)
+	released, err := s.ReleaseStaleQuestions(ctx, now.Add(-14*24*time.Hour), now, time.UTC)
 	if err != nil || len(released) != 1 {
 		t.Fatalf("released = %+v, %v", released, err)
 	}
@@ -208,8 +208,44 @@ func TestStaleWatchedQuestionsAreReleased(t *testing.T) {
 			t.Fatalf("still open = %+v", listed)
 		}
 	}
-	if again, err := s.ReleaseStaleQuestions(ctx, now.Add(-14*24*time.Hour), now); err != nil || len(again) != 0 {
+	if again, err := s.ReleaseStaleQuestions(ctx, now.Add(-14*24*time.Hour), now, time.UTC); err != nil || len(again) != 0 {
 		t.Fatalf("released twice = %+v, %v", again, err)
+	}
+}
+
+// The reason a question is released with is dated on the owner's calendar,
+// and a question that cannot be released does not keep the others.
+func TestReleasedQuestionsAreDatedLocallyAndReleasedOneByOne(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if _, err := s.CreateSession(ctx, "thread_q", "q"); err != nil {
+		t.Fatal(err)
+	}
+	asked := askedSource(t, s, "thread_q", "run_ask", "这个还免费吗")
+	// 20:00 UTC on 10-09 is 04:00 on 10-10 in Shanghai.
+	late := memoryTestNow.Add(8 * time.Hour)
+	stuck, err := watchQuestion(t, s, "卡住的问题", asked, "thread_q", late)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := watchQuestion(t, s, "另一个问题", asked, "thread_q", late)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `CREATE TRIGGER refuse_release BEFORE INSERT ON memory_concern_revisions WHEN NEW.concern_id = '`+stuck.ID+`' AND NEW.state = 'released' BEGIN SELECT RAISE(ABORT, 'refused by the test'); END`); err != nil {
+		t.Fatal(err)
+	}
+	shanghai, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := late.Add(15 * 24 * time.Hour)
+	released, err := s.ReleaseStaleQuestions(ctx, now.Add(-14*24*time.Hour), now, shanghai)
+	if err == nil || !strings.Contains(err.Error(), stuck.ID) || !strings.Contains(err.Error(), "refused by the test") {
+		t.Fatalf("err = %v, want the stuck question's failure", err)
+	}
+	if len(released) != 1 || released[0].ID != other.ID || released[0].Reason != "watched since 2026-10-10 without a new answer" {
+		t.Fatalf("released = %+v", released)
 	}
 }
 

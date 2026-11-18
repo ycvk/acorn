@@ -426,7 +426,7 @@
 - **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome、标题或关联记录时沿用当前的，新关切必须有标题。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
   - `internal/store/memory_state_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
-- **留意的问题合成一次检查，新答案在提问的对话里告知**：带 `question` 标记的关切是 owner 问过、答案会变的问题，标题即问题。它只能以 owner 自己的消息为来源开出，不能同时有 outcome，同时至多 5 条 active，标记建立后不变，这些在 `SaveConcern` 的事务里判断；owner 没有设置游思时间时 `concern` 工具拒绝开出。每个游思时段先以 `questions` 认领一次：提问满 14 天仍 active 的先直接 released、不起 run；到期的问题合进一个自主 run，在它自己的对话里只看这份输入，输入列出每个问题、提问日期与目前的答案；没有到期的问题时保留认领、不起 run。不在提问对话里的 run 把问题记为 resolved 时，同一事务里建一条立即到期、落在提问对话里的约定；它的唤醒输入带着检查记下的新答案，要求在对话里写出、推送一次并了结约定。提问对话里的 run 把它 resolved 时不建约定。夜思的输入不列留意的问题，也不列所在对话里 owner 要求过跟进早安卡事件的关切。
+- **留意的问题合成一次检查，新答案在提问的对话里告知**：带 `question` 标记的关切是 owner 问过、答案会变的问题，标题即问题。它只能以 owner 自己的消息为来源开出，不能同时有 outcome，同时至多 5 条 active，标记建立后不变，这些在 `SaveConcern` 的事务里判断；owner 没有设置游思时间时 `concern` 工具拒绝开出。每个游思时段先以 `questions` 认领一次：提问满 14 天仍 active 的先直接 released、不起 run，理由里的提问日期按 owner 的时区，一个问题放不下不影响其余的，失败照常报出；到期的问题合进一个自主 run，在它自己的对话里只看这份输入，输入列出每个问题、提问日期与目前的答案；没有到期的问题时保留认领、不起 run。不在提问对话里的 run 把问题记为 resolved 时，同一事务里建一条立即到期、落在提问对话里的约定；它的唤醒输入带着检查记下的新答案，要求在对话里写出、推送一次并了结约定。提问对话里的 run 把它 resolved 时不建约定。夜思的输入不列留意的问题，也不列所在对话里 owner 要求过跟进早安卡事件的关切。
   - `internal/store/memory_questions_test.go`
   - `internal/wake/questions_test.go`
   - `internal/tools/presence_tools_test.go`

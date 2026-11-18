@@ -193,7 +193,7 @@ const questionWatch = 14 * 24 * time.Hour
 // are released first, without a model call. The check records a new answer
 // on its concern, and the store then wakes the agent where the owner asked.
 func (s *Scheduler) questionsInput(ctx context.Context, slot string, now time.Time, loc *time.Location) (routineInput, error) {
-	if _, err := s.cfg.Memory.ReleaseStaleQuestions(ctx, now.Add(-questionWatch), now); err != nil {
+	if _, err := s.cfg.Memory.ReleaseStaleQuestions(ctx, now.Add(-questionWatch), now, loc); err != nil {
 		return routineInput{}, err
 	}
 	concerns, err := s.cfg.Memory.ListConcerns(ctx, true)

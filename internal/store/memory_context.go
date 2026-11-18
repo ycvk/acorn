@@ -247,25 +247,29 @@ func scheduleQuestionAnswer(ctx context.Context, tx *sql.Tx, concern core.Memory
 
 // ReleaseStaleQuestions releases the watched questions asked before
 // askedBefore that still have no new answer, each with a revision that keeps
-// its source, and returns them as released.
-func (s *Store) ReleaseStaleQuestions(ctx context.Context, askedBefore, now time.Time) ([]core.MemoryConcern, error) {
+// its source and a reason dated on the owner's calendar in loc, and returns
+// those it released. A question that fails to release does not hold back the
+// others; the failures come back joined with the ones released.
+func (s *Store) ReleaseStaleQuestions(ctx context.Context, askedBefore, now time.Time, loc *time.Location) ([]core.MemoryConcern, error) {
 	concerns, err := s.ListConcerns(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 	released := []core.MemoryConcern{}
+	var errs []error
 	for _, c := range concerns {
 		if !c.Question || c.State != "active" || !c.CreatedAt.Before(askedBefore) {
 			continue
 		}
-		next := core.MemoryConcern{ID: c.ID, State: "released", Reason: fmt.Sprintf("watched since %s without a new answer", c.CreatedAt.UTC().Format("2006-01-02")), SourceID: c.SourceID, UpdatedAt: now}
+		next := core.MemoryConcern{ID: c.ID, State: "released", Reason: fmt.Sprintf("watched since %s without a new answer", c.CreatedAt.In(loc).Format("2006-01-02")), SourceID: c.SourceID, UpdatedAt: now}
 		saved, err := s.SaveConcern(ctx, next, c.Revision)
 		if err != nil {
-			return nil, fmt.Errorf("release watched question %s: %w", c.ID, err)
+			errs = append(errs, fmt.Errorf("release watched question %s: %w", c.ID, err))
+			continue
 		}
 		released = append(released, saved)
 	}
-	return released, nil
+	return released, errors.Join(errs...)
 }
 
 // visibleConcern holds for a concern c whose conversation still exists, whose
