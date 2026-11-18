@@ -178,23 +178,15 @@ func (s *Scheduler) recordCheck(ctx context.Context, f core.FollowUp, scanned in
 // threadIdle reports whether nothing is going in a conversation: no run
 // running or waiting for the owner, and no owner message waiting for a run.
 func (s *Scheduler) threadIdle(ctx context.Context, sessionID string) (bool, error) {
-	latest, err := s.cfg.RunRecords.LoadLatestRunForSession(ctx, sessionID)
-	if err != nil {
+	active, err := s.cfg.RunRecords.ActiveRunInSession(ctx, sessionID)
+	if err != nil || active != "" {
 		return false, err
-	}
-	if runGoing(latest) {
-		return false, nil
 	}
 	queued, err := s.cfg.RunRecords.ListQueuedMessages(ctx, sessionID)
 	if err != nil {
 		return false, err
 	}
 	return len(queued) == 0, nil
-}
-
-// runGoing reports whether run is running or waiting for the owner.
-func runGoing(run *core.RunRecord) bool {
-	return run != nil && (run.Status == core.RunStatusRunning || run.Status == core.RunStatusInterrupted)
 }
 
 func jobEnd(job workstation.Job) string {

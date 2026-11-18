@@ -82,8 +82,8 @@ func storyThread(story string) string {
 
 // SendStoryMessage records an owner message sent from a story in the
 // story's conversation, creating it under in.Title when the story has none.
-// A conversation whose latest run is running or waits for the owner is
-// refused with ErrThreadBusy.
+// A conversation where a run is running or waits for the owner is refused
+// with ErrThreadBusy.
 func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite) (core.SessionMessageRecord, error) {
 	if !in.Intent.Valid() {
 		return core.SessionMessageRecord{}, fmt.Errorf("send story message: intent %q must be discuss or follow", in.Intent)
@@ -96,8 +96,8 @@ func (s *Store) SendStoryMessage(ctx context.Context, in core.StoryMessageWrite)
 
 // WriteStoryPiece records the wake input of a piece in the story's
 // conversation, creating it under in.Title when the story has none. A
-// conversation whose latest run is running or waits for the owner is refused
-// with ErrThreadBusy.
+// conversation where a run is running or waits for the owner is refused with
+// ErrThreadBusy.
 func (s *Store) WriteStoryPiece(ctx context.Context, in core.StoryPieceWrite) (core.SessionMessageRecord, error) {
 	return s.writeStoryMessage(ctx, core.MessageRoleWake, core.StoryPiece, in.Text, in.Title, in.Story, in.NewThreadID, "")
 }
@@ -140,12 +140,13 @@ func (s *Store) writeStoryMessage(ctx context.Context, role string, intent core.
 		case err != nil:
 			return err
 		default:
-			var status string
-			err := tx.QueryRowContext(ctx, `SELECT status FROM runs r WHERE session_id = ? AND `+notSubRun("r")+` ORDER BY turn_index DESC, finished_at DESC LIMIT 1`, message.SessionID).Scan(&status)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			// Busy as for an owner message: a run of the conversation runs or
+			// waits for the owner, whichever run it is.
+			active, err := activeRunOf(ctx, tx, message.SessionID)
+			if err != nil {
 				return err
 			}
-			if status == string(core.RunStatusRunning) || status == string(core.RunStatusInterrupted) {
+			if active != "" {
 				return fmt.Errorf("%w: %s", core.ErrThreadBusy, message.SessionID)
 			}
 		}

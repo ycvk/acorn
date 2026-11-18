@@ -33,7 +33,7 @@
 - **子 run 的审批只会更严**：子 run 的规则是父 run 开始时的 `approval.require`、`approval.allow` 与 `approval.block`，brief 的 block 加进 block。父 run 里会转审批的调用（require 命中、审查判断需要确认、审查出错）在子 run 里不登记 pending action，以说明它要写进 limitations 的拒绝文本作为工具结果返回；block 照常拒绝，allow 与审查放行的调用照常执行；`submit` 不受规则约束。
   - `internal/runtime/sub_runs_test.go`
   - `internal/runtime/agent_test.go`
-- **子 run 不是对话的 run**：对话最新的 run（线程列表状态、早安卡事件的忙碌判断、wake 调度器看对话是否空闲）、owner 消息排队等待的 run、`/v1/runs` 的进行中与最近结束列表、线程摘要的文件段落都不计子 run；子 run 不写对话消息，结束时不起排队的 run。删除对话一并删除子 run 及其 `sub_runs` 记录；Acorn 重启时还在跑的子 run 与其他 run 一样记为失败。父 run 有 `wake.fired` 时，子 run 的模型用量计入自主 token 预算。遗忘列出读过被排除内容的 run 时一并列出它们的子 run。
+- **子 run 不是对话的 run**：对话最新的 run（线程列表状态）、对话里运行或等待审批的 run（早安卡事件的忙碌判断、wake 调度器看对话是否空闲、owner 消息排队等待的 run）、`/v1/runs` 的进行中与最近结束列表、线程摘要的文件段落都不计子 run；子 run 不写对话消息，结束时不起排队的 run。删除对话一并删除子 run 及其 `sub_runs` 记录；Acorn 重启时还在跑的子 run 与其他 run 一样记为失败。父 run 有 `wake.fired` 时，子 run 的模型用量计入自主 token 预算。遗忘列出读过被排除内容的 run 时一并列出它们的子 run。
   - `internal/store/store_sub_runs_test.go`
   - `internal/store/memory_forget_test.go`
 - **模型使用原生协议并保留推理状态**：Responses、Chat Completions、Anthropic Messages 都经 Eino AgenticModel；推理内容块与签名参与下一轮工具结果回传和 checkpoint，公开事件投影不含签名。sampling 可省略，输出预算和上下文按模型能力验证。请求空闲超时随响应进度刷新，总请求与 run 时限可关闭。
@@ -144,7 +144,7 @@
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
   - `internal/store/memory_withdraw_test.go`
-- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、跟进、目标、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
+- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、跟进、目标、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。有 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
@@ -319,7 +319,7 @@
   - `internal/tools/workstation_tools_test.go`
   - `internal/workstation/jobs_test.go`
   - `internal/wire/long_work_e2e_test.go`
-- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话最新的 run 结束、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束，owner 也可在 App 里直接停止它；轮数用完时转为 blocked；结束已结束的目标返回 `ErrGoalEnded`。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果）；agent 结束目标时记下这个 run，它已经给 owner 推送过（审批推送不算）就不再推送，调度器结束的目标照常推送；stop 不推送。presence 列出当前对话的目标与等待中的跟进。
+- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话里没有 run 在运行或等待审批、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束，owner 也可在 App 里直接停止它；轮数用完时转为 blocked；结束已结束的目标返回 `ErrGoalEnded`。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果）；agent 结束目标时记下这个 run，它已经给 owner 推送过（审批推送不算）就不再推送，调度器结束的目标照常推送；stop 不推送。presence 列出当前对话的目标与等待中的跟进。
   - `internal/store/store_follow_ups_test.go`
   - `internal/wake/follow_ups_test.go`
   - `internal/tools/goal_tool_test.go`
@@ -403,7 +403,7 @@
   - `internal/api/story_messages_test.go`
   - `internal/api/now_test.go`
   - `internal/runtime/story_messages_test.go`
-- **从早安卡的事件发出的消息进这件事的对话**：`POST /v1/news/stories/{story_id}:discuss` 与 `:follow` 在同一事务里找这件事最新的对话（没有就新建）、写 owner 消息「展开讲讲：<标题>」或「持续跟进：<标题>」，标题与新对话的标题取最近一份挑中它的早安卡写的标题，没进过早安卡时取事件标题；并登记消息、对话、事件、意图与发消息时的事件快照（板块、标题、摘要、最新进展与至多 10 条最新条目的来源、标题、链接和时间）；之后按 owner 发消息的规则起 run。事件不存在时 404，对话最新 run 仍在运行或等待审批时 409 且不写消息。请求带客户端给的 `client_id`，与消息一同记下；以同一 `client_id` 再问时不写消息，先于忙碌判断回答这条消息：已有 run 时返回它（200），run 没能起来时在它上面起 run（201）。模型在这条消息旁看到意图与快照，快照标为外部数据；跟进时要求建一个没有 outcome、以这条消息为来源的关切，复查时间设在第二天开始。事件清理后快照保留；删除对话一并删除这些登记，之后再从事件发消息会新建对话。`/v1/now` 的早安卡事件带上这件事的对话与 `following`：那个对话里有可见的 active 或 waiting 关切。
+- **从早安卡的事件发出的消息进这件事的对话**：`POST /v1/news/stories/{story_id}:discuss` 与 `:follow` 在同一事务里找这件事最新的对话（没有就新建）、写 owner 消息「展开讲讲：<标题>」或「持续跟进：<标题>」，标题与新对话的标题取最近一份挑中它的早安卡写的标题，没进过早安卡时取事件标题；并登记消息、对话、事件、意图与发消息时的事件快照（板块、标题、摘要、最新进展与至多 10 条最新条目的来源、标题、链接和时间）；之后按 owner 发消息的规则起 run。事件不存在时 404，对话里有 run 在运行或等待审批时（与 owner 发消息时排队的判断相同）409 且不写消息。请求带客户端给的 `client_id`，与消息一同记下；以同一 `client_id` 再问时不写消息，先于忙碌判断回答这条消息：已有 run 时返回它（200），run 没能起来时在它上面起 run（201）。模型在这条消息旁看到意图与快照，快照标为外部数据；跟进时要求建一个没有 outcome、以这条消息为来源的关切，复查时间设在第二天开始。事件清理后快照保留；删除对话一并删除这些登记，之后再从事件发消息会新建对话。`/v1/now` 的早安卡事件带上这件事的对话与 `following`：那个对话里有可见的 active 或 waiting 关切。
   - `internal/store/store_news_story_messages_test.go`
   - `internal/api/story_messages_test.go`
   - `internal/runtime/story_messages_test.go`
@@ -419,7 +419,7 @@
 - **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思在 Thoughts 线程运行。
   - `internal/wake/thinking_test.go`
   - `internal/store/store_routine_test.go`
-- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件（留意的问题除外），所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录；没有 outcome、所在对话里 owner 要求过跟进早安卡事件的关切，另给出最近一次跟进时存下的事件快照，要求用 `news_search` 与 `web_search` 找最新理由之后的进展，有进展时回复并推送一次，没有时只回一句不推送，复查时间设到下一天开始。
+- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件（留意的问题除外），所在对话里有 run 在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录；没有 outcome、所在对话里 owner 要求过跟进早安卡事件的关切，另给出最近一次跟进时存下的事件快照，要求用 `news_search` 与 `web_search` 找最新理由之后的进展，有进展时回复并推送一次，没有时只回一句不推送，复查时间设到下一天开始。
   - `internal/wake/thinking_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
   - `internal/wire/story_follow_acceptance_e2e_test.go`

@@ -217,3 +217,31 @@ func TestAStoryAskMadeAgainIsWrittenOnce(t *testing.T) {
 		t.Fatalf("story messages = %+v", got)
 	}
 }
+
+// A story's conversation is busy while any run of it runs or waits for the
+// owner, as for an owner message, not only its latest.
+func TestAStoryConversationWithAWaitingRunIsBusy(t *testing.T) {
+	s, bbc, ft, _ := newsStoryFixture(t)
+	ctx := context.Background()
+	snapshot := core.SnapshotOf(pickedStory(t, s, bbc, ft))
+	first, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_s", ClientID: "ask-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_waiting", SessionID: "thread_s", TurnIndex: first.TurnIndex, Input: first.Content}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkInterrupted(ctx, "run_waiting", ""); err != nil {
+		t.Fatal(err)
+	}
+	// A later run, a view's press say, finished while the first still waits.
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_later", SessionID: "thread_s", TurnIndex: first.TurnIndex + 1, Input: "继续"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: "run_later", Status: core.RunStatusSucceeded, Output: "好", Event: "run.completed", Payload: map[string]any{"message": "好"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x", ClientID: "ask-2"}); !errors.Is(err, core.ErrThreadBusy) {
+		t.Fatalf("ask while an earlier run waits err = %v", err)
+	}
+}

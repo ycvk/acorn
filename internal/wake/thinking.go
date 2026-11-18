@@ -10,10 +10,13 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// RunReader reads a thread's latest run.
+// RunReader reads a thread's runs.
 type RunReader interface {
 	// LoadLatestRunForSession is nil for a thread without runs.
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*core.RunRecord, error)
+	// ActiveRunInSession is the thread's run that runs or waits for the
+	// owner, "" when none does.
+	ActiveRunInSession(ctx context.Context, sessionID string) (string, error)
 	ListQueuedMessages(ctx context.Context, sessionID string) ([]core.QueuedMessage, error)
 	// RunNotifiedOwner reports whether a run pushed something of its own to
 	// the owner.
@@ -246,11 +249,11 @@ func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time,
 		if c.Question || c.ReviewAt.After(now) {
 			continue
 		}
-		latest, err := s.cfg.RunRecords.LoadLatestRunForSession(ctx, c.ThreadID)
+		active, err := s.cfg.RunRecords.ActiveRunInSession(ctx, c.ThreadID)
 		if err != nil {
 			return routineInput{}, err
 		}
-		if runGoing(latest) {
+		if active != "" {
 			continue
 		}
 		review := "not set"
