@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,5 +55,15 @@ func TestDeepRecallExpandsAnAdditionalEvidenceLink(t *testing.T) {
 	deep, err := e.Recall(ctx, core.MemoryQuery{Query: "起点", Depth: "deep"})
 	if err != nil || len(deep.Hits) != 1 || deep.Hits[0].Record.ID != ids[2] {
 		t.Fatalf("deep=%+v err=%v", deep, err)
+	}
+}
+
+func TestSourceExcerptStartsNearTheTermWhenLowerCaseIsLonger(t *testing.T) {
+	// Ⱥ is two bytes and its lower case ⱥ three, so byte offsets into the
+	// lower-cased text run past the original's.
+	content := strings.Repeat("Ⱥ", 600) + " the hangzhou office " + strings.Repeat("x", 600)
+	got := sourceExcerpt(content, []string{"hangzhou"}, 200)
+	if want := strings.Repeat("Ⱥ", 95) + " the hangzhou office " + strings.Repeat("x", 84); got != want {
+		t.Fatalf("excerpt = %q, want %q", got, want)
 	}
 }

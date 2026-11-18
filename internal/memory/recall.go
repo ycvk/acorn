@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -420,10 +421,13 @@ func sourceExcerpt(content string, terms []string, limit int) string {
 	if len(runes) <= limit {
 		return content
 	}
+	// Lower case maps rune to rune, so a rune offset in lower is one in
+	// content; byte offsets differ where a letter's lower case is longer.
+	lower := strings.ToLower(content)
 	start := 0
 	for _, term := range terms {
-		if i := strings.Index(strings.ToLower(content), term); i >= 0 {
-			start = max(0, len([]rune(content[:i]))-100)
+		if i := strings.Index(lower, term); i >= 0 {
+			start = max(0, utf8.RuneCountInString(lower[:i])-100)
 			break
 		}
 	}
