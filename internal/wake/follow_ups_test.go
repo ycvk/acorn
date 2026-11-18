@@ -314,7 +314,7 @@ func TestGoalsContinueUntilTheyEnd(t *testing.T) {
 // notifyFrom records a push the run sent the owner itself.
 func (h *harness) notifyFrom(t *testing.T, runID string) {
 	t.Helper()
-	if _, err := h.data.QueueNotification(context.Background(), core.Notification{Title: "进展", Body: "做完一部分了", ThreadID: "chat", RunID: runID, SendAfter: h.now, CreatedAt: h.now}); err != nil {
+	if _, err := h.data.QueueNotification(context.Background(), core.Notification{Title: "进展", Body: "做完一部分了", ThreadID: "chat", RunID: runID, SendAfter: h.now, CreatedAt: h.now}, 10); err != nil {
 		t.Fatal(err)
 	}
 }

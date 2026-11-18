@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -54,8 +55,14 @@ type NotificationStore interface {
 	// ListPushInstallations returns installations of devices that are not revoked.
 	ListPushInstallations(ctx context.Context) ([]PushInstallation, error)
 	DeletePushInstallation(ctx context.Context, deviceID string) error
-	QueueNotification(ctx context.Context, n Notification) (Notification, error)
+	// QueueNotification stores n unless perHour notifications were made in
+	// the hour before n.CreatedAt, which is ErrNotificationCapReached; the
+	// count and the insert are one step, so notifications made at once
+	// cannot pass the cap together.
+	QueueNotification(ctx context.Context, n Notification, perHour int) (Notification, error)
 	ListDueNotifications(ctx context.Context, now time.Time) ([]Notification, error)
 	FinishNotification(ctx context.Context, id int64, status NotificationStatus, errText string, at time.Time) error
-	CountNotificationsSince(ctx context.Context, since time.Time) (int, error)
 }
+
+// ErrNotificationCapReached means the hourly notification cap is reached.
+var ErrNotificationCapReached = errors.New("notification limit for the last hour reached")

@@ -325,7 +325,7 @@
   - `internal/tools/goal_tool_test.go`
   - `internal/presence/presence_test.go`
   - `internal/wire/long_work_e2e_test.go`
-- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 设置时返回错误；发给 FCM 的请求超过 4096 字节（FCM 的单条消息上限）的通知在入队之前返回错误并写明字节数，免打扰时段内也一样；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出（owner 正在等的待决事项除外，见「等待 owner 的操作会推送」）；排队的待决事项推送在发出前读它的 pending action，已不在 pending 的记 dropped 并写明状态，不再投递；没有任何已登记设备时返回错误。推送按 App 向 FCM 注册的 Firebase installation ID（FID）投递，设备经 `PUT /v1/devices/self/push-installation` 登记 FID，格式不符的拒绝；一个 FID 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 FID 被删除，设备吊销时其 FID 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
+- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 设置时返回错误，计数与入队在同一条语句里，同时发起的通知不会一起越过上限；发给 FCM 的请求超过 4096 字节（FCM 的单条消息上限）的通知在入队之前返回错误并写明字节数，免打扰时段内也一样；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出（owner 正在等的待决事项除外，见「等待 owner 的操作会推送」）；排队的待决事项推送在发出前读它的 pending action，已不在 pending 的记 dropped 并写明状态，不再投递；没有任何已登记设备时返回错误。推送按 App 向 FCM 注册的 Firebase installation ID（FID）投递，设备经 `PUT /v1/devices/self/push-installation` 登记 FID，格式不符的拒绝；一个 FID 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 FID 被删除，设备吊销时其 FID 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
   - `internal/notify/notify_test.go`
   - `internal/store/store_presence_test.go`
   - `internal/api/push_installation_handler_test.go`

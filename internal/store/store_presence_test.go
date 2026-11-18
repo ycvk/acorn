@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -74,15 +77,15 @@ func TestV18UpgradeDropsRegistrationTokens(t *testing.T) {
 	}
 }
 
-func TestNotificationQueueAndCount(t *testing.T) {
+func TestNotificationQueueAndCap(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
-	soon, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", ThreadID: "thread_1", SendAfter: now.Add(-time.Second), CreatedAt: now})
+	soon, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", ThreadID: "thread_1", SendAfter: now.Add(-time.Second), CreatedAt: now}, 3)
 	if err != nil {
 		t.Fatalf("queue: %v", err)
 	}
-	if _, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", SendAfter: now.Add(time.Hour), CreatedAt: now}); err != nil {
+	if _, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", SendAfter: now.Add(time.Hour), CreatedAt: now}, 3); err != nil {
 		t.Fatalf("queue later: %v", err)
 	}
 	due, err := s.ListDueNotifications(ctx, now)
@@ -95,10 +98,7 @@ func TestNotificationQueueAndCount(t *testing.T) {
 	if due, _ := s.ListDueNotifications(ctx, now); len(due) != 0 {
 		t.Fatalf("sent notification still due: %+v", due)
 	}
-	if n, err := s.CountNotificationsSince(ctx, now.Add(-time.Minute)); err != nil || n != 2 {
-		t.Fatalf("count = %d err=%v", n, err)
-	}
-	approval, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", ActionID: "action_1", SendAfter: now.Add(-time.Second), CreatedAt: now})
+	approval, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", ActionID: "action_1", SendAfter: now.Add(-time.Second), CreatedAt: now}, 3)
 	if err != nil {
 		t.Fatalf("queue approval: %v", err)
 	}
@@ -110,6 +110,37 @@ func TestNotificationQueueAndCount(t *testing.T) {
 	}
 	if err := s.FinishNotification(ctx, soon.ID, core.NotificationQueued, "", now); err == nil {
 		t.Fatal("finishing as queued must fail")
+	}
+	// Three were made in the last hour, sent, queued or dropped alike.
+	if _, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", SendAfter: now, CreatedAt: now}, 3); !errors.Is(err, core.ErrNotificationCapReached) {
+		t.Fatalf("a fourth in the hour err = %v, want the cap", err)
+	}
+	if _, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", SendAfter: now, CreatedAt: now.Add(time.Hour + time.Second)}, 3); err != nil {
+		t.Fatalf("an hour later err = %v", err)
+	}
+}
+
+func TestNotificationsMadeAtOnceStayUnderTheCap(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Now().UTC()
+	var queued, capped atomic.Int32
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() {
+			_, err := s.QueueNotification(context.Background(), core.Notification{Title: "t", Body: "b", SendAfter: now, CreatedAt: now}, 3)
+			switch {
+			case err == nil:
+				queued.Add(1)
+			case errors.Is(err, core.ErrNotificationCapReached):
+				capped.Add(1)
+			default:
+				t.Errorf("queue: %v", err)
+			}
+		})
+	}
+	wg.Wait()
+	if queued.Load() != 3 || capped.Load() != 7 {
+		t.Fatalf("queued %d, capped %d; want 3 and 7", queued.Load(), capped.Load())
 	}
 }
 

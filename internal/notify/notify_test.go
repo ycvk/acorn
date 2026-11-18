@@ -204,10 +204,19 @@ func (m *memNotifications) DeletePushInstallation(_ context.Context, deviceID st
 	return nil
 }
 
-func (m *memNotifications) QueueNotification(_ context.Context, n core.Notification) (core.Notification, error) {
+func (m *memNotifications) QueueNotification(_ context.Context, n core.Notification, perHour int) (core.Notification, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	n.ID, n.Status, n.CreatedAt = int64(len(m.notes)+1), core.NotificationQueued, n.SendAfter
+	made := 0
+	for _, note := range m.notes {
+		if !note.CreatedAt.Before(n.CreatedAt.Add(-time.Hour)) {
+			made++
+		}
+	}
+	if made >= perHour {
+		return core.Notification{}, core.ErrNotificationCapReached
+	}
+	n.ID, n.Status = int64(len(m.notes)+1), core.NotificationQueued
 	m.notes = append(m.notes, n)
 	return n, nil
 }
@@ -229,18 +238,6 @@ func (m *memNotifications) FinishNotification(_ context.Context, id int64, statu
 	defer m.mu.Unlock()
 	m.notes[id-1].Status, m.notes[id-1].Error, m.notes[id-1].SentAt = status, errText, at
 	return nil
-}
-
-func (m *memNotifications) CountNotificationsSince(_ context.Context, since time.Time) (int, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	n := 0
-	for _, note := range m.notes {
-		if !note.CreatedAt.Before(since) {
-			n++
-		}
-	}
-	return n, nil
 }
 
 type recordingPusher struct {
@@ -311,7 +308,7 @@ func TestNotifySendsNowAndEnforcesHourlyCap(t *testing.T) {
 			t.Fatalf("notify %d: %+v err=%v", i, n, err)
 		}
 	}
-	if _, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"}); !errors.Is(err, ErrRateLimited) {
+	if _, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"}); !errors.Is(err, core.ErrNotificationCapReached) {
 		t.Fatalf("third notify = %v, want rate limited", err)
 	}
 	h.settings.MaxPushesPerHour = 3
@@ -382,7 +379,7 @@ func TestNotifyAwaitedIsSentInsideQuietHours(t *testing.T) {
 	if n, err := h.sender.Notify(ctx, core.Notification{Title: "夜里", Body: "b"}); err != nil || n.Status != core.NotificationQueued {
 		t.Fatalf("another push inside quiet hours = %+v err=%v", n, err)
 	}
-	if _, err := h.sender.NotifyAwaited(ctx, core.Notification{Title: "Approve skill_write", Body: "b", ActionID: "a1"}); !errors.Is(err, ErrRateLimited) {
+	if _, err := h.sender.NotifyAwaited(ctx, core.Notification{Title: "Approve skill_write", Body: "b", ActionID: "a1"}); !errors.Is(err, core.ErrNotificationCapReached) {
 		t.Fatalf("awaited over the hourly cap = %v, want rate limited", err)
 	}
 }

@@ -88,7 +88,7 @@ func (s *Store) DeletePushInstallation(ctx context.Context, deviceID string) err
 
 const notificationColumns = `id, title, body, thread_id, run_id, action_id, browser_url, status, send_after, error_text, created_at, sent_at`
 
-func (s *Store) QueueNotification(ctx context.Context, n core.Notification) (core.Notification, error) {
+func (s *Store) QueueNotification(ctx context.Context, n core.Notification, perHour int) (core.Notification, error) {
 	if strings.TrimSpace(n.Title) == "" || strings.TrimSpace(n.Body) == "" {
 		return core.Notification{}, errors.New("queue notification: title and body are required")
 	}
@@ -100,10 +100,19 @@ func (s *Store) QueueNotification(ctx context.Context, n core.Notification) (cor
 	}
 	n.Status = core.NotificationQueued
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO notifications(title, body, thread_id, run_id, action_id, browser_url, status, send_after, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		n.Title, n.Body, n.ThreadID, n.RunID, n.ActionID, n.BrowserURL, string(n.Status), formatTimestamp(n.SendAfter), formatTimestamp(n.CreatedAt))
+		`INSERT INTO notifications(title, body, thread_id, run_id, action_id, browser_url, status, send_after, created_at)
+		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM notifications WHERE created_at >= ?) < ?`,
+		n.Title, n.Body, n.ThreadID, n.RunID, n.ActionID, n.BrowserURL, string(n.Status), formatTimestamp(n.SendAfter), formatTimestamp(n.CreatedAt),
+		formatTimestamp(n.CreatedAt.Add(-time.Hour)), perHour)
 	if err != nil {
 		return core.Notification{}, fmt.Errorf("queue notification: %w", err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return core.Notification{}, fmt.Errorf("queue notification: %w", err)
+	}
+	if inserted == 0 {
+		return core.Notification{}, core.ErrNotificationCapReached
 	}
 	if n.ID, err = result.LastInsertId(); err != nil {
 		return core.Notification{}, fmt.Errorf("queue notification id: %w", err)
@@ -178,14 +187,4 @@ func (s *Store) RunNotifiedOwner(ctx context.Context, runID string) (bool, error
 		return false, fmt.Errorf("notifications of run %s: %w", runID, err)
 	}
 	return notified, nil
-}
-
-// CountNotificationsSince counts notifications created at or after since,
-// whatever their delivery state, so queued ones count toward the hourly cap.
-func (s *Store) CountNotificationsSince(ctx context.Context, since time.Time) (int, error) {
-	var n int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notifications WHERE created_at >= ?`, formatTimestamp(since)).Scan(&n); err != nil {
-		return 0, fmt.Errorf("count notifications: %w", err)
-	}
-	return n, nil
 }

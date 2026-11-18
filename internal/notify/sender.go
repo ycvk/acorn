@@ -11,8 +11,6 @@ import (
 )
 
 var (
-	// ErrRateLimited means the hourly notification cap is reached.
-	ErrRateLimited = errors.New("notification limit for the last hour reached")
 	// ErrNoPushInstallation means no paired device has registered for push.
 	ErrNoPushInstallation = errors.New("no device has registered for push notifications")
 	// ErrTooLarge means the notification does not fit in one FCM message.
@@ -100,13 +98,6 @@ func (s *Sender) notify(ctx context.Context, n core.Notification, awaited bool) 
 		return core.Notification{}, err
 	}
 	now := s.cfg.Clock()
-	sent, err := s.cfg.Store.CountNotificationsSince(ctx, now.Add(-time.Hour))
-	if err != nil {
-		return core.Notification{}, err
-	}
-	if sent >= settings.MaxPushesPerHour {
-		return core.Notification{}, fmt.Errorf("%w (%d per hour)", ErrRateLimited, settings.MaxPushesPerHour)
-	}
 	installations, err := s.cfg.Store.ListPushInstallations(ctx)
 	if err != nil {
 		return core.Notification{}, err
@@ -124,7 +115,10 @@ func (s *Sender) notify(ctx context.Context, n core.Notification, awaited bool) 
 	if quiet {
 		n.SendAfter = end
 	}
-	queued, err := s.cfg.Store.QueueNotification(ctx, n)
+	queued, err := s.cfg.Store.QueueNotification(ctx, n, settings.MaxPushesPerHour)
+	if errors.Is(err, core.ErrNotificationCapReached) {
+		return core.Notification{}, fmt.Errorf("%w (%d per hour)", err, settings.MaxPushesPerHour)
+	}
 	if err != nil {
 		return core.Notification{}, err
 	}
