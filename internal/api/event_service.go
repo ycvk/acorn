@@ -90,7 +90,7 @@ func projectLiveEvents(records []core.EventRecord) ([]RunEvent, error) {
 		}
 		event, err := ProjectRunEvent(record)
 		if err != nil {
-			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
+			return nil, fmt.Errorf("project persisted run event %d: %w", record.Sequence, err)
 		}
 		events = append(events, event)
 	}

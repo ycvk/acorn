@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -44,5 +45,12 @@ func TestEventServiceReportsStoreFailuresAsStoreErrors(t *testing.T) {
 func TestModelUsageIsDiagnostic(t *testing.T) {
 	if IsLiveRunEventKind("model.usage") {
 		t.Fatal("usage must not change the mobile live contract")
+	}
+}
+
+func TestAnEventThatCannotBeShownSaysSoOnce(t *testing.T) {
+	_, err := projectLiveEvents([]core.EventRecord{{RunID: "run_1", Sequence: 7, Kind: "run.started", Payload: []any{1}}})
+	if !errors.Is(err, ErrClientProjectionFailed) || strings.Count(err.Error(), ErrClientProjectionFailed.Error()) != 1 {
+		t.Fatalf("err = %v, want the projection failure named once", err)
 	}
 }
