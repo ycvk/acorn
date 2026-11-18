@@ -3,6 +3,7 @@ package core
 import (
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -185,5 +186,28 @@ func TestWatchItemWhenFallsBackToSeen(t *testing.T) {
 	}
 	if got := (WatchItem{SeenAt: seen}).When(); !got.Equal(seen) {
 		t.Fatalf("When() without a published time = %v, want the seen time %v", got, seen)
+	}
+}
+
+func TestIDsMadeAtOnceDiffer(t *testing.T) {
+	const workers, each = 8, 2000
+	ids := make(chan string, workers*each*2)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() {
+			for range each {
+				ids <- NewRunID()
+				ids <- NewSessionID()
+			}
+		})
+	}
+	wg.Wait()
+	close(ids)
+	seen := map[string]bool{}
+	for id := range ids {
+		if seen[id] {
+			t.Fatalf("id %s made twice", id)
+		}
+		seen[id] = true
 	}
 }
