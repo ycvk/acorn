@@ -2,6 +2,7 @@ package wire
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -178,5 +179,31 @@ func TestAMessageSentAgainUnderItsClientIDIsKeptOnce(t *testing.T) {
 	}
 	if owner != 1 || len(listed.Queued) != 0 {
 		t.Fatalf("messages = %v, queued = %+v", messageLines(listed), listed.Queued)
+	}
+}
+
+// A run that made no artifact lists none: its detail's artifacts is an
+// empty array, as the API promises, never null.
+func TestARunWithoutArtifactsListsAnEmptyArray(t *testing.T) {
+	provider := &fakeOpenAI{replies: []string{textReply("好的。")}}
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	c, err := NewContainer(context.Background(), writeTestConfig(t, server.URL, ""))
+	if err != nil {
+		t.Fatalf("container: %v", err)
+	}
+	defer c.Close()
+	client := newPairedClient(t, c)
+	thread, err := c.threads.CreateThread(context.Background(), "随便")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var started api.CreateRunResponse
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "在吗"}, http.StatusCreated, &started)
+	waitRunStatus(t, c, started.Run.ID, "completed")
+	var detail map[string]json.RawMessage
+	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/runs/"+started.Run.ID+"/detail", nil), http.StatusOK, &detail)
+	if string(detail["artifacts"]) != "[]" {
+		t.Fatalf("artifacts = %s, want []", detail["artifacts"])
 	}
 }
