@@ -145,7 +145,10 @@ func (m *Manager) PromptTools() []einotool.BaseTool {
 	return tools
 }
 
-func Doctor(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo {
+// Doctor connects to each enabled provider once and reports what it finds.
+// tokens holds the OAuth tokens the runs use, so an OAuth provider is probed
+// as the runs reach it.
+func Doctor(ctx context.Context, cfgs []core.ProviderConfig, tokens core.ArtifactStore) []core.ProviderInfo {
 	statuses := make([]core.ProviderInfo, 0, len(cfgs))
 	for _, cfg := range cfgs {
 		status := newProviderStatus(cfg)
@@ -154,7 +157,7 @@ func Doctor(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo
 			continue
 		}
 
-		p, err := connectProvider(ctx, cfg, nil, nil)
+		p, err := connectProvider(ctx, cfg, nil, tokens)
 		if err != nil {
 			status.StartupStatus = "failed"
 			status.Error = err.Error()

@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	goruntime "runtime"
@@ -56,7 +58,7 @@ func TestDoctorReportsDiscoveredTools(t *testing.T) {
 		Command:               binary,
 		StartupTimeoutSeconds: 10,
 		ToolNames:             []string{"add"},
-	}})
+	}}, nil)
 	if got, want := len(statuses), 1; got != want {
 		t.Fatalf("expected %d status, got %d", want, got)
 	}
@@ -93,7 +95,7 @@ func TestDoctorKeepsProviderVisibleOnFailure(t *testing.T) {
 		Args:                  []string{"--flag"},
 		ToolNames:             []string{"echo"},
 		StartupTimeoutSeconds: 10,
-	}})
+	}}, nil)
 	if got, want := len(statuses), 1; got != want {
 		t.Fatalf("expected %d status, got %d", want, got)
 	}
@@ -331,5 +333,25 @@ func TestStdioServerDoesNotInheritAcornSecrets(t *testing.T) {
 		if got[name] != value {
 			t.Errorf("%s = %q, want %q", name, got[name], value)
 		}
+	}
+}
+
+// The doctor probes an OAuth provider with the tokens the runs use; without
+// them every OAuth provider read as failed.
+func TestDoctorProbesAnOAuthProviderWithTheRunsTokens(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "no", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	cfg := core.ProviderConfig{
+		Name: "oauth-http", Enabled: true, Transport: "streamable_http", URL: server.URL + "/mcp", StartupTimeoutSeconds: 5,
+		Auth: core.AuthConfig{Type: "oauth", ClientID: "test-client-id"},
+	}
+	statuses := Doctor(context.Background(), []core.ProviderConfig{cfg}, newMockTokenStore())
+	if len(statuses) != 1 || statuses[0].StartupStatus != "failed" {
+		t.Fatalf("statuses = %+v", statuses)
+	}
+	if strings.Contains(statuses[0].Error, "token store is required") {
+		t.Fatalf("the doctor probed without the token store: %s", statuses[0].Error)
 	}
 }
