@@ -32,6 +32,7 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.PairingState
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.net.LocalNetworkDenied
+import io.ycvk.acorn.core.net.isInternalHost
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.FormField
@@ -136,12 +137,16 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
     }
 }
 
-/** Why [url] can't be a server address, or null when it can. */
+/**
+ * Why [url] can't be a server address, or null when it can. Every request the
+ * app makes goes to this address, so http is taken only for a host inside the
+ * owner's own networks.
+ */
 fun serverUrlProblem(url: String): String? {
     val parsed = url.toHttpUrlOrNull()
-    return if (parsed == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
-        "服务器地址格式不对，应该像 https://acorn.example.com"
-    } else {
-        null
+    return when {
+        parsed == null || !(url.startsWith("http://") || url.startsWith("https://")) -> "服务器地址格式不对，应该像 https://acorn.example.com"
+        parsed.scheme == "http" && !isInternalHost(parsed.host) -> "公网上的服务器要用 https://，http:// 只用于局域网、Tailscale 和本机的地址"
+        else -> null
     }
 }

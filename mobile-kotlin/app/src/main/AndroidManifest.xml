@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Cleartext is allowed for every host because a network security config cannot match the address ranges
+         a server on the owner's LAN or tailnet uses. serverUrlProblem takes http only for such an internal host,
+         and every request goes to the paired server's address. -->
     <application
         android:name=".AcornApp"
         android:allowBackup="false"

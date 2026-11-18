@@ -265,7 +265,7 @@ sha256sum -c "acorn_mobile_${VERSION}_android.apk.sha256"
 
 Choose one explicit remote boundary:
 
-- **Tailscale**: listen on a private interface or `0.0.0.0:8080`, restrict access through the tailnet, and pair with `http://<tailnet-host>:8080` or a Tailscale HTTPS name.
+- **Tailscale**: listen on a private interface or `0.0.0.0:8080`, restrict access through the tailnet, and pair with the machine's tailnet address (`http://100.x.y.z:8080`), its full MagicDNS name (`http://<host>.<tailnet>.ts.net:8080`) or a Tailscale HTTPS name. The app takes `http://` only for tailnet, LAN and loopback addresses and `.local` or `.ts.net` names; a public server needs `https://`.
 - **Reverse proxy**: keep Acorn bound to `127.0.0.1:8080`, terminate TLS in Caddy/Nginx/Traefik, and pair with the public HTTPS origin. Let request bodies through up to the file cap (`files.max_upload_mib`, 50 MiB by default), for example `client_max_body_size 51m;` in Nginx, whose default of 1 MiB refuses most files and photos.
 - **Cloudflare Tunnel**: keep Acorn bound to `127.0.0.1:8080`, tunnel to that local origin, and pair with the tunnel HTTPS URL.
 - **LAN only**: bind to `0.0.0.0:8080` only on a trusted network and pair with the LAN IP.
