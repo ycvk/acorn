@@ -86,7 +86,7 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 			_ = processLock.Close()
 		}
 	}()
-	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
+	db, err := sql.Open("sqlite", writerDSN(filepath.Join(dir, "acorn.db")))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -129,6 +129,14 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 
 func (s *Store) Close() error {
 	return errors.Join(s.read.Close(), s.db.Close(), s.releaseProcessLock(), s.lock.Close())
+}
+
+// writerDSN sets the writer's pragmas on every connection the pool opens,
+// so a connection database/sql replaces keeps foreign keys, the busy timeout
+// and NORMAL sync. WAL is a property of the file, set once by configure.
+func writerDSN(path string) string {
+	dsn := url.URL{Scheme: "file", Path: path, RawQuery: url.Values{"_pragma": {"busy_timeout(5000)", "synchronous(NORMAL)", "foreign_keys(1)"}}.Encode()}
+	return dsn.String()
 }
 
 const readConnections = 4

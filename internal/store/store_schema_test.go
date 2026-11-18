@@ -202,3 +202,17 @@ func (s *Store) tableColumns(table string) (map[string]struct{}, error) {
 	}
 	return result, rows.Err()
 }
+
+func TestAReplacedWriterConnectionKeepsItsPragmas(t *testing.T) {
+	s := openTestStore(t)
+	// With no idle connection kept, every statement runs on a new one, as
+	// after database/sql drops a broken connection.
+	s.db.SetMaxIdleConns(0)
+	t.Cleanup(func() { s.db.SetMaxIdleConns(1) })
+	for pragma, want := range map[string]int{"foreign_keys": 1, "busy_timeout": 5000, "synchronous": 1} {
+		var got int
+		if err := s.db.QueryRow("PRAGMA " + pragma).Scan(&got); err != nil || got != want {
+			t.Errorf("PRAGMA %s on a new writer connection = %d, %v; want %d", pragma, got, err, want)
+		}
+	}
+}
