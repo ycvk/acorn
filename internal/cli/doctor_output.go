@@ -293,6 +293,14 @@ func renderDoctorPackageTriggers(items []skills.TriggerReport, loc *time.Locatio
 	return strings.Join(lines, "\n")
 }
 
+func renderDoctorRetiredStorage(dirs []wire.RetiredDir) string {
+	lines := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		lines = append(lines, fmt.Sprintf("Retired storage: %s holds %s; Acorn no longer reads or backs it up, so keep what you want from it and delete it", dir.Path, dir.Held))
+	}
+	return strings.Join(lines, "\n")
+}
+
 func renderDoctorReview(status wire.ReviewStatus) string {
 	switch status.State {
 	case "off":

@@ -134,6 +134,10 @@ func runDoctor(ctx context.Context, args []string) error {
 			return fmt.Errorf("package triggers: %w", err)
 		}
 		reviewStatus := container.ReviewStatus(ctx)
+		retired, err := wire.RetiredStorage(container.Config())
+		if err != nil {
+			return err
+		}
 		owner, err := container.Settings().Current(ctx)
 		if err != nil {
 			return fmt.Errorf("settings: %w", err)
@@ -147,7 +151,8 @@ func runDoctor(ctx context.Context, args []string) error {
 				PackageTools    []skills.ServerReport       `json:"package_tools"`
 				PackageTriggers []skills.TriggerReport      `json:"package_triggers"`
 				Review          wire.ReviewStatus           `json:"review"`
-			}{snapshot, thinking, memoryStatus, workstation, packageTools, packageTriggers, reviewStatus})
+				RetiredStorage  []wire.RetiredDir           `json:"retired_storage"`
+			}{snapshot, thinking, memoryStatus, workstation, packageTools, packageTriggers, reviewStatus, retired})
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
@@ -169,6 +174,9 @@ func runDoctor(ctx context.Context, args []string) error {
 			fmt.Println(renderDoctorPackageTriggers(packageTriggers, current.Location))
 		}
 		fmt.Println(renderDoctorReview(reviewStatus))
+		if len(retired) > 0 {
+			fmt.Println(renderDoctorRetiredStorage(retired))
+		}
 		return nil
 	})
 }

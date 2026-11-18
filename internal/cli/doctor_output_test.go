@@ -211,6 +211,14 @@ func TestRenderDoctorReview(t *testing.T) {
 	}
 }
 
+func TestRenderDoctorRetiredStorage(t *testing.T) {
+	got := renderDoctorRetiredStorage([]wire.RetiredDir{{Name: "attachments", Path: "/srv/acorn/workspace/attachments", Held: "images shared with the removed share capture"}})
+	want := "Retired storage: /srv/acorn/workspace/attachments holds images shared with the removed share capture; Acorn no longer reads or backs it up, so keep what you want from it and delete it"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestRenderDoctorWorkstation(t *testing.T) {
 	for _, tc := range []struct {
 		status wire.WorkstationStatus

@@ -510,7 +510,7 @@ Pick sources someone already ranked: top stories, front pages and daily digests.
 
 ## 14. Backup and Restore
 
-The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Run artifacts and the files of conversations never change once written, so they are mirrored once into `<backup.dir>/artifacts/` and `<backup.dir>/files/`. The newest `backup.keep` snapshots are kept (14 by default):
+The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Run artifacts and the files of conversations never change once written, so they are mirrored once into `<backup.dir>/artifacts/` and `<backup.dir>/files/`. An install upgraded from a version before 0.19.0-rc.15 may still have `<storage_dir>/attachments/`, the images shared with the removed share capture; Acorn no longer reads or backs it up, and `acorn doctor` names it while it is there. The newest `backup.keep` snapshots are kept (14 by default):
 
 ```yaml
 backup:
