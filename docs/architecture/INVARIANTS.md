@@ -140,7 +140,7 @@
   - `internal/redact/exclude_test.go`
   - `internal/store/memory_redaction_test.go`
   - `internal/memory/redaction_test.go`
-- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改登记一个 `request` 来源（speaker 为 owner、从不抽取），以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision。在 App 里忘掉一条记忆是撤回：同一事务里给它写一个新 revision，fact 与 insight 为 `retracted`、thought 为 `released`，由它派生的记录标 needs_review 并入队 consolidate，引用它根来源的 shown 画像行删除并排一次画像刷新；不登记排除、不升 epoch、不打断 run，它的来源和读过它的 run 写下的回复、工具结果与想法照常可读。不再是 current、disputed 或 open 的记录撤回时返回 `ErrMemoryNotFound`。
+- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改登记一个 `request` 来源（speaker 为 owner、从不抽取），以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision。在 App 里忘掉一条记忆是撤回：同一事务里给它写一个新 revision，fact 与 insight 为 `retracted`、thought 为 `released`，由它派生的记录标 needs_review 并入队 consolidate，引用它根来源的 shown 画像行删除并排一次画像刷新（没有这样的行而有画像刷新正在进行时也排一次），在它之前领取的刷新提交时见到之后排的刷新就不写入；不登记排除、不升 epoch、不打断 run，它的来源和读过它的 run 写下的回复、工具结果与想法照常可读。不再是 current、disputed 或 open 的记录撤回时返回 `ErrMemoryNotFound`。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
   - `internal/store/memory_withdraw_test.go`

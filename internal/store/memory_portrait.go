@@ -89,7 +89,10 @@ func (s *Store) PortraitRefreshedAt(ctx context.Context) (time.Time, error) {
 }
 
 // CommitPortrait checks the lease and that every source is still there to
-// cite, writes the lines in their order and finishes the refresh.
+// cite, writes the lines in their order and finishes the refresh. A refresh
+// queued after this one, as by the owner withdrawing a memory while this one
+// ran, means it read what has since changed: it finishes without writing,
+// and the later refresh writes the portrait.
 func (s *Store) CommitPortrait(ctx context.Context, m core.PortraitMutation) error {
 	if m.Now.IsZero() {
 		return errors.New("portrait mutation requires now")
@@ -100,6 +103,13 @@ func (s *Store) CommitPortrait(ctx context.Context, m core.PortraitMutation) err
 	return s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		if err := validateMemoryLease(ctx, tx, m.Lease, m.Now); err != nil {
 			return err
+		}
+		var later int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_jobs WHERE operation=? AND state='pending' AND id>?`, core.PortraitOperation, m.Lease.ID).Scan(&later); err != nil {
+			return err
+		}
+		if later > 0 {
+			return finishMemoryJob(ctx, tx, m.Lease, "", m.Now)
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM portrait_line_sources WHERE line_id IN(SELECT id FROM portrait_lines WHERE state='shown')`); err != nil {
 			return err
@@ -173,8 +183,9 @@ func (s *Store) OwnerMemorySources(ctx context.Context, since time.Time, limit i
 }
 
 // withdrawPortraitLines deletes the shown lines that cite a source of the
-// withdrawn memory r and queues a refresh without them. Lines the owner
-// removed stay removed.
+// withdrawn memory r and queues a refresh without them, or, with no such
+// line, one that overtakes a refresh running now. Lines the owner removed
+// stay removed.
 func withdrawPortraitLines(ctx context.Context, tx *sql.Tx, r core.MemoryRecord, now time.Time) error {
 	sources, err := json.Marshal(r.SourceIDs)
 	if err != nil {
@@ -193,8 +204,18 @@ func withdrawPortraitLines(ctx context.Context, tx *sql.Tx, r core.MemoryRecord,
 		}
 		lines = append(lines, id)
 		return nil
-	}); err != nil || len(lines) == 0 {
+	}); err != nil {
 		return err
+	}
+	version := fmt.Sprintf("withdraw:%s:%d", r.ID, r.Revision)
+	if len(lines) == 0 {
+		// A refresh running now may have read the memory; the one queued
+		// here overtakes it.
+		var running int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_jobs WHERE operation=? AND state='running'`, core.PortraitOperation).Scan(&running); err != nil || running == 0 {
+			return err
+		}
+		return enqueueMemoryJob(ctx, tx, core.PortraitOperation, core.PortraitObject, version, now)
 	}
 	ids, err := json.Marshal(lines)
 	if err != nil {
@@ -206,7 +227,7 @@ func withdrawPortraitLines(ctx context.Context, tx *sql.Tx, r core.MemoryRecord,
 	if _, err := tx.ExecContext(ctx, `DELETE FROM portrait_lines WHERE id IN(SELECT value FROM json_each(?))`, string(ids)); err != nil {
 		return err
 	}
-	return enqueueMemoryJob(ctx, tx, core.PortraitOperation, core.PortraitObject, fmt.Sprintf("withdraw:%s:%d", r.ID, r.Revision), now)
+	return enqueueMemoryJob(ctx, tx, core.PortraitOperation, core.PortraitObject, version, now)
 }
 
 // forgetPortrait deletes the lines, removed ones included, that cite a source
