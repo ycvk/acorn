@@ -3,8 +3,11 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +21,7 @@ const defaultElicitationTimeout = 30 * time.Second
 
 // ElicitationHandler handles MCP server elicitation/create requests by creating
 // a PendingAction, emitting stream items, and blocking until the operator decides
-// or the 30s timeout expires (returning "decline" on timeout).
+// or the 30s timeout expires (declining the action on timeout).
 //
 // It waits inside the callback instead of interrupting the run, because an MCP
 // client callback must return its result to the server synchronously.
@@ -52,17 +55,26 @@ func (h *ElicitationHandler) getActiveRunID() string {
 // waits for the owner's decision on a PendingAction:
 //
 //  1. If no active run context, return decline immediately.
-//  2. Create a PendingAction with Kind="elicitation" in the store.
-//  3. Emit an elicitation.pending event.
-//  4. Poll the store every 500ms until the action is decided or timeout.
-//  5. On timeout, return ElicitResult{Action: "decline"}.
-//  6. On decision, map the PendingAction status to the ElicitResult action.
-//  7. Emit an elicitation.decided event.
-//  8. Return the ElicitResult to the MCP server.
+//  2. A request for fields fails: the owner's app can accept or decline,
+//     and has no form to fill them in.
+//  3. Create a PendingAction with Kind="elicitation" in the store and emit an
+//     elicitation.pending event.
+//  4. Poll the store every 500ms until the action is decided.
+//  5. Past the timeout, or when the call's context ends, decline the action
+//     in the store and emit elicitation.decided; a decision the owner made
+//     emitted its own.
+//  6. Return the decision as the ElicitResult.
 func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
 	runID := h.getActiveRunID()
 	if strings.TrimSpace(runID) == "" {
 		return &mcp.ElicitResult{Action: "decline"}, nil
+	}
+	fields, err := requestedFields(req.Params)
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) > 0 {
+		return nil, fmt.Errorf("the server asks the owner for %s, and the owner's app can only accept or decline", strings.Join(fields, ", "))
 	}
 
 	actionID := core.NewActionID()
@@ -85,23 +97,31 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(core.StreamKindElicitationPending)); err != nil {
 		return nil, err
 	}
-
-	// Poll until decided or timeout
-	result, err := h.waitForDecision(ctx, actionID, h.timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(core.StreamKindElicitationDecided)); err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return h.waitForDecision(ctx, runID, record.ActionID, req.Params, h.timeout)
 }
 
-// waitForDecision polls the store for the PendingAction status until it changes
-// from "pending" or the timeout expires. Returns decline on timeout.
-func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID string, timeout time.Duration) (*mcp.ElicitResult, error) {
+// requestedFields lists the properties a form elicitation's schema asks for.
+func requestedFields(params *mcp.ElicitParams) ([]string, error) {
+	if params == nil || params.RequestedSchema == nil {
+		return nil, nil
+	}
+	raw, err := json.Marshal(params.RequestedSchema)
+	if err != nil {
+		return nil, fmt.Errorf("read elicitation schema: %w", err)
+	}
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return nil, fmt.Errorf("read elicitation schema: %w", err)
+	}
+	return slices.Sorted(maps.Keys(schema.Properties)), nil
+}
+
+// waitForDecision polls the store until the owner decides the action. Past
+// the timeout, or when ctx ends, it declines the action itself, unless the
+// owner's decision came first.
+func (h *ElicitationHandler) waitForDecision(ctx context.Context, runID, actionID string, params *mcp.ElicitParams, timeout time.Duration) (*mcp.ElicitResult, error) {
 	deadline := time.Now().Add(timeout)
 	pollInterval := 500 * time.Millisecond
 
@@ -110,35 +130,43 @@ func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID strin
 		if err != nil {
 			return nil, fmt.Errorf("load elicitation pending action %s: %w", actionID, err)
 		}
-
 		if action.Status != core.PendingActionStatusPending {
 			return pendingActionStatusToElicitResult(action.Status), nil
 		}
-
 		if time.Now().After(deadline) {
-			// Timed out: decline.
-			slog.Info("elicitation handler: timed out waiting for operator decision, auto-declining",
-				"action_id", actionID)
-			decisionJSON, err := json.Marshal(map[string]any{
-				"action": "decline",
-				"reason": "timeout",
-			})
-			if err != nil {
-				return nil, fmt.Errorf("marshal elicitation timeout decision: %w", err)
-			}
-			if _, err := h.store.DecidePendingAction(ctx, actionID, core.PendingActionStatusRejected, string(decisionJSON)); err != nil {
-				return nil, err
-			}
-			return &mcp.ElicitResult{Action: "decline"}, nil
+			slog.Info("elicitation handler: timed out waiting for operator decision, auto-declining", "action_id", actionID)
+			return h.decline(ctx, runID, actionID, params, "timeout")
 		}
-
 		select {
 		case <-ctx.Done():
-			return &mcp.ElicitResult{Action: "decline"}, nil
+			return h.decline(context.WithoutCancel(ctx), runID, actionID, params, "the call ended")
 		case <-time.After(pollInterval):
-			// Continue polling
 		}
 	}
+}
+
+// decline records the handler's own decline of a pending action and its
+// elicitation.decided event. When the owner decided first, theirs stands.
+func (h *ElicitationHandler) decline(ctx context.Context, runID, actionID string, params *mcp.ElicitParams, reason string) (*mcp.ElicitResult, error) {
+	decisionJSON, err := json.Marshal(map[string]any{"action": "decline", "reason": reason})
+	if err != nil {
+		return nil, fmt.Errorf("marshal elicitation decline: %w", err)
+	}
+	_, err = h.store.DecidePendingAction(ctx, actionID, core.PendingActionStatusRejected, string(decisionJSON))
+	if errors.Is(err, core.ErrPendingActionDecided) {
+		action, err := h.store.LoadPendingAction(ctx, actionID)
+		if err != nil {
+			return nil, fmt.Errorf("load elicitation pending action %s: %w", actionID, err)
+		}
+		return pendingActionStatusToElicitResult(action.Status), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := h.emitElicitationEvent(ctx, runID, actionID, params, string(core.StreamKindElicitationDecided)); err != nil {
+		return nil, err
+	}
+	return &mcp.ElicitResult{Action: "decline"}, nil
 }
 
 // pendingActionStatusToElicitResult maps PendingAction status to ElicitResult action.

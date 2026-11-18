@@ -90,6 +90,69 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("handler did not return within timeout")
 	}
+	// The owner's decision records its own decided event; the handler adds
+	// none.
+	if n := countEvents(t, store, runID, "elicitation.decided"); n != 0 {
+		t.Errorf("handler emitted %d decided events for the owner's decision", n)
+	}
+}
+
+func countEvents(t *testing.T, s *store.Store, runID, kind string) int {
+	t.Helper()
+	events, err := s.LoadEvents(context.Background(), runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range events {
+		if e.Kind == kind {
+			n++
+		}
+	}
+	return n
+}
+
+func TestHandleElicitationDeclinesWhenTheCallEnds(t *testing.T) {
+	store, cleanup := openTestStore(t)
+	defer cleanup()
+	runID := "run_test_elicitation_cancel"
+	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: runID, Input: "test cancel"}); err != nil {
+		t.Fatal(err)
+	}
+	handler := newElicitationHandler(store)
+	handler.setActiveRunID(runID)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	result, err := handler.HandleElicitation(ctx, &mcp.ElicitRequest{Params: &mcp.ElicitParams{Message: "Confirm?"}})
+	if err != nil || result.Action != "decline" {
+		t.Fatalf("result = %+v, %v", result, err)
+	}
+	pending, err := store.ListPendingActions(context.Background(), 10)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending after the call ended = %+v, %v", pending, err)
+	}
+	if n := countEvents(t, store, runID, "elicitation.decided"); n != 1 {
+		t.Fatalf("decided events = %d, want 1", n)
+	}
+}
+
+func TestHandleElicitationRefusesARequestForFields(t *testing.T) {
+	store, cleanup := openTestStore(t)
+	defer cleanup()
+	runID := "run_test_elicitation_fields"
+	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: runID, Input: "test fields"}); err != nil {
+		t.Fatal(err)
+	}
+	handler := newElicitationHandler(store)
+	handler.setActiveRunID(runID)
+	schema := map[string]any{"type": "object", "properties": map[string]any{"name": map[string]any{"type": "string"}, "age": map[string]any{"type": "integer"}}}
+	_, err := handler.HandleElicitation(context.Background(), &mcp.ElicitRequest{Params: &mcp.ElicitParams{Message: "Who are you?", RequestedSchema: schema}})
+	if err == nil || !strings.Contains(err.Error(), "age, name") || !strings.Contains(err.Error(), "only accept or decline") {
+		t.Fatalf("err = %v, want the fields named", err)
+	}
+	if pending, err := store.ListPendingActions(context.Background(), 10); err != nil || len(pending) != 0 {
+		t.Fatalf("pending = %+v, %v", pending, err)
+	}
 }
 
 func TestHandleElicitationTimeoutReturnsDecline(t *testing.T) {
