@@ -355,12 +355,7 @@ func startQueuedRun(ctx context.Context, tx *sql.Tx, process, sessionID, runID s
 // that never waited has no id.
 func takeQueuedMessage(ctx context.Context, tx *sql.Tx, message core.QueuedMessage, runID string, turn int) (core.SessionMessageRecord, error) {
 	record := core.SessionMessageRecord{SessionID: message.SessionID, TurnIndex: turn, Role: "user", Content: message.Content, RunID: runID, CreatedAt: message.CreatedAt}
-	result, err := tx.ExecContext(ctx, `INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, 'user', ?, ?, ?)`,
-		record.SessionID, turn, record.Content, runID, formatTimestamp(record.CreatedAt))
-	if err != nil {
-		return record, err
-	}
-	if record.ID, err = result.LastInsertId(); err != nil {
+	if err := insertSessionMessage(ctx, tx, &record, time.Now()); err != nil {
 		return record, err
 	}
 	if len(message.FileIDs) > 0 {
@@ -376,8 +371,7 @@ func takeQueuedMessage(ctx context.Context, tx *sql.Tx, message core.QueuedMessa
 			return record, err
 		}
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(time.Now()), message.SessionID)
-	return record, err
+	return record, nil
 }
 
 func queuedMessagesIn(ctx context.Context, q memorySQL, sessionID string) ([]core.QueuedMessage, error) {

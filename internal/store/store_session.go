@@ -175,16 +175,7 @@ func (s *Store) CreateFreshSessionTurn(ctx context.Context, sessionID, title, in
 	}
 
 	const turnIndex = 1
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
-		sessionID,
-		turnIndex,
-		"user",
-		input,
-		"",
-		formatTimestamp(now),
-	); err != nil {
+	if err := insertSessionMessage(ctx, tx, &core.SessionMessageRecord{SessionID: sessionID, TurnIndex: turnIndex, Role: "user", Content: input, CreatedAt: now}, now); err != nil {
 		return 0, fmt.Errorf("create fresh session turn: append session message: %w", err)
 	}
 
