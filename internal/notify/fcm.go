@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 )
 
@@ -101,6 +102,15 @@ func NewFCMClient(account ServiceAccount) (*FCMClient, error) {
 
 // NewFCMClientAt is NewFCMClient with the send endpoint given explicitly.
 func NewFCMClientAt(account ServiceAccount, endpoint string) (*FCMClient, error) {
+	return newServiceAccountClient(account, endpoint, fcmTokenTimeout)
+}
+
+// fcmTokenTimeout bounds one access token request. The token is fetched
+// inside a send, out of reach of the send's context, so without it a token
+// endpoint that does not answer holds the send forever.
+const fcmTokenTimeout = 30 * time.Second
+
+func newServiceAccountClient(account ServiceAccount, endpoint string, tokenTimeout time.Duration) (*FCMClient, error) {
 	if account.ProjectID == "" || account.ClientEmail == "" || account.PrivateKey == "" || account.TokenURI == "" {
 		return nil, errors.New("fcm: service account needs project_id, client_email, private_key and token_uri")
 	}
@@ -110,7 +120,8 @@ func NewFCMClientAt(account ServiceAccount, endpoint string) (*FCMClient, error)
 		TokenURL:   account.TokenURI,
 		Scopes:     []string{fcmScope},
 	}
-	return newFCMClient(conf.Client(context.Background()), endpoint), nil
+	tokens := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: tokenTimeout})
+	return newFCMClient(conf.Client(tokens), endpoint), nil
 }
 
 func newFCMClient(client *http.Client, endpoint string) *FCMClient {

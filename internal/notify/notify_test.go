@@ -99,6 +99,32 @@ func TestFCMClientAuthenticatesWithServiceAccount(t *testing.T) {
 	}
 }
 
+func TestFCMSendGivesUpOnATokenEndpointThatDoesNotAnswer(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	hung := make(chan struct{})
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-hung }))
+	t.Cleanup(tokenServer.Close)
+	t.Cleanup(func() { close(hung) })
+	client, err := newServiceAccountClient(ServiceAccount{ProjectID: "p", ClientEmail: "acorn@p.iam.gserviceaccount.com", PrivateKey: string(keyPEM), TokenURI: tokenServer.URL}, "http://127.0.0.1:1/send", 100*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- client.Send(context.Background(), "t", Message{Title: "a", Body: "b"}) }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "cannot fetch token") {
+			t.Fatalf("send = %v, want the token request's failure", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("send still waits for the token endpoint")
+	}
+}
+
 func TestFCMSendRetriesThenSucceeds(t *testing.T) {
 	var calls int
 	c := testFCM(t, func(w http.ResponseWriter, _ *http.Request) {
