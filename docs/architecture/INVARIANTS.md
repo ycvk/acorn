@@ -50,7 +50,7 @@
 - **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再在同一事务里记下 `run.completed`/`run.failed` 与结束状态；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
   - `internal/store/store_runs_test.go`
-- **run 进行中 owner 发的话交给这个 run**：`POST /v1/threads/{id}/runs` 在同一事务里判断对话：有 run 在运行或等待审批时，消息存进 `queued_messages` 并返回 202 与这个 run；否则在队列里剩下的消息之后写下这条消息并建 run，返回 201。排队的消息不是对话消息，也不是记忆来源。interjection middleware 在 run 每次调用模型前把队列里的文字消息按发送顺序写进对话、绑定到这个 run（取 run 的 turn）并追加到 agent state 与 run 的历史，每条记一个 `run.input` 事件；带文件的消息与它之后的留到下一个 run。run 结束时，若对话里没有别的 run 在运行或等待审批，同一事务把剩下的消息写在回复之后、建下一个 run 并把它写进终止事件的 `next_run_id`，随后执行它。终止前没能接手的路径（setup 失败、Acorn 停止）留下的消息由 `serve` 的续跑扫描在启动时与每分钟起 run，owner 的下一条消息也会先带上它们。队列随对话删除。
+- **run 进行中 owner 发的话交给这个 run**：`POST /v1/threads/{id}/runs` 在同一事务里判断对话：有 run 在运行或等待审批时，消息存进 `queued_messages` 并返回 202 与这个 run；否则在队列里剩下的消息之后写下这条消息并建 run，返回 201。排队的消息不是对话消息，也不是记忆来源。interjection middleware 在 run 每次调用模型前把队列里的文字消息按发送顺序写进对话、绑定到这个 run（取 run 的 turn）并追加到 agent state 与 run 的历史，每条记一个 `run.input` 事件；带文件的消息与它之后的留到下一个 run。run 结束时，若对话里没有别的 run 在运行或等待审批，同一事务把剩下的消息写在回复之后、建下一个 run 并把它写进终止事件的 `next_run_id`，随后执行它。终止前没能接手的路径（setup 失败、Acorn 停止）留下的消息由 `serve` 的续跑扫描在启动时与每分钟起 run，owner 的下一条消息也会先带上它们。每条消息带客户端给的 `client_id`，同一事务记下它与消息（以及对话还没有标题时的标题）；同一对话里以同一 `client_id` 再发时不再写入，回答第一次发送的去向：消息已进对话时是它所属的 run（200），还在排队时是它等的 run（202），排队而对话里没有 run 在跑时在它上面起 run（201）。队列与这些记录随对话删除。
   - `internal/store/store_owner_messages_test.go`
   - `internal/wire/interjection_e2e_test.go`
   - `internal/runtime/agent_test.go`

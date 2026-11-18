@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // TestViewActionsComeBackAsTheOwnersMessage has the agent offer a button and
@@ -45,7 +46,7 @@ func TestViewActionsComeBackAsTheOwnersMessage(t *testing.T) {
 	}
 
 	var first api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "读一下这篇长文"}, http.StatusCreated, &first)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "读一下这篇长文"}, http.StatusCreated, &first)
 	waitRunStatus(t, c, first.Run.ID, "completed")
 	views, err := c.store.ThreadViews(ctx, thread.ID)
 	if err != nil || len(views) != 1 {

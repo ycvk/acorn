@@ -258,7 +258,11 @@ paths:
         emits run.input, or, when the run ends first, a run that starts on
         the waiting messages takes it, named by next_run_id on the run's
         terminal event. Otherwise a run starts on the message (201), after
-        the messages still waiting in the thread.
+        the messages still waiting in the thread. A message sent again under
+        its client_id, as when the answer to the first send was lost, is not
+        written twice: the answer is where the first one went, the run it
+        went to (200), the run it still waits for (202), or a run started on
+        it when it waits with none going (201).
       operationId: clientCreateRun
       parameters:
         - $ref: '#/components/parameters/ThreadID'
@@ -269,6 +273,12 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateRunRequest'
       responses:
+        '200':
+          description: The message was sent before under its client_id; the run it went to
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRunResponse'
         '201':
           description: A run started on the message
           content:
@@ -3471,7 +3481,14 @@ components:
       type: object
       additionalProperties: false
       description: The owner's message. It needs input, files or both.
+      required: [client_id]
       properties:
+        client_id:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,64}$'
+          description: >-
+            The client's id for this message, made once and given again when
+            the client sends the same message again.
         input:
           type: string
         file_ids:

@@ -294,7 +294,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/threads/{thread_id}/runs
      * Send the owner&#39;s message; it starts a run, or waits for the thread&#39;s run still going
-     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. 
+     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. A message sent again under its client_id, as when the answer to the first send was lost, is not written twice: the answer is where the first one went, the run it went to (200), the run it still waits for (202), or a run started on it when it waits with none going (201). 
      * @param threadId 
      * @param createRunRequest 
      * @return CreateRunResponse
@@ -327,7 +327,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/threads/{thread_id}/runs
      * Send the owner&#39;s message; it starts a run, or waits for the thread&#39;s run still going
-     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. 
+     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. A message sent again under its client_id, as when the answer to the first send was lost, is not written twice: the answer is where the first one went, the run it went to (200), the run it still waits for (202), or a run started on it when it waits with none going (201). 
      * @param threadId 
      * @param createRunRequest 
      * @return ApiResponse<CreateRunResponse?>

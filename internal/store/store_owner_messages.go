@@ -34,12 +34,32 @@ func addQueuedMessages(ctx context.Context, tx *sql.Tx) error {
 	return err
 }
 
+// ownerMessageSendsTable is shared with the migration that adds it. A row is
+// the client's id for an owner message it sent, with the message while it
+// waits (queued_id) or once it is in the conversation (message_id), so the
+// same send made again finds it.
+const ownerMessageSendsTable = `CREATE TABLE IF NOT EXISTS owner_message_sends (
+    session_id TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    queued_id INTEGER,
+    message_id INTEGER,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, client_id)
+);
+CREATE INDEX IF NOT EXISTS idx_owner_message_sends_queued ON owner_message_sends(queued_id) WHERE queued_id IS NOT NULL;`
+
+// addOwnerMessageSends (40 to 41) adds the client ids of owner messages.
+func addOwnerMessageSends(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, ownerMessageSendsTable)
+	return err
+}
+
 // SendOwnerMessage implements core.SessionStore.
 func (s *Store) SendOwnerMessage(ctx context.Context, message core.OwnerMessage) (core.SentOwnerMessage, error) {
 	content := strings.TrimSpace(message.Content)
 	switch {
-	case strings.TrimSpace(message.SessionID) == "" || strings.TrimSpace(message.RunID) == "":
-		return core.SentOwnerMessage{}, errors.New("send owner message: SessionID and RunID are required")
+	case strings.TrimSpace(message.SessionID) == "" || strings.TrimSpace(message.RunID) == "" || strings.TrimSpace(message.ClientID) == "":
+		return core.SentOwnerMessage{}, errors.New("send owner message: SessionID, RunID and ClientID are required")
 	case content == "" && len(message.FileIDs) == 0:
 		return core.SentOwnerMessage{}, errors.New("send owner message: content or files are required")
 	}
@@ -49,25 +69,101 @@ func (s *Store) SendOwnerMessage(ctx context.Context, message core.OwnerMessage)
 		if err := requireSession(ctx, tx, message.SessionID); err != nil {
 			return err
 		}
+		repeat, found, err := s.repeatedSend(ctx, tx, message)
+		if err != nil || found {
+			sent = repeat
+			return err
+		}
 		active, err := activeRunOf(ctx, tx, message.SessionID)
 		if err != nil {
 			return err
 		}
+		var queuedID, messageID sql.NullInt64
 		if active == "" {
 			start, err := startQueuedRun(ctx, tx, s.process, message.SessionID, message.RunID, &queued)
+			if err != nil {
+				return err
+			}
 			sent = core.SentOwnerMessage{RunID: message.RunID, Started: start}
+			messageID = sql.NullInt64{Int64: start.Messages[len(start.Messages)-1].ID, Valid: true}
+		} else {
+			if err := queueMessage(ctx, tx, &queued); err != nil {
+				return err
+			}
+			sent = core.SentOwnerMessage{RunID: active, Queued: &queued}
+			queuedID = sql.NullInt64{Int64: queued.ID, Valid: true}
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO owner_message_sends(session_id, client_id, queued_id, message_id, created_at) VALUES(?, ?, ?, ?, ?)`,
+			message.SessionID, message.ClientID, queuedID, messageID, formatTimestamp(queued.CreatedAt)); err != nil {
 			return err
 		}
-		if err := queueMessage(ctx, tx, &queued); err != nil {
-			return err
+		if title := strings.TrimSpace(message.Title); title != "" {
+			if _, err := tx.ExecContext(ctx, `UPDATE sessions SET title = ? WHERE session_id = ? AND trim(title) = ''`, title, message.SessionID); err != nil {
+				return err
+			}
 		}
-		sent = core.SentOwnerMessage{RunID: active, Queued: &queued}
 		return nil
 	})
 	if err != nil {
 		return core.SentOwnerMessage{}, fmt.Errorf("send owner message to %s: %w", message.SessionID, err)
 	}
 	return sent, nil
+}
+
+// repeatedSend answers a message whose client id the conversation already
+// has, as the first send did: the run its message went to, or, while it
+// still waits, the run it waits for, or a run started on it when none is
+// going, as after a run that failed before it ran.
+func (s *Store) repeatedSend(ctx context.Context, tx *sql.Tx, message core.OwnerMessage) (core.SentOwnerMessage, bool, error) {
+	var queuedID, messageID sql.NullInt64
+	err := tx.QueryRowContext(ctx, `SELECT queued_id, message_id FROM owner_message_sends WHERE session_id = ? AND client_id = ?`, message.SessionID, message.ClientID).Scan(&queuedID, &messageID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return core.SentOwnerMessage{}, false, nil
+	}
+	if err != nil {
+		return core.SentOwnerMessage{}, false, err
+	}
+	if messageID.Valid {
+		var runID string
+		if err := tx.QueryRowContext(ctx, `SELECT run_id FROM session_messages WHERE id = ?`, messageID.Int64).Scan(&runID); err != nil {
+			return core.SentOwnerMessage{}, false, fmt.Errorf("message %d of client id %s: %w", messageID.Int64, message.ClientID, err)
+		}
+		return core.SentOwnerMessage{RunID: runID, Repeat: true}, true, nil
+	}
+	active, err := activeRunOf(ctx, tx, message.SessionID)
+	if err != nil {
+		return core.SentOwnerMessage{}, false, err
+	}
+	if active == "" {
+		start, err := startQueuedRun(ctx, tx, s.process, message.SessionID, message.RunID, nil)
+		if err != nil {
+			return core.SentOwnerMessage{}, false, err
+		}
+		if start == nil {
+			return core.SentOwnerMessage{}, false, fmt.Errorf("queued message %d of client id %s is gone", queuedID.Int64, message.ClientID)
+		}
+		return core.SentOwnerMessage{RunID: message.RunID, Started: start, Repeat: true}, true, nil
+	}
+	waiting, err := queuedMessagesIn(ctx, tx, message.SessionID)
+	if err != nil {
+		return core.SentOwnerMessage{}, false, err
+	}
+	for _, q := range waiting {
+		if q.ID == queuedID.Int64 {
+			return core.SentOwnerMessage{RunID: active, Queued: &q, Repeat: true}, true, nil
+		}
+	}
+	return core.SentOwnerMessage{}, false, fmt.Errorf("queued message %d of client id %s is gone", queuedID.Int64, message.ClientID)
+}
+
+// OwnerMessageSent reports whether the conversation has a message the client
+// sent under clientID.
+func (s *Store) OwnerMessageSent(ctx context.Context, sessionID, clientID string) (bool, error) {
+	var n int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM owner_message_sends WHERE session_id = ? AND client_id = ?`, sessionID, clientID).Scan(&n); err != nil {
+		return false, fmt.Errorf("owner message %s of %s: %w", clientID, sessionID, err)
+	}
+	return n > 0, nil
 }
 
 // LatestOwnerMessageAt returns when the owner last wrote in the conversation:
@@ -263,6 +359,9 @@ func takeQueuedMessage(ctx context.Context, tx *sql.Tx, message core.QueuedMessa
 	}
 	if message.ID > 0 {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM queued_messages WHERE id = ?`, message.ID); err != nil {
+			return record, err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE owner_message_sends SET queued_id = NULL, message_id = ? WHERE queued_id = ?`, record.ID, message.ID); err != nil {
 			return record, err
 		}
 	}

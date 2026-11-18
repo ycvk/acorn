@@ -51,11 +51,11 @@ func TestOwnerMessagesReachTheRunningRun(t *testing.T) {
 	runs := "/v1/threads/" + thread.ID + "/runs"
 
 	var started api.CreateRunResponse
-	client.postJSON(t, runs, map[string]any{"input": "查一下上海天气"}, http.StatusCreated, &started)
+	client.postJSON(t, runs, map[string]any{"client_id": core.NewActionID(), "input": "查一下上海天气"}, http.StatusCreated, &started)
 	waitModelRequests(t, provider, 1)
 
 	var waiting api.CreateRunResponse
-	client.postJSON(t, runs, map[string]any{"input": "只要气温就行"}, http.StatusAccepted, &waiting)
+	client.postJSON(t, runs, map[string]any{"client_id": core.NewActionID(), "input": "只要气温就行"}, http.StatusAccepted, &waiting)
 	if waiting.Run.ID != started.Run.ID || waiting.Run.Status != "running" || waiting.Queued == nil || waiting.Queued.Text != "只要气温就行" {
 		t.Fatalf("waiting message = %+v, want it queued for run %s", waiting, started.Run.ID)
 	}
@@ -77,7 +77,7 @@ func TestOwnerMessagesReachTheRunningRun(t *testing.T) {
 	}
 
 	var late api.CreateRunResponse
-	client.postJSON(t, runs, map[string]any{"input": "那明天呢"}, http.StatusAccepted, &late)
+	client.postJSON(t, runs, map[string]any{"client_id": core.NewActionID(), "input": "那明天呢"}, http.StatusAccepted, &late)
 	if late.Run.ID != started.Run.ID || late.Queued == nil {
 		t.Fatalf("late message = %+v", late)
 	}
@@ -139,5 +139,44 @@ func waitModelRequests(t *testing.T, provider *fakeOpenAI, n int) {
 			t.Fatalf("model requests = %d, want %d", provider.requestCount(), n)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// The app sends a message again under its client id when it did not get the
+// answer to the first send. The thread keeps one copy and the answer names
+// the run the first send went to.
+func TestAMessageSentAgainUnderItsClientIDIsKeptOnce(t *testing.T) {
+	provider := &fakeOpenAI{replies: []string{textReply("上海今天晴。")}}
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	c, err := NewContainer(context.Background(), writeTestConfig(t, server.URL, ""))
+	if err != nil {
+		t.Fatalf("container: %v", err)
+	}
+	defer c.Close()
+	client := newPairedClient(t, c)
+	thread, err := c.threads.CreateThread(context.Background(), "天气")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs := "/v1/threads/" + thread.ID + "/runs"
+	message := map[string]any{"input": "查一下上海天气", "client_id": "draft-1"}
+	var first, again api.CreateRunResponse
+	client.postJSON(t, runs, message, http.StatusCreated, &first)
+	waitModelRequests(t, provider, 1)
+	client.postJSON(t, runs, message, http.StatusOK, &again)
+	if again.Run.ID != first.Run.ID || again.Queued != nil {
+		t.Fatalf("sent again = %+v, want run %s", again, first.Run.ID)
+	}
+	var listed api.MessageListResponse
+	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/threads/"+thread.ID+"/messages", nil), http.StatusOK, &listed)
+	var owner int
+	for _, line := range messageLines(listed) {
+		if line == "user:查一下上海天气" {
+			owner++
+		}
+	}
+	if owner != 1 || len(listed.Queued) != 0 {
+		t.Fatalf("messages = %v, queued = %+v", messageLines(listed), listed.Queued)
 	}
 }

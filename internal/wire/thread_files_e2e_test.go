@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
@@ -105,10 +106,10 @@ func TestFilesTravelBetweenOwnerAndAgent(t *testing.T) {
 		t.Fatalf("uploaded = %+v %+v", photo, text)
 	}
 	client.upload(t, thread.ID, "big.bin", bytes.Repeat([]byte{1}, 1<<20+1), http.StatusRequestEntityTooLarge)
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "x", "file_ids": []string{"file_00000000000000000000000000000000"}}, http.StatusBadRequest, nil)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "x", "file_ids": []string{"file_00000000000000000000000000000000"}}, http.StatusBadRequest, nil)
 
 	var run api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "找一本红楼梦给我，顺便看看这两个", "file_ids": []string{photo.ID, text.ID}}, http.StatusCreated, &run)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "找一本红楼梦给我，顺便看看这两个", "file_ids": []string{photo.ID, text.ID}}, http.StatusCreated, &run)
 	first := waitNewRun(t, c, thread.ID, "")
 
 	// The model sees the photo and where both files are on the workstation.
@@ -146,7 +147,7 @@ func TestFilesTravelBetweenOwnerAndAgent(t *testing.T) {
 
 	// A message can send files without text, and the photo stays in view on later turns.
 	again := client.upload(t, thread.ID, "page.txt", []byte("第二回"), http.StatusCreated)
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"file_ids": []string{again.ID}}, http.StatusCreated, &run)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "file_ids": []string{again.ID}}, http.StatusCreated, &run)
 	waitNewRun(t, c, thread.ID, first.RunID)
 	if input := lastOwnerInput(provider.request(provider.requestCount() - 1)); !strings.HasPrefix(input, "[Files the owner sent with this message]\n- page.txt") {
 		t.Fatalf("files-only input = %q", input)
@@ -209,7 +210,7 @@ func TestFilesOfARunWithoutAReplyStayInTheThread(t *testing.T) {
 	}
 
 	var run api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "把周报发我"}, http.StatusCreated, &run)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "把周报发我"}, http.StatusCreated, &run)
 	waitRunStatus(t, c, run.Run.ID, "failed")
 
 	var listed api.MessageListResponse

@@ -33,7 +33,7 @@ func TestLatestOwnerMessageAt(t *testing.T) {
 	}
 
 	before := time.Now().UTC()
-	if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "查一下天气", RunID: "run_1"}); err != nil {
+	if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "查一下天气", RunID: "run_1", ClientID: core.NewActionID()}); err != nil {
 		t.Fatal(err)
 	}
 	wrote, err := s.LatestOwnerMessageAt(ctx, "chat")
@@ -68,7 +68,7 @@ func TestOwnerMessagesWaitForTheRunOfTheirConversation(t *testing.T) {
 	}
 	send := func(content, runID string, files ...string) core.SentOwnerMessage {
 		t.Helper()
-		sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: content, FileIDs: files, RunID: runID})
+		sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: content, FileIDs: files, RunID: runID, ClientID: core.NewActionID()})
 		if err != nil {
 			t.Fatalf("send %q: %v", content, err)
 		}
@@ -89,7 +89,7 @@ func TestOwnerMessagesWaitForTheRunOfTheirConversation(t *testing.T) {
 	photo := saveFile(t, s, core.ThreadFileWrite{SessionID: "chat", Origin: core.ThreadFileFromOwner, Name: "sky.png", Content: strings.NewReader("\x89PNG"), MaxBytes: 64})
 	send("看看这张", "run_unused", photo.ID)
 	send("还有明天", "run_unused")
-	if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "再看一次", FileIDs: []string{photo.ID}, RunID: "run_unused"}); err == nil {
+	if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "再看一次", FileIDs: []string{photo.ID}, RunID: "run_unused", ClientID: core.NewActionID()}); err == nil {
 		t.Fatal("a second queued message sends the same file")
 	}
 
@@ -176,10 +176,10 @@ func TestWaitingMessagesStartTheNextRun(t *testing.T) {
 		if _, err := s.CreateSession(ctx, id, id); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: id, Content: "开始", RunID: "run_" + id}); err != nil {
+		if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: id, Content: "开始", RunID: "run_" + id, ClientID: core.NewActionID()}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: id, Content: "还在吗", RunID: "run_unused"}); err != nil {
+		if _, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: id, Content: "还在吗", RunID: "run_unused", ClientID: core.NewActionID()}); err != nil {
 			t.Fatal(err)
 		}
 		if _, next, err := s.FinishRun(ctx, core.RunEnd{RunID: "run_" + id, Status: core.RunStatusFailed, Error: "boom", Event: "run.failed"}); err != nil || next != nil {
@@ -194,7 +194,7 @@ func TestWaitingMessagesStartTheNextRun(t *testing.T) {
 	if err != nil || start == nil || start.Input != "还在吗" {
 		t.Fatalf("swept start = %+v, %v", start, err)
 	}
-	sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "b", Content: "回我一下", RunID: "run_b2"})
+	sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "b", Content: "回我一下", RunID: "run_b2", ClientID: core.NewActionID()})
 	if err != nil || sent.Started == nil || sent.Started.Input != "还在吗\n\n回我一下" {
 		t.Fatalf("next message = %+v, %v", sent, err)
 	}
@@ -213,4 +213,61 @@ func sourceCount(t *testing.T, s *Store, sessionID string) int {
 		t.Fatal(err)
 	}
 	return len(ids)
+}
+
+// A send made again under its client id, as when the answer to the first
+// was lost, writes nothing and answers what the first did, wherever its
+// message has got to.
+func TestAnOwnerMessageSentAgainIsWrittenOnce(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	if _, err := s.CreateSession(ctx, "chat", ""); err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "查一下天气", RunID: "run_1", ClientID: "c1", Title: "天气"})
+	if err != nil || first.Started == nil || first.Repeat {
+		t.Fatalf("first send = %+v, %v", first, err)
+	}
+	again, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "查一下天气", RunID: "run_unused", ClientID: "c1"})
+	if err != nil || !again.Repeat || again.RunID != "run_1" || again.Started != nil || again.Queued != nil {
+		t.Fatalf("send again while its run runs = %+v, %v", again, err)
+	}
+	waiting, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "还有明天", RunID: "run_unused", ClientID: "c2"})
+	if err != nil || waiting.Queued == nil {
+		t.Fatalf("second message = %+v, %v", waiting, err)
+	}
+	again, err = s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "还有明天", RunID: "run_unused", ClientID: "c2"})
+	if err != nil || !again.Repeat || again.RunID != "run_1" || again.Queued == nil || again.Queued.ID != waiting.Queued.ID {
+		t.Fatalf("send again while it waits = %+v, %v", again, err)
+	}
+	// The first run fails before it takes the waiting message; sent again,
+	// the message gets a run of its own.
+	if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: "run_1", Status: core.RunStatusFailed, Error: "boom", Event: "run.failed", Payload: map[string]any{"error": "boom"}}); err != nil {
+		t.Fatal(err)
+	}
+	again, err = s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "还有明天", RunID: "run_2", ClientID: "c2"})
+	if err != nil || !again.Repeat || again.Started == nil || again.RunID != "run_2" || len(again.Started.Messages) != 1 || again.Started.Messages[0].Content != "还有明天" {
+		t.Fatalf("send again after the run failed = %+v, %v", again, err)
+	}
+	again, err = s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "还有明天", RunID: "run_unused", ClientID: "c2"})
+	if err != nil || !again.Repeat || again.RunID != "run_2" {
+		t.Fatalf("send again once taken = %+v, %v", again, err)
+	}
+	messages, err := s.ListSessionMessages(ctx, "chat", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var owner []string
+	for _, m := range messages {
+		if m.Role == "user" {
+			owner = append(owner, m.Content)
+		}
+	}
+	if !slices.Equal(owner, []string{"查一下天气", "还有明天"}) {
+		t.Fatalf("owner messages = %q", owner)
+	}
+	session, err := s.LoadSession(ctx, "chat")
+	if err != nil || session.Title != "天气" {
+		t.Fatalf("title = %q, %v", session.Title, err)
+	}
 }

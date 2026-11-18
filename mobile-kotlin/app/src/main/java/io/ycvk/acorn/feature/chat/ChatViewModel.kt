@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -83,6 +84,9 @@ class ChatViewModel @Inject constructor(
 
     /** Queued ids a run of the thread took, so a send answered late does not queue its message again. */
     private val taken = mutableSetOf<String>()
+
+    /** The last send that got no answer, which a send of the same message repeats. */
+    private var unanswered: UnansweredSend? = null
 
     private val _chatState = MutableStateFlow(ChatState())
     val chatState: StateFlow<ChatState> = _chatState.asStateFlow()
@@ -340,6 +344,9 @@ class ChatViewModel @Inject constructor(
         val sendKey = if (busy) null else follower.beginSend(sentTitle)
         val opening = openings.current
         val here = { openings.showing(opening) }
+        val identity = sendIdentity(unanswered, existing, text, attachments.map { it.key }) { UUID.randomUUID().toString() }
+        val uploaded = identity.uploaded.toMutableMap()
+        var sentTo = existing
 
         viewModelScope.launch {
             try {
@@ -347,6 +354,7 @@ class ChatViewModel @Inject constructor(
                 val threadId = existing ?: withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientCreateThread(CreateThreadRequest(title = title)).id
                 }.also {
+                    sentTo = it
                     if (here()) {
                         _threadId.value = it
                         _threadTitle.value = title
@@ -354,16 +362,19 @@ class ChatViewModel @Inject constructor(
                     }
                 }
                 val fileIds = attachments.mapIndexed { index, attachment ->
-                    if (here()) _uploading.value = if (attachments.size == 1) "正在上传 ${attachment.name}" else "正在上传 ${index + 1}/${attachments.size}：${attachment.name}"
-                    withContext(Dispatchers.IO) { files.upload(profile, threadId, attachment).id }
+                    uploaded[attachment.key] ?: run {
+                        if (here()) _uploading.value = if (attachments.size == 1) "正在上传 ${attachment.name}" else "正在上传 ${index + 1}/${attachments.size}：${attachment.name}"
+                        withContext(Dispatchers.IO) { files.upload(profile, threadId, attachment).id }.also { uploaded[attachment.key] = it }
+                    }
                 }
                 if (here()) _uploading.value = null
                 val sent = withContext(Dispatchers.IO) {
                     ClientApi(basePath = profile.serverUrl).authorized(profile).clientCreateRun(
                         threadId = threadId,
-                        createRunRequest = CreateRunRequest(input = text.ifBlank { null }, fileIds = fileIds.ifEmpty { null }),
+                        createRunRequest = CreateRunRequest(clientId = identity.clientId, input = text.ifBlank { null }, fileIds = fileIds.ifEmpty { null }),
                     )
                 }
+                unanswered = null
                 val queued = sent.queued
                 if (queued != null) {
                     sendKey?.let(follower::endSend)
@@ -396,6 +407,8 @@ class ChatViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 sendKey?.let(follower::endSend)
+                // The message may have reached the thread; sent again unchanged, it is not written twice.
+                unanswered = UnansweredSend(sentTo, text, attachments.map { it.key }, identity.clientId, uploaded.toMap())
                 if (!here()) return@launch
                 _uploading.value = null
                 _messages.value = _messages.value - bubble

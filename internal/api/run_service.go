@@ -113,29 +113,39 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 
 // SentMessage is the run that takes an owner message: the run started on it,
 // or the thread's run still going, which the message waits for (Queued).
+// Repeat says the message was sent before under its client id; Run is then
+// the run it went to.
 type SentMessage struct {
 	Run    Run
 	Queued *QueuedMessage
+	Repeat bool
 }
 
 // SendMessage sends the owner's message in the thread. While a run of the
 // thread runs or waits for the owner, the message waits for it: the run takes
 // it before its next model call, or the run that starts when it ends does.
 // Otherwise a run starts on it, after the messages still waiting there.
-// fileIDs are files uploaded to the thread that the message sends.
-func (s *RunService) SendMessage(ctx context.Context, threadID, input string, fileIDs []string) (*SentMessage, error) {
+// fileIDs are files uploaded to the thread that the message sends. clientID
+// is the client's id for the send: sent again under it, as when the answer
+// was lost, the message is not written twice and the answer is the first
+// send's (Repeat).
+func (s *RunService) SendMessage(ctx context.Context, threadID, input string, fileIDs []string, clientID string) (*SentMessage, error) {
 	threadID = strings.TrimSpace(threadID)
 	input = strings.TrimSpace(input)
 	if len(fileIDs) > 0 {
-		if err := s.threads.unsentFiles(ctx, threadID, fileIDs); err != nil {
+		sent, err := s.store.OwnerMessageSent(ctx, threadID, clientID)
+		if err != nil {
 			return nil, err
 		}
+		// A repeat's files went with its message.
+		if !sent {
+			if err := s.threads.unsentFiles(ctx, threadID, fileIDs); err != nil {
+				return nil, err
+			}
+		}
 	}
-	sent, err := s.store.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: threadID, Content: input, FileIDs: fileIDs, RunID: core.NewRunID()})
+	sent, err := s.store.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: threadID, Content: input, FileIDs: fileIDs, RunID: core.NewRunID(), ClientID: clientID, Title: generatedThreadTitle(input)})
 	if err != nil {
-		return nil, err
-	}
-	if err := s.store.UpdateSessionTitleIfEmpty(ctx, threadID, generatedThreadTitle(input)); err != nil {
 		return nil, err
 	}
 	if sent.Started != nil {
@@ -143,18 +153,21 @@ func (s *RunService) SendMessage(ctx context.Context, threadID, input string, fi
 		if err != nil {
 			return nil, err
 		}
-		return &SentMessage{Run: *run}, nil
+		return &SentMessage{Run: *run, Repeat: sent.Repeat}, nil
 	}
 	run, err := s.GetRun(ctx, sent.RunID)
 	if err != nil {
 		return nil, err
+	}
+	if sent.Queued == nil {
+		return &SentMessage{Run: *run, Repeat: sent.Repeat}, nil
 	}
 	files, err := s.threads.files.ThreadFiles(ctx, threadID)
 	if err != nil {
 		return nil, err
 	}
 	queued := queuedMessage(*sent.Queued, files)
-	return &SentMessage{Run: *run, Queued: &queued}, nil
+	return &SentMessage{Run: *run, Queued: &queued, Repeat: sent.Repeat}, nil
 }
 
 // ContinueRun executes in the background a run the store started on owner

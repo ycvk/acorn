@@ -38,8 +38,12 @@ type SessionStore interface {
 	// --- Owner messages ---
 	// SendOwnerMessage queues the message while a run of the conversation
 	// is running or waits for the owner, and otherwise starts message.RunID
-	// on it, after the messages still queued there.
+	// on it, after the messages still queued there. A message whose client
+	// id the conversation already has is not written again.
 	SendOwnerMessage(ctx context.Context, message OwnerMessage) (SentOwnerMessage, error)
+	// OwnerMessageSent reports whether the conversation has a message sent
+	// under clientID.
+	OwnerMessageSent(ctx context.Context, sessionID, clientID string) (bool, error)
 	// TakeQueuedMessages moves the conversation's queued messages into it as
 	// further input of runID, while the run runs, in the order they were sent
 	// and up to the first that carries files. Each taken message gets a

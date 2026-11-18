@@ -117,6 +117,7 @@ func purgeThread(ctx context.Context, tx *sql.Tx, sessionID string) ([]string, e
 		{`DELETE FROM runs WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM news_story_messages WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM queued_messages WHERE session_id = ?`, []any{sessionID}},
+		{`DELETE FROM owner_message_sends WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM follow_ups WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM goals WHERE session_id = ?`, []any{sessionID}},
 		{`DELETE FROM session_messages WHERE session_id = ?`, []any{sessionID}},
