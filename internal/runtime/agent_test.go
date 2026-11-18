@@ -137,3 +137,11 @@ func TestOperatingRulesLoadTheSkillOfATrigger(t *testing.T) {
 		}
 	}
 }
+
+func TestOperatingRulesExplainTheNamesTheAgentGave(t *testing.T) {
+	for _, want := range []string{"The owner knows only the names they use.", "say what the thing is or does, also where earlier replies used the name"} {
+		if !strings.Contains(operatingRules, want) {
+			t.Fatalf("operating rules lack %q", want)
+		}
+	}
+}

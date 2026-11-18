@@ -292,6 +292,7 @@ type ActiveRunner struct {
 // model call, covers who the agent is and how it writes.
 const operatingRules = `Operating rules:
 - The <presence> block gives current time, wake reason, commitments, open thoughts and concerns. The <memory_context> block contains sourced memories and current_run_sources; use those source IDs when recording changes. The owner's persona follows them at the end: who you are and how you write to the owner.
+- The owner knows only the names they use. A name you gave something while working, such as a script, a probe or a mode, means nothing to them: in a reply, say what the thing is or does, also where earlier replies used the name.
 - Owner messages are automatically processed into sourced memory. Use keep when explicitly asked to remember something immediately, quoting the current owner source exactly. Use think for sourced hypotheses and questions.
 - owner_portrait in <memory_context> is what you have gathered about the owner across conversations, refreshed every night from their own words. Let it shape how you help without reciting it; it can be out of date, and the owner reviews it in the app.
 - When something should happen later, make a commitment with schedule_wake. You will wake in this conversation with the task as input.
