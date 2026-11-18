@@ -14,11 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.ycvk.acorn.core.push.DeepLinks
-import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
-import io.ycvk.acorn.core.push.EXTRA_BROWSER_URL
 import io.ycvk.acorn.core.push.NotificationShade
-import io.ycvk.acorn.core.push.ThreadLink
-import io.ycvk.acorn.core.push.threadIdFromExtras
+import io.ycvk.acorn.core.push.notificationLink
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.theme.ThemePreference
 import io.ycvk.acorn.core.theme.isDark
@@ -64,13 +61,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun routeNotificationTap(intent: Intent?) {
-        val threadId = threadIdFromExtras { key -> intent?.getStringExtra(key) } ?: return
-        deepLinks.openThread(
-            ThreadLink(
-                threadId = threadId,
-                actionId = intent?.getStringExtra(EXTRA_ACTION_ID)?.takeIf { it.isNotBlank() },
-                browserUrl = intent?.getStringExtra(EXTRA_BROWSER_URL)?.takeIf { it.isNotBlank() },
-            ),
-        )
+        val link = notificationLink(intent?.component?.className) { key -> intent?.getStringExtra(key) } ?: return
+        deepLinks.openThread(link)
     }
 }

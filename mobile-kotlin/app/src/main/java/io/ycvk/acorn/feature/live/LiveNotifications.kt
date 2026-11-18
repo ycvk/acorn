@@ -9,11 +9,10 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
-import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.R
-import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
 import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.push.canPostNotifications
+import io.ycvk.acorn.core.push.notificationTap
 import io.ycvk.acorn.core.sse.RunStatus
 import io.ycvk.acorn.core.ui.plainSnippet
 import javax.inject.Inject
@@ -115,11 +114,7 @@ class LiveNotifications @Inject constructor(
     }
 
     private fun openThread(threadId: String): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra(EXTRA_THREAD_ID, threadId)
-        }
-        return PendingIntent.getActivity(context, "open:$threadId".hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return PendingIntent.getActivity(context, "open:$threadId".hashCode(), notificationTap(context, threadId), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     private fun stopRun(runId: String): PendingIntent {

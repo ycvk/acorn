@@ -7,9 +7,9 @@ import org.junit.Test
 import java.time.OffsetDateTime
 
 class ThreadPreviewTest {
-    private fun thread(preview: String?, role: Thread.PreviewRole?) = Thread(
+    private fun thread(preview: String?, role: Thread.PreviewRole?, title: String = "t") = Thread(
         id = "t",
-        title = "t",
+        title = title,
         createdAt = OffsetDateTime.now(),
         updatedAt = OffsetDateTime.now(),
         state = Thread.State.completed,
@@ -22,5 +22,12 @@ class ThreadPreviewTest {
         assertEquals("找到了三条", threadPreview(thread("找到了**三**条", Thread.PreviewRole.assistant)))
         assertEquals("你：帮我查一下", threadPreview(thread("帮我查一下", Thread.PreviewRole.user)))
         assertNull(threadPreview(thread(null, null)))
+    }
+
+    @Test
+    fun `a thread is listed under the title the server has`() {
+        assertEquals("New Thread", threadTitle(thread(null, null, title = "New Thread")))
+        assertEquals("订机票", threadTitle(thread(null, null, title = "订机票")))
+        assertEquals("新对话", threadTitle(thread(null, null, title = " ")))
     }
 }

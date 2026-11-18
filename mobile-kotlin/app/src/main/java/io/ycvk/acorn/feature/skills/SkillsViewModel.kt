@@ -16,6 +16,7 @@ import io.ycvk.acorn.core.ui.Save
 import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.SkillRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -150,6 +151,8 @@ class SkillsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 onThread(withContext(Dispatchers.IO) { repository.threadOfRun(profile, runId) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _change.value = Save.Failed(
                     if (e is ClientException && e.statusCode == 404) "写下这一版的对话已经删除了" else "没能打开那次对话：${userMessage(e)}",
@@ -170,6 +173,8 @@ class SkillsViewModel @Inject constructor(
                 withContext(Dispatchers.IO) { write(profile) }
                 _change.value = Save.Idle
                 onDone()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _change.value = Save.Failed(
                     if (e is ClientException && e.statusCode == 409) {

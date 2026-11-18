@@ -9,7 +9,8 @@ import javax.inject.Inject
 
 /**
  * Receives FCM callbacks. In the background the system shows notifications
- * itself and puts the data payload into the launch intent; in the foreground
+ * itself; their click_action opens them through [NOTIFICATION_TAP] with the
+ * data payload as extras. In the foreground
  * the app shows them through [PushManager], unless the conversation they
  * announce is on screen. A pending action arrives as data only and is always
  * shown by [ApprovalNotifications], with its decisions.

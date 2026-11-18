@@ -2,7 +2,6 @@ package io.ycvk.acorn.feature.now
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,10 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,10 +30,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.NowBriefingStory
@@ -54,11 +48,11 @@ import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
+import io.ycvk.acorn.core.ui.SourceLink
 import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.core.ui.clockTime
 import kotlinx.coroutines.delay
-import java.net.URI
 import java.time.ZoneId
 
 /**
@@ -172,8 +166,7 @@ private fun StoryBody(
             Spacer(Modifier.height(8.dp))
             Text(meta, style = AcornTheme.type.footnote, color = colors.inkFaint)
         }
-        Spacer(Modifier.height(14.dp))
-        SourceLink(story.url)
+        SourceLink(story.url, Modifier.padding(top = 14.dp))
         Spacer(Modifier.height(22.dp))
         val body = piece?.body?.takeIf { piece.status == NowStoryPiece.Status.ready }
         if (body != null) {
@@ -201,36 +194,6 @@ private fun StoryBody(
         }
     }
 }
-
-/** The source the briefing linked, named by its host; a tap opens it. */
-@Composable
-private fun SourceLink(url: String) {
-    val colors = AcornTheme.colors
-    val uriHandler = LocalUriHandler.current
-    Row(
-        modifier = Modifier
-            .clip(AcornShapes.small)
-            .background(colors.surfaceMuted)
-            .clickable(onClickLabel = "打开原文") { uriHandler.openUri(url) }
-            .heightIn(min = 40.dp)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Outlined.Link, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(
-            "原文 · ${sourceHost(url)}",
-            style = AcornTheme.type.footnote,
-            color = colors.inkSoft,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/** A link's host without a leading "www.", or the link itself when it has none. */
-fun sourceHost(url: String): String =
-    runCatching { URI(url).host }.getOrNull()?.removePrefix("www.")?.takeIf { it.isNotEmpty() } ?: url
 
 /** Something the owner asks of a story, on or off: a tinted pill when on. Following is on until the owner ends it in the conversation. */
 @Composable

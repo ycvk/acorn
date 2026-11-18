@@ -74,6 +74,7 @@ import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.linkHost
 import io.ycvk.acorn.core.ui.rememberHaptics
 
 /**
@@ -97,7 +98,7 @@ fun BrowserScreen(openUrl: String?, onBack: () -> Unit, viewModel: BrowserViewMo
         TopBar(
             onBack = onBack,
             title = state.current?.title?.takeIf { it.isNotBlank() && it != "about:blank" } ?: "Agent 的浏览器",
-            subtitle = state.current?.url?.takeIf { it != "about:blank" }?.let(::pageHost),
+            subtitle = state.current?.url?.takeIf { it != "about:blank" }?.let(::linkHost),
         ) {
             TabMenu(state, onSelect = viewModel::select)
             IconAction(Icons.AutoMirrored.Outlined.Undo, "后退", viewModel::back, enabled = state.tab != null)
@@ -152,7 +153,7 @@ private fun TabMenu(state: BrowserUiState, onSelect: (String) -> Unit) {
                     text = {
                         Column {
                             Text(tab.title.ifBlank { tab.url }, style = AcornTheme.type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(pageHost(tab.url), style = AcornTheme.type.caption, color = AcornTheme.colors.inkFaint, maxLines = 1)
+                            Text(linkHost(tab.url), style = AcornTheme.type.caption, color = AcornTheme.colors.inkFaint, maxLines = 1)
                         }
                     },
                     onClick = {

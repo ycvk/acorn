@@ -45,19 +45,11 @@ import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.authorizedImage
+import io.ycvk.acorn.core.ui.formatBytes
 import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.data.repository.PendingAttachment
 import io.ycvk.acorn.data.repository.threadFileUrl
 import java.io.File
-import java.util.Locale
-
-/** A size such as 2.3 MB, or blank when unknown. */
-fun formatBytes(bytes: Long): String = when {
-    bytes < 0 -> ""
-    bytes >= 1L shl 20 -> String.format(Locale.ROOT, "%.1f MB", bytes / 1048576.0)
-    bytes >= 1L shl 10 -> String.format(Locale.ROOT, "%.0f KB", bytes / 1024.0)
-    else -> "$bytes B"
-}
 
 /** Opens a downloaded file in another app; false when no app takes its type. */
 fun openFile(context: Context, file: File, mimeType: String): Boolean {

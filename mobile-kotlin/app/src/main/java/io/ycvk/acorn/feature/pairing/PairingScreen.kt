@@ -32,12 +32,12 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.PairingState
 import io.ycvk.acorn.core.net.LocalNetworkAccess
 import io.ycvk.acorn.core.net.LocalNetworkDenied
+import io.ycvk.acorn.core.net.serverUrlProblem
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.FormField
 import io.ycvk.acorn.core.ui.InlineError
 import kotlinx.coroutines.launch
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.ycvk.acorn.core.ui.GateLayout
 
 @Composable
@@ -127,21 +127,11 @@ fun PairingScreen(authController: AuthController, localNetwork: LocalNetworkAcce
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            "配对码只能用一次，默认 10 分钟内有效。",
+            "配对码只能用一次，在 acorn pair 显示的过期时间之前有效。",
             style = AcornTheme.type.caption,
             color = colors.inkFaint,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
-    }
-}
-
-/** Why [url] can't be a server address, or null when it can. */
-fun serverUrlProblem(url: String): String? {
-    val parsed = url.toHttpUrlOrNull()
-    return if (parsed == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
-        "服务器地址格式不对，应该像 https://acorn.example.com"
-    } else {
-        null
     }
 }

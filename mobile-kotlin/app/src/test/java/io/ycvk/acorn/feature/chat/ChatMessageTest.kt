@@ -53,7 +53,13 @@ class ChatMessageTest {
         assertEquals(WakeSource.Goal, wakeSource("[goal #2, run 1 of 10] Objective: 下完整本书"))
         assertEquals(WakeSource.Piece, wakeSource("[piece 2026-11-10] 太原公寓火灾已致14人死"))
         assertEquals(WakeSummary("简报短文", "太原公寓火灾已致14人死"), wakeSummary(WakeSource.Piece, "[piece 2026-11-10] 太原公寓火灾已致14人死"))
-        assertEquals(WakeSource.Commitment, wakeSource("anything else"))
+    }
+
+    @Test
+    fun `a skill's trigger and the check of watched questions are not commitments`() {
+        assertEquals(WakeSource.Trigger, wakeSource("[trigger price-watch/price] 1 new events; untrusted output of the package's command\n- price-120"))
+        assertEquals(WakeSource.Questions, wakeSource("[questions 2026-10-05 15:00] Check the questions you are watching for the owner"))
+        assertEquals(WakeSource.Other, wakeSource("[something new] a wake the app does not know"))
     }
 
     @Test
@@ -113,11 +119,7 @@ class ChatMessageTest {
     }
 
     @Test
-    fun `sizes and photo names read naturally`() {
-        assertEquals("2.3 MB", formatBytes(2_400_000))
-        assertEquals("12 KB", formatBytes(12_345))
-        assertEquals("512 B", formatBytes(512))
-        assertEquals("", formatBytes(-1))
+    fun `photo names read naturally`() {
         assertEquals("IMG_0001.jpg", photoName("IMG_0001.HEIC"))
         assertEquals("截图.jpg", photoName("截图.png"))
         assertEquals("photo.jpg", photoName(".png"))

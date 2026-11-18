@@ -56,13 +56,16 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.Redo
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.QuestionAnswer
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
@@ -138,6 +141,7 @@ import io.ycvk.acorn.core.ui.pressScale
 import io.ycvk.acorn.core.ui.raised
 import io.ycvk.acorn.core.ui.rememberArrival
 import io.ycvk.acorn.core.ui.rememberHaptics
+import io.ycvk.acorn.core.ui.rememberReducedMotion
 import io.ycvk.acorn.core.ui.rememberWriting
 import io.ycvk.acorn.core.ui.shimmer
 import io.ycvk.acorn.data.repository.FileView
@@ -509,23 +513,29 @@ private fun Welcome(modifier: Modifier = Modifier) {
 private fun wakeLabel(source: WakeSource) = when (source) {
     WakeSource.Commitment -> "约定提醒"
     WakeSource.Watch -> "追踪有更新"
+    WakeSource.Trigger -> "触发器有新事件"
+    WakeSource.Questions -> "等答案的问题"
     WakeSource.Briefing -> "早安简报"
     WakeSource.Piece -> "简报短文"
     WakeSource.Night -> "夜思"
     WakeSource.Wander -> "游思"
     WakeSource.FollowUp -> "等到结果"
     WakeSource.Goal -> "继续目标"
+    WakeSource.Other -> "Acorn 自己醒来"
 }
 
 private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Commitment -> Icons.Outlined.NotificationsNone
     WakeSource.Watch -> Icons.Outlined.Visibility
+    WakeSource.Trigger -> Icons.Outlined.Bolt
+    WakeSource.Questions -> Icons.Outlined.QuestionAnswer
     WakeSource.Briefing -> Icons.Outlined.WbSunny
     WakeSource.Piece -> Icons.AutoMirrored.Outlined.Article
     WakeSource.Night -> Icons.Outlined.DarkMode
     WakeSource.Wander -> Icons.Outlined.Lightbulb
     WakeSource.FollowUp -> Icons.Outlined.HourglassBottom
     WakeSource.Goal -> Icons.Outlined.Flag
+    WakeSource.Other -> Icons.Outlined.Alarm
 }
 
 /** How long a conversation with nothing to show stays empty before its skeleton appears. */
@@ -545,11 +555,11 @@ private fun LazyListState.distanceTo(index: Int): Float? {
     return if (index == last.index + 1) (last.offset + last.size + layout.mainAxisItemSpacing).toFloat() else null
 }
 
-/** A message the server had beyond the copy first shown fades in, once, as the list moves to it. */
+/** A message the server had beyond the copy first shown fades in, once, as the list moves to it; with reduced motion it is simply there. */
 @Composable
 private fun Modifier.news(id: String, fresh: Set<String>, risen: MutableSet<String>): Modifier {
     val comes = remember(id) { id in fresh && risen.add(id) }
-    if (!comes) return this
+    if (!comes || rememberReducedMotion()) return this
     val shown = remember(id) { Animatable(0f) }
     LaunchedEffect(id) { shown.animateTo(1f, AcornMotion.travel(NEWS_MS)) }
     return graphicsLayer {
@@ -560,13 +570,14 @@ private fun Modifier.news(id: String, fresh: Set<String>, risen: MutableSet<Stri
 
 /**
  * The message the owner just sent rises out of the composer: it comes up a
- * short way, growing from the corner nearest the send button, as it fades in.
- * [id] is the row's, [sent] the row the owner sent last.
+ * short way, growing from the corner nearest the send button, as it fades in;
+ * with reduced motion it is simply there. [id] is the row's, [sent] the row
+ * the owner sent last.
  */
 @Composable
 private fun Modifier.sentNow(id: String, sent: String?, risen: MutableSet<String>): Modifier {
     val rises = remember(id) { id == sent && risen.add(id) }
-    if (!rises) return this
+    if (!rises || rememberReducedMotion()) return this
     val arrived = remember(id) { Animatable(0f) }
     LaunchedEffect(id) { arrived.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 260f)) }
     return graphicsLayer {

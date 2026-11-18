@@ -15,6 +15,7 @@ import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.BrowserRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.sse.EventSource
 import javax.inject.Inject
 
 private const val TAB_REFRESH_MS = 4_000L
@@ -56,6 +56,38 @@ data class BrowserUiState(
 }
 
 /**
+ * The one frame stream the screen keeps open. Opening a stream closes the one
+ * before it, and only the open stream's end counts: a closed stream still
+ * reports that it ended, which says nothing of the stream opened after it.
+ * Use from one thread.
+ */
+class FrameStreamSlot {
+    private var open: AutoCloseable? = null
+    private var opened = 0L
+
+    val isOpen: Boolean get() = open != null
+
+    /** Closes the open stream and opens one with [start], which gets the number [ended] knows it by. */
+    fun open(start: (Long) -> AutoCloseable) {
+        close()
+        val number = ++opened
+        open = start(number)
+    }
+
+    fun close() {
+        open?.close()
+        open = null
+    }
+
+    /** Stream [number] ended; true when it was the open one, which is then gone. */
+    fun ended(number: Long): Boolean {
+        if (number != opened || open == null) return false
+        open = null
+        return true
+    }
+}
+
+/**
  * The owner's view of the agent's browser. It streams one page while the
  * screen is shown ([start] and [stop]) and sends taps, scrolls, drags, text
  * and keys.
@@ -68,7 +100,7 @@ class BrowserViewModel @Inject constructor(
     private val _state = MutableStateFlow(BrowserUiState())
     val state: StateFlow<BrowserUiState> = _state.asStateFlow()
 
-    private var stream: EventSource? = null
+    private val stream = FrameStreamSlot()
     private var tabsJob: Job? = null
     private var screen: PhoneScreen? = null
     private var pendingUrl: String? = null
@@ -97,12 +129,11 @@ class BrowserViewModel @Inject constructor(
     fun stop() {
         tabsJob?.cancel()
         tabsJob = null
-        stream?.cancel()
-        stream = null
+        stream.close()
     }
 
     fun select(tab: String) {
-        if (tab == _state.value.tab && stream != null) return
+        if (tab == _state.value.tab && stream.isOpen) return
         _state.update { it.copy(tab = tab, frame = null, status = BrowserStatus.Loading) }
         connect(tab)
     }
@@ -111,6 +142,8 @@ class BrowserViewModel @Inject constructor(
         val profile = profile() ?: return
         val tabs = try {
             withContext(Dispatchers.IO) { repository.tabs(profile) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _state.update { it.copy(status = BrowserStatus.Failed(userMessage(e))) }
             return
@@ -119,12 +152,11 @@ class BrowserViewModel @Inject constructor(
         val chosen = _state.value.tab?.takeIf { id -> tabs.any { it.id == id } }
         when {
             tabs.isEmpty() -> {
-                stream?.cancel()
-                stream = null
+                stream.close()
                 _state.update { it.copy(tab = null, frame = null, status = BrowserStatus.NoTabs) }
             }
             chosen == null -> select(tabs.first().id)
-            stream == null -> connect(chosen)
+            !stream.isOpen -> connect(chosen)
         }
         val url = pendingUrl
         if (url != null && _state.value.tab != null) {
@@ -136,16 +168,18 @@ class BrowserViewModel @Inject constructor(
     private fun connect(tab: String) {
         val profile = profile() ?: return
         val size = screen ?: return
-        stream?.cancel()
-        stream = repository.frames(
-            profile = profile,
-            tab = tab,
-            width = size.width,
-            height = size.height,
-            onFrame = { frame -> show(tab, frame) },
-            onError = { e -> streamEnded(tab, e) },
-            onClosed = { streamEnded(tab, null) },
-        )
+        stream.open { number ->
+            val source = repository.frames(
+                profile = profile,
+                tab = tab,
+                width = size.width,
+                height = size.height,
+                onFrame = { frame -> show(tab, frame) },
+                onError = { e -> viewModelScope.launch { streamEnded(number, e) } },
+                onClosed = { viewModelScope.launch { streamEnded(number, null) } },
+            )
+            AutoCloseable { source.cancel() }
+        }
     }
 
     private fun show(tab: String, frame: BrowserFrame) {
@@ -157,9 +191,8 @@ class BrowserViewModel @Inject constructor(
     }
 
     /** A dropped stream reconnects on the next tab refresh; a failure is shown until then. */
-    private fun streamEnded(tab: String, error: Throwable?) {
-        if (_state.value.tab != tab) return
-        stream = null
+    private fun streamEnded(number: Long, error: Throwable?) {
+        if (!stream.ended(number)) return
         if (error != null) {
             _state.update { it.copy(status = BrowserStatus.Failed(userMessage(error))) }
         }
@@ -225,6 +258,8 @@ class BrowserViewModel @Inject constructor(
     private suspend fun input(profile: ConnectionProfile, request: BrowserInputRequest) {
         try {
             withContext(Dispatchers.IO) { repository.input(profile, request) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _state.update { it.copy(inputError = userMessage(e)) }
         }

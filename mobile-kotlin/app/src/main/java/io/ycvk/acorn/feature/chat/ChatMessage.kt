@@ -35,9 +35,9 @@ sealed class ChatMessage {
     ) : ChatMessage()
 
     /**
-     * The input of a run the backend woke: a commitment, a watch, the
-     * morning briefing, a goal or a follow-up. [summary] is its short form,
-     * null for an input shown in full.
+     * The input of a run the backend woke: a commitment, a watch, a skill's
+     * trigger, the morning briefing, a goal or a follow-up, among others.
+     * [summary] is its short form, null for an input shown in full.
      */
     data class Wake(
         val text: String,
@@ -112,18 +112,21 @@ fun withView(messages: List<ChatMessage>, view: View): List<ChatMessage> = messa
     }
 }
 
-enum class WakeSource { Commitment, Watch, Briefing, Piece, Night, Wander, FollowUp, Goal }
+enum class WakeSource { Commitment, Watch, Trigger, Questions, Briefing, Piece, Night, Wander, FollowUp, Goal, Other }
 
-/** What woke a run, from the prefix the backend gives its input. */
+/** What woke a run, from the prefix the backend gives its input; [WakeSource.Other] for a prefix the app does not know. */
 fun wakeSource(input: String): WakeSource = when {
+    input.startsWith("[commitment ") -> WakeSource.Commitment
     input.startsWith("[night ") -> WakeSource.Night
     input.startsWith("[wander ") -> WakeSource.Wander
+    input.startsWith("[questions ") -> WakeSource.Questions
     input.startsWith("[watch") -> WakeSource.Watch
+    input.startsWith("[trigger ") -> WakeSource.Trigger
     input.startsWith("[briefing") -> WakeSource.Briefing
     input.startsWith("[piece ") -> WakeSource.Piece
     input.startsWith("[follow_up ") -> WakeSource.FollowUp
     input.startsWith("[goal ") -> WakeSource.Goal
-    else -> WakeSource.Commitment
+    else -> WakeSource.Other
 }
 
 /** A wake input in short: [title] beside its icon, [body] the gist, [detail] what else matters, if anything. */

@@ -59,10 +59,7 @@ class SkillLabelsTest {
     }
 
     @Test
-    fun `files say their size and why their content is not shown`() {
-        assertEquals("512 B", fileSize(512))
-        assertEquals("2.0 KB", fileSize(2048))
-        assertEquals("1.5 MB", fileSize(1024L * 1024 * 3 / 2))
+    fun `files say why their content is not shown`() {
         assertEquals("不是文本文件，手机上不显示内容", hiddenFileReason(100))
         assertEquals("超过 64 KB，手机上不显示内容", hiddenFileReason(MAX_SHOWN_FILE_BYTES + 1))
     }

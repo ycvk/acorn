@@ -11,6 +11,7 @@ import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.OwnerSettingsRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +56,8 @@ class OwnerSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = try {
                 Load.Loaded(withContext(Dispatchers.IO) { repository.current(profile) })
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Load.Failed(userMessage(e))
             }
@@ -63,6 +66,8 @@ class OwnerSettingsViewModel @Inject constructor(
             try {
                 _toolNames.value = withContext(Dispatchers.IO) { repository.toolNames(profile) }
                 _toolsError.value = null
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _toolsError.value = userMessage(e)
             }
@@ -87,6 +92,8 @@ class OwnerSettingsViewModel @Inject constructor(
             try {
                 _state.value = Load.Loaded(withContext(Dispatchers.IO) { call(profile) })
                 onSaved()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _saveError.value = userMessage(e)
             } finally {

@@ -103,6 +103,3 @@ fun navigationUrl(typed: String): String? {
     if (uri.scheme !in setOf("http", "https") || uri.host.isNullOrEmpty() || !uri.host.contains('.') && uri.host != "localhost") return null
     return withScheme
 }
-
-/** The host of a page URL for the bar's subtitle, or the URL itself. */
-fun pageHost(url: String): String = runCatching { URI(url).host }.getOrNull()?.removePrefix("www.") ?: url

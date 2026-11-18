@@ -96,6 +96,8 @@ class ApprovalsViewModel @Inject constructor(
                 }
                 _selectedAction.value = detail
                 _error.value = null
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = userMessage(e)
             }
