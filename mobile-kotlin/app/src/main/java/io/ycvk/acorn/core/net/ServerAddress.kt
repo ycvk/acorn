@@ -5,6 +5,20 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 private val ipv4 = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""")
 
 /**
+ * Why [url] can't be the server address, or null when it can. Every request
+ * the app makes goes to this address, so http is taken only for a host inside
+ * the owner's own networks; a stored address is held to the same rule.
+ */
+fun serverUrlProblem(url: String): String? {
+    val parsed = url.toHttpUrlOrNull()
+    return when {
+        parsed == null || !(url.startsWith("http://") || url.startsWith("https://")) -> "服务器地址格式不对，应该像 https://acorn.example.com"
+        parsed.scheme == "http" && !isInternalHost(parsed.host) -> "公网上的服务器要用 https://，http:// 只用于局域网、Tailscale 和本机的地址"
+        else -> null
+    }
+}
+
+/**
  * Whether [host] is inside the owner's own networks, where the app may talk
  * plain http: private IPv4 (10/8, 172.16/12, 192.168/16), Tailscale's
  * 100.64/10, link-local, IPv6 unique-local and link-local, loopback and

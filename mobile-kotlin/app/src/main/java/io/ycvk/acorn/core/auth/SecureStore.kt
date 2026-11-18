@@ -7,6 +7,7 @@ import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import io.ycvk.acorn.core.io.writeAtomically
+import io.ycvk.acorn.core.net.serverUrlProblem
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -36,7 +37,11 @@ class SecureStore @Inject constructor(@ApplicationContext context: Context) {
         file.write(ConnectionProfile(serverUrl, deviceId, accessToken))
     }
 
-    fun getConnection(): ConnectionProfile? = file.read()
+    /** The stored connection, held to the rule a new server address has to pass; see [storedConnection]. */
+    fun readConnection(): StoredConnection = storedConnection(file.read())
+
+    /** The stored connection when the app may send its token to its server, for work without the app's screen, such as a push. */
+    fun usableConnection(): ConnectionProfile? = (readConnection() as? StoredConnection.Usable)?.profile
 
     fun clearConnection() {
         file.delete()
@@ -48,6 +53,26 @@ data class ConnectionProfile(
     val deviceId: String,
     val accessToken: String,
 )
+
+/** A connection read from the phone. */
+sealed interface StoredConnection {
+    data object None : StoredConnection
+
+    data class Usable(val profile: ConnectionProfile) : StoredConnection
+
+    /** Its server address fails [serverUrlProblem], which says why in [reason]; no request goes there. */
+    data class Refused(val reason: String) : StoredConnection
+}
+
+/**
+ * What a stored [profile] allows. An address paired before the http rule
+ * may name a public host over http, and the device token must not go there
+ * in the clear, so it is refused like a new one.
+ */
+fun storedConnection(profile: ConnectionProfile?): StoredConnection {
+    profile ?: return StoredConnection.None
+    return serverUrlProblem(profile.serverUrl)?.let(StoredConnection::Refused) ?: StoredConnection.Usable(profile)
+}
 
 /** The AES key that seals the connection file. */
 interface ConnectionKey {

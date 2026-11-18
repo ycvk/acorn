@@ -97,7 +97,7 @@ class ApprovalNotifications @Inject constructor(
      */
     fun show(push: PendingActionPush) {
         if (!canPostNotifications(context)) return
-        val profile = secureStore.getConnection() ?: return
+        val profile = secureStore.usableConnection() ?: return
         val detail = try {
             api(profile).clientGetPendingAction(push.actionId)
         } catch (e: Exception) {
@@ -136,7 +136,7 @@ class ApprovalNotifications @Inject constructor(
      * with the outcome. The run it resumes shows as a Live Update.
      */
     fun decide(actionId: String, threadId: String, runId: String?, optionId: String, decision: DecidePendingActionRequest.Decision) {
-        val profile = secureStore.getConnection() ?: return
+        val profile = secureStore.usableConnection() ?: return
         try {
             api(profile).clientDecidePendingAction(actionId, DecidePendingActionRequest(decision = decision, selectedOptionId = optionId))
             runId?.let { follower.follow(profile, it, threadId, title = null, live = true, decided = actionId) }

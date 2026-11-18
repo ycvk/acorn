@@ -50,13 +50,16 @@ class AuthController @Inject constructor(
     private val _pairingState = MutableStateFlow<PairingState>(PairingState.Idle)
     val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
 
+    /** Connects to the stored server; one the app refuses leaves the pairing screen saying why. */
     fun loadStoredConnection() {
         scope.launch {
-            val profile = withContext(storeDispatcher) { secureStore.getConnection() }
-            _authState.value = if (profile != null) {
-                AuthState.Connected(profile)
-            } else {
-                AuthState.Disconnected
+            when (val stored = withContext(storeDispatcher) { secureStore.readConnection() }) {
+                is StoredConnection.Usable -> _authState.value = AuthState.Connected(stored.profile)
+                is StoredConnection.Refused -> {
+                    _pairingState.value = PairingState.Error(stored.reason)
+                    _authState.value = AuthState.Disconnected
+                }
+                StoredConnection.None -> _authState.value = AuthState.Disconnected
             }
         }
     }

@@ -1,4 +1,4 @@
-package io.ycvk.acorn.feature.pairing
+package io.ycvk.acorn.core.net
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

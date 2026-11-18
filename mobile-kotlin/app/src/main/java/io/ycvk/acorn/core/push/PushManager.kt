@@ -96,7 +96,7 @@ class PushManager @Inject constructor(
      * when the installation ID changes. Uploads it if this device is paired.
      */
     fun onRegistered(fid: String) {
-        val profile = secureStore.getConnection() ?: return
+        val profile = secureStore.usableConnection() ?: return
         scope.launch {
             try {
                 upload(profile, fid)
