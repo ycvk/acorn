@@ -28,14 +28,6 @@ const val EXTRA_ACTION_ID = "action_id"
 /** Intent extra carrying a page a notification opens in the agent's browser. */
 const val EXTRA_BROWSER_URL = "browser_url"
 
-/**
- * Returns the thread to open for a notification tap, or null. [extra] reads one
- * intent extra; FCM puts data payload keys there when the system shows the
- * notification, and the app's own notifications use the same key.
- */
-fun threadIdFromExtras(extra: (String) -> String?): String? =
-    extra(EXTRA_THREAD_ID)?.trim()?.takeIf { it.isNotEmpty() }
-
 /** What the app knows about push notifications for this device. */
 sealed interface PushStatus {
     data class NotConfigured(val missing: List<String>) : PushStatus

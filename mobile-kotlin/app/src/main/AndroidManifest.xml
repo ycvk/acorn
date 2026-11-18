@@ -28,6 +28,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Notification taps arrive here: the app's own PendingIntents, and FCM's through the push's click_action.
+             Not exported, so another app cannot open a thread, an approval or a browser page through it. -->
+        <activity-alias
+            android:name=".NotificationTap"
+            android:exported="false"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="io.ycvk.acorn.OPEN_NOTIFICATION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

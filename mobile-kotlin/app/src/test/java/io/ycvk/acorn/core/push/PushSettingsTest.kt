@@ -22,12 +22,4 @@ class PushSettingsTest {
         assertNull(pushStatusDetail(PushStatus.Registered))
         assertEquals("timeout", pushStatusDetail(PushStatus.Failed("timeout")))
     }
-
-    @Test
-    fun `thread id comes from the notification extras`() {
-        val extras = mapOf(EXTRA_THREAD_ID to " session_1 ")
-        assertEquals("session_1", threadIdFromExtras { extras[it] })
-        assertNull(threadIdFromExtras { null })
-        assertNull(threadIdFromExtras { "  " })
-    }
 }
