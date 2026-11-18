@@ -108,13 +108,22 @@ func (e *Engine) Think(ctx context.Context, runID, sessionID string, in WriteInp
 		}
 		return records[0], nil
 	}
+	// A new thought starts open at revision 1; a revision or state given
+	// without an id is an update that lost its id.
+	if in.Revision != 0 || in.State != "" {
+		return core.MemoryRecord{}, errors.New("think records a new thought without revision or state; to revise or resolve one, give its id")
+	}
+	reason := strings.TrimSpace(in.Reason)
+	if reason == "" {
+		reason = "agent thought with originating evidence"
+	}
 	sum := sha256.Sum256([]byte(runID + "\x00" + in.Content))
 	id := "thought:" + hex.EncodeToString(sum[:16])
 	source, err := e.cfg.Store.RegisterMemorySource(ctx, core.MemorySource{ID: id, Kind: "thought", ObjectID: id, Version: "1", Speaker: "assistant", RunID: runID, SessionID: sessionID, Body: in.Content, RecordedAt: e.cfg.Clock()})
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
-	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "thought", Content: in.Content, Scope: in.Scope, Entities: in.Entities, Parents: in.Parents, Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: in.Content, Relation: "supports"}, {SourceID: origin.ID, Quote: in.Quote, Relation: "supports"}}}, Reason: "agent thought with originating evidence"}}})
+	records, err := e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Epoch: epoch, Now: e.cfg.Clock(), Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "thought", Content: in.Content, Scope: in.Scope, Entities: in.Entities, Parents: in.Parents, Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: in.Content, Relation: "supports"}, {SourceID: origin.ID, Quote: in.Quote, Relation: "supports"}}}, Reason: reason}}})
 	if err != nil {
 		return core.MemoryRecord{}, err
 	}
