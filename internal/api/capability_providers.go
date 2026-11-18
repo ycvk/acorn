@@ -122,7 +122,7 @@ func enabledCapabilityProviderCount(items []SystemMCPProviderCapability) int {
 func healthyCapabilityProviderCount(items []SystemMCPProviderCapability) int {
 	count := 0
 	for _, item := range items {
-		if providerReadinessFromCapability(item).Status == ProviderReadinessPassed {
+		if ProviderReadinessOf(item).Status == ProviderReadinessPassed {
 			count++
 		}
 	}
@@ -135,12 +135,14 @@ func buildProviderReadiness(items []SystemMCPProviderCapability) []ProviderReadi
 	}
 	out := make([]ProviderReadinessSummary, 0, len(items))
 	for _, item := range items {
-		out = append(out, providerReadinessFromCapability(item))
+		out = append(out, ProviderReadinessOf(item))
 	}
 	return out
 }
 
-func providerReadinessFromCapability(provider SystemMCPProviderCapability) ProviderReadinessSummary {
+// ProviderReadinessOf says whether a provider is ready for runs, and why
+// not. The capability summary counts and the doctor print the same answer.
+func ProviderReadinessOf(provider SystemMCPProviderCapability) ProviderReadinessSummary {
 	summary := ProviderReadinessSummary{
 		Scope:         providerReadinessScopeMCP,
 		Provider:      provider.Name,
