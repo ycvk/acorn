@@ -154,10 +154,10 @@ func ownerDecides(name string) bool {
 	return name == "news_source" || name == "news_sections" || name == "files"
 }
 
-// writesSkill reports a tool that stores a revision of a skill's text and
-// files.
+// writesSkill reports a tool that stores a revision of a skill: its text and
+// files, or its retirement.
 func writesSkill(name string) bool {
-	return name == "skill_write" || name == "skill_import"
+	return name == "skill_write" || name == "skill_import" || name == "skill_retire"
 }
 
 // reviewed are the tools whose effects can leave Acorn and the workstation.

@@ -202,7 +202,7 @@
   - `internal/store/store_skills_test.go`
   - `internal/tools/skill_tools_test.go`
   - `internal/workstation/skills_test.go`
-- **写技能的审批先说改了什么**：`approval.require` 设置默认含 `skill_write`、`skill_import`、`skill_retire`。关卡为 `skill_write` 或 `skill_import` 发起审批时，先经技能库的 `WriteChange` / `ImportChange` 预览这次写入；预览与写入共用合并和校验，不落库，暂存包也留在原处。预览写成一句话记进待批准项，作为它的摘要：新建技能时说技能名、附带几个文件和 description；改写时说改写哪个技能、当前第几版、是不是 release 随版本带的内置技能、是不是已停用（写入后恢复使用），以及改动——`SKILL.md` 删加的行数，新增、改动、删除的文件，或内容与当前版本相同。基于的 revision 与当前不符、或写入通不过校验时，这句话说明这次调用会失败和原因。预览读不出来或参数解不开时调用报错，既不执行也不发起审批。详情的 `tool_detail` 以这句话开头，其后依次是包清单的说明、改写时已有文件相对当前版本的改动行、将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的全文取自暂存包，包已不在暂存区时只有这句话。包带 `acorn-package.yaml` 时清单说明列出它在工作机上运行的东西：MCP 服务器的命令与参数、每个触发器的时间表、送达方式与命令、密钥名；写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。
+- **写技能的审批先说改了什么**：`approval.require` 设置默认含 `skill_write`、`skill_import`、`skill_retire`。关卡为 `skill_write` 或 `skill_import` 发起审批时，先经技能库的 `WriteChange` / `ImportChange` 预览这次写入；预览与写入共用合并和校验，不落库，暂存包也留在原处。预览写成一句话记进待批准项，作为它的摘要：新建技能时说技能名、附带几个文件和 description；改写时说改写哪个技能、当前第几版、是不是 release 随版本带的内置技能、是不是已停用（写入后恢复使用），以及改动——`SKILL.md` 删加的行数，新增、改动、删除的文件，或内容与当前版本相同。基于的 revision 与当前不符、或写入通不过校验时，这句话说明这次调用会失败和原因。预览读不出来或参数解不开时调用报错，既不执行也不发起审批。详情的 `tool_detail` 以这句话开头，其后依次是包清单的说明、改写时已有文件相对当前版本的改动行、将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的全文取自暂存包，包已不在暂存区时只有这句话。包带 `acorn-package.yaml` 时清单说明列出它在工作机上运行的东西：MCP 服务器的命令与参数、每个触发器的时间表、送达方式与命令、密钥名；写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。`skill_retire` 发起审批时摘要说停用哪个技能、是不是内置技能、当前第几版、谁写的；技能不存在、已停用或版本不对时说这次停用会失败，详情同摘要。
   - `internal/config/config_validation_test.go`
   - `internal/api/tool_steps_test.go`
   - `internal/skills/library_test.go`

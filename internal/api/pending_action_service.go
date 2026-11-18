@@ -138,6 +138,11 @@ func (s *PendingActionService) toolDetail(ctx context.Context, toolName, argumen
 		return tools.ApprovalDescriber{News: s.news}.DescribeApproval(ctx, toolName, arguments)
 	case "files":
 		return tools.FilesApproval(arguments)
+	case "skill_retire":
+		if s.changes == nil {
+			return "", fmt.Errorf("pending action service: skill changes are required to show %s", toolName)
+		}
+		return tools.SkillRetireApproval(ctx, s.changes, arguments)
 	case "skill_write", "skill_import":
 	default:
 		return "", nil

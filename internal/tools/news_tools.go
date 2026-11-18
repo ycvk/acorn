@@ -253,8 +253,8 @@ type NewsLoader interface {
 // ApprovalDescriber says, in the owner's words, what a call the owner
 // decides on does: which news source a news_source call takes in or stops,
 // how a news_sections call changes the sections, and why, the text a files
-// call writes, or what a skill_write or skill_import call changes in the
-// stored skills.
+// call writes, what a skill_write or skill_import call changes in the stored
+// skills, or which skill a skill_retire call takes out of use.
 type ApprovalDescriber struct {
 	News   NewsLoader
 	Skills SkillChanges
@@ -270,6 +270,8 @@ func (d ApprovalDescriber) DescribeApproval(ctx context.Context, toolName, argum
 		return FilesApproval(arguments)
 	case "skill_write", "skill_import":
 		return SkillApproval(ctx, d.Skills, toolName, arguments)
+	case "skill_retire":
+		return SkillRetireApproval(ctx, d.Skills, arguments)
 	default:
 		return "", fmt.Errorf("no approval description for %s", toolName)
 	}
