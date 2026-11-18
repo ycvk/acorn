@@ -123,8 +123,12 @@ func (s *Store) CommitNewsBatch(ctx context.Context, token string, commit core.N
 	}
 	scored := map[int64]bool{}
 	for _, score := range commit.Scores {
-		if !claimed[score.ItemID] || scored[score.ItemID] {
-			return fmt.Errorf("commit news batch: item %d is not claimed by the batch or is scored twice", score.ItemID)
+		if scored[score.ItemID] {
+			return fmt.Errorf("commit news batch: item %d is scored twice", score.ItemID)
+		}
+		if !claimed[score.ItemID] {
+			// The item's lease ran out and another batch claimed it.
+			return fmt.Errorf("%w: item %d is no longer claimed by the batch", core.ErrNewsLeaseLost, score.ItemID)
 		}
 		scored[score.ItemID] = true
 	}

@@ -61,6 +61,21 @@ func TestNewsBatchesSortItemsIntoStoriesOnce(t *testing.T) {
 	if err := s.CommitNewsBatch(ctx, batch.Token, commit); err == nil || !strings.Contains(err.Error(), "2 of 3 claimed items") {
 		t.Fatalf("a commit that leaves an item unscored err = %v", err)
 	}
+	twice := commit
+	twice.Scores = append(slices.Clone(commit.Scores), commit.Scores[0])
+	if err := s.CommitNewsBatch(ctx, batch.Token, twice); err == nil || errors.Is(err, core.ErrNewsLeaseLost) || !strings.Contains(err.Error(), "scored twice") {
+		t.Fatalf("a commit that scores an item twice err = %v", err)
+	}
+	// Another batch reclaims one item after this one's lease ran out.
+	if _, err := s.db.ExecContext(ctx, `UPDATE news_claims SET token = 'later' WHERE item_id = ?`, bbcItems[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CommitNewsBatch(ctx, batch.Token, core.NewsCommit{At: commit.At, Stories: commit.Stories, Scores: append(slices.Clone(commit.Scores), core.NewsItemScore{ItemID: bbcItems[1].ID, Score: 1})}); !errors.Is(err, core.ErrNewsLeaseLost) {
+		t.Fatalf("a commit after a partial reclaim err = %v, want the lease lost", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE news_claims SET token = ? WHERE item_id = ?`, batch.Token, bbcItems[1].ID); err != nil {
+		t.Fatal(err)
+	}
 	commit.Scores = append(commit.Scores, core.NewsItemScore{ItemID: bbcItems[1].ID, Score: 1})
 	if err := s.CommitNewsBatch(ctx, batch.Token, commit); err != nil {
 		t.Fatal(err)
