@@ -97,7 +97,7 @@ func (m *Manager) unregisterProviderTools(providerName string) {
 // refreshProviderToolRegistrations re-syncs a provider's registry entries after
 // its tool list changes (tools/list_changed notification). It unregisters the
 // stale names then registers the current set; when that fails the provider
-// is left with no registered tools.
+// is left with no registered tools and the caller fails it.
 func (m *Manager) refreshProviderToolRegistrations(ctx context.Context, providerName string) error {
 	m.unregisterProviderTools(providerName)
 	return m.registerProviderTools(ctx, providerName)

@@ -55,3 +55,43 @@ func TestManagerFailsAProviderWhoseToolsCannotRegister(t *testing.T) {
 		t.Fatalf("the failed provider is still live: %v", err)
 	}
 }
+
+// A provider whose refreshed tools cannot register fails as at startup: its
+// tools are gone, and its status says so.
+func TestManagerFailsAProviderWhoseRefreshedToolsCannotRegister(t *testing.T) {
+	binary := buildFixtureServer(t)
+	registry := tools.NewToolRegistry()
+	refusing := false
+	builder := func(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error) {
+		info, err := tool.Info(ctx)
+		if err != nil {
+			return core.ToolSpec{}, err
+		}
+		if refusing {
+			return core.ToolSpec{}, errors.New("tool is not invokable")
+		}
+		spec := core.ToolSpec{Tool: tool}
+		spec.Name, spec.Kind, spec.Category = "mcp__"+providerName+"__"+info.Name, core.ToolKindMCP, core.ToolCategoryIntegration
+		return spec, nil
+	}
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
+		{Name: "alpha", Enabled: true, Transport: "stdio", Command: binary, StartupTimeoutSeconds: 10},
+	}, WithToolRegistry(registry, builder))
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	t.Cleanup(func() { _ = mgr.Close() })
+
+	refusing = true
+	if err := mgr.RefreshProviderCatalog(context.Background(), "alpha"); err == nil || !strings.Contains(err.Error(), "tool is not invokable") {
+		t.Fatalf("refresh err = %v", err)
+	}
+	if specs := registry.Specs(); len(specs) != 0 {
+		t.Fatalf("registered after a failed refresh = %d", len(specs))
+	}
+	for _, s := range mgr.Statuses() {
+		if s.Name == "alpha" && (s.StartupStatus != "failed" || !strings.Contains(s.Error, "tool is not invokable")) {
+			t.Fatalf("status after a failed refresh = %+v", s)
+		}
+	}
+}
