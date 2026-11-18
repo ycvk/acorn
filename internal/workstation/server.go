@@ -337,9 +337,7 @@ func readText(path string, maxBytes int) (ReadResult, error) {
 		return ReadResult{}, err
 	}
 	truncated := info.Size() > int64(len(data))
-	if truncated {
-		data = trimPartialRune(data)
-	}
+	data = wholeRunes(data, truncated)
 	if !utf8.Valid(data) {
 		return ReadResult{}, fmt.Errorf("%s: %w; inspect it with shell", path, ErrNotText)
 	}
@@ -699,13 +697,4 @@ func (b *cappedBuffer) String() string {
 	return strings.ToValidUTF8(string(b.head), "") +
 		fmt.Sprintf("\n[... %d bytes omitted ...]\n", omitted) +
 		strings.ToValidUTF8(string(tail), "")
-}
-
-func trimPartialRune(data []byte) []byte {
-	for i := 0; i < utf8.UTFMax && i < len(data); i++ {
-		if utf8.Valid(data[:len(data)-i]) {
-			return data[:len(data)-i]
-		}
-	}
-	return data
 }
