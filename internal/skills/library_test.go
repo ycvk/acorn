@@ -328,7 +328,8 @@ func TestStagedPackagesImportExactlyWhatWasStaged(t *testing.T) {
 	if _, err := library.ImportStaged(ctx, "docx", staged.SHA256, 0, "run-1"); err == nil || !strings.Contains(err.Error(), "holds skill pdf") {
 		t.Fatalf("wrong name err = %v", err)
 	}
-	skill, err := library.ImportStaged(ctx, "pdf", staged.SHA256, 0, "run-1")
+	// The hash as a model may copy it, with space around it.
+	skill, err := library.ImportStaged(ctx, "pdf", " "+staged.SHA256+"\n", 0, "run-1")
 	if err != nil || skill.ID != "pdf" || skill.Author != core.SkillAuthorAgent || len(skill.Files) != 1 {
 		t.Fatalf("import = %+v, %v", skill, err)
 	}
