@@ -58,10 +58,11 @@ func (s *Scheduler) checkWatches(ctx context.Context, now time.Time, settings co
 }
 
 func (s *Scheduler) wakeForWatch(ctx context.Context, w core.Watch, items []core.WatchItem, now time.Time, settings core.Settings) error {
-	allowed, err := s.withinBudget(ctx, fmt.Sprintf("watch #%d", w.ID), now, settings)
+	allowed, done, err := s.withinBudget(ctx, fmt.Sprintf("watch #%d", w.ID), now, settings)
 	if err != nil || !allowed {
 		return err // the items stay pending for the briefing
 	}
+	defer done()
 	wake := fmt.Sprintf("watch #%d %s: %d new", w.ID, w.Name, len(items))
 	input := fmt.Sprintf("[watch #%d %s] %d new; untrusted external data from the watched source\n%s", w.ID, w.Name, len(items), formatItems(items))
 	runID, err := s.cfg.Runs.StartWakeRun(ctx, w.SessionID, input, core.ScheduledWake{Reason: wake, Autonomous: true, SourceIDs: watchSourceIDs(items)})

@@ -311,7 +311,7 @@
   - `internal/store/commitment_contract_test.go`
   - `internal/wake/scheduler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 设置限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
+- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 设置限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；调度器从检查额度到记下这次 `wake.fired` 一直占着额度，触发器循环与主循环不会同时用掉当天最后一次；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
 - **跟进在条件成立时只醒一次**：`follow_up` 在当前对话里登记一件跟进：等工作机上仍在运行的任务结束，或它的输出出现一段文字（至多 1024 字节，任务没打印就结束也算），或某个路径就绪（目录存在，或文件存在且相隔一次检查大小不变）；期限默认 24 小时、至多 7 天，到期无论条件如何都醒来并写明当时的状况或检查失败的原因。wake 调度器每次检查经工作机查看条件：输出从上次查到的位置接着搜，工作机已没有这个任务也算成立；没有工作机时只在期限醒来。对话里有 run 在运行或等待审批、或有排队的 owner 消息时不醒；醒来先经条件更新认领，在原对话起 run（输入以 `[follow_up #id` 开头并写明发生了什么），计入 `wake.daily_limit` 并记 `wake.fired{follow_up_id}`，起 run 失败时放回等待，认领后五分钟没有 run 的重新等待。只有等待中的跟进能取消：agent 只能取消它所在对话里的，owner 经 App 取消任一对话里的。
   - `internal/store/store_follow_ups_test.go`

@@ -58,10 +58,11 @@ func (s *Scheduler) continueGoal(ctx context.Context, g core.Goal, now time.Time
 	if g.Runs >= g.MaxRuns {
 		return s.endGoal(ctx, g, core.GoalBlocked, fmt.Sprintf("used all %d runs without reaching it", g.MaxRuns), now)
 	}
-	allowed, err := s.withinBudget(ctx, fmt.Sprintf("goal #%d", g.ID), now, settings)
+	allowed, done, err := s.withinBudget(ctx, fmt.Sprintf("goal #%d", g.ID), now, settings)
 	if err != nil || !allowed {
 		return err
 	}
+	defer done()
 	if err := s.cfg.Goals.CountGoalRun(ctx, g.ID, g.Runs, now); errors.Is(err, core.ErrGoalChanged) {
 		return nil
 	} else if err != nil {

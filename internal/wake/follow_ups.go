@@ -47,10 +47,11 @@ func (s *Scheduler) followUp(ctx context.Context, f core.FollowUp, now time.Time
 	if err != nil || !idle {
 		return err
 	}
-	allowed, err := s.withinBudget(ctx, fmt.Sprintf("follow-up #%d", f.ID), now, settings)
+	allowed, done, err := s.withinBudget(ctx, fmt.Sprintf("follow-up #%d", f.ID), now, settings)
 	if err != nil || !allowed {
 		return err
 	}
+	defer done()
 	if err := s.cfg.FollowUps.ClaimFollowUp(ctx, f.ID, reason, now); errors.Is(err, core.ErrFollowUpNotWaiting) {
 		return nil
 	} else if err != nil {
