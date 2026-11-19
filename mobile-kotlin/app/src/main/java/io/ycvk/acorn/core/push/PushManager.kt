@@ -4,20 +4,19 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ycvk.acorn.BuildConfig
-import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.R
 import io.ycvk.acorn.api.apis.DevicesApi
 import io.ycvk.acorn.api.models.PushInstallationRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.auth.SecureStore
 import io.ycvk.acorn.core.auth.authorized
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -84,6 +83,8 @@ class PushManager @Inject constructor(
         scope.launch {
             try {
                 FirebaseMessaging.getInstance().register().await()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _status.value = PushStatus.Failed(e.message ?: e.javaClass.simpleName)
             }
@@ -95,7 +96,7 @@ class PushManager @Inject constructor(
      * when the installation ID changes. Uploads it if this device is paired.
      */
     fun onRegistered(fid: String) {
-        val profile = secureStore.getConnection() ?: return
+        val profile = secureStore.usableConnection() ?: return
         scope.launch {
             try {
                 upload(profile, fid)
@@ -112,16 +113,11 @@ class PushManager @Inject constructor(
      */
     fun show(title: String, body: String, threadId: String?, browserUrl: String?) {
         if (!canPostNotifications(context)) return
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            threadId?.let { putExtra(EXTRA_THREAD_ID, it) }
-            browserUrl?.let { putExtra(EXTRA_BROWSER_URL, it) }
-        }
         // Intents that differ in what they open must not replace each other's extras.
         val pending = PendingIntent.getActivity(
             context,
             "$threadId/$browserUrl".hashCode(),
-            intent,
+            notificationTap(context, threadId, browserUrl = browserUrl),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)

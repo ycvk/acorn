@@ -17,6 +17,15 @@ type fakeSkillChanges struct {
 	err      error
 	wrote    []skills.WriteRequest
 	imported []string
+	stored   map[string]core.Skill
+}
+
+func (f *fakeSkillChanges) Skill(_ context.Context, name string) (core.Skill, error) {
+	skill, ok := f.stored[name]
+	if !ok {
+		return core.Skill{}, core.ErrSkillNotFound
+	}
+	return skill, nil
 }
 
 func (f *fakeSkillChanges) WriteChange(_ context.Context, req skills.WriteRequest) (skills.Change, error) {
@@ -116,7 +125,28 @@ func TestApprovalDescriberAsksWhatASkillCallChanges(t *testing.T) {
 	if _, err := describe.DescribeApproval(ctx, "skill_write", `{"markdown":"text"}`); !errors.Is(err, changes.err) {
 		t.Fatalf("err = %v", err)
 	}
-	if _, err := describe.DescribeApproval(ctx, "skill_retire", `{"name":"shop-orders","base_revision":4}`); err == nil {
-		t.Fatal("skill_retire has no description")
+	if _, err := describe.DescribeApproval(ctx, "skill_inspect", `{"path":"pkg"}`); err == nil {
+		t.Fatal("skill_inspect has no description")
+	}
+}
+
+func TestApprovalDescriberSaysWhichSkillARetirementTakesOutOfUse(t *testing.T) {
+	ctx := context.Background()
+	describe := ApprovalDescriber{Skills: &fakeSkillChanges{stored: map[string]core.Skill{
+		"skill-creator": {ID: "skill-creator", Revision: 6, Author: core.SkillAuthorRelease, SeedSHA256: "seed"},
+		"shop-orders":   {ID: "shop-orders", Revision: 2, Author: core.SkillAuthorAgent},
+		"old":           {ID: "old", Revision: 3, Retired: true, Author: core.SkillAuthorOwner},
+	}}}
+	for _, tc := range []struct{ arguments, want string }{
+		{`{"name":"skill-creator","base_revision":6}`, "停用内置技能 skill-creator（现为第 6 版，发布版本写的）：之后的 run 不再用它，在技能页可以恢复。"},
+		{`{"name":"shop-orders","base_revision":2}`, "停用技能 shop-orders（现为第 2 版，Acorn写的）：之后的 run 不再用它，在技能页可以恢复。"},
+		{`{"name":"shop-orders","base_revision":1}`, "技能 shop-orders 现在是第 2 版，这次停用基于第 1 版，会失败。"},
+		{`{"name":"old","base_revision":3}`, "技能 old 已经停用，这次停用会失败。"},
+		{`{"name":"gone","base_revision":1}`, "技能 gone 不存在，这次停用会失败。"},
+	} {
+		got, err := describe.DescribeApproval(ctx, "skill_retire", tc.arguments)
+		if err != nil || got != tc.want {
+			t.Errorf("%s = %q, %v; want %q", tc.arguments, got, err, tc.want)
+		}
 	}
 }

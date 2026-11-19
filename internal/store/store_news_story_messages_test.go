@@ -60,7 +60,7 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 	}
 
 	snapshot := core.SnapshotOf(story)
-	discuss, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_s"})
+	discuss, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_s", ClientID: core.NewActionID()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,14 +86,14 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x"}); !errors.Is(err, core.ErrThreadBusy) {
+		if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x", ClientID: core.NewActionID()}); !errors.Is(err, core.ErrThreadBusy) {
 			t.Fatalf("a message while the latest run is %s: %v", status, err)
 		}
 		if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: runID, Status: core.RunStatusSucceeded, Output: "说明", Error: "", Event: "run.completed"}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	follow, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x"})
+	follow, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x", ClientID: core.NewActionID()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestStoryMessagesKeepAStoryInItsConversation(t *testing.T) {
 	if card := storyOnCard(t, s); card.ThreadID != "" {
 		t.Fatalf("a story whose conversation was deleted = %+v", card)
 	}
-	again, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_new"})
+	again, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_new", ClientID: core.NewActionID()})
 	if err != nil || again.SessionID != "thread_new" {
 		t.Fatalf("a story opened after its conversation was deleted = %+v, %v", again, err)
 	}
@@ -172,14 +172,76 @@ func TestStoryMessagesNeedAnIntentTextTitleAndStory(t *testing.T) {
 	s := openTestStore(t)
 	story := core.StorySnapshot{ID: 1, Title: "菲律宾央行加息"}
 	for name, in := range map[string]core.StoryMessageWrite{
-		"intent":    {Intent: "share", Text: "看看", Title: "加息", Story: story, NewThreadID: "thread_s"},
-		"text":      {Intent: core.StoryDiscuss, Text: " ", Title: "加息", Story: story, NewThreadID: "thread_s"},
-		"title":     {Intent: core.StoryDiscuss, Text: "看看", Story: story, NewThreadID: "thread_s"},
-		"story":     {Intent: core.StoryDiscuss, Text: "看看", Title: "加息", Story: core.StorySnapshot{Title: "菲律宾央行加息"}, NewThreadID: "thread_s"},
-		"thread id": {Intent: core.StoryDiscuss, Text: "看看", Title: "加息", Story: story},
+		"intent":    {Intent: "share", Text: "看看", Title: "加息", Story: story, NewThreadID: "thread_s", ClientID: "c1"},
+		"text":      {Intent: core.StoryDiscuss, Text: " ", Title: "加息", Story: story, NewThreadID: "thread_s", ClientID: "c1"},
+		"title":     {Intent: core.StoryDiscuss, Text: "看看", Story: story, NewThreadID: "thread_s", ClientID: "c1"},
+		"story":     {Intent: core.StoryDiscuss, Text: "看看", Title: "加息", Story: core.StorySnapshot{Title: "菲律宾央行加息"}, NewThreadID: "thread_s", ClientID: "c1"},
+		"thread id": {Intent: core.StoryDiscuss, Text: "看看", Title: "加息", Story: story, ClientID: "c1"},
+		"client id": {Intent: core.StoryDiscuss, Text: "看看", Title: "加息", Story: story, NewThreadID: "thread_s"},
 	} {
 		if _, err := s.SendStoryMessage(context.Background(), in); err == nil {
 			t.Errorf("a story message without its %s was recorded", name)
 		}
+	}
+}
+
+// An ask made again under its client id, as when its answer was lost,
+// writes nothing: it comes back as the message the first ask wrote, with the
+// run that took it, or with none while its run never started.
+func TestAStoryAskMadeAgainIsWrittenOnce(t *testing.T) {
+	s, bbc, ft, _ := newsStoryFixture(t)
+	ctx := context.Background()
+	snapshot := core.SnapshotOf(pickedStory(t, s, bbc, ft))
+	ask := core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_s", ClientID: "ask-1"}
+	first, err := s.SendStoryMessage(ctx, ask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ask.NewThreadID = "thread_unused"
+	again, err := s.SendStoryMessage(ctx, ask)
+	if err != nil || again.ID != first.ID || again.SessionID != "thread_s" || again.RunID != "" || again.Content != first.Content {
+		t.Fatalf("asked again before its run started = %+v, %v", again, err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_ask", SessionID: "thread_s", TurnIndex: first.TurnIndex, Input: first.Content}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.BindUserMessageRunIDByID(ctx, first.ID, "run_ask"); err != nil {
+		t.Fatal(err)
+	}
+	// The conversation is busy now, and the ask is still answered with its run.
+	again, err = s.SendStoryMessage(ctx, ask)
+	if err != nil || again.ID != first.ID || again.RunID != "run_ask" {
+		t.Fatalf("asked again once its run started = %+v, %v", again, err)
+	}
+	if got := storyMessages(t, s, "thread_s"); len(got) != 1 {
+		t.Fatalf("story messages = %+v", got)
+	}
+}
+
+// A story's conversation is busy while any run of it runs or waits for the
+// owner, as for an owner message, not only its latest.
+func TestAStoryConversationWithAWaitingRunIsBusy(t *testing.T) {
+	s, bbc, ft, _ := newsStoryFixture(t)
+	ctx := context.Background()
+	snapshot := core.SnapshotOf(pickedStory(t, s, bbc, ft))
+	first, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryDiscuss, Text: "展开讲讲：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_s", ClientID: "ask-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_waiting", SessionID: "thread_s", TurnIndex: first.TurnIndex, Input: first.Content}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkInterrupted(ctx, "run_waiting", ""); err != nil {
+		t.Fatal(err)
+	}
+	// A later run, a view's press say, finished while the first still waits.
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_later", SessionID: "thread_s", TurnIndex: first.TurnIndex + 1, Input: "继续"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: "run_later", Status: core.RunStatusSucceeded, Output: "好", Event: "run.completed", Payload: map[string]any{"message": "好"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进：菲律宾央行意外加息", Title: "菲律宾央行意外加息", Story: snapshot, NewThreadID: "thread_x", ClientID: "ask-2"}); !errors.Is(err, core.ErrThreadBusy) {
+		t.Fatalf("ask while an earlier run waits err = %v", err)
 	}
 }

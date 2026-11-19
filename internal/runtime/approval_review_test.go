@@ -231,6 +231,47 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 	}
 }
 
+// A sub-run works the browser beside the run that delegated it, and an
+// observe in either renames the elements under the other. So a sub-run
+// reviews page actions without a page, a delegate call drops the page
+// memory, and while a sub-run has not ended the parent reviews without one
+// too; once its sub-runs ended, the parent's next observe counts again.
+func TestGateReviewsPageActionsWithoutAPageWhileSubRunsShareTheBrowser(t *testing.T) {
+	sub := newGateFixture(t, core.ApprovalRules{})
+	sub.mw.subRun = true
+	if _, err := sub.call(t, "shell", shellArgs(toCheckout)); err != nil {
+		t.Fatal(err)
+	}
+	if got := sub.reviewedAction(t, `bsk fill @e2 --value "张三" --session s1`); got.Target != "" || got.URL != "" {
+		t.Fatalf("a sub-run's page action = %+v, want no page", got)
+	}
+
+	f := newGateFixture(t, core.ApprovalRules{})
+	if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.call(t, "delegate", `{"action":"start"}`); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.reviewedAction(t, `bsk fill @e2 --value "张三" --session s1`); got.Target != "" {
+		t.Fatalf("after a delegate call = %+v, want the memory dropped", got)
+	}
+	f.store.subRuns = []core.SubRun{{RunID: "run_sub", ParentRunID: "run_gate", Task: 1, Attempt: 1, Status: core.RunStatusRunning}}
+	if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.reviewedAction(t, `bsk fill @e2 --value "张三" --session s1`); got.Target != "" || got.URL != "" {
+		t.Fatalf("while a sub-run runs = %+v, want no page", got)
+	}
+	f.store.subRuns[0].Status = core.RunStatusSucceeded
+	if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.reviewedAction(t, `bsk fill @e2 --value "张三" --session s1`); got.Target != `textbox "收货人"` {
+		t.Fatalf("once the sub-run ended = %+v, want the page observed again", got)
+	}
+}
+
 func TestGateRunsCallsReviewAllows(t *testing.T) {
 	f := newGateFixture(t, core.ApprovalRules{})
 	if _, err := f.call(t, "shell", shellArgs(toCheckout)); err != nil {

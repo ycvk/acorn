@@ -10,6 +10,7 @@ import io.ycvk.acorn.core.auth.authorized
 import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.ThreadSnapshots
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +63,8 @@ class ThreadsViewModel @Inject constructor(
                 }
                 _threads.value = response.items
                 _load.value = Load.Loaded(Unit)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _load.value = Load.Failed(userMessage(e))
             } finally {
@@ -83,6 +86,8 @@ class ThreadsViewModel @Inject constructor(
                     snapshots.forget(threadId)
                 }
                 _threads.value = _threads.value.filterNot { it.id == threadId }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = userMessage(e)
             }

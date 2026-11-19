@@ -10,6 +10,7 @@ import io.ycvk.acorn.core.ui.Load
 import io.ycvk.acorn.core.ui.loadOf
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.KnowledgeRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -111,6 +112,8 @@ class KnowledgeViewModel @Inject constructor(
                 withContext(Dispatchers.IO) { repository.delete(profile, path) }
                 _load.value = withoutNote(_load.value, path)
                 onDeleted()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _deleteError.value = userMessage(e)
             }

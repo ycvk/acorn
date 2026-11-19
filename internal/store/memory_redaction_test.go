@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/redact"
 )
 
 func TestMemorySourcesAreRedactedOnlyForMemory(t *testing.T) {
@@ -49,35 +50,11 @@ func TestMemorySourcesAreRedactedOnlyForMemory(t *testing.T) {
 	if _, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{facts[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Second)}); err != nil {
 		t.Fatal(err)
 	}
-	want := excludedPlaceholder + "，另外我住在杭州"
+	want := redact.ExcludedPlaceholder + "，另外我住在杭州"
 	for name, load := range map[string]func(context.Context, string) (core.MemorySource, error){"memory": s.LoadMemorySource, "thread": s.LoadThreadSource} {
 		got, err := load(ctx, id)
 		if err != nil || got.Content != want || !got.Excluded {
 			t.Fatalf("%s source after forget=%+v %v", name, got, err)
-		}
-	}
-}
-
-func TestRenderSourceExcludesWholeCredentials(t *testing.T) {
-	const token = "abcdefghijklmnopqrstuvwx"
-	raw := "curl -H 'Authorization: Bearer " + token + "' https://api.example.com done"
-	for _, tc := range []struct {
-		name     string
-		quotes   []string
-		redacted bool
-		want     string
-	}{
-		{"memory", nil, true, "curl -H 'Authorization: Bearer [REDACTED:authorization]' https://api.example.com done"},
-		{"thread", nil, false, raw},
-		// A quote of the redacted text that ends inside the placeholder still
-		// covers the whole token in the raw thread.
-		{"thread quote of placeholder", []string{"Bearer [REDACTED"}, false, "curl -H 'Authorization: " + excludedPlaceholder + "' https://api.example.com done"},
-		// A raw quote that cuts the token excludes all of it from memory.
-		{"memory raw quote cuts token", []string{"Bearer abcdef"}, true, "curl -H 'Authorization: " + excludedPlaceholder + "' https://api.example.com done"},
-		{"memory unrelated quote", []string{"done"}, true, "curl -H 'Authorization: Bearer [REDACTED:authorization]' https://api.example.com " + excludedPlaceholder},
-	} {
-		if got := renderSource(raw, tc.quotes, tc.redacted); got != tc.want {
-			t.Errorf("%s:\n got %q\nwant %q", tc.name, got, tc.want)
 		}
 	}
 }

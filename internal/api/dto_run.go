@@ -40,6 +40,9 @@ type PendingActionSummaryDTO struct {
 type CreateRunRequest struct {
 	Input   string   `json:"input,omitempty"`
 	FileIDs []string `json:"file_ids,omitempty"`
+	// ClientID is the client's id for this message, the same when it sends
+	// the message again.
+	ClientID string `json:"client_id"`
 }
 
 // CreateRunResponse is the run that takes the owner's message: the run

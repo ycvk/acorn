@@ -258,7 +258,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db).WithSkillPackages(db).WithSkillChanges(deps.skills).WithNews(db).WithResumer(container.runResume)
 
-	if container.capabilities, err = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory.BuildCapabilitySpecs); err != nil {
+	if container.capabilities, err = api.NewCapabilitiesService(cfg, container.skills.Snapshot, func(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo {
+		return mcpprovider.Doctor(ctx, cfgs, db)
+	}, deps.runnerFactory.BuildCapabilitySpecs); err != nil {
 		return nil, err
 	}
 	container.deviceAuth = api.NewDeviceAuthService(db).WithPushInstallations(db)

@@ -10,10 +10,13 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// RunReader reads a thread's latest run.
+// RunReader reads a thread's runs.
 type RunReader interface {
 	// LoadLatestRunForSession is nil for a thread without runs.
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*core.RunRecord, error)
+	// ActiveRunInSession is the thread's run that runs or waits for the
+	// owner, "" when none does.
+	ActiveRunInSession(ctx context.Context, sessionID string) (string, error)
 	ListQueuedMessages(ctx context.Context, sessionID string) ([]core.QueuedMessage, error)
 	// RunNotifiedOwner reports whether a run pushed something of its own to
 	// the owner.
@@ -193,7 +196,7 @@ const questionWatch = 14 * 24 * time.Hour
 // are released first, without a model call. The check records a new answer
 // on its concern, and the store then wakes the agent where the owner asked.
 func (s *Scheduler) questionsInput(ctx context.Context, slot string, now time.Time, loc *time.Location) (routineInput, error) {
-	if _, err := s.cfg.Memory.ReleaseStaleQuestions(ctx, now.Add(-questionWatch), now); err != nil {
+	if _, err := s.cfg.Memory.ReleaseStaleQuestions(ctx, now.Add(-questionWatch), now, loc); err != nil {
 		return routineInput{}, err
 	}
 	concerns, err := s.cfg.Memory.ListConcerns(ctx, true)
@@ -246,11 +249,11 @@ func (s *Scheduler) wanderInput(ctx context.Context, slot string, now time.Time,
 		if c.Question || c.ReviewAt.After(now) {
 			continue
 		}
-		latest, err := s.cfg.RunRecords.LoadLatestRunForSession(ctx, c.ThreadID)
+		active, err := s.cfg.RunRecords.ActiveRunInSession(ctx, c.ThreadID)
 		if err != nil {
 			return routineInput{}, err
 		}
-		if runGoing(latest) {
+		if active != "" {
 			continue
 		}
 		review := "not set"

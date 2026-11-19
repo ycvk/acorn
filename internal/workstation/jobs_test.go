@@ -45,6 +45,36 @@ func TestJobsShowTheBeginningAndEndOfLongOutput(t *testing.T) {
 	}
 }
 
+func TestJobsSayWhenTheirOutputFileIsGone(t *testing.T) {
+	home := t.TempDir()
+	j, err := newJobs(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer j.close()
+	got, err := j.start(context.Background(), JobStartRequest{Command: "printf 'hello'", WaitSeconds: 10, MaxOutputBytes: 64}, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(got.Job.OutputPath); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := j.list()
+	if err != nil || len(listed) != 1 || !listed[0].OutputGone || listed[0].OutputBytes != 0 {
+		t.Fatalf("list = %+v, %v", listed, err)
+	}
+	status, err := j.result(got.Job.ID, 64)
+	if err != nil || !status.Job.OutputGone || status.Job.State != JobExited || status.Output != "" {
+		t.Fatalf("status = %+v, %v", status, err)
+	}
+	if _, err := j.read(got.Job.ID, 0, 10); err == nil || !strings.Contains(err.Error(), "output file") || !strings.Contains(err.Error(), "is gone") {
+		t.Fatalf("read err = %v", err)
+	}
+	if _, err := j.find(got.Job.ID, JobFindRequest{Text: "hello"}); err == nil || !strings.Contains(err.Error(), "is gone") {
+		t.Fatalf("find err = %v", err)
+	}
+}
+
 // Jobs a restarted workstation finds running are lost; jobs that ended more
 // than a week ago are removed.
 func TestJobsAfterARestart(t *testing.T) {

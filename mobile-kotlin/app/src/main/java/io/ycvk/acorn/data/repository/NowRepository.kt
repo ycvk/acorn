@@ -3,6 +3,7 @@ package io.ycvk.acorn.data.repository
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.models.NowBriefingStory
 import io.ycvk.acorn.api.models.NowResponse
+import io.ycvk.acorn.api.models.StoryMessageRequest
 import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.api.models.StoryReactionRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -32,11 +33,16 @@ class NowRepository @Inject constructor() {
 
     fun clearStoryReaction(profile: ConnectionProfile, storyId: Long) = api(profile).clientClearStoryReaction(storyId)
 
-    /** Asks Acorn to explain a story in its conversation, which the server creates the first time. */
-    fun discussStory(profile: ConnectionProfile, storyId: Long): StoryMessageResponse = api(profile).clientDiscussStory(storyId)
+    /**
+     * Asks Acorn to explain a story in its conversation, which the server creates the first time.
+     * Asked again under the same [clientId], the server keeps one copy of the ask.
+     */
+    fun discussStory(profile: ConnectionProfile, storyId: Long, clientId: String): StoryMessageResponse =
+        api(profile).clientDiscussStory(storyId, StoryMessageRequest(clientId))
 
-    /** Asks Acorn to keep following a story, in its conversation. */
-    fun followStory(profile: ConnectionProfile, storyId: Long): StoryMessageResponse = api(profile).clientFollowStory(storyId)
+    /** Asks Acorn to keep following a story, in its conversation; [clientId] as for [discussStory]. */
+    fun followStory(profile: ConnectionProfile, storyId: Long, clientId: String): StoryMessageResponse =
+        api(profile).clientFollowStory(storyId, StoryMessageRequest(clientId))
 
     private fun api(profile: ConnectionProfile): ClientApi = ClientApi(basePath = profile.serverUrl).authorized(profile)
 }

@@ -249,7 +249,7 @@ func decideOverHTTP(t *testing.T, c *Container, actionID, decision string) {
 // startOwnerRun sends input as the owner's message in a thread with no run
 // going and returns the run it starts.
 func startOwnerRun(ctx context.Context, c *Container, threadID, input string) (*api.Run, error) {
-	sent, err := c.runs.SendMessage(ctx, threadID, input, nil)
+	sent, err := c.runs.SendMessage(ctx, threadID, input, nil, core.NewActionID())
 	if err != nil {
 		return nil, err
 	}

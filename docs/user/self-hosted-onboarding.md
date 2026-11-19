@@ -265,7 +265,7 @@ sha256sum -c "acorn_mobile_${VERSION}_android.apk.sha256"
 
 Choose one explicit remote boundary:
 
-- **Tailscale**: listen on a private interface or `0.0.0.0:8080`, restrict access through the tailnet, and pair with `http://<tailnet-host>:8080` or a Tailscale HTTPS name.
+- **Tailscale**: listen on a private interface or `0.0.0.0:8080`, restrict access through the tailnet, and pair with the machine's tailnet address (`http://100.x.y.z:8080`), its full MagicDNS name (`http://<host>.<tailnet>.ts.net:8080`) or a Tailscale HTTPS name. The app takes `http://` only for tailnet, LAN and loopback addresses and `.local` or `.ts.net` names; a public server needs `https://`.
 - **Reverse proxy**: keep Acorn bound to `127.0.0.1:8080`, terminate TLS in Caddy/Nginx/Traefik, and pair with the public HTTPS origin. Let request bodies through up to the file cap (`files.max_upload_mib`, 50 MiB by default), for example `client_max_body_size 51m;` in Nginx, whose default of 1 MiB refuses most files and photos.
 - **Cloudflare Tunnel**: keep Acorn bound to `127.0.0.1:8080`, tunnel to that local origin, and pair with the tunnel HTTPS URL.
 - **LAN only**: bind to `0.0.0.0:8080` only on a trusted network and pair with the LAN IP.
@@ -510,7 +510,7 @@ Pick sources someone already ranked: top stories, front pages and daily digests.
 
 ## 14. Backup and Restore
 
-The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Run artifacts and the files of conversations never change once written, so they are mirrored once into `<backup.dir>/artifacts/` and `<backup.dir>/files/`. The newest `backup.keep` snapshots are kept (14 by default):
+The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Run artifacts and the files of conversations never change once written, so they are mirrored once into `<backup.dir>/artifacts/` and `<backup.dir>/files/`. An install upgraded from a version before 0.19.0-rc.15 may still have `<storage_dir>/attachments/`, the images shared with the removed share capture; Acorn no longer reads or backs it up, and `acorn doctor` names it while it is there. The newest `backup.keep` snapshots are kept (14 by default):
 
 ```yaml
 backup:

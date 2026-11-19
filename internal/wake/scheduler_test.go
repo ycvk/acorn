@@ -59,6 +59,8 @@ type fakeRuns struct {
 	fail       error
 	pieces     []string        // storyID|day, per piece started
 	pieceFail  map[int64]error // by story
+	// starting, when set, runs as a wake run starts, before it is recorded.
+	starting func()
 }
 
 func (r *fakeRuns) StartStoryPiece(_ context.Context, storyID int64, day string) (string, error) {
@@ -109,6 +111,9 @@ func (r *fakeRuns) record(ctx context.Context, runID, threadID, input string) er
 }
 
 func (r *fakeRuns) StartWakeRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
+	if r.starting != nil {
+		r.starting()
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail != nil {
@@ -222,6 +227,33 @@ func TestTickWakesDueCommitmentOnce(t *testing.T) {
 	}
 	if len(h.store.events) != 1 || h.store.events[0] != "run_1:wake.fired" {
 		t.Fatalf("events = %v", h.store.events)
+	}
+}
+
+// The trigger loop and the main loop wake the agent at the same time; the
+// day's last wake goes to one of them.
+func TestTheDaysLastWakeGoesToOneLoop(t *testing.T) {
+	h := newHarness(t, 1)
+	first := h.commit(t, "A", h.now.Add(-time.Minute), "")
+	second := h.commit(t, "B", h.now.Add(-time.Minute), "")
+	other := make(chan error, 1)
+	var once sync.Once
+	h.runs.starting = func() {
+		once.Do(func() {
+			go func() { other <- h.sched.wake(context.Background(), second, h.now, h.settings) }()
+			// The other loop has time to check the budget before this wake
+			// is recorded.
+			time.Sleep(100 * time.Millisecond)
+		})
+	}
+	if err := h.sched.wake(context.Background(), first, h.now, h.settings); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-other; err != nil {
+		t.Fatal(err)
+	}
+	if len(h.runs.starts) != 1 {
+		t.Fatalf("starts = %v, want one within the daily limit", h.runs.starts)
 	}
 }
 

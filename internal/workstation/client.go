@@ -38,80 +38,68 @@ func NewClient(baseURL, token string, httpClient *http.Client) (*Client, error) 
 }
 
 func (c *Client) Status(ctx context.Context) (Status, error) {
-	var out Status
-	return out, c.call(ctx, http.MethodGet, "/v1/status", nil, &out)
+	return callFor[Status](ctx, c, http.MethodGet, "/v1/status", nil)
 }
 
 func (c *Client) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
-	var out ExecResult
-	return out, c.call(ctx, http.MethodPost, "/v1/exec", req, &out)
+	return callFor[ExecResult](ctx, c, http.MethodPost, "/v1/exec", req)
 }
 
 // StartJob starts a command as a job and waits up to req.WaitSeconds for it.
 func (c *Client) StartJob(ctx context.Context, req JobStartRequest) (JobResult, error) {
-	var out JobResult
-	return out, c.call(ctx, http.MethodPost, "/v1/jobs", req, &out)
+	return callFor[JobResult](ctx, c, http.MethodPost, "/v1/jobs", req)
 }
 
 // Jobs lists the newest jobs first.
 func (c *Client) Jobs(ctx context.Context) ([]Job, error) {
-	var out []Job
-	return out, c.call(ctx, http.MethodGet, "/v1/jobs", nil, &out)
+	return callFor[[]Job](ctx, c, http.MethodGet, "/v1/jobs", nil)
 }
 
 // Job reads a job's record.
 func (c *Client) Job(ctx context.Context, id string) (Job, error) {
-	var out Job
-	return out, c.call(ctx, http.MethodGet, "/v1/jobs/"+url.PathEscape(id), nil, &out)
+	return callFor[Job](ctx, c, http.MethodGet, "/v1/jobs/"+url.PathEscape(id), nil)
 }
 
 // JobOutput reads up to limit bytes of a job's output from offset.
 func (c *Client) JobOutput(ctx context.Context, id string, offset int64, limit int) (JobOutput, error) {
-	var out JobOutput
 	query := url.Values{"offset": {strconv.FormatInt(offset, 10)}, "limit": {strconv.Itoa(limit)}}
-	return out, c.call(ctx, http.MethodGet, "/v1/jobs/"+url.PathEscape(id)+"/output?"+query.Encode(), nil, &out)
+	return callFor[JobOutput](ctx, c, http.MethodGet, "/v1/jobs/"+url.PathEscape(id)+"/output?"+query.Encode(), nil)
 }
 
 // FindJobOutput searches a job's output for text from offset on.
 func (c *Client) FindJobOutput(ctx context.Context, id, text string, offset int64) (JobFind, error) {
-	var out JobFind
-	return out, c.call(ctx, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/find", JobFindRequest{Text: text, Offset: offset}, &out)
+	return callFor[JobFind](ctx, c, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/find", JobFindRequest{Text: text, Offset: offset})
 }
 
 // Stat reports what is at path on the workstation.
 func (c *Client) Stat(ctx context.Context, path string) (StatResult, error) {
-	var out StatResult
-	return out, c.call(ctx, http.MethodPost, "/v1/files/stat", StatRequest{Path: path}, &out)
+	return callFor[StatResult](ctx, c, http.MethodPost, "/v1/files/stat", StatRequest{Path: path})
 }
 
 // StopJob stops a running job; a job that ended comes back as it is.
 func (c *Client) StopJob(ctx context.Context, id string) (Job, error) {
-	var out Job
-	return out, c.call(ctx, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/stop", nil, &out)
+	return callFor[Job](ctx, c, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/stop", nil)
 }
 
 func (c *Client) ReadFile(ctx context.Context, req ReadRequest) (ReadResult, error) {
-	var out ReadResult
-	return out, c.call(ctx, http.MethodPost, "/v1/files/read", req, &out)
+	return callFor[ReadResult](ctx, c, http.MethodPost, "/v1/files/read", req)
 }
 
 func (c *Client) WriteFile(ctx context.Context, req WriteRequest) (WriteResult, error) {
-	var out WriteResult
-	return out, c.call(ctx, http.MethodPost, "/v1/files/write", req, &out)
+	return callFor[WriteResult](ctx, c, http.MethodPost, "/v1/files/write", req)
 }
 
 // EditFile changes parts of a text file on the workstation.
 func (c *Client) EditFile(ctx context.Context, req EditRequest) (EditResult, error) {
-	var out EditResult
-	return out, c.call(ctx, http.MethodPost, "/v1/files/edit", req, &out)
+	return callFor[EditResult](ctx, c, http.MethodPost, "/v1/files/edit", req)
 }
 
 // BrowserTabs lists the pages of the agent's browser.
 func (c *Client) BrowserTabs(ctx context.Context) ([]Tab, error) {
-	var out struct {
+	out, err := callFor[struct {
 		Tabs []Tab `json:"tabs"`
-	}
-	return out.Tabs, c.call(ctx, http.MethodGet, "/v1/browser/tabs", nil, &out)
+	}](ctx, c, http.MethodGet, "/v1/browser/tabs", nil)
+	return out.Tabs, err
 }
 
 // BrowserInput performs one input in the agent's browser.
@@ -178,13 +166,21 @@ func responseError(path string, status int, body []byte) error {
 	return &HTTPError{Path: path, Status: status, Message: fmt.Sprintf("HTTP %d", status)}
 }
 
-// RenderHTML returns a page's HTML after its scripts ran.
-func (c *Client) RenderHTML(ctx context.Context, target string) (string, error) {
+// RenderHTML returns a page's HTML after its scripts ran; allowPrivate lets
+// the page load from private addresses.
+func (c *Client) RenderHTML(ctx context.Context, target string, allowPrivate bool) (string, error) {
 	var out RenderResult
-	if err := c.call(ctx, http.MethodPost, "/v1/render", RenderRequest{URL: target, TimeoutSeconds: 45}, &out); err != nil {
+	if err := c.call(ctx, http.MethodPost, "/v1/render", RenderRequest{URL: target, TimeoutSeconds: 45, AllowPrivateNetworks: allowPrivate}, &out); err != nil {
 		return "", err
 	}
 	return out.HTML, nil
+}
+
+// callFor makes one request and decodes the answer into a T.
+func callFor[T any](ctx context.Context, c *Client, method, path string, in any) (T, error) {
+	var out T
+	err := c.call(ctx, method, path, in, &out)
+	return out, err
 }
 
 func (c *Client) call(ctx context.Context, method, path string, in, out any) error {

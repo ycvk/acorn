@@ -410,3 +410,46 @@ func TestMemoryExclusionsListOnlyRunsThatReadExcludedContent(t *testing.T) {
 		t.Fatalf("runs listed by the later forget=%v", got)
 	}
 }
+
+// A tool result of a run that read the owner's words goes whole when those
+// words are forgotten, even when the forgotten fact quoted the result too.
+func TestMemoryForgetExcludesAQuotedDerivedSourceWhole(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if _, err := s.CreateSession(ctx, "thread_1", "memory"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_1", SessionID: "thread_1", TurnIndex: 1, Input: "聊聊"}); err != nil {
+		t.Fatal(err)
+	}
+	said, err := s.AppendSessionMessage(ctx, "thread_1", 1, "user", "我不吃香菜。我喜欢游泳。", "run_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := s.LoadMemorySource(ctx, fmt.Sprintf("message:%d", said.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveMemorySnapshotRefs(ctx, "before", "run_1", []string{owner.ID}, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	noted, err := s.AppendEvent(ctx, "run_1", "tool.call.succeeded", map[string]any{"tool_name": "shell", "output": "已记下：不吃香菜，喜欢游泳"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := fmt.Sprintf("event:%d", noted.Sequence)
+	change := memoryFact(owner, "owner 不吃香菜")
+	change.Draft.Evidence[0].Quote = "我不吃香菜"
+	change.Draft.Evidence = append(change.Draft.Evidence, core.MemoryEvidence{SourceID: result, Quote: "已记下：不吃香菜", Relation: "supports"})
+	records, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{change}, Now: memoryTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记香菜偏好")
+	if _, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.LoadThreadSource(ctx, result); !errors.Is(err, core.ErrMemoryExcluded) {
+		t.Fatalf("tool result after forget = %q, %v; want it excluded whole", got.Content, err)
+	}
+}

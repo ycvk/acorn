@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 )
 
@@ -33,16 +34,21 @@ type Message struct {
 	BrowserURL string
 }
 
+// openAction is the intent action a tapped notification opens the app with.
+// The app takes a conversation, an action or a browser page from a tap only
+// through the activity that answers it, which other apps cannot start.
+const openAction = "io.ycvk.acorn.OPEN_NOTIFICATION"
+
 // payload is the FCM message for msg, addressed to the app installation fid.
 // A pending action goes as data only, so the app always builds the
 // notification itself: it loads the action and shows what it asks with its
 // controls. The data holds the title for when the app cannot load the action
 // and none of the action's own text, so its size does not grow with the call.
+// The system shows any other message itself when the app is not running, and
+// opens openAction when it is tapped.
 func payload(fid string, msg Message) map[string]any {
-	message := map[string]any{
-		"fid":     fid,
-		"android": map[string]string{"priority": "high"},
-	}
+	android := map[string]any{"priority": "high"}
+	message := map[string]any{"fid": fid, "android": android}
 	if msg.ActionID != "" {
 		message["data"] = map[string]string{
 			"type": "pending_action", "action_id": msg.ActionID, "thread_id": msg.ThreadID, "run_id": msg.RunID,
@@ -50,6 +56,7 @@ func payload(fid string, msg Message) map[string]any {
 		}
 	} else {
 		message["notification"] = map[string]string{"title": msg.Title, "body": msg.Body}
+		android["notification"] = map[string]string{"click_action": openAction}
 		data := map[string]string{"thread_id": msg.ThreadID, "run_id": msg.RunID}
 		if msg.BrowserURL != "" {
 			data["browser_url"] = msg.BrowserURL
@@ -95,6 +102,15 @@ func NewFCMClient(account ServiceAccount) (*FCMClient, error) {
 
 // NewFCMClientAt is NewFCMClient with the send endpoint given explicitly.
 func NewFCMClientAt(account ServiceAccount, endpoint string) (*FCMClient, error) {
+	return newServiceAccountClient(account, endpoint, fcmTokenTimeout)
+}
+
+// fcmTokenTimeout bounds one access token request. The token is fetched
+// inside a send, out of reach of the send's context, so without it a token
+// endpoint that does not answer holds the send forever.
+const fcmTokenTimeout = 30 * time.Second
+
+func newServiceAccountClient(account ServiceAccount, endpoint string, tokenTimeout time.Duration) (*FCMClient, error) {
 	if account.ProjectID == "" || account.ClientEmail == "" || account.PrivateKey == "" || account.TokenURI == "" {
 		return nil, errors.New("fcm: service account needs project_id, client_email, private_key and token_uri")
 	}
@@ -104,7 +120,8 @@ func NewFCMClientAt(account ServiceAccount, endpoint string) (*FCMClient, error)
 		TokenURL:   account.TokenURI,
 		Scopes:     []string{fcmScope},
 	}
-	return newFCMClient(conf.Client(context.Background()), endpoint), nil
+	tokens := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: tokenTimeout})
+	return newFCMClient(conf.Client(tokens), endpoint), nil
 }
 
 func newFCMClient(client *http.Client, endpoint string) *FCMClient {

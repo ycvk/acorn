@@ -60,6 +60,7 @@ import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.authorizedImage
 import io.ycvk.acorn.core.ui.hairline
+import io.ycvk.acorn.core.ui.webLink
 import io.ycvk.acorn.data.repository.threadFileUrl
 
 /**
@@ -212,7 +213,7 @@ private fun Component(drawing: Drawing, component: ViewComponent, scope: Scope) 
         "Badge" -> tree.text(component, "text", scopes)?.let { Badge(it, component.props["tone"] as? String) }
         "Link" -> {
             val label = tree.text(component, "label", scopes)
-            val url = tree.text(component, "url", scopes)
+            val url = tree.text(component, "url", scopes)?.let(::webLink)
             if (label != null && url != null) ViewLink(label, url)
         }
         "Image" -> tree.text(component, "file", scopes)?.let { ref ->

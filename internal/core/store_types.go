@@ -36,6 +36,11 @@ type OwnerMessage struct {
 	Content   string
 	FileIDs   []string
 	RunID     string
+	// ClientID is the client's id for this send; sent again under the same
+	// id, the message is not written twice.
+	ClientID string
+	// Title becomes the conversation's title when it has none.
+	Title string
 }
 
 // QueuedMessage is an owner message that waits for the conversation's run:
@@ -71,6 +76,9 @@ type SentOwnerMessage struct {
 	RunID   string
 	Queued  *QueuedMessage
 	Started *RunStart
+	// Repeat says the conversation already had the message under its client
+	// id; RunID, Queued or Started then describe that message.
+	Repeat bool
 }
 
 // PendingActionInput holds the parameters for creating a pending action.

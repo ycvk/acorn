@@ -90,11 +90,11 @@ import org.commonmark.node.StrongEmphasis
 import org.commonmark.node.ThematicBreak
 import org.commonmark.parser.Parser
 
-private val parser: Parser = Parser.builder()
+internal val parser: Parser = Parser.builder()
     .extensions(listOf(TablesExtension.create(), StrikethroughExtension.create(), AutolinkExtension.create()))
     .build()
 
-/** Renders markdown with Acorn's reading typography; links open in the browser. */
+/** Renders markdown with Acorn's reading typography; web links open in the browser. */
 @Composable
 fun Markdown(markdown: String, modifier: Modifier = Modifier, style: TextStyle = AcornTheme.type.reading) {
     val document = remember(markdown) { parser.parse(markdown) }
@@ -218,7 +218,7 @@ private fun Table(table: TableBlock, style: TextStyle) {
     }
 }
 
-private class InlineText(val text: AnnotatedString, val code: List<IntRange>)
+internal class InlineText(val text: AnnotatedString, val code: List<IntRange>)
 
 @Composable
 private fun Inline(node: Node, style: TextStyle, modifier: Modifier = Modifier) {
@@ -307,7 +307,7 @@ private fun ContentDrawScope.hideUnwritten(layout: TextLayoutResult, shown: Floa
 private const val CODE_SCALE = 0.8f
 private const val THIN_SPACE = '\u2009'
 
-private fun buildInline(node: Node, colors: AcornColors): InlineText {
+internal fun buildInline(node: Node, colors: AcornColors): InlineText {
     val code = mutableListOf<IntRange>()
     val builder = AnnotatedString.Builder()
     var last = ' '
@@ -315,6 +315,11 @@ private fun buildInline(node: Node, colors: AcornColors): InlineText {
         if (text.isEmpty()) return
         builder.append(text)
         last = text.last()
+    }
+    // A link that is not a web address keeps its words and has nothing to open.
+    fun linked(destination: String, style: SpanStyle, content: () -> Unit) {
+        val url = webLink(destination) ?: return content()
+        builder.withLink(LinkAnnotation.Url(url, TextLinkStyles(style))) { content() }
     }
     fun walk(parent: Node) {
         var child = parent.firstChild
@@ -336,15 +341,8 @@ private fun buildInline(node: Node, colors: AcornColors): InlineText {
                     code += start until builder.length
                     append(THIN_SPACE.toString())
                 }
-                is Link -> builder.withLink(
-                    LinkAnnotation.Url(
-                        child.destination,
-                        TextLinkStyles(SpanStyle(color = colors.accent, textDecoration = TextDecoration.Underline)),
-                    ),
-                ) { walk(child) }
-                is Image -> builder.withLink(
-                    LinkAnnotation.Url(child.destination, TextLinkStyles(SpanStyle(color = colors.accent))),
-                ) { append("[图片] "); walk(child) }
+                is Link -> linked(child.destination, SpanStyle(color = colors.accent, textDecoration = TextDecoration.Underline)) { walk(child) }
+                is Image -> linked(child.destination, SpanStyle(color = colors.accent)) { append("[图片] "); walk(child) }
                 is HtmlInline -> append(child.literal)
                 else -> walk(child)
             }

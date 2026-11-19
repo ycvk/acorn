@@ -4,17 +4,33 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
 // NewRunID generates a unique run identifier.
 func NewRunID() string {
-	return fmt.Sprintf("run_%d", time.Now().UTC().UnixNano())
+	return fmt.Sprintf("run_%d", uniqueNano())
 }
 
 // NewSessionID generates a unique session identifier.
 func NewSessionID() string {
-	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
+	return fmt.Sprintf("session_%d", uniqueNano())
+}
+
+var lastNano atomic.Int64
+
+// uniqueNano is the time in nanoseconds, raised past every value it returned
+// before: ids made in the same tick of the clock, by runs delegated or
+// queued at once, still differ, and later ids still sort after earlier ones.
+func uniqueNano() int64 {
+	for {
+		last := lastNano.Load()
+		next := max(time.Now().UnixNano(), last+1)
+		if lastNano.CompareAndSwap(last, next) {
+			return next
+		}
+	}
 }
 
 // Midnight is the start of now's day in loc.

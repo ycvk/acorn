@@ -26,7 +26,7 @@ func TestNotificationsKeepTheirActionAcrossTheV2Upgrade(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 	ctx := context.Background()
 	at := time.Date(2026, 10, 11, 1, 0, 0, 0, time.UTC)
-	if _, err := store.QueueNotification(ctx, core.Notification{Title: "需要你批准", Body: "发送邮件", ThreadID: "thread_2", ActionID: "action_1", SendAfter: at, CreatedAt: at}); err != nil {
+	if _, err := store.QueueNotification(ctx, core.Notification{Title: "需要你批准", Body: "发送邮件", ThreadID: "thread_2", ActionID: "action_1", SendAfter: at, CreatedAt: at}, 10); err != nil {
 		t.Fatalf("queue: %v", err)
 	}
 	due, err := store.ListDueNotifications(ctx, at)
@@ -56,7 +56,7 @@ func TestNotificationsKeepTheirPageAcrossTheV3Upgrade(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 	ctx := context.Background()
 	at := time.Date(2026, 10, 11, 1, 0, 0, 0, time.UTC)
-	if _, err := store.QueueNotification(ctx, core.Notification{Title: "需要登录", Body: "在浏览器里登录 GitHub", ThreadID: "thread_2", BrowserURL: "https://github.com/login", SendAfter: at, CreatedAt: at}); err != nil {
+	if _, err := store.QueueNotification(ctx, core.Notification{Title: "需要登录", Body: "在浏览器里登录 GitHub", ThreadID: "thread_2", BrowserURL: "https://github.com/login", SendAfter: at, CreatedAt: at}, 10); err != nil {
 		t.Fatalf("queue: %v", err)
 	}
 	due, err := store.ListDueNotifications(ctx, at)

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,5 +32,27 @@ func TestCorrectionUsesEntitiesFromItsOwnEvidence(t *testing.T) {
 	found, err := db.ListMemoryRecords(ctx, core.MemoryQuery{Mode: "current", Entities: []string{"杭州"}})
 	if err != nil || len(found) != 0 {
 		t.Fatalf("current record linked to former city: %+v %v", found, err)
+	}
+}
+
+// A new thought takes no revision or state, as a kept fact takes none: they
+// belong to an update that lost its id.
+func TestANewThoughtRefusesARevisionOrState(t *testing.T) {
+	e, db := testEngine(t, &protocolModel{}, 0)
+	ctx := context.Background()
+	if _, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: "night", Kind: "standalone", ObjectID: "night", Version: "1", Speaker: "owner", RunID: "run-night", Body: "night reflection", RecordedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range []WriteInput{
+		{Revision: 2, Content: "a stray update", SourceID: "night", Quote: "night reflection"},
+		{State: "released", Content: "a stray release", SourceID: "night", Quote: "night reflection"},
+	} {
+		if _, err := e.Think(ctx, "run-night", "", in); err == nil || !strings.Contains(err.Error(), "give its id") {
+			t.Fatalf("Think(%+v) err = %v", in, err)
+		}
+	}
+	thought, err := e.Think(ctx, "run-night", "", WriteInput{Content: "worth checking the logs", SourceID: "night", Quote: "night reflection", Reason: "the job failed twice"})
+	if err != nil || thought.Kind != "thought" || thought.Revision != 1 {
+		t.Fatalf("new thought = %+v, %v", thought, err)
 	}
 }

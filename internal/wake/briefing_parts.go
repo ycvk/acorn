@@ -7,8 +7,8 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// BriefingPart is a part of a briefing reply: the lines under one heading,
-// or before the first one.
+// BriefingPart is a part of a briefing reply: the lines under one "## "
+// heading, or before the first one.
 type BriefingPart struct {
 	Heading string
 	Body    string
@@ -31,11 +31,15 @@ func BriefingParts(body string, stories []core.BriefingStory) []BriefingPart {
 	}
 	for line := range strings.Lines(body) {
 		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmed, "#"):
+		// A part starts at a "## " heading, the one the picks, the push and
+		// the news readers take; any other line, a "###" one included, is
+		// part of the text.
+		if h, ok := strings.CutPrefix(trimmed, "## "); ok {
 			flush()
-			heading = strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
-		case trimmed != "":
+			heading = strings.TrimSpace(h)
+			continue
+		}
+		if trimmed != "" {
 			lines = append(lines, trimmed)
 		}
 	}

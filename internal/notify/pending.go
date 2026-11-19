@@ -2,7 +2,6 @@ package notify
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -66,12 +65,8 @@ func (a *PendingActionAnnouncer) AnnounceRun(ctx context.Context, runID string) 
 		if action.Status != core.PendingActionStatusPending {
 			continue
 		}
-		title, body, err := pendingActionText(action)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("announce %s: %w", action.ActionID, err))
-			continue
-		}
-		n := core.Notification{Title: title, Body: body, ThreadID: run.SessionID, RunID: runID, ActionID: action.ActionID}
+		title := pendingActionTitle(action)
+		n := core.Notification{Title: title, Body: title, ThreadID: run.SessionID, RunID: runID, ActionID: action.ActionID}
 		send := a.notifier.Notify
 		if !ownerWrote.IsZero() && action.CreatedAt.Sub(ownerWrote) <= awaitedWindow {
 			send = a.notifier.NotifyAwaited
@@ -83,25 +78,12 @@ func (a *PendingActionAnnouncer) AnnounceRun(ctx context.Context, runID string) 
 	return errors.Join(errs...)
 }
 
-// pendingActionText is the title and body recorded for an announcement: the
-// subject, and the message or question the action carries. The push sends
-// the title; the app reads the rest from the action.
-func pendingActionText(action core.PendingActionRecord) (string, string, error) {
-	title := strings.TrimSpace(action.Subject)
-	if title == "" {
-		title = string(action.Kind)
+// pendingActionTitle is what an announcement of action records and pushes:
+// its subject, else its kind. The push carries no body; the app reads what
+// the action asks from the action itself.
+func pendingActionTitle(action core.PendingActionRecord) string {
+	if title := strings.TrimSpace(action.Subject); title != "" {
+		return title
 	}
-	var payload struct {
-		Message  string `json:"message"`
-		Question string `json:"question"`
-	}
-	if err := json.Unmarshal([]byte(action.PayloadJSON), &payload); err != nil {
-		return "", "", fmt.Errorf("decode payload: %w", err)
-	}
-	for _, body := range []string{payload.Message, payload.Question} {
-		if body = strings.TrimSpace(body); body != "" {
-			return title, body, nil
-		}
-	}
-	return title, title, nil
+	return string(action.Kind)
 }

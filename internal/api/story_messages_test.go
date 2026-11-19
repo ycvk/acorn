@@ -112,7 +112,7 @@ func TestStoryMessagesStartARunInTheStorysConversation(t *testing.T) {
 	} {
 		stub.run = Run{}
 		stories.briefed = tc.briefed
-		rec := performClientRequest(router, http.MethodPost, tc.path, "")
+		rec := performClientRequest(router, http.MethodPost, tc.path, `{"client_id":"ask-1"}`)
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("%s status = %d body=%s", tc.path, rec.Code, rec.Body.String())
 		}
@@ -125,7 +125,7 @@ func TestStoryMessagesStartARunInTheStorysConversation(t *testing.T) {
 			t.Fatalf("%s started a run in %q", tc.path, stub.createRunThreadID)
 		}
 		write := stories.writes[len(stories.writes)-1]
-		if write.Intent != tc.intent || write.Text != tc.text || write.Title != tc.title || write.NewThreadID == "" || !reflect.DeepEqual(write.Story, core.SnapshotOf(storyFixture)) {
+		if write.Intent != tc.intent || write.Text != tc.text || write.Title != tc.title || write.NewThreadID == "" || write.ClientID != "ask-1" || !reflect.DeepEqual(write.Story, core.SnapshotOf(storyFixture)) {
 			t.Fatalf("%s wrote %+v", tc.path, write)
 		}
 	}
@@ -140,10 +140,13 @@ func TestStoryMessagesStartARunInTheStorysConversation(t *testing.T) {
 		{"/v1/news/stories/7:discuss", http.StatusNotFound, "story_not_found"},
 		{"/v1/news/stories/x:discuss", http.StatusBadRequest, "story_id must be a positive integer"},
 	} {
-		rec := performClientRequest(router, http.MethodPost, tc.path, "")
+		rec := performClientRequest(router, http.MethodPost, tc.path, `{"client_id":"ask-2"}`)
 		if rec.Code != tc.status || !strings.Contains(rec.Body.String(), tc.code) {
 			t.Errorf("%s: status = %d body=%s", tc.path, rec.Code, rec.Body.String())
 		}
+	}
+	if rec := performClientRequest(router, http.MethodPost, "/v1/news/stories/41:discuss", `{}`); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "client_id") {
+		t.Errorf("an ask without its client id: status = %d body=%s", rec.Code, rec.Body.String())
 	}
 	if rec := performClientRequestWithoutAuth(router, http.MethodPost, "/v1/news/stories/41:discuss", ""); rec.Code != http.StatusUnauthorized {
 		t.Errorf("unauthenticated status = %d", rec.Code)

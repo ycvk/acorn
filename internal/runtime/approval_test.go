@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +31,14 @@ type approvalTestStore struct {
 	payloads []any
 	input    string
 	woken    bool
+	// subRuns are the sub-runs the run delegated.
+	subRuns []core.SubRun
+}
+
+func (s *approvalTestStore) SubRuns(context.Context, string) ([]core.SubRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.subRuns), nil
 }
 
 func (s *approvalTestStore) LoadRun(_ context.Context, runID string) (*core.RunRecord, error) {
@@ -381,8 +390,11 @@ func TestRequiredSkillWritesWaitWithWhatTheyChange(t *testing.T) {
 		return payload
 	}
 
-	for _, toolName := range []string{"skill_write", "skill_import"} {
-		args := `{"markdown":"---\nname: skill-creator\n---\ntext","base_revision":6}`
+	for toolName, args := range map[string]string{
+		"skill_write":  `{"markdown":"---\nname: skill-creator\n---\ntext","base_revision":6}`,
+		"skill_import": `{"markdown":"---\nname: skill-creator\n---\ntext","base_revision":6}`,
+		"skill_retire": `{"name":"shop-orders","base_revision":3}`,
+	} {
 		store, tool, interrupted, err := run(t, describedCalls{}, toolName, args)
 		if err != nil || interrupted == nil || len(store.actions) != 1 || store.actions[0].Reason != requireReason || tool.callCount() != 0 {
 			t.Fatalf("%s: interrupted %v, actions %+v, calls %d, %v", toolName, interrupted, store.actions, tool.callCount(), err)
@@ -393,16 +405,8 @@ func TestRequiredSkillWritesWaitWithWhatTheyChange(t *testing.T) {
 		}
 	}
 
-	store, tool, interrupted, err := run(t, describedCalls{}, "skill_retire", `{"name":"shop-orders","base_revision":3}`)
-	if err != nil || interrupted == nil || len(store.actions) != 1 || tool.callCount() != 0 {
-		t.Fatalf("retire: interrupted %v, actions %+v, calls %d, %v", interrupted, store.actions, tool.callCount(), err)
-	}
-	if payload := payloadOf(t, store); payload["summary"] != nil || !strings.HasPrefix(payload["message"].(string), "skill_retire wants to run with arguments:") {
-		t.Fatalf("retire: the approval the owner reads = %+v", payload)
-	}
-
 	// A write nobody can describe neither runs nor reaches the owner.
-	store, tool, interrupted, err = run(t, failingDescriber{}, "skill_write", `{"markdown":"text"}`)
+	store, tool, interrupted, err := run(t, failingDescriber{}, "skill_write", `{"markdown":"text"}`)
 	if interrupted != nil || len(store.actions) != 0 || tool.callCount() != 0 {
 		t.Fatalf("undescribed write: interrupted %v, actions %+v, calls %d, %v", interrupted, store.actions, tool.callCount(), err)
 	}

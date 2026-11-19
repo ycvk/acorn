@@ -4,6 +4,7 @@ import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.data.repository.FileView
 import io.ycvk.acorn.feature.chat.ChatMessage
+import io.ycvk.acorn.feature.chat.ChatOpenings
 import io.ycvk.acorn.feature.chat.awaitsReply
 import io.ycvk.acorn.feature.chat.runToFollow
 import io.ycvk.acorn.feature.live.reconnectDelayMs
@@ -51,5 +52,22 @@ class ChatReconnectTest {
     @Test
     fun reconnectsBackOffThenGiveUp() {
         assertEquals(listOf(1_000L, 2_000L, 4_000L, null), (0..3).map(::reconnectDelayMs))
+    }
+
+    @Test
+    fun `a send's answer belongs to the opening it was sent from`() {
+        val openings = ChatOpenings()
+        val threadA = openings.open()
+        val sentInA = openings.current
+        // The owner opens thread B before the server answers the send in A.
+        val threadB = openings.open()
+        assertFalse(openings.showing(sentInA))
+        assertTrue(openings.showing(threadB))
+        // A's page leaves after B's opened, and leaves B on screen.
+        assertFalse(openings.leave(threadA))
+        assertTrue(openings.showing(threadB))
+        assertTrue(openings.leave(threadB))
+        assertFalse(openings.showing(threadB))
+        assertFalse(openings.leave(threadB))
     }
 }

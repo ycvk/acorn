@@ -43,6 +43,7 @@ import io.ycvk.acorn.api.models.Run
 import io.ycvk.acorn.api.models.RunDetail
 import io.ycvk.acorn.api.models.RunEvent
 import io.ycvk.acorn.api.models.SendViewActionRequest
+import io.ycvk.acorn.api.models.StoryMessageRequest
 import io.ycvk.acorn.api.models.StoryMessageResponse
 import io.ycvk.acorn.api.models.StoryReactionRequest
 import io.ycvk.acorn.api.models.SystemStatus
@@ -294,7 +295,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/threads/{thread_id}/runs
      * Send the owner&#39;s message; it starts a run, or waits for the thread&#39;s run still going
-     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. 
+     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. A message sent again under its client_id, as when the answer to the first send was lost, is not written twice: the answer is where the first one went, the run it went to (200), the run it still waits for (202), or a run started on it when it waits with none going (201). 
      * @param threadId 
      * @param createRunRequest 
      * @return CreateRunResponse
@@ -327,7 +328,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/threads/{thread_id}/runs
      * Send the owner&#39;s message; it starts a run, or waits for the thread&#39;s run still going
-     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. 
+     * While a run of the thread runs or waits for the owner, the message waits for it (202): the run takes it before its next model call and emits run.input, or, when the run ends first, a run that starts on the waiting messages takes it, named by next_run_id on the run&#39;s terminal event. Otherwise a run starts on the message (201), after the messages still waiting in the thread. A message sent again under its client_id, as when the answer to the first send was lost, is not written twice: the answer is where the first one went, the run it went to (200), the run it still waits for (202), or a run started on it when it waits with none going (201). 
      * @param threadId 
      * @param createRunRequest 
      * @return ApiResponse<CreateRunResponse?>
@@ -593,8 +594,9 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:discuss
      * Ask Acorn to explain a story the morning briefing picked
-     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. An ask made again under its client_id, as when the answer to the first was lost, writes nothing: it answers the run its message went to (200), or starts the run that never started on it (201). 
      * @param storyId 
+     * @param storyMessageRequest 
      * @return StoryMessageResponse
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
@@ -604,8 +606,8 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientDiscussStory(storyId: kotlin.Long) : StoryMessageResponse {
-        val localVarResponse = clientDiscussStoryWithHttpInfo(storyId = storyId)
+    fun clientDiscussStory(storyId: kotlin.Long, storyMessageRequest: StoryMessageRequest) : StoryMessageResponse {
+        val localVarResponse = clientDiscussStoryWithHttpInfo(storyId = storyId, storyMessageRequest = storyMessageRequest)
 
         return when (localVarResponse.responseType) {
             ResponseType.Success -> (localVarResponse as Success<*>).data as StoryMessageResponse
@@ -625,18 +627,19 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:discuss
      * Ask Acorn to explain a story the morning briefing picked
-     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「展开讲讲：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it, like a message the owner typed. The title is the one the newest briefing that picked the story gave it, else the story&#39;s own. The model reads the story as it stands now beside the message; the conversation keeps it after the story is pruned. A conversation whose latest run is running or waits for the owner takes no message. An ask made again under its client_id, as when the answer to the first was lost, writes nothing: it answers the run its message went to (200), or starts the run that never started on it (201). 
      * @param storyId 
+     * @param storyMessageRequest 
      * @return ApiResponse<StoryMessageResponse?>
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class)
-    fun clientDiscussStoryWithHttpInfo(storyId: kotlin.Long) : ApiResponse<StoryMessageResponse?> {
-        val localVariableConfig = clientDiscussStoryRequestConfig(storyId = storyId)
+    fun clientDiscussStoryWithHttpInfo(storyId: kotlin.Long, storyMessageRequest: StoryMessageRequest) : ApiResponse<StoryMessageResponse?> {
+        val localVariableConfig = clientDiscussStoryRequestConfig(storyId = storyId, storyMessageRequest = storyMessageRequest)
 
-        return request<Unit, StoryMessageResponse>(
+        return request<StoryMessageRequest, StoryMessageResponse>(
             localVariableConfig
         )
     }
@@ -645,12 +648,14 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      * To obtain the request config of the operation clientDiscussStory
      *
      * @param storyId 
+     * @param storyMessageRequest 
      * @return RequestConfig
      */
-    fun clientDiscussStoryRequestConfig(storyId: kotlin.Long) : RequestConfig<Unit> {
-        val localVariableBody = null
+    fun clientDiscussStoryRequestConfig(storyId: kotlin.Long, storyMessageRequest: StoryMessageRequest) : RequestConfig<StoryMessageRequest> {
+        val localVariableBody = storyMessageRequest
         val localVariableQuery: MultiValueMap = mutableMapOf()
         val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
         localVariableHeaders["Accept"] = "application/json"
 
         return RequestConfig(
@@ -666,8 +671,9 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:follow
      * Ask Acorn to keep following a story the morning briefing picked
-     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. An ask made again under its client_id is answered as for discuss. 
      * @param storyId 
+     * @param storyMessageRequest 
      * @return StoryMessageResponse
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
@@ -677,8 +683,8 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientFollowStory(storyId: kotlin.Long) : StoryMessageResponse {
-        val localVarResponse = clientFollowStoryWithHttpInfo(storyId = storyId)
+    fun clientFollowStory(storyId: kotlin.Long, storyMessageRequest: StoryMessageRequest) : StoryMessageResponse {
+        val localVarResponse = clientFollowStoryWithHttpInfo(storyId = storyId, storyMessageRequest = storyMessageRequest)
 
         return when (localVarResponse.responseType) {
             ResponseType.Success -> (localVarResponse as Success<*>).data as StoryMessageResponse
@@ -698,18 +704,19 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * POST /v1/news/stories/{story_id}:follow
      * Ask Acorn to keep following a story the morning briefing picked
-     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. 
+     * Records the owner&#39;s message 「持续跟进：&lt;title&gt;」 in the story&#39;s conversation, created under that title the first time, and starts a run on it; the title is chosen as for discuss. The agent creates a concern for the story there, which idle thought checks for developments; &#x60;following&#x60; on the briefing&#39;s story holds while it is active or waiting. A conversation whose latest run is running or waits for the owner takes no message. An ask made again under its client_id is answered as for discuss. 
      * @param storyId 
+     * @param storyMessageRequest 
      * @return ApiResponse<StoryMessageResponse?>
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class)
-    fun clientFollowStoryWithHttpInfo(storyId: kotlin.Long) : ApiResponse<StoryMessageResponse?> {
-        val localVariableConfig = clientFollowStoryRequestConfig(storyId = storyId)
+    fun clientFollowStoryWithHttpInfo(storyId: kotlin.Long, storyMessageRequest: StoryMessageRequest) : ApiResponse<StoryMessageResponse?> {
+        val localVariableConfig = clientFollowStoryRequestConfig(storyId = storyId, storyMessageRequest = storyMessageRequest)
 
-        return request<Unit, StoryMessageResponse>(
+        return request<StoryMessageRequest, StoryMessageResponse>(
             localVariableConfig
         )
     }
@@ -718,12 +725,14 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      * To obtain the request config of the operation clientFollowStory
      *
      * @param storyId 
+     * @param storyMessageRequest 
      * @return RequestConfig
      */
-    fun clientFollowStoryRequestConfig(storyId: kotlin.Long) : RequestConfig<Unit> {
-        val localVariableBody = null
+    fun clientFollowStoryRequestConfig(storyId: kotlin.Long, storyMessageRequest: StoryMessageRequest) : RequestConfig<StoryMessageRequest> {
+        val localVariableBody = storyMessageRequest
         val localVariableQuery: MultiValueMap = mutableMapOf()
         val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
         localVariableHeaders["Accept"] = "application/json"
 
         return RequestConfig(

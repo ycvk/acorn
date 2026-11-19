@@ -158,3 +158,19 @@ func TestFailedBackupRemovesItsPartialSnapshot(t *testing.T) {
 		t.Errorf("left behind: %s", e.Name())
 	}
 }
+
+func TestRetiredStorageNamesTheAttachmentsLeftByAnUpgrade(t *testing.T) {
+	cfg := backupTestConfig(t)
+	found, err := RetiredStorage(cfg)
+	if err != nil || len(found) != 0 {
+		t.Fatalf("fresh storage = %+v, %v", found, err)
+	}
+	writeTestFile(t, filepath.Join(cfg.Runtime.StorageDir, "attachments", "a1.png"), "png bytes")
+	found, err = RetiredStorage(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 || found[0].Name != "attachments" || found[0].Path != filepath.Join(cfg.Runtime.StorageDir, "attachments") {
+		t.Fatalf("upgraded storage = %+v", found)
+	}
+}

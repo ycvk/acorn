@@ -98,7 +98,7 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 		t.Fatalf("unexpected messages response: %#v", messages)
 	}
 
-	createRun := performClientRequest(router, http.MethodPost, "/v1/threads/thread_1/runs", `{"input":" look around "}`)
+	createRun := performClientRequest(router, http.MethodPost, "/v1/threads/thread_1/runs", `{"input":" look around ","client_id":"c1"}`)
 	if createRun.Code != http.StatusCreated {
 		t.Fatalf("create run status = %d body=%s", createRun.Code, createRun.Body.String())
 	}

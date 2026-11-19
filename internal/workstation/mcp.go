@@ -569,8 +569,8 @@ func (c *Client) RunMCPServers(ctx context.Context, servers []skills.MCPServerRu
 
 // MCPServers reports the packages' MCP servers the workstation runs.
 func (c *Client) MCPServers(ctx context.Context) ([]skills.ServerStatus, error) {
-	var out MCPServersStatus
-	return out.Servers, c.call(ctx, http.MethodGet, "/v1/mcp", nil, &out)
+	out, err := callFor[MCPServersStatus](ctx, c, http.MethodGet, "/v1/mcp", nil)
+	return out.Servers, err
 }
 
 // MCPProvider is how to reach the MCP server of the package name.

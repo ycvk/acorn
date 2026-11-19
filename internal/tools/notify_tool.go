@@ -60,15 +60,15 @@ func buildNotifyOwnerTool(deps NotifyToolDeps) (einotool.BaseTool, error) {
 				}
 				n.BrowserURL = input.BrowserURL
 			}
-			n, err := deps.Notifier.Notify(ctx, n)
-			if err != nil {
-				return NotifyOwnerOutput{}, fmt.Errorf("notify_owner: %w", err)
-			}
-			out := NotifyOwnerOutput{Status: string(n.Status)}
 			loc, err := ownerLocation(ctx, deps.Settings)
 			if err != nil {
 				return NotifyOwnerOutput{}, fmt.Errorf("notify_owner: %w", err)
 			}
+			n, err = deps.Notifier.Notify(ctx, n)
+			if err != nil {
+				return NotifyOwnerOutput{}, fmt.Errorf("notify_owner: %w", err)
+			}
+			out := NotifyOwnerOutput{Status: string(n.Status)}
 			if n.Status == core.NotificationQueued {
 				out.SendAfter = n.SendAfter.In(loc).Format(localTimeLayout)
 			}

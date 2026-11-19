@@ -44,8 +44,13 @@ func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName strin
 	})
 
 	// Re-sync the provider's registry entries so the unified ToolRegistry
-	// reflects the refreshed tool list. No-op when no registry was wired.
-	return m.refreshProviderToolRegistrations(ctx, providerName)
+	// reflects the refreshed tool list. No-op when no registry was wired. A
+	// provider whose tools cannot all register fails, as at startup.
+	if err := m.refreshProviderToolRegistrations(ctx, providerName); err != nil {
+		m.failLiveSlot(providerName, err)
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName, catalogType string) error {
@@ -140,7 +145,10 @@ func (m *Manager) PromptTools() []einotool.BaseTool {
 	return tools
 }
 
-func Doctor(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo {
+// Doctor connects to each enabled provider once and reports what it finds.
+// tokens holds the OAuth tokens the runs use, so an OAuth provider is probed
+// as the runs reach it.
+func Doctor(ctx context.Context, cfgs []core.ProviderConfig, tokens core.ArtifactStore) []core.ProviderInfo {
 	statuses := make([]core.ProviderInfo, 0, len(cfgs))
 	for _, cfg := range cfgs {
 		status := newProviderStatus(cfg)
@@ -149,7 +157,7 @@ func Doctor(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo
 			continue
 		}
 
-		p, err := connectProvider(ctx, cfg, nil, nil)
+		p, err := connectProvider(ctx, cfg, nil, tokens)
 		if err != nil {
 			status.StartupStatus = "failed"
 			status.Error = err.Error()

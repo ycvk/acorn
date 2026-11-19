@@ -292,3 +292,32 @@ func TestV37UpgradeDropsTheReferencesARunDidNotRead(t *testing.T) {
 		t.Fatalf("source links after upgrade = %v", links)
 	}
 }
+
+// A refresh that read the memories before the owner withdrew one writes
+// nothing when it finishes: the refresh the withdrawal queued writes the
+// portrait instead.
+func TestAPortraitRefreshOvertakenByAWithdrawalWritesNothing(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	owner := seedMemorySource(t, s, "owner:bike", "owner", "这是哈啰电动车")
+	facts, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{memoryFact(owner, "owner 表示这是哈啰电动车")}, Now: memoryTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := memoryTestNow.Add(time.Hour)
+	stale := claimPortrait(t, s, "day:2026-10-09", at)
+	if _, err := s.WithdrawMemory(ctx, facts[0].ID, at.Add(10*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CommitPortrait(ctx, core.PortraitMutation{Lease: stale, Now: at.Add(30 * time.Second), Lines: []core.PortraitDraft{{Content: "骑哈啰电动车", SourceIDs: []string{owner.ID}}}}); err != nil {
+		t.Fatal(err)
+	}
+	lines, err := s.Portrait(ctx)
+	if err != nil || len(portraitContents(lines, "shown")) != 0 {
+		t.Fatalf("portrait after an overtaken refresh = %+v, %v", lines, err)
+	}
+	next, err := s.ClaimMemoryJob(ctx, at.Add(time.Minute), time.Minute, core.PortraitOperation)
+	if err != nil || next == nil || !strings.HasPrefix(next.Version, "withdraw:") {
+		t.Fatalf("the withdrawal's refresh = %+v, %v", next, err)
+	}
+}

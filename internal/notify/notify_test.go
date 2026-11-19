@@ -48,6 +48,10 @@ func TestFCMSendBuildsMessage(t *testing.T) {
 	if n := msg["notification"].(map[string]any); n["title"] != "提醒" || n["body"] != "该看 X 了" {
 		t.Fatalf("notification = %v", n)
 	}
+	// A tap opens the app only through the activity other apps cannot start.
+	if a := msg["android"].(map[string]any); a["priority"] != "high" || a["notification"].(map[string]any)["click_action"] != "io.ycvk.acorn.OPEN_NOTIFICATION" {
+		t.Fatalf("android = %v", a)
+	}
 	if d := msg["data"].(map[string]any); d["thread_id"] != "thread_1" || d["run_id"] != "run_1" || d["browser_url"] != nil {
 		t.Fatalf("data = %v", d)
 	}
@@ -92,6 +96,32 @@ func TestFCMClientAuthenticatesWithServiceAccount(t *testing.T) {
 	}
 	if _, err := NewFCMClient(ServiceAccount{ProjectID: "p"}); err == nil {
 		t.Fatal("incomplete service account must fail")
+	}
+}
+
+func TestFCMSendGivesUpOnATokenEndpointThatDoesNotAnswer(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	hung := make(chan struct{})
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-hung }))
+	t.Cleanup(tokenServer.Close)
+	t.Cleanup(func() { close(hung) })
+	client, err := newServiceAccountClient(ServiceAccount{ProjectID: "p", ClientEmail: "acorn@p.iam.gserviceaccount.com", PrivateKey: string(keyPEM), TokenURI: tokenServer.URL}, "http://127.0.0.1:1/send", 100*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- client.Send(context.Background(), "t", Message{Title: "a", Body: "b"}) }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "cannot fetch token") {
+			t.Fatalf("send = %v, want the token request's failure", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("send still waits for the token endpoint")
 	}
 }
 
@@ -174,10 +204,19 @@ func (m *memNotifications) DeletePushInstallation(_ context.Context, deviceID st
 	return nil
 }
 
-func (m *memNotifications) QueueNotification(_ context.Context, n core.Notification) (core.Notification, error) {
+func (m *memNotifications) QueueNotification(_ context.Context, n core.Notification, perHour int) (core.Notification, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	n.ID, n.Status, n.CreatedAt = int64(len(m.notes)+1), core.NotificationQueued, n.SendAfter
+	made := 0
+	for _, note := range m.notes {
+		if !note.CreatedAt.Before(n.CreatedAt.Add(-time.Hour)) {
+			made++
+		}
+	}
+	if made >= perHour {
+		return core.Notification{}, core.ErrNotificationCapReached
+	}
+	n.ID, n.Status = int64(len(m.notes)+1), core.NotificationQueued
 	m.notes = append(m.notes, n)
 	return n, nil
 }
@@ -199,18 +238,6 @@ func (m *memNotifications) FinishNotification(_ context.Context, id int64, statu
 	defer m.mu.Unlock()
 	m.notes[id-1].Status, m.notes[id-1].Error, m.notes[id-1].SentAt = status, errText, at
 	return nil
-}
-
-func (m *memNotifications) CountNotificationsSince(_ context.Context, since time.Time) (int, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	n := 0
-	for _, note := range m.notes {
-		if !note.CreatedAt.Before(since) {
-			n++
-		}
-	}
-	return n, nil
 }
 
 type recordingPusher struct {
@@ -281,7 +308,7 @@ func TestNotifySendsNowAndEnforcesHourlyCap(t *testing.T) {
 			t.Fatalf("notify %d: %+v err=%v", i, n, err)
 		}
 	}
-	if _, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"}); !errors.Is(err, ErrRateLimited) {
+	if _, err := h.sender.Notify(ctx, core.Notification{Title: "t", Body: "b"}); !errors.Is(err, core.ErrNotificationCapReached) {
 		t.Fatalf("third notify = %v, want rate limited", err)
 	}
 	h.settings.MaxPushesPerHour = 3
@@ -352,7 +379,7 @@ func TestNotifyAwaitedIsSentInsideQuietHours(t *testing.T) {
 	if n, err := h.sender.Notify(ctx, core.Notification{Title: "夜里", Body: "b"}); err != nil || n.Status != core.NotificationQueued {
 		t.Fatalf("another push inside quiet hours = %+v err=%v", n, err)
 	}
-	if _, err := h.sender.NotifyAwaited(ctx, core.Notification{Title: "Approve skill_write", Body: "b", ActionID: "a1"}); !errors.Is(err, ErrRateLimited) {
+	if _, err := h.sender.NotifyAwaited(ctx, core.Notification{Title: "Approve skill_write", Body: "b", ActionID: "a1"}); !errors.Is(err, core.ErrNotificationCapReached) {
 		t.Fatalf("awaited over the hourly cap = %v, want rate limited", err)
 	}
 }
@@ -589,6 +616,9 @@ func TestAnnounceRunPushesOnlyPendingActions(t *testing.T) {
 			{ActionID: "a1", Kind: core.PendingActionKindToolApproval, Subject: "发送邮件", PayloadJSON: `{"message":"给张三"}`, Status: core.PendingActionStatusPending},
 			{ActionID: "a2", Kind: core.PendingActionKindOperatorQuestion, PayloadJSON: `{"question":"周几方便？"}`, Status: core.PendingActionStatusPending},
 			{ActionID: "a3", Kind: core.PendingActionKindToolApproval, Subject: "已经决定", PayloadJSON: `{}`, Status: core.PendingActionStatusApproved},
+			// The push does not carry the payload, so one that does not parse
+			// does not keep the owner from hearing of the action.
+			{ActionID: "a4", Kind: core.PendingActionKindToolApproval, Subject: "写技能", PayloadJSON: `{broken`, Status: core.PendingActionStatusPending},
 		},
 	}
 	notifier := &recordingNotifier{}
@@ -600,8 +630,9 @@ func TestAnnounceRunPushesOnlyPendingActions(t *testing.T) {
 		t.Fatalf("announce: %v", err)
 	}
 	want := []core.Notification{
-		{Title: "发送邮件", Body: "给张三", ThreadID: "thread_1", RunID: "run_1", ActionID: "a1"},
-		{Title: "operator_question", Body: "周几方便？", ThreadID: "thread_1", RunID: "run_1", ActionID: "a2"},
+		{Title: "发送邮件", Body: "发送邮件", ThreadID: "thread_1", RunID: "run_1", ActionID: "a1"},
+		{Title: "operator_question", Body: "operator_question", ThreadID: "thread_1", RunID: "run_1", ActionID: "a2"},
+		{Title: "写技能", Body: "写技能", ThreadID: "thread_1", RunID: "run_1", ActionID: "a4"},
 	}
 	if len(notifier.sent) != len(want) {
 		t.Fatalf("sent = %+v", notifier.sent)

@@ -16,8 +16,9 @@ func TestInvariantsAnnotatedWithTests(t *testing.T) {
 	}
 	lines := strings.Split(string(data), "\n")
 	refPattern := regexp.MustCompile("^\\s+- `([^`]+)`")
-	var missing []string
-	var noRef bool
+	var missing, unreferenced []string
+	// waiting is the invariant whose first test reference has not come yet.
+	waiting := ""
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "每条") {
@@ -25,12 +26,15 @@ func TestInvariantsAnnotatedWithTests(t *testing.T) {
 		}
 		// Invariant lines start with "- **"
 		if strings.HasPrefix(trimmed, "- **") {
-			noRef = true
+			if waiting != "" {
+				unreferenced = append(unreferenced, waiting)
+			}
+			waiting, _, _ = strings.Cut(strings.TrimPrefix(trimmed, "- **"), "**")
 			continue
 		}
 		// Reference lines start with "- `path`"
 		if m := refPattern.FindStringSubmatch(line); m != nil {
-			noRef = false
+			waiting = ""
 			refPath := m[1]
 			// Skip placeholder references like "mobile/test/..."
 			if strings.HasSuffix(refPath, "...") {
@@ -42,8 +46,11 @@ func TestInvariantsAnnotatedWithTests(t *testing.T) {
 			}
 		}
 	}
-	if noRef {
-		t.Error("INVARIANTS.md has an invariant without a test file reference")
+	if waiting != "" {
+		unreferenced = append(unreferenced, waiting)
+	}
+	if len(unreferenced) > 0 {
+		t.Errorf("INVARIANTS.md has invariants without a test file reference:\n%s", strings.Join(unreferenced, "\n"))
 	}
 	if len(missing) > 0 {
 		t.Errorf("INVARIANTS.md references test files that do not exist:\n%s", strings.Join(missing, "\n"))

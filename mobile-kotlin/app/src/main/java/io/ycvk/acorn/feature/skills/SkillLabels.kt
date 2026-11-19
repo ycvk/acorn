@@ -9,7 +9,6 @@ import io.ycvk.acorn.core.ui.clockTime
 import io.ycvk.acorn.core.ui.dayLabel
 import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.util.Locale
 
 /** The server shows the content of text files up to this size. */
 const val MAX_SHOWN_FILE_BYTES = 64 * 1024L
@@ -93,12 +92,6 @@ fun nextTime(at: OffsetDateTime, now: OffsetDateTime, zone: ZoneId = ZoneId.syst
     val day = at.atZoneSameInstant(zone).toLocalDate()
     val today = now.atZoneSameInstant(zone).toLocalDate()
     return "${dayLabel(day, today)} ${clockTime(at, zone)}"
-}
-
-fun fileSize(bytes: Long): String = when {
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)
-    else -> String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))
 }
 
 /** Why a file's content is not on the page. */

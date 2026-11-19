@@ -13,35 +13,26 @@ import (
 
 func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*core.SessionMessageRecord, error) {
 	now := time.Now().UTC()
-	result, err := s.db.ExecContext(
-		ctx,
-		`INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
-		sessionID,
-		turnIndex,
-		role,
-		content,
-		runID,
-		formatTimestamp(now),
-	)
-	if err != nil {
+	message := core.SessionMessageRecord{SessionID: sessionID, TurnIndex: turnIndex, Role: role, Content: content, RunID: runID, CreatedAt: now}
+	if err := insertSessionMessage(ctx, s.db, &message, now); err != nil {
 		return nil, fmt.Errorf("append session message: %w", err)
 	}
-	id, err := result.LastInsertId()
+	return &message, nil
+}
+
+// insertSessionMessage writes message into its conversation, sets its id and
+// moves the conversation's updated time to touched.
+func insertSessionMessage(ctx context.Context, q memorySQL, message *core.SessionMessageRecord, touched time.Time) error {
+	result, err := q.ExecContext(ctx, `INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
+		message.SessionID, message.TurnIndex, message.Role, message.Content, message.RunID, formatTimestamp(message.CreatedAt))
 	if err != nil {
-		return nil, fmt.Errorf("read session message id: %w", err)
+		return err
 	}
-	if _, err := s.db.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(now), sessionID); err != nil {
-		return nil, fmt.Errorf("touch session updated_at: %w", err)
+	if message.ID, err = result.LastInsertId(); err != nil {
+		return err
 	}
-	return &core.SessionMessageRecord{
-		ID:        id,
-		SessionID: sessionID,
-		TurnIndex: turnIndex,
-		Role:      role,
-		Content:   content,
-		RunID:     runID,
-		CreatedAt: now,
-	}, nil
+	_, err = q.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(touched), message.SessionID)
+	return err
 }
 
 // appendUnboundMessage adds message as the thread's next turn, unbound to a
@@ -51,16 +42,8 @@ func appendUnboundMessage(ctx context.Context, tx *sql.Tx, message *core.Session
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(turn_index), 0) + 1 FROM session_messages WHERE session_id = ?`, message.SessionID).Scan(&message.TurnIndex); err != nil {
 		return err
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, '', ?)`,
-		message.SessionID, message.TurnIndex, message.Role, message.Content, formatTimestamp(message.CreatedAt))
-	if err != nil {
-		return err
-	}
-	if message.ID, err = result.LastInsertId(); err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(message.CreatedAt), message.SessionID)
-	return err
+	message.RunID = ""
+	return insertSessionMessage(ctx, tx, message, message.CreatedAt)
 }
 
 func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]core.SessionMessageRecord, error) {

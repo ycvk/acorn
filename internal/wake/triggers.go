@@ -246,10 +246,11 @@ func (s *Scheduler) retryAt(schedule *presence.CronSchedule, next, now time.Time
 // skill's thread, created on its first run. Over the daily limit, or when the
 // run cannot start, the events wait for the briefing.
 func (s *Scheduler) wakeForTrigger(ctx context.Context, t skills.PackageTrigger, events []core.TriggerEvent, now time.Time, settings core.Settings) error {
-	allowed, err := s.withinBudget(ctx, "trigger "+t.ID(), now, settings)
+	allowed, done, err := s.withinBudget(ctx, "trigger "+t.ID(), now, settings)
 	if err != nil || !allowed {
 		return err
 	}
+	defer done()
 	thread, err := s.cfg.Triggers.SkillThread(ctx, t.Skill)
 	if err != nil {
 		return err

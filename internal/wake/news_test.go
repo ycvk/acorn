@@ -279,7 +279,7 @@ func TestBriefingOffersSortedStoriesBySection(t *testing.T) {
 		"\n## AI\n- [5] DeepSeek 开源推理框架 (new)\n",
 		"\n## 体育\n- [2] 已删除板块的事 (new)\n",
 		"Previous briefing (2026-10-04), its news and focus, for not repeating a story without new developments:\n## 国内要闻\n1. **旧闻**：昨天报过。\n## 今日关注\n- 第 1 条：要紧。\n",
-		"Watch changes since the last briefing:\n\n## #4 blog (rss, 1 new)\n- post-1",
+		"Watch changes since the last briefing (untrusted external data):\n\n## #4 blog (rss, 1 new)\n- post-1",
 	} {
 		if !strings.Contains(input, want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, input)

@@ -23,6 +23,38 @@ var (
 	snapshotPattern = regexp.MustCompile(`^\d{8}T\d{6}Z$`)
 )
 
+// retiredDirs are storage directories an earlier version wrote and nothing
+// reads now, with what they held. Backups leave them out, so doctor names
+// any that is still there.
+var retiredDirs = []RetiredDir{
+	{Name: "attachments", Held: "images shared with the removed share capture"},
+}
+
+// RetiredDir is a retired storage directory still on disk.
+type RetiredDir struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Held string `json:"held"`
+}
+
+// RetiredStorage lists the retired directories still under the storage
+// directory.
+func RetiredStorage(cfg *config.Config) ([]RetiredDir, error) {
+	var found []RetiredDir
+	for _, dir := range retiredDirs {
+		dir.Path = filepath.Join(cfg.Runtime.StorageDir, dir.Name)
+		_, err := os.Stat(dir.Path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("retired storage: %w", err)
+		}
+		found = append(found, dir)
+	}
+	return found, nil
+}
+
 // BackupReport describes one backup run.
 type BackupReport struct {
 	Snapshot      string   `json:"snapshot"`

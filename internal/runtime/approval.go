@@ -37,6 +37,7 @@ type approvalStore interface {
 	AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error)
 	LoadRun(ctx context.Context, runID string) (*core.RunRecord, error)
 	RunWoken(ctx context.Context, runID string) (bool, error)
+	SubRuns(ctx context.Context, parentRunID string) ([]core.SubRun, error)
 }
 
 // ApprovalDescriber says, in the owner's words, what a call the owner decides
@@ -154,10 +155,10 @@ func ownerDecides(name string) bool {
 	return name == "news_source" || name == "news_sections" || name == "files"
 }
 
-// writesSkill reports a tool that stores a revision of a skill's text and
-// files.
+// writesSkill reports a tool that stores a revision of a skill: its text and
+// files, or its retirement.
 func writesSkill(name string) bool {
-	return name == "skill_write" || name == "skill_import"
+	return name == "skill_write" || name == "skill_import" || name == "skill_retire"
 }
 
 // reviewed are the tools whose effects can leave Acorn and the workstation.
@@ -171,8 +172,11 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 		return endpoint, nil
 	}
 	run := endpoint
-	if tCtx.Name == "shell" {
+	switch tCtx.Name {
+	case "shell":
 		run = m.observing(endpoint)
+	case "delegate":
+		run = m.delegating(endpoint)
 	}
 	required := matchingPattern(m.rules.Require, tCtx.Name)
 	switch {
@@ -370,11 +374,15 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 		return nil, nil
 	}
 	var calls []review.Call
+	known, err := m.pagesKnown(ctx)
+	if err != nil {
+		return nil, err
+	}
 	m.mu.Lock()
 	for _, a := range shell.Actions() {
 		var page review.Page
 		target := ""
-		if !a.Unsure {
+		if !a.Unsure && known {
 			page = m.pages[pageKey{a.Session}]
 			target = page.Refs[a.Ref]
 			if a.Selector != "" {
@@ -486,9 +494,17 @@ func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) a
 			}
 		}
 		shell := review.ParseShell(command)
+		known, err := m.pagesKnown(ctx)
+		if err != nil {
+			return "", err
+		}
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		switch key := (pageKey{shell.Shows}); {
+		case !known:
+			// Another run may give the browser's elements new names at any
+			// moment, so what this one saw is no memory to review by.
+			clear(m.pages)
 		case shell.Moves:
 			clear(m.pages)
 		case shell.Shows == "":
@@ -511,6 +527,41 @@ func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) a
 			m.pages[key] = m.pages[key].Shown(page, slices.ContainsFunc(shell.Actions(), leaves))
 		}
 		return out, nil
+	}
+}
+
+// pagesKnown reports whether this run's page memory names the elements the
+// browser has. A sub-run's never does, and neither does its parent's while a
+// sub-run it delegated has not ended: each works the browser beside the
+// other, and an observe in one renames the elements under the other. Page
+// actions are then reviewed without a page, which asks the owner, and a
+// sub-run cannot.
+func (m *approvalMiddleware) pagesKnown(ctx context.Context) (bool, error) {
+	if m.subRun {
+		return false, nil
+	}
+	runID := core.CurrentRunID(ctx)
+	if runID == "" {
+		return false, errors.New("page memory needs the current run")
+	}
+	subs, err := m.store.SubRuns(ctx, runID)
+	if err != nil {
+		return false, fmt.Errorf("page memory: %w", err)
+	}
+	return !slices.ContainsFunc(subs, func(sub core.SubRun) bool {
+		return sub.Status == core.RunStatusRunning || sub.Status == core.RunStatusInterrupted
+	}), nil
+}
+
+// delegating drops the page memory once a delegate call ran: a sub-run it
+// started may rename the browser's elements before this run looks again.
+func (m *approvalMiddleware) delegating(endpoint adk.InvokableToolCallEndpoint) adk.InvokableToolCallEndpoint {
+	return func(ctx context.Context, args string, opts ...einotool.Option) (string, error) {
+		out, err := endpoint(ctx, args, opts...)
+		m.mu.Lock()
+		clear(m.pages)
+		m.mu.Unlock()
+		return out, err
 	}
 }
 

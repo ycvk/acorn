@@ -182,6 +182,21 @@ func renderDoctorSkillProblem(problem api.SystemSkillProblem) string {
 	return strings.Join(parts, " ")
 }
 
+// doctorProviderState is the readiness the summary counts, in a word.
+func doctorProviderState(provider api.SystemMCPProviderCapability) string {
+	switch api.ProviderReadinessOf(provider).Status {
+	case api.ProviderReadinessPassed:
+		return "healthy"
+	case api.ProviderReadinessFailed:
+		if strings.TrimSpace(provider.StartupStatus) == "degraded" {
+			return "degraded"
+		}
+		return "failed"
+	default:
+		return "not probed"
+	}
+}
+
 func renderDoctorProviderLine(provider api.SystemMCPProviderCapability) string {
 	parts := []string{fmt.Sprintf("  - %s:", provider.Name)}
 	switch {
@@ -196,16 +211,7 @@ func renderDoctorProviderLine(provider api.SystemMCPProviderCapability) string {
 		} else {
 			parts = append(parts, "["+transport+"]")
 		}
-		switch status := strings.TrimSpace(provider.StartupStatus); status {
-		case "healthy", "failed", "degraded":
-			parts = append(parts, status)
-		default:
-			if strings.TrimSpace(provider.Error) != "" {
-				parts = append(parts, "failed")
-			} else {
-				parts = append(parts, "healthy")
-			}
-		}
+		parts = append(parts, doctorProviderState(provider))
 	}
 	parts = append(parts, fmt.Sprintf("tools=%d", provider.ToolCount))
 	if len(provider.DiscoveredToolNames) > 0 {
@@ -283,6 +289,14 @@ func renderDoctorPackageTriggers(items []skills.TriggerReport, loc *time.Locatio
 			line += fmt.Sprintf(" (%d failures in a row: %s)", item.Failures, item.LastError)
 		}
 		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderDoctorRetiredStorage(dirs []wire.RetiredDir) string {
+	lines := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		lines = append(lines, fmt.Sprintf("Retired storage: %s holds %s; Acorn no longer reads or backs it up, so keep what you want from it and delete it", dir.Path, dir.Held))
 	}
 	return strings.Join(lines, "\n")
 }

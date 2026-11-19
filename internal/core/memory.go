@@ -260,8 +260,9 @@ type MemoryStore interface {
 	KnowledgeMemorySourceIDs(context.Context, string) ([]string, error)
 	SaveConcern(context.Context, MemoryConcern, int64) (MemoryConcern, error)
 	// ReleaseStaleQuestions releases the watched questions asked before
-	// askedBefore that still have no new answer, and returns them.
-	ReleaseStaleQuestions(ctx context.Context, askedBefore, now time.Time) ([]MemoryConcern, error)
+	// askedBefore that still have no new answer, dating the reason in loc,
+	// and returns them.
+	ReleaseStaleQuestions(ctx context.Context, askedBefore, now time.Time, loc *time.Location) ([]MemoryConcern, error)
 	// ListConcerns leaves out concerns whose source or linked records were
 	// forgotten and those created in a deleted conversation.
 	ListConcerns(context.Context, bool) ([]MemoryConcern, error)

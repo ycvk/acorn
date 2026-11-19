@@ -202,6 +202,27 @@ func (m *Manager) failSlot(providerName string, cause error) {
 	}
 }
 
+// failLiveSlot marks a running provider failed and closes it apart: a
+// list-changed notification starts the refresh that fails it, and the
+// session's close waits for the requests it is handling, that one included.
+func (m *Manager) failLiveSlot(providerName string, cause error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.slots {
+		if m.slots[i].cfg.Name != providerName || m.slots[i].p == nil {
+			continue
+		}
+		p := m.slots[i].p
+		m.slots[i].p, m.slots[i].lastErr, m.slots[i].startupStatus = nil, cause, "failed"
+		go func() {
+			if err := p.close(); err != nil {
+				slog.Error("close MCP provider after its tools could not register", "provider", providerName, "error", err)
+			}
+		}()
+		return
+	}
+}
+
 // buildClientOptions assembles a provider's MCP client options. Returns nil
 // handlers when the corresponding manager subsystem is not initialized (e.g.
 // no store wired).

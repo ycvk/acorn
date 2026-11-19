@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Cleartext is allowed for every host because a network security config cannot match the address ranges
+         a server on the owner's LAN or tailnet uses. serverUrlProblem takes http only for such an internal host,
+         and every request goes to the paired server's address. -->
     <application
         android:name=".AcornApp"
         android:allowBackup="false"
@@ -28,6 +31,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Notification taps arrive here: the app's own PendingIntents, and FCM's through the push's click_action.
+             Not exported, so another app cannot open a thread, an approval or a browser page through it. -->
+        <activity-alias
+            android:name=".NotificationTap"
+            android:exported="false"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="io.ycvk.acorn.OPEN_NOTIFICATION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

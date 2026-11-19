@@ -168,6 +168,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + queuedMessagesTable + `
 
+` + ownerMessageSendsTable + `
+
 ` + followUpsTable + `
 
 ` + goalsTable + `

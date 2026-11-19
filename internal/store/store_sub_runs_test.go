@@ -183,7 +183,7 @@ func TestSubRunsStayOutOfTheConversation(t *testing.T) {
 		t.Fatal(err)
 	}
 	startSubRun(t, s, core.SubRunStart{RunID: "sub_next", ParentRunID: "next", Brief: core.SubRunBrief{Objective: "读第三篇"}})
-	sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "顺便看看评论", RunID: "unused"})
+	sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "chat", Content: "顺便看看评论", RunID: "unused", ClientID: core.NewActionID()})
 	if err != nil || sent.Queued == nil || sent.Started != nil || sent.RunID != "next" {
 		t.Fatalf("message while the parent runs = %+v, %v", sent, err)
 	}

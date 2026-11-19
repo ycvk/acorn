@@ -16,8 +16,16 @@ import (
 // (sibling of `acorn doctor`), not a terminal chat surface: it answers "does my
 // install actually execute a run, and if not, what is the real error" without
 // needing a paired mobile device.
-func runSmoke(ctx context.Context, args []string) error {
-	fs := newFlagSet("smoke")
+func runSmoke(ctx context.Context, args []string) error { return runOnce(ctx, "smoke", args) }
+
+// runRun executes one owner task and prints its terminal outcome
+// synchronously, as smoke does.
+func runRun(ctx context.Context, args []string) error { return runOnce(ctx, "run", args) }
+
+// runOnce is acorn run and acorn smoke, named name: one task through
+// RunOnce, its outcome printed as text or JSON.
+func runOnce(ctx context.Context, name string, args []string) error {
+	fs := newFlagSet(name)
 	configPath := addConfigFlag(fs)
 	input := fs.String("input", "", "task input to send (or pass as positional args)")
 	jsonMode := fs.Bool("json", false, "print the run result as JSON")
@@ -29,7 +37,7 @@ func runSmoke(ctx context.Context, args []string) error {
 		text = strings.TrimSpace(strings.Join(fs.Args(), " "))
 	}
 	if text == "" {
-		return errors.New(`smoke input is required: acorn smoke "your task" or acorn smoke --input "..."`)
+		return fmt.Errorf(`%[1]s input is required: acorn %[1]s "your task" or acorn %[1]s --input "..."`, name)
 	}
 	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		result, err := container.RunOnce(ctx, text)
@@ -39,12 +47,11 @@ func runSmoke(ctx context.Context, args []string) error {
 			// stderr string. Emit a failed-status object, then return the error so
 			// the exit code stays non-zero.
 			if *jsonMode {
-				if body, mErr := json.MarshalIndent(smokeCommandOutput{
-					Status: "failed",
-					Error:  err.Error(),
-				}, "", "  "); mErr == nil {
-					fmt.Println(string(body))
+				body, mErr := json.MarshalIndent(smokeCommandOutput{Status: "failed", Error: err.Error()}, "", "  ")
+				if mErr != nil {
+					return errors.Join(err, fmt.Errorf("encode %s result: %w", name, mErr))
 				}
+				fmt.Println(string(body))
 			}
 			return err
 		}
@@ -53,7 +60,7 @@ func runSmoke(ctx context.Context, args []string) error {
 			return err
 		}
 		fmt.Print(out)
-		return smokeRunError(result)
+		return smokeRunError(name, result)
 	})
 }
 
@@ -62,14 +69,14 @@ func runSmoke(ctx context.Context, args []string) error {
 // (and any other non-succeeded terminal status) means the run did NOT complete —
 // it must not masquerade as success via a zero exit code, since operators and
 // scripts rely on the exit code to gate "did my install actually run a task".
-func smokeRunError(result *wire.RunOnceResult) error {
+func smokeRunError(name string, result *wire.RunOnceResult) error {
 	switch result.Status {
 	case "succeeded":
 		return nil
 	case "failed":
-		return fmt.Errorf("smoke run %s failed: %s", result.RunID, skills.FirstNonEmpty(result.Error, "no error detail recorded"))
+		return fmt.Errorf("%s run %s failed: %s", name, result.RunID, skills.FirstNonEmpty(result.Error, "no error detail recorded"))
 	default:
-		return fmt.Errorf("smoke run %s did not complete (status=%s)", result.RunID, result.Status)
+		return fmt.Errorf("%s run %s did not complete (status=%s)", name, result.RunID, result.Status)
 	}
 }
 

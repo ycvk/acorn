@@ -90,7 +90,7 @@ func projectLiveEvents(records []core.EventRecord) ([]RunEvent, error) {
 		}
 		event, err := ProjectRunEvent(record)
 		if err != nil {
-			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
+			return nil, fmt.Errorf("project persisted run event %d: %w", record.Sequence, err)
 		}
 		events = append(events, event)
 	}
@@ -108,10 +108,9 @@ func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]Ar
 	return buildArtifactSummaries(records), nil
 }
 
+// buildArtifactSummaries lists a run's artifacts, an empty list for none:
+// the run detail's artifacts is an array.
 func buildArtifactSummaries(records []core.ArtifactRecord) []ArtifactSummary {
-	if len(records) == 0 {
-		return nil
-	}
 	items := make([]ArtifactSummary, 0, len(records))
 	for _, record := range records {
 		items = append(items, ArtifactSummary{

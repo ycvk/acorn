@@ -10,7 +10,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
-import io.ycvk.acorn.MainActivity
 import io.ycvk.acorn.R
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ClientException
@@ -23,6 +22,7 @@ import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
 import io.ycvk.acorn.core.push.EXTRA_THREAD_ID
 import io.ycvk.acorn.core.push.ShownNotification
 import io.ycvk.acorn.core.push.canPostNotifications
+import io.ycvk.acorn.core.push.notificationTap
 import io.ycvk.acorn.core.push.shown
 import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.feature.live.RunFollower
@@ -97,7 +97,7 @@ class ApprovalNotifications @Inject constructor(
      */
     fun show(push: PendingActionPush) {
         if (!canPostNotifications(context)) return
-        val profile = secureStore.getConnection() ?: return
+        val profile = secureStore.usableConnection() ?: return
         val detail = try {
             api(profile).clientGetPendingAction(push.actionId)
         } catch (e: Exception) {
@@ -136,7 +136,7 @@ class ApprovalNotifications @Inject constructor(
      * with the outcome. The run it resumes shows as a Live Update.
      */
     fun decide(actionId: String, threadId: String, runId: String?, optionId: String, decision: DecidePendingActionRequest.Decision) {
-        val profile = secureStore.getConnection() ?: return
+        val profile = secureStore.usableConnection() ?: return
         try {
             api(profile).clientDecidePendingAction(actionId, DecidePendingActionRequest(decision = decision, selectedOptionId = optionId))
             runId?.let { follower.follow(profile, it, threadId, title = null, live = true, decided = actionId) }
@@ -197,12 +197,7 @@ class ApprovalNotifications @Inject constructor(
             .setContentIntent(openIntent(threadId, actionId))
 
     private fun openIntent(threadId: String, actionId: String): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra(EXTRA_THREAD_ID, threadId)
-            putExtra(EXTRA_ACTION_ID, actionId)
-        }
-        return PendingIntent.getActivity(context, notificationId(actionId), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return PendingIntent.getActivity(context, notificationId(actionId), notificationTap(context, threadId, actionId), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     private fun decisionIntent(actionId: String, threadId: String, runId: String?, optionId: String, decision: DecidePendingActionRequest.Decision): PendingIntent {

@@ -5,7 +5,6 @@ import io.ycvk.acorn.feature.browser.Touch
 import io.ycvk.acorn.feature.browser.ViewportPoint
 import io.ycvk.acorn.feature.browser.movedTouch
 import io.ycvk.acorn.feature.browser.navigationUrl
-import io.ycvk.acorn.feature.browser.pageHost
 import io.ycvk.acorn.feature.browser.phoneScreen
 import io.ycvk.acorn.feature.browser.scrollDistance
 import io.ycvk.acorn.feature.browser.viewportPoint
@@ -50,11 +49,5 @@ class BrowserInputsTest {
         assertNull(navigationUrl("hello"))
         assertNull(navigationUrl("file:///etc/passwd"))
         assertNull(navigationUrl("javascript://alert(1)"))
-    }
-
-    @Test
-    fun hostsDropWww() {
-        assertEquals("github.com", pageHost("https://www.github.com/login"))
-        assertEquals("about:blank", pageHost("about:blank"))
     }
 }

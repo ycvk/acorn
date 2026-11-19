@@ -43,7 +43,7 @@ func TestThreadFilesAreSentOnceAndLeaveWithTheirThread(t *testing.T) {
 	sent := saveFile(t, s, core.ThreadFileWrite{SessionID: "books", RunID: "run_1", Origin: core.ThreadFileFromAgent, Name: "book.epub", Content: strings.NewReader("PK\x03\x04"), MaxBytes: 64})
 
 	send := func(runID string, ids []string) (core.SentOwnerMessage, error) {
-		return s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "books", FileIDs: ids, RunID: runID})
+		return s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "books", FileIDs: ids, RunID: runID, ClientID: core.NewActionID()})
 	}
 	for _, ids := range [][]string{{elsewhere.ID}, {sent.ID}, {notes.ID, notes.ID}} {
 		if _, err := send("run_bad", ids); !errors.Is(err, core.ErrInvalidThreadFile) {

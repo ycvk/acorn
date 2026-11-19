@@ -79,7 +79,7 @@ func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, au
 		}
 	}()
 	if autonomous {
-		allowed, err := s.withinBudget(ctx, name+" "+slot, now, settings)
+		allowed, done, err := s.withinBudget(ctx, name+" "+slot, now, settings)
 		if err != nil {
 			return err
 		}
@@ -87,6 +87,7 @@ func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, au
 			keep = true
 			return nil
 		}
+		defer done()
 	}
 	prepared, err := prepare()
 	if err != nil {

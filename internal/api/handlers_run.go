@@ -12,12 +12,16 @@ func (s *Server) handleClientCreateRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	sent, err := s.runs.SendMessage(r.Context(), chi.URLParam(r, "thread_id"), req.Input, req.FileIDs)
+	sent, err := s.runs.SendMessage(r.Context(), chi.URLParam(r, "thread_id"), req.Input, req.FileIDs, req.ClientID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
 	response := CreateRunResponse{Run: runDTOFromDomain(sent.Run)}
+	if sent.Repeat && sent.Queued == nil {
+		s.respondJSON(w, r, http.StatusOK, response)
+		return
+	}
 	if sent.Queued == nil {
 		s.respondJSON(w, r, http.StatusCreated, response)
 		return

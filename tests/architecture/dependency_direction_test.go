@@ -14,7 +14,7 @@ import (
 // lower layer. This prevents architectural drift.
 //
 // Layer 0: core (domain types, contracts, ports, tool registry interfaces)
-// Layer 2: store, redact, presence, memory, news, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, workstation, views, settings, config, textedit
+// Layer 2: store, redact, presence, memory, news, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, workstation, views, settings, config, textedit, review
 // Layer 3: runtime (executor, per-run assembly, middleware, projection)
 // Layer 4: api
 // Layer 5: wire
@@ -40,6 +40,7 @@ var layerRank = map[string]int{
 	"views":       2,
 	"settings":    2,
 	"textedit":    2,
+	"review":      2,
 	"runtime":     3,
 	"api":         4,
 	"wire":        5,
@@ -79,6 +80,7 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 		importerPkg := strings.ReplaceAll(dir, string(filepath.Separator), "/")
 		importerLayer := layerForPkg(importerPkg)
 		if importerLayer < 0 {
+			t.Errorf("package %s has no layer; give it one in layerRank", importerPkg)
 			return nil
 		}
 
@@ -97,6 +99,7 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 			internalPkg := strings.TrimPrefix(impPath, "github.com/ycvk/acorn/internal/")
 			importedLayer := layerForPkg(internalPkg)
 			if importedLayer < 0 {
+				t.Errorf("%s imports %s, which has no layer; give it one in layerRank", importerPkg, internalPkg)
 				continue
 			}
 			if importedLayer > importerLayer {
@@ -116,7 +119,7 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 func TestNoDirectStoreImportOutsideWire(t *testing.T) {
 	root := filepath.Join("..", "..", "internal")
 	violations := []string{}
-	filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -141,6 +144,9 @@ func TestNoDirectStoreImportOutsideWire(t *testing.T) {
 		}
 		return nil
 	})
+	if err != nil {
+		t.Fatalf("walk: %v", err)
+	}
 	if len(violations) > 0 {
 		t.Fatalf("internal/store imported outside wire/ by: %s", strings.Join(violations, ", "))
 	}

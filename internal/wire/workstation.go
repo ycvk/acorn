@@ -11,7 +11,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workstation"
 )
@@ -62,17 +61,17 @@ func buildWorkstationClient(cfg *config.Config) (*workstation.Client, error) {
 }
 
 // policyRenderer checks a watch target against the shared URL policy before
-// the workstation's browser renders it.
+// the workstation's browser renders it under the same policy.
 type policyRenderer struct {
 	policy   webaccess.URLPolicy
-	renderer watch.Renderer
+	renderer *workstation.Client
 }
 
 func (r policyRenderer) RenderHTML(ctx context.Context, target string) (string, error) {
 	if _, err := r.policy.Validate(ctx, target); err != nil {
 		return "", err
 	}
-	return r.renderer.RenderHTML(ctx, target)
+	return r.renderer.RenderHTML(ctx, target, r.policy.AllowPrivateNetworks)
 }
 
 // WorkstationStatus is what acorn doctor reports about the workstation.

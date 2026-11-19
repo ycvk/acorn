@@ -78,6 +78,29 @@ func TestRenderDoctorProviderLineWithTransportAndStatus(t *testing.T) {
 			wantSubs: []string{"disabled", "tools=0"},
 		},
 		{
+			name: "unprobed provider is not called healthy",
+			provider: api.SystemMCPProviderCapability{
+				Name:       "unprobed-server",
+				Configured: true,
+				Enabled:    true,
+				Transport:  "stdio",
+			},
+			wantSubs: []string{"[stdio]", "not probed", "tools=0"},
+		},
+		{
+			name: "expired auth fails a provider that started",
+			provider: api.SystemMCPProviderCapability{
+				Name:          "oauth-server",
+				Configured:    true,
+				Enabled:       true,
+				Transport:     "streamable_http",
+				StartupStatus: "healthy",
+				AuthStatus:    "expired",
+				ToolCount:     3,
+			},
+			wantSubs: []string{"[streamable_http]", "failed", "auth=expired"},
+		},
+		{
 			name: "empty transport is visible",
 			provider: api.SystemMCPProviderCapability{
 				Name:          "legacy-server",
@@ -185,6 +208,14 @@ func TestRenderDoctorReview(t *testing.T) {
 		if got := renderDoctorReview(status); got != want {
 			t.Fatalf("got %q, want %q", got, want)
 		}
+	}
+}
+
+func TestRenderDoctorRetiredStorage(t *testing.T) {
+	got := renderDoctorRetiredStorage([]wire.RetiredDir{{Name: "attachments", Path: "/srv/acorn/workspace/attachments", Held: "images shared with the removed share capture"}})
+	want := "Retired storage: /srv/acorn/workspace/attachments holds images shared with the removed share capture; Acorn no longer reads or backs it up, so keep what you want from it and delete it"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 

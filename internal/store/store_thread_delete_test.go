@@ -50,7 +50,7 @@ func seedThread(t *testing.T, s *Store, sessionID, runID, shared string) core.Ar
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.QueueNotification(ctx, core.Notification{Title: "订单", Body: "已发货", ThreadID: sessionID, RunID: runID, Status: core.NotificationQueued, SendAfter: time.Now(), CreatedAt: time.Now()}); err != nil {
+	if _, err := s.QueueNotification(ctx, core.Notification{Title: "订单", Body: "已发货", ThreadID: sessionID, RunID: runID, Status: core.NotificationQueued, SendAfter: time.Now(), CreatedAt: time.Now()}, 10); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := s.FinishRun(ctx, core.RunEnd{RunID: runID, Status: core.RunStatusSucceeded, Output: "订单已发货", Error: "", Event: "run.completed"}); err != nil {

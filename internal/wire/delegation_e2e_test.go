@@ -168,7 +168,7 @@ func TestDelegatedWorkReportsBeforeTheRunEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	var started api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "读一下 A 再找人复核"}, http.StatusCreated, &started)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "读一下 A 再找人复核"}, http.StatusCreated, &started)
 	waitRunStatusWithin(t, c, started.Run.ID, "completed", 30*time.Second)
 
 	var listed api.MessageListResponse
@@ -373,7 +373,7 @@ func TestTheReplyKeepsTheAnswerGivenBeforeAReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	var started api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "验收顺序任务"}, http.StatusCreated, &started)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "验收顺序任务"}, http.StatusCreated, &started)
 	waitRunStatusWithin(t, c, started.Run.ID, "completed", 30*time.Second)
 	assertReplyKeepsTheAnswer(t, c, client, thread.ID, started.Run.ID, "验收顺序任务")
 }
@@ -397,7 +397,7 @@ func TestTheReplyKeepsTheAnswerAcrossAnApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	var started api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "验收顺序任务"}, http.StatusCreated, &started)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "验收顺序任务"}, http.StatusCreated, &started)
 	waitRunStatus(t, c, started.Run.ID, "interrupted")
 	actions, err := c.pendingAction.List(ctx, 10)
 	if err != nil || len(actions) != 1 || actions[0].RunID != started.Run.ID {
@@ -440,7 +440,7 @@ func TestStoppingTheRunStopsItsSubRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	var started api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "读 A"}, http.StatusCreated, &started)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "读 A"}, http.StatusCreated, &started)
 	select {
 	case <-asked:
 	case <-time.After(15 * time.Second):
@@ -550,7 +550,7 @@ func TestSubRunsReportAfterTheRunsApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	var started api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "读 A，顺便查查上次读到哪"}, http.StatusCreated, &started)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "读 A，顺便查查上次读到哪"}, http.StatusCreated, &started)
 	waitRunStatus(t, c, started.Run.ID, "interrupted")
 	waitFor(t, "the sub-run reports while the run waits for approval", func() bool {
 		attempts, err := c.store.SubRuns(ctx, started.Run.ID)

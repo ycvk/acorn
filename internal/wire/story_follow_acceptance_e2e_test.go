@@ -110,7 +110,7 @@ func TestABriefingStoryOpensItsConversationAndIdleThoughtChecksItWhenFollowed(t 
 	provider.add(textReply("菲律宾央行意外加息 25 个基点，为压住通胀。[BBC](https://bbc.test/b1)"))
 	before := provider.requestCount()
 	var discussed api.StoryMessageResponse
-	client.do(t, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/v1/news/stories/%d:discuss", story.ID), nil), http.StatusCreated, &discussed)
+	client.do(t, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/v1/news/stories/%d:discuss", story.ID), strings.NewReader(`{"client_id":"ask-discuss"}`)), http.StatusCreated, &discussed)
 	run := waitNewRun(t, c, discussed.ThreadID, "")
 	text := requestText(provider.request(before))
 	for _, part := range []string{"展开讲讲：菲律宾央行意外加息", "[Sent from a story on the briefing card: the owner asks you to explain it", snapshot, "https://bbc.test/b1"} {
@@ -131,7 +131,7 @@ func TestABriefingStoryOpensItsConversationAndIdleThoughtChecksItWhenFollowed(t 
 	)
 	before = provider.requestCount()
 	var followed api.StoryMessageResponse
-	client.do(t, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/v1/news/stories/%d:follow", story.ID), nil), http.StatusCreated, &followed)
+	client.do(t, httptest.NewRequest(http.MethodPost, fmt.Sprintf("/v1/news/stories/%d:follow", story.ID), strings.NewReader(`{"client_id":"ask-follow"}`)), http.StatusCreated, &followed)
 	if followed.ThreadID != discussed.ThreadID || followed.Text != "持续跟进：菲律宾央行意外加息" {
 		t.Fatalf("follow response = %+v", followed)
 	}

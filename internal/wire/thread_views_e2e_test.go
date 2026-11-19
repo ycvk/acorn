@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // TestViewsShowUnderTheReply has the agent get a view rejected with what to
@@ -45,7 +46,7 @@ func TestViewsShowUnderTheReply(t *testing.T) {
 	}
 
 	var run api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "比较一下 eino 最近几个版本"}, http.StatusCreated, &run)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "比较一下 eino 最近几个版本"}, http.StatusCreated, &run)
 	waitRunStatus(t, c, run.Run.ID, "completed")
 
 	if tools := requestTools(provider.request(0)); !slices.Contains(tools, "show_view") || !slices.Contains(tools, "update_view") || slices.Contains(tools, "tool_search") {

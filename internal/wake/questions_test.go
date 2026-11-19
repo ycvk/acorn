@@ -181,7 +181,7 @@ func TestNightLeavesWatchedQuestionsAndFollowedStoriesToTheirChecks(t *testing.T
 	asked := h.now.Add(-24 * time.Hour)
 	qwen := h.questionIn(t, "thread_qwen", "Qwen 4 发布了吗", asked, h.now.Add(-time.Hour))
 	story := core.StorySnapshot{ID: 7, Section: "国际", Title: "菲律宾央行加息", Items: []core.StorySnapshotItem{}}
-	if _, err := h.data.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进", Title: story.Title, Story: story, NewThreadID: "thread_followed"}); err != nil {
+	if _, err := h.data.SendStoryMessage(ctx, core.StoryMessageWrite{Intent: core.StoryFollow, Text: "持续跟进", Title: story.Title, Story: story, NewThreadID: "thread_followed", ClientID: core.NewActionID()}); err != nil {
 		t.Fatal(err)
 	}
 	followed := h.reviseConcern(t, core.MemoryConcern{Title: "跟进菲律宾央行加息", State: "active", Reason: "owner asked", ThreadID: "thread_followed"}, "owner 从早安卡要求跟进", asked)

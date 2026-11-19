@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// ErrBlocked reports a host the policy does not let Acorn reach.
+var ErrBlocked = errors.New("blocked")
+
 type Resolver interface {
 	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
 }
@@ -58,7 +61,7 @@ func (p URLPolicy) Validate(ctx context.Context, raw string) (ValidatedURL, erro
 		return ValidatedURL{Normalized: parsed.String(), Scheme: strings.ToLower(parsed.Scheme), Host: host}, nil
 	}
 	if isLocalhostName(host) {
-		return ValidatedURL{}, fmt.Errorf("blocked localhost host %q", host)
+		return ValidatedURL{}, fmt.Errorf("%w localhost host %q", ErrBlocked, host)
 	}
 
 	ips, err := p.validateHost(ctx, host)
@@ -81,7 +84,7 @@ func (p URLPolicy) validateHost(ctx context.Context, host string) ([]netip.Addr,
 	if ip, err := netip.ParseAddr(host); err == nil {
 		addr := ip.Unmap()
 		if reason := blockedAddrReason(addr, p.AllowPrivateNetworks); reason != "" {
-			return nil, fmt.Errorf("blocked url host %q: %s", host, reason)
+			return nil, fmt.Errorf("%w url host %q: %s", ErrBlocked, host, reason)
 		}
 		return []netip.Addr{addr}, nil
 	}
@@ -105,11 +108,66 @@ func (p URLPolicy) validateHost(ctx context.Context, host string) ([]netip.Addr,
 		}
 		addr = addr.Unmap()
 		if reason := blockedAddrReason(addr, p.AllowPrivateNetworks); reason != "" {
-			return nil, fmt.Errorf("blocked url host %q resolved to %s: %s", host, addr.String(), reason)
+			return nil, fmt.Errorf("%w url host %q resolved to %s: %s", ErrBlocked, host, addr.String(), reason)
 		}
 		addrs = append(addrs, addr)
 	}
 	return addrs, nil
+}
+
+// DialFunc opens a network connection, as net.Dialer.DialContext does.
+type DialFunc func(ctx context.Context, network, address string) (net.Conn, error)
+
+// Dial connects with dial only to addresses the policy allows, checked as
+// the connection is made: the host is resolved again and every address it
+// gives must pass, and the connection goes to those addresses. A name that
+// resolves to a public address when a URL is validated and to a private one
+// when it is fetched (DNS rebinding) is refused. A trusted origin is dialed
+// as it is.
+func (p URLPolicy) Dial(dial DialFunc) DialFunc {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("dial %q: %w", address, err)
+		}
+		trusted, err := p.trustsHost(host, port)
+		if err != nil {
+			return nil, err
+		}
+		if trusted {
+			return dial(ctx, network, address)
+		}
+		if isLocalhostName(host) {
+			return nil, fmt.Errorf("%w localhost host %q", ErrBlocked, host)
+		}
+		addrs, err := p.validateHost(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		var errs []error
+		for _, addr := range addrs {
+			conn, err := dial(ctx, network, net.JoinHostPort(addr.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			errs = append(errs, err)
+		}
+		return nil, errors.Join(errs...)
+	}
+}
+
+// trustsHost reports whether host and port are those of a trusted base URL.
+func (p URLPolicy) trustsHost(host, port string) (bool, error) {
+	for _, raw := range p.Trusted {
+		base, err := url.Parse(raw)
+		if err != nil || base.Host == "" {
+			return false, fmt.Errorf("trusted base url %q is not an absolute url", raw)
+		}
+		if strings.EqualFold(base.Hostname(), host) && originPort(base) == port {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // trusts reports whether u has the origin of a trusted base URL.
@@ -128,12 +186,15 @@ func (p URLPolicy) trusts(u *url.URL) (bool, error) {
 
 // origin is a URL's scheme, host and port, with the scheme's default port.
 func origin(u *url.URL) string {
-	scheme := strings.ToLower(u.Scheme)
-	port := u.Port()
-	if port == "" {
-		port = map[string]string{"http": "80", "https": "443"}[scheme]
+	return strings.ToLower(u.Scheme) + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), originPort(u))
+}
+
+// originPort is a URL's port, or its scheme's default port.
+func originPort(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
 	}
-	return scheme + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), port)
+	return map[string]string{"http": "80", "https": "443"}[strings.ToLower(u.Scheme)]
 }
 
 func isLocalhostName(host string) bool {
@@ -149,6 +210,11 @@ var (
 	sharedSpace = netip.MustParsePrefix("100.64.0.0/10")
 	nat64       = netip.MustParsePrefix("64:ff9b::/96")
 	sixToFour   = netip.MustParsePrefix("2002::/16")
+	// The local-use NAT64 prefix carries an IPv4 address at a place its
+	// operator picks, and Teredo tunnels to an IPv4 address it stores
+	// inverted; neither serves public web pages.
+	localNAT64 = netip.MustParsePrefix("64:ff9b:1::/48")
+	teredo     = netip.MustParsePrefix("2001::/32")
 )
 
 func blockedAddrReason(addr netip.Addr, allowPrivate bool) string {
@@ -160,6 +226,9 @@ func blockedAddrReason(addr netip.Addr, allowPrivate bool) string {
 	}
 	if isMetadataAddr(addr) {
 		return "metadata_address"
+	}
+	if localNAT64.Contains(addr) || teredo.Contains(addr) {
+		return "tunneled_address"
 	}
 	if addr.IsUnspecified() || thisNetwork.Contains(addr) {
 		return "unspecified_address"

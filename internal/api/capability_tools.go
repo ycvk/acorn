@@ -84,7 +84,7 @@ func toolRisk(spec core.ToolSpec) string {
 // providerToolHealth reads the health of a provider's tools from the
 // provider's readiness, so tools and readiness never disagree.
 func providerToolHealth(provider SystemMCPProviderCapability) (core.HealthState, string) {
-	readiness := providerReadinessFromCapability(provider)
+	readiness := ProviderReadinessOf(provider)
 	switch {
 	case !provider.Configured || !provider.Enabled:
 		return core.HealthStateDisabled, readiness.Reason

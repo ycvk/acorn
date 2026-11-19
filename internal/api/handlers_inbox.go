@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 )
 
@@ -29,6 +30,10 @@ func (s *Server) handleClientTools(w http.ResponseWriter, r *http.Request) {
 	snapshot := s.capabilities.Snapshot(r.Context(), CapabilitySnapshotOptions{
 		ProbeMCP: r.URL.Query().Get("probe_mcp") == "1",
 	})
+	if snapshot.ToolCatalogError != "" {
+		s.respondInternalError(w, r, fmt.Errorf("tool catalog: %s", snapshot.ToolCatalogError))
+		return
+	}
 	items := DefaultConverter.capabilitiesToolsDTOFromSnapshot(snapshot.Tools)
 	s.respondJSON(w, r, http.StatusOK, ToolListResponse{
 		Items: items,

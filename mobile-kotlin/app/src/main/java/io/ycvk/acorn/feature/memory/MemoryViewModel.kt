@@ -199,6 +199,8 @@ class MemoryViewModel @Inject constructor(
                 _change.value = Save.Idle
                 loadList(showLoading = false)
                 onDone()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _change.value = Save.Failed("没能忘掉：${memoryMessage(e)}")
             }
@@ -215,6 +217,8 @@ class MemoryViewModel @Inject constructor(
                 _change.value = Save.Idle
                 loadList(showLoading = false)
                 onCorrected(corrected.id)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (e is ClientException && e.statusCode == 409) {
                     _change.value = Save.Failed("这条记忆刚刚变过，已重新载入，请再改一次")

@@ -30,12 +30,17 @@ import com.squareup.moshi.JsonClass
 /**
  * The owner's message. It needs input, files or both.
  *
+ * @param clientId The client's id for this message, made once and given again when the client sends the same message again.
  * @param input 
  * @param fileIds Files uploaded to the thread that the message sends. With files, the message is recorded even when input is empty.
  */
 
 
 data class CreateRunRequest (
+
+    /* The client's id for this message, made once and given again when the client sends the same message again. */
+    @Json(name = "client_id")
+    val clientId: kotlin.String,
 
     @Json(name = "input")
     val input: kotlin.String? = null,

@@ -501,7 +501,7 @@ func (l *Library) ImportStaged(ctx context.Context, name, sha256 string, baseRev
 	if err != nil {
 		return core.Skill{}, err
 	}
-	return skill, l.store.DeleteStagedSkillPackage(ctx, sha256)
+	return skill, l.store.DeleteStagedSkillPackage(ctx, pkg.SHA256)
 }
 
 // importable checks that a staged package holds the named skill and that

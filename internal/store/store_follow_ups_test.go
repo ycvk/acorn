@@ -244,7 +244,7 @@ func TestRunNotifiedOwnerCountsOnlyTheRunsOwnPushes(t *testing.T) {
 		{Title: "需要你批准", Body: "下载要访问外网", ThreadID: "chat", RunID: "run_approval", ActionID: "action_1", SendAfter: now, CreatedAt: now},
 		{Title: "四大名著齐了", Body: "四本都附上了", ThreadID: "chat", RunID: "run_told", SendAfter: now, CreatedAt: now},
 	} {
-		if _, err := s.QueueNotification(ctx, n); err != nil {
+		if _, err := s.QueueNotification(ctx, n, 10); err != nil {
 			t.Fatal(err)
 		}
 	}

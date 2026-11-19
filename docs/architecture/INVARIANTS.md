@@ -33,7 +33,7 @@
 - **子 run 的审批只会更严**：子 run 的规则是父 run 开始时的 `approval.require`、`approval.allow` 与 `approval.block`，brief 的 block 加进 block。父 run 里会转审批的调用（require 命中、审查判断需要确认、审查出错）在子 run 里不登记 pending action，以说明它要写进 limitations 的拒绝文本作为工具结果返回；block 照常拒绝，allow 与审查放行的调用照常执行；`submit` 不受规则约束。
   - `internal/runtime/sub_runs_test.go`
   - `internal/runtime/agent_test.go`
-- **子 run 不是对话的 run**：对话最新的 run（线程列表状态、早安卡事件的忙碌判断、wake 调度器看对话是否空闲）、owner 消息排队等待的 run、`/v1/runs` 的进行中与最近结束列表、线程摘要的文件段落都不计子 run；子 run 不写对话消息，结束时不起排队的 run。删除对话一并删除子 run 及其 `sub_runs` 记录；Acorn 重启时还在跑的子 run 与其他 run 一样记为失败。父 run 有 `wake.fired` 时，子 run 的模型用量计入自主 token 预算。遗忘列出读过被排除内容的 run 时一并列出它们的子 run。
+- **子 run 不是对话的 run**：对话最新的 run（线程列表状态）、对话里运行或等待审批的 run（早安卡事件的忙碌判断、wake 调度器看对话是否空闲、owner 消息排队等待的 run）、`/v1/runs` 的进行中与最近结束列表、线程摘要的文件段落都不计子 run；子 run 不写对话消息，结束时不起排队的 run。删除对话一并删除子 run 及其 `sub_runs` 记录；Acorn 重启时还在跑的子 run 与其他 run 一样记为失败。父 run 有 `wake.fired` 时，子 run 的模型用量计入自主 token 预算。遗忘列出读过被排除内容的 run 时一并列出它们的子 run。
   - `internal/store/store_sub_runs_test.go`
   - `internal/store/memory_forget_test.go`
 - **模型使用原生协议并保留推理状态**：Responses、Chat Completions、Anthropic Messages 都经 Eino AgenticModel；推理内容块与签名参与下一轮工具结果回传和 checkpoint，公开事件投影不含签名。sampling 可省略，输出预算和上下文按模型能力验证。请求空闲超时随响应进度刷新，总请求与 run 时限可关闭。
@@ -50,11 +50,11 @@
 - **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再在同一事务里记下 `run.completed`/`run.failed` 与结束状态；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
   - `internal/wire/wake_acceptance_e2e_test.go`
   - `internal/store/store_runs_test.go`
-- **run 进行中 owner 发的话交给这个 run**：`POST /v1/threads/{id}/runs` 在同一事务里判断对话：有 run 在运行或等待审批时，消息存进 `queued_messages` 并返回 202 与这个 run；否则在队列里剩下的消息之后写下这条消息并建 run，返回 201。排队的消息不是对话消息，也不是记忆来源。interjection middleware 在 run 每次调用模型前把队列里的文字消息按发送顺序写进对话、绑定到这个 run（取 run 的 turn）并追加到 agent state 与 run 的历史，每条记一个 `run.input` 事件；带文件的消息与它之后的留到下一个 run。run 结束时，若对话里没有别的 run 在运行或等待审批，同一事务把剩下的消息写在回复之后、建下一个 run 并把它写进终止事件的 `next_run_id`，随后执行它。终止前没能接手的路径（setup 失败、Acorn 停止）留下的消息由 `serve` 的续跑扫描在启动时与每分钟起 run，owner 的下一条消息也会先带上它们。队列随对话删除。
+- **run 进行中 owner 发的话交给这个 run**：`POST /v1/threads/{id}/runs` 在同一事务里判断对话：有 run 在运行或等待审批时，消息存进 `queued_messages` 并返回 202 与这个 run；否则在队列里剩下的消息之后写下这条消息并建 run，返回 201。排队的消息不是对话消息，也不是记忆来源。interjection middleware 在 run 每次调用模型前把队列里的文字消息按发送顺序写进对话、绑定到这个 run（取 run 的 turn）并追加到 agent state 与 run 的历史，每条记一个 `run.input` 事件；带文件的消息与它之后的留到下一个 run。run 结束时，若对话里没有别的 run 在运行或等待审批，同一事务把剩下的消息写在回复之后、建下一个 run 并把它写进终止事件的 `next_run_id`，随后执行它。终止前没能接手的路径（setup 失败、Acorn 停止）留下的消息由 `serve` 的续跑扫描在启动时与每分钟起 run，owner 的下一条消息也会先带上它们。每条消息带客户端给的 `client_id`，同一事务记下它与消息（以及对话还没有标题时的标题）；同一对话里以同一 `client_id` 再发时不再写入，回答第一次发送的去向：消息已进对话时是它所属的 run（200），还在排队时是它等的 run（202），排队而对话里没有 run 在跑时在它上面起 run（201）。队列与这些记录随对话删除。
   - `internal/store/store_owner_messages_test.go`
   - `internal/wire/interjection_e2e_test.go`
   - `internal/runtime/agent_test.go`
-- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批，规则未覆盖、在 Acorn 自己醒来的 run（输入是 wake 消息）里改动板块（action 不是 list）的 `news_sections` 调用审批，owner 对话里的直接执行；规则未覆盖、写入或编辑登录 shell 会执行的文件的 `files` 调用审批，读取和其他文件的写入直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读，重定向目标是 `/dev/tcp/`、`/dev/udp/`、登录 shell 会执行的文件（`.bash_profile`、`.bashrc`、`.profile` 等）或带变量、花括号与通配符时不算只读；程序必须是不带路径的名字，赋值前缀只允许小写变量名与 `BSK_*`，`sort --compress-program` 与 `printf -v` 不算只读，自己写文件的 `sort -o`、`sort --output`、带输出文件的 `uniq` 与 `tree -o` 也不算；`find`、`sort`、`uniq`、`tree` 的参数和 `printf` 的第一个参数里有 bash 还会展开的变量、花括号或通配符时不算只读，因为展开后可能正是上面这些选项；带未加引号的圆括号的命令不算只读，子 shell 与借只读程序之名的函数定义都在其中；`bsk` 页面操作带着页面记忆里的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。页面记忆按 `bsk` 会话保存最近一次展示的地址、标题与各 `@eN` 引用的元素名，只在整条命令的输出都出自 `bsk` 时更新：命令里只有同一会话的 `navigate`、`reload`、前进后退、`observe` 与 `snapshot`，之前至多有该会话的 `click`、`fill`、`press`，输出至多经 `head` 按行数截取，作业已经结束、输出没有被省略，每次前往都报出了地址、每次观察都留下了开头；这样的输出整体替换该会话的记忆，元素名按 `bsk` 的引号与转义读取，页面文字留在名字之内。命令里有审查读不懂的 `bsk` 调用或可能自行运行 `bsk` 的程序，或者页面展示与别的输出混在一起、被写进文件时，全部会话的记忆清空；`click`、`press`、`select` 执行后该会话记忆里的地址清空。页面操作的参数按 `bsk` 的规则读取：带有未列入的选项、bash 还会展开的词、重复指定的元素或会话，或者同一条命令在它之前可能已让引用换过一批时，审查拿不到目标与页面，该操作转审批。`bsk download` 会点击触发下载的元素，按对这个元素的 `click` 带着元素名与页面送审，执行后全部会话的记忆清空；`download`、`get-html` 与 `screenshot` 用 `--out` 写的文件按重定向目标判断，命令里有 bash 还会展开的词时按可能写到任何文件处理。`bsk` 把地址原样交给浏览器，浏览器把 `javascript:` 地址（不论大小写与前导空白）当作脚本在标签页当前的页面里执行，`file:` 地址打开本地文件，所以 `navigate` 的地址、`tab create` 与 `record start` 的 `--url` 只有字面以 `http://` 或 `https://` 开头才算只读，`navigate back` 与 `navigate forward` 照旧；`navigate` 带有未列入的选项或 bash 还会展开的词、`tab` 与 `record` 命令里有 bash 还会展开的词时，地址读不出来，也不算只读。这样的命令按整条命令送审，执行后全部会话的记忆清空。命令里有能自行运行程序的部分时（非只读的程序、读不出子命令的 `bsk`、带命令替换或圆括号而拆不开的命令），除了读得出的 `bsk` 与它的子命令，命令文字里每一处 `bsk` 之后第一个不是选项的词都必须是只读子命令，否则这条命令按藏有页面操作送审并转审批：经 `env`、`xargs`、`sh -c`、`eval` 运行，写成路径，放在 `then`、`do`、`{` 之后或命令替换与子 shell 里，名字或子命令出自变量，都在其中；`~/.bsk`、`bsk-notes` 这样的名字不算提到 `bsk`。命令把文件当程序运行时，审查连同文件内容一起判断：`sh`、`bash`、`dash`、`zsh`、`ksh`、`python`（含带版本号的名字）与 `node` 拿到的脚本文件，`source` 与 `.` 读入的文件，以及按路径写出的程序本身，路径落在 `/bin`、`/usr/bin`、`/usr/local/bin` 等系统目录里的按程序名处理；命令开头的赋值、`then`、`do`、`else` 等关键字，以及后面不跟选项的 `env`、`nohup`、`sudo`、`exec`、`command`、`nice`、`setsid` 和 `timeout <时长>` 先行略过。相对路径从调用的 `dir` 起算，并跟随命令自己的 `cd`（一个 bash 不再展开的目录，或不带参数回到主目录）；开头的 `$HOME/` 按 `~/` 读。backend 经工作机的文件读取接口取回这些文件，同一条命令合计至多 32 KiB，内容放进送审状态的 `scripts`，并向模型说明文件里的注释与名字可能自称无害、按代码实际做的事判断。读不到内容的命令转审批：文件名出自 bash 还会展开的词，解释器带有未列入的选项，相对路径之前有 `pushd`、`popd` 或跟不上的 `cd`（带选项、多个参数、在管道或后台里、跟在关键字或启动程序之后），文件由这条命令自己用重定向写出，工作机读不出（不存在、是目录、连不上），交给解释器的文件不是文本，内容超出上限，或没有配置工作机；原因记在 `tool_review` 的 `unread_scripts`。按路径运行的非文本文件是编译好的程序，没有内容可带，命令照旧送审。脚本内容里的 `bsk` 之后第一个不是选项的词不是只读子命令时，这条命令按藏有页面操作转审批。带命令替换、圆括号或 here-document 正文而拆不开的命令，只读取第一个 here-document 之前的几行。命令行里的内联代码（`-c`、`-e`、`-m`、标准输入）、不带路径的程序、其余解释器、`make`、`npm run`、`uv run` 这类按名字找文件的启动方式，以及脚本自己再运行的文件，都不读取。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
+- **规则先于审查，审查失败转审批**：`approval.block` 命中的调用不执行并把拒绝说明作为工具结果返回；`approval.require` 命中的调用审批；`approval.allow` 命中的直接执行；规则未覆盖的 `news_source` 调用审批，规则未覆盖、在 Acorn 自己醒来的 run（输入是 wake 消息）里改动板块（action 不是 list）的 `news_sections` 调用审批，owner 对话里的直接执行；规则未覆盖、写入或编辑登录 shell 会执行的文件的 `files` 调用审批，读取和其他文件的写入直接执行；规则未覆盖的 `shell` 与 MCP 调用在审查开启时送审，原生工具不送审。只读的 shell 命令不调用审查，`find` 不带执行、删除或写文件的表达式时算只读，重定向目标是 `/dev/tcp/`、`/dev/udp/`、登录 shell 会执行的文件（`.bash_profile`、`.bashrc`、`.profile` 等）或带变量、花括号与通配符时不算只读；程序必须是不带路径的名字，赋值前缀只允许小写变量名与 `BSK_*`，`sort --compress-program` 与 `printf -v` 不算只读，自己写文件的 `sort -o`、`sort --output`、带输出文件的 `uniq` 与 `tree -o` 也不算；`find`、`sort`、`uniq`、`tree` 的参数和 `printf` 的第一个参数里有 bash 还会展开的变量、花括号或通配符时不算只读，因为展开后可能正是上面这些选项；带未加引号的圆括号的命令不算只读，子 shell 与借只读程序之名的函数定义都在其中；`bsk` 页面操作带着页面记忆里的元素名与页面送审，关于页面文字的判断只用于页面操作；审查出错按需要审批处理。页面记忆按 `bsk` 会话保存最近一次展示的地址、标题与各 `@eN` 引用的元素名，只在整条命令的输出都出自 `bsk` 时更新：命令里只有同一会话的 `navigate`、`reload`、前进后退、`observe` 与 `snapshot`，之前至多有该会话的 `click`、`fill`、`press`，输出至多经 `head` 按行数截取，作业已经结束、输出没有被省略，每次前往都报出了地址、每次观察都留下了开头；这样的输出整体替换该会话的记忆，元素名按 `bsk` 的引号与转义读取，页面文字留在名字之内。命令里有审查读不懂的 `bsk` 调用或可能自行运行 `bsk` 的程序，或者页面展示与别的输出混在一起、被写进文件时，全部会话的记忆清空；`click`、`press`、`select` 执行后该会话记忆里的地址清空。子 run 与派出它的 run 共用浏览器，一方的观察会给另一方的元素换名字：子 run 审查页面操作时没有页面记忆；run 调用 `delegate` 之后清空页面记忆，它派出的子 run 还没结束时也不带页面记忆审查、不记下观察到的页面；子 run 都结束后，下一次观察照常记下。没有页面记忆的页面操作转审批，子 run 里因此被拒绝。页面操作的参数按 `bsk` 的规则读取：带有未列入的选项、bash 还会展开的词、重复指定的元素或会话，或者同一条命令在它之前可能已让引用换过一批时，审查拿不到目标与页面，该操作转审批。`bsk download` 会点击触发下载的元素，按对这个元素的 `click` 带着元素名与页面送审，执行后全部会话的记忆清空；`download`、`get-html` 与 `screenshot` 用 `--out` 写的文件按重定向目标判断，命令里有 bash 还会展开的词时按可能写到任何文件处理。`bsk` 把地址原样交给浏览器，浏览器把 `javascript:` 地址（不论大小写与前导空白）当作脚本在标签页当前的页面里执行，`file:` 地址打开本地文件，所以 `navigate` 的地址、`tab create` 与 `record start` 的 `--url` 只有字面以 `http://` 或 `https://` 开头才算只读，`navigate back` 与 `navigate forward` 照旧；`navigate` 带有未列入的选项或 bash 还会展开的词、`tab` 与 `record` 命令里有 bash 还会展开的词时，地址读不出来，也不算只读。这样的命令按整条命令送审，执行后全部会话的记忆清空。命令里有能自行运行程序的部分时（非只读的程序、读不出子命令的 `bsk`、带命令替换或圆括号而拆不开的命令），除了读得出的 `bsk` 与它的子命令，命令文字里每一处 `bsk` 之后第一个不是选项的词都必须是只读子命令，否则这条命令按藏有页面操作送审并转审批：经 `env`、`xargs`、`sh -c`、`eval` 运行，写成路径，放在 `then`、`do`、`{` 之后或命令替换与子 shell 里，名字或子命令出自变量，都在其中；`~/.bsk`、`bsk-notes` 这样的名字不算提到 `bsk`。命令把文件当程序运行时，审查连同文件内容一起判断：`sh`、`bash`、`dash`、`zsh`、`ksh`、`python`（含带版本号的名字）与 `node` 拿到的脚本文件，`source` 与 `.` 读入的文件，以及按路径写出的程序本身，路径落在 `/bin`、`/usr/bin`、`/usr/local/bin` 等系统目录里的按程序名处理；命令开头的赋值、`then`、`do`、`else` 等关键字，以及后面不跟选项的 `env`、`nohup`、`sudo`、`exec`、`command`、`nice`、`setsid` 和 `timeout <时长>` 先行略过。相对路径从调用的 `dir` 起算，并跟随命令自己的 `cd`（一个 bash 不再展开的目录，或不带参数回到主目录）；开头的 `$HOME/` 按 `~/` 读。backend 经工作机的文件读取接口取回这些文件，同一条命令合计至多 32 KiB，内容放进送审状态的 `scripts`，并向模型说明文件里的注释与名字可能自称无害、按代码实际做的事判断。读不到内容的命令转审批：文件名出自 bash 还会展开的词，解释器带有未列入的选项，相对路径之前有 `pushd`、`popd` 或跟不上的 `cd`（带选项、多个参数、在管道或后台里、跟在关键字或启动程序之后），文件由这条命令自己用重定向写出，工作机读不出（不存在、是目录、连不上），交给解释器的文件不是文本，内容超出上限，或没有配置工作机；原因记在 `tool_review` 的 `unread_scripts`。按路径运行的非文本文件是编译好的程序，没有内容可带，命令照旧送审。脚本内容里的 `bsk` 之后第一个不是选项的词不是只读子命令时，这条命令按藏有页面操作转审批。带命令替换、圆括号或 here-document 正文而拆不开的命令，只读取第一个 here-document 之前的几行。命令行里的内联代码（`-c`、`-e`、`-m`、标准输入）、不带路径的程序、其余解释器、`make`、`npm run`、`uv run` 这类按名字找文件的启动方式，以及脚本自己再运行的文件，都不读取。每次审查记一条 `tool_review` 诊断事件，不进入客户端契约。
   - `internal/runtime/approval_review_test.go`
   - `internal/runtime/approval_test.go`
   - `internal/review/review_test.go`
@@ -137,13 +137,14 @@
   - `internal/runtime/portrait_context_test.go`
 - **记忆只读脱敏后的来源**：store 解析来源时有两个视图。记忆视图把 `internal/redact` 识别的凭据替换为 `[REDACTED:<类型>]`，抽取输入、证据校验、召回里的未整理来源、`memory_read` 与 App 的记忆详情都用它；线程视图只应用排除，供线程历史、线程摘要输入与当前输入使用。遗忘的引用在脱敏正文里定位后映射回原文，两个视图排除同一段话，排除范围碰到的凭据整段排除。记录的正文、条件或实体带凭据时以 `ErrMemoryCredential` 拒绝提交。
   - `internal/redact/redact_test.go`
+  - `internal/redact/exclude_test.go`
   - `internal/store/memory_redaction_test.go`
   - `internal/memory/redaction_test.go`
-- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改登记一个 `request` 来源（speaker 为 owner、从不抽取），以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision。在 App 里忘掉一条记忆是撤回：同一事务里给它写一个新 revision，fact 与 insight 为 `retracted`、thought 为 `released`，由它派生的记录标 needs_review 并入队 consolidate，引用它根来源的 shown 画像行删除并排一次画像刷新；不登记排除、不升 epoch、不打断 run，它的来源和读过它的 run 写下的回复、工具结果与想法照常可读。不再是 current、disputed 或 open 的记录撤回时返回 `ErrMemoryNotFound`。
+- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改登记一个 `request` 来源（speaker 为 owner、从不抽取），以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision。在 App 里忘掉一条记忆是撤回：同一事务里给它写一个新 revision，fact 与 insight 为 `retracted`、thought 为 `released`，由它派生的记录标 needs_review 并入队 consolidate，引用它根来源的 shown 画像行删除并排一次画像刷新（没有这样的行而有画像刷新正在进行时也排一次），在它之前领取的刷新提交时见到之后排的刷新就不写入；不登记排除、不升 epoch、不打断 run，它的来源和读过它的 run 写下的回复、工具结果与想法照常可读。不再是 current、disputed 或 open 的记录撤回时返回 `ErrMemoryNotFound`。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
   - `internal/store/memory_withdraw_test.go`
-- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、跟进、目标、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
+- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、视图、跟进、目标、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、早安卡挑中的事件、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。有 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。在该对话里建立的关切随之排除：不再列出，修订返回 `ErrMemoryExcluded`，约定不能再关联它；之后每次 run 前，工作机经 `/v1/work` 列出 `~/work/` 下以关切 id 命名的目录，属于已删除对话的关切的目录被删除，其他目录保留，删除失败时 run 继续，下次 run 前重试。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
@@ -175,7 +176,7 @@
   - `internal/memory/consolidation_revision_test.go`
   - `internal/memory/semantic_history_test.go`
   - `internal/memory/research_evaluation_test.go`
-- **知识记忆绑定不可变版本**：每个笔记 revision 在写入事务里登记为记忆来源，展开读取对应 revision 的正文；agent 写入保留来源关系，后续派生输出继承已提交的遗忘。agent 知识工具过滤排除，owner 的原文读取保留。
+- **知识记忆绑定不可变版本**：每个笔记 revision 在写入事务里登记为记忆来源，展开读取对应 revision 的正文；agent 写入保留来源关系，后续派生输出继承已提交的遗忘。agent 知识工具过滤排除，片段按记忆来源的同一规则隐去（引自记忆里打码文本的片段也找得到，重叠的片段合成一段），owner 的原文读取保留。
   - `internal/knowledge/memory_sources_test.go`
 
 ## 知识库
@@ -201,7 +202,7 @@
   - `internal/store/store_skills_test.go`
   - `internal/tools/skill_tools_test.go`
   - `internal/workstation/skills_test.go`
-- **写技能的审批先说改了什么**：`approval.require` 设置默认含 `skill_write`、`skill_import`、`skill_retire`。关卡为 `skill_write` 或 `skill_import` 发起审批时，先经技能库的 `WriteChange` / `ImportChange` 预览这次写入；预览与写入共用合并和校验，不落库，暂存包也留在原处。预览写成一句话记进待批准项，作为它的摘要：新建技能时说技能名、附带几个文件和 description；改写时说改写哪个技能、当前第几版、是不是 release 随版本带的内置技能、是不是已停用（写入后恢复使用），以及改动——`SKILL.md` 删加的行数，新增、改动、删除的文件，或内容与当前版本相同。基于的 revision 与当前不符、或写入通不过校验时，这句话说明这次调用会失败和原因。预览读不出来或参数解不开时调用报错，既不执行也不发起审批。详情的 `tool_detail` 以这句话开头，其后依次是包清单的说明、改写时已有文件相对当前版本的改动行、将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的全文取自暂存包，包已不在暂存区时只有这句话。包带 `acorn-package.yaml` 时清单说明列出它在工作机上运行的东西：MCP 服务器的命令与参数、每个触发器的时间表、送达方式与命令、密钥名；写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。
+- **写技能的审批先说改了什么**：`approval.require` 设置默认含 `skill_write`、`skill_import`、`skill_retire`。关卡为 `skill_write` 或 `skill_import` 发起审批时，先经技能库的 `WriteChange` / `ImportChange` 预览这次写入；预览与写入共用合并和校验，不落库，暂存包也留在原处。预览写成一句话记进待批准项，作为它的摘要：新建技能时说技能名、附带几个文件和 description；改写时说改写哪个技能、当前第几版、是不是 release 随版本带的内置技能、是不是已停用（写入后恢复使用），以及改动——`SKILL.md` 删加的行数，新增、改动、删除的文件，或内容与当前版本相同。基于的 revision 与当前不符、或写入通不过校验时，这句话说明这次调用会失败和原因。预览读不出来或参数解不开时调用报错，既不执行也不发起审批。详情的 `tool_detail` 以这句话开头，其后依次是包清单的说明、改写时已有文件相对当前版本的改动行、将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的全文取自暂存包，包已不在暂存区时只有这句话。包带 `acorn-package.yaml` 时清单说明列出它在工作机上运行的东西：MCP 服务器的命令与参数、每个触发器的时间表、送达方式与命令、密钥名；写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。`skill_retire` 发起审批时摘要说停用哪个技能、是不是内置技能、当前第几版、谁写的；技能不存在、已停用或版本不对时说这次停用会失败，详情同摘要。
   - `internal/config/config_validation_test.go`
   - `internal/api/tool_steps_test.go`
   - `internal/skills/library_test.go`
@@ -273,12 +274,12 @@
   - `internal/store/thread_files_test.go`
   - `internal/core/thread_file_test.go`
   - `internal/wire/thread_files_e2e_test.go`
-- **视图经后端校验后挂在回复上**：`show_view` 的视图由 `internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里的 Markdown 链接）、不是本对话图片文件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
+- **视图经后端校验后挂在回复上**：`show_view` 的视图由 `internal/views` 按目录 `acorn.views.v1` 校验：未知组件或属性、重复或缺失的 id、不在 root 之下或有两个位置的组件、在数据里找不到的 path、与列数不符的行、不过 `webaccess` URL policy 的链接（含 Text 里 App 会做成链接的地址：按 CommonMark 读出的行内与引用链接、图片、尖括号自动链接，以及正文里裸露的 http(s) 与 www. 网址，代码里的不算）、不是本对话图片文件的图片、超过 200 个组件或 64 KiB 的视图都拒绝，问题一次列出，作为模型可见的 tool result 返回，不保存。通过的视图存进 `thread_views` 并写 `view.shown` 事件；线程消息把视图列在其 run 的 assistant 消息上，没有回复的 run 与发了文件时一样补一条空正文的 assistant 消息；删除对话一并删除视图。`views` 技能里的示例必须通过校验。
   - `internal/views/views_test.go`
   - `internal/tools/views_tool_test.go`
   - `internal/store/thread_views_test.go`
   - `internal/wire/thread_views_e2e_test.go`
-- **视图动作是 owner 的一条消息，只发一次**：App 只发组件 id、List 里的位置与选中的选项 id，后端从存着的视图解析动作：不是 `Button` 或 `ChoicePicker` 的组件、位置不对、不在声明里的选项、单选时选了多个都以 400 拒绝，动作名、选项文字与 context 都取自视图。登记动作与写 owner 消息在同一事务里，主键是（视图, 组件 id 加位置），重复发返回 409 且不多写消息、不多起 run；之后按 owner 发消息的规则起 run，模型在这条消息旁看到视图 id、组件、动作名、选项与 context。`update_view` 只能改本对话的视图，整个视图重新校验，写 `view.updated` 事件，已发的动作保留；删除对话一并删除动作。
+- **视图动作是 owner 的一条消息，只发一次**：App 只发组件 id、List 里的位置与选中的选项 id，后端从存着的视图解析动作：不是 `Button` 或 `ChoicePicker` 的组件、位置不对、不在声明里的选项、单选时选了多个都以 400 拒绝，动作名、选项文字与 context 都取自视图。登记动作与写 owner 消息在同一事务里，主键是（视图, 组件 id 加位置），重复发不多写消息：消息已有 run 时返回 409、不多起 run，消息的 run 没能起来（消息没有 run）时在这条消息上起 run；之后按 owner 发消息的规则起 run，模型在这条消息旁看到视图 id、组件、动作名、选项与 context。`update_view` 只能改本对话的视图，整个视图重新校验，写 `view.updated` 事件，已发的动作保留；删除对话一并删除动作。
   - `internal/views/actions_test.go`
   - `internal/runtime/view_actions_test.go`
   - `internal/store/thread_views_test.go`
@@ -310,7 +311,7 @@
   - `internal/store/commitment_contract_test.go`
   - `internal/wake/scheduler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 设置限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
+- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 设置限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；调度器从检查额度到记下这次 `wake.fired` 一直占着额度，触发器循环与主循环不会同时用掉当天最后一次；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
 - **跟进在条件成立时只醒一次**：`follow_up` 在当前对话里登记一件跟进：等工作机上仍在运行的任务结束，或它的输出出现一段文字（至多 1024 字节，任务没打印就结束也算），或某个路径就绪（目录存在，或文件存在且相隔一次检查大小不变）；期限默认 24 小时、至多 7 天，到期无论条件如何都醒来并写明当时的状况或检查失败的原因。wake 调度器每次检查经工作机查看条件：输出从上次查到的位置接着搜，工作机已没有这个任务也算成立；没有工作机时只在期限醒来。对话里有 run 在运行或等待审批、或有排队的 owner 消息时不醒；醒来先经条件更新认领，在原对话起 run（输入以 `[follow_up #id` 开头并写明发生了什么），计入 `wake.daily_limit` 并记 `wake.fired{follow_up_id}`，起 run 失败时放回等待，认领后五分钟没有 run 的重新等待。只有等待中的跟进能取消：agent 只能取消它所在对话里的，owner 经 App 取消任一对话里的。
   - `internal/store/store_follow_ups_test.go`
@@ -318,33 +319,33 @@
   - `internal/tools/workstation_tools_test.go`
   - `internal/workstation/jobs_test.go`
   - `internal/wire/long_work_e2e_test.go`
-- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话最新的 run 结束、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束，owner 也可在 App 里直接停止它；轮数用完时转为 blocked；结束已结束的目标返回 `ErrGoalEnded`。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果）；agent 结束目标时记下这个 run，它已经给 owner 推送过（审批推送不算）就不再推送，调度器结束的目标照常推送；stop 不推送。presence 列出当前对话的目标与等待中的跟进。
+- **目标在对话空闲时接着跑，结束时告诉 owner**：`goal` 在当前对话里开始一个目标，每个对话至多一个进行中的目标，轮数默认 10、至多 50。对话里没有 run 在运行或等待审批、没有排队的 owner 消息、也没有等待中的跟进时，wake 调度器在这个对话里起下一轮（输入以 `[goal #id, run k of n]` 开头），轮数以条件更新计数，计入 `wake.daily_limit` 并记 `wake.fired{goal_id}`；超出预算时目标等到下一本地日。Acorn 停止或重启而失败的 run 不算目标失败，下一轮的输入说明上一轮被打断；其他失败的 run 让目标转为 blocked。agent 以 done 或 blocked 结束目标，owner 要求时以 stop 结束，owner 也可在 App 里直接停止它；轮数用完时转为 blocked；结束已结束的目标返回 `ErrGoalEnded`。done 与 blocked 的目标在对话的 run 结束后推送一次（标题「目标完成」或「目标需要你」，正文是结果）；agent 结束目标时记下这个 run，它已经给 owner 推送过（审批推送不算）就不再推送，调度器结束的目标照常推送；stop 不推送。presence 列出当前对话的目标与等待中的跟进。
   - `internal/store/store_follow_ups_test.go`
   - `internal/wake/follow_ups_test.go`
   - `internal/tools/goal_tool_test.go`
   - `internal/presence/presence_test.go`
   - `internal/wire/long_work_e2e_test.go`
-- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 设置时返回错误；发给 FCM 的请求超过 4096 字节（FCM 的单条消息上限）的通知在入队之前返回错误并写明字节数，免打扰时段内也一样；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出（owner 正在等的待决事项除外，见「等待 owner 的操作会推送」）；排队的待决事项推送在发出前读它的 pending action，已不在 pending 的记 dropped 并写明状态，不再投递；没有任何已登记设备时返回错误。推送按 App 向 FCM 注册的 Firebase installation ID（FID）投递，设备经 `PUT /v1/devices/self/push-installation` 登记 FID，格式不符的拒绝；一个 FID 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 FID 被删除，设备吊销时其 FID 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
+- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 设置时返回错误，计数与入队在同一条语句里，同时发起的通知不会一起越过上限；发给 FCM 的请求超过 4096 字节（FCM 的单条消息上限）的通知在入队之前返回错误并写明字节数，免打扰时段内也一样；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出（owner 正在等的待决事项除外，见「等待 owner 的操作会推送」）；排队的待决事项推送在发出前读它的 pending action，已不在 pending 的记 dropped 并写明状态，不再投递；没有任何已登记设备时返回错误。推送按 App 向 FCM 注册的 Firebase installation ID（FID）投递，设备经 `PUT /v1/devices/self/push-installation` 登记 FID，格式不符的拒绝；一个 FID 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 FID 被删除，设备吊销时其 FID 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
   - `internal/notify/notify_test.go`
   - `internal/store/store_presence_test.go`
   - `internal/api/push_installation_handler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **等待 owner 的操作会推送**：run 以 interrupted 结束后，它每个仍 pending 的操作经 `notify.Sender` 推送一次，同样受每小时上限约束，推送失败只记录日志、不改变 run 结果。免打扰时段内，操作产生时距 owner 在这个对话里最近一条消息不超过 30 分钟的立即推送（owner 刚交代的事在等它），其余的排到时段结束；owner 的消息指对话里 role 为 `user` 的消息，wake 输入与还在排队的消息不算。这类推送是只含 data 的 FCM 消息（`type=pending_action`，带 `action_id`、`thread_id`、`run_id` 与标题），不带操作的正文与参数，大小不随调用内容增长；通知记录保存 `action_id` 与正文；App 收到后读取操作的内容与当前状态，已决定或已不存在的操作不显示。
+- **等待 owner 的操作会推送**：run 以 interrupted 结束后，它每个仍 pending 的操作经 `notify.Sender` 推送一次，同样受每小时上限约束，推送失败只记录日志、不改变 run 结果。免打扰时段内，操作产生时距 owner 在这个对话里最近一条消息不超过 30 分钟的立即推送（owner 刚交代的事在等它），其余的排到时段结束；owner 的消息指对话里 role 为 `user` 的消息，wake 输入与还在排队的消息不算。这类推送是只含 data 的 FCM 消息（`type=pending_action`，带 `action_id`、`thread_id`、`run_id` 与标题），不带操作的正文与参数，大小不随调用内容增长；通知记录保存 `action_id` 与标题（操作的 subject，没有时是它的种类），不读操作的 payload，payload 解析不了也照常推送；App 收到后读取操作的内容与当前状态，已决定或已不存在的操作不显示。
   - `internal/wire/approval_push_e2e_test.go`
   - `internal/notify/notify_test.go`
   - `internal/store/store_push_action_test.go`
   - `internal/store/store_owner_messages_test.go`
-- **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；订阅源条目的 key 是 guid 或 id，它是带纯数字片段的 http(s) 地址时去掉片段（BBC 以 `#0`、`#1` 记文章的修订），条目改版不算新条目。网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
+- **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；订阅源条目的 key 是 guid 或 id，它是带纯数字片段的 http(s) 地址时去掉片段（BBC 以 `#0`、`#1` 记文章的修订），条目改版不算新条目。条目的链接只留绝对的 http(s) 地址，别的协议与相对地址的链接不进条目（key 照旧可以取它），因为链接会进早安卡和 owner 的手机。网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/tools/watch_tools_test.go`
   - `internal/webaccess/feed_test.go`
-- **抓取只经 URL policy**：feed、GitHub、网页与 `feed_discover` 试探的地址都经 `webaccess.FetchRaw`（与 `web_fetch` 共用超时与大小上限），渲染页面经浏览器服务的 policy；loopback 与未放开的内网地址拒绝，唯一例外是追踪用的 policy 放行 `watch.rsshub_base_url` 的 origin（协议、主机与端口），`web_fetch` 与视图链接不放行。
+- **抓取只经 URL policy**：feed、GitHub、网页与 `feed_discover` 试探的地址都经 `webaccess.FetchRaw`（与 `web_fetch` 共用超时与大小上限），渲染页面经浏览器服务的 policy；loopback 与未放开的内网地址拒绝，唯一例外是追踪用的 policy 放行 `watch.rsshub_base_url` 的 origin（协议、主机与端口），`web_fetch` 与视图链接不放行。抓取直连，不经环境变量里的代理；每次建立连接时再解析一次主机，每个地址都要过 policy，只连这些检查过的地址，重定向同样如此，校验与连接之间换了解析结果（DNS rebinding）的主机连不上。
   - `internal/watch/watch_test.go`
   - `internal/webaccess/discover_test.go`
   - `internal/webaccess/url_policy_test.go`
   - `internal/wire/watch_test.go`
-- **追踪项检查与唤醒只在 wake 调度器**：到期追踪项以条件更新加租约认领，多个调度器只有一个检查。检查结果只写检查字段（下次与上次检查、错误、失败次数、快照、active 与 failing 之间的切换），与新条目在同一事务里，且仅当追踪项的状态、失败次数与上次检查仍是检查开始时读到的值；检查期间 owner 的暂停、恢复或重设基线优先，这次检查的结果与条目都不记录。只有 immediate 追踪项的新条目起 wake run（在建立追踪项的线程里），计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`；超限、起 run 失败与 digest 追踪项的条目都留给早安卡。一个追踪项失败不影响约定和其他追踪项；连续 5 次失败标为 failing，退避上限 24 小时。
+- **追踪项检查与唤醒只在 wake 调度器**：到期追踪项以条件更新加租约认领，多个调度器只有一个检查。检查结果只写检查字段（下次与上次检查、错误、失败次数、快照、active 与 failing 之间的切换），与新条目在同一事务里，且仅当追踪项的状态、失败次数与上次检查仍是检查开始时读到的值；检查期间 owner 的暂停、恢复或重设基线优先，这次检查的结果与条目都不记录。只有 immediate 追踪项的新条目起 wake run（在建立追踪项的线程里），输入与早安卡的追踪项段落都把条目标为不可信的外部数据，计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`；超限、起 run 失败与 digest 追踪项的条目都留给早安卡。一个追踪项失败不影响约定和其他追踪项；连续 5 次失败标为 failing，退避上限 24 小时。
   - `internal/wake/watches_test.go`
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
@@ -402,7 +403,7 @@
   - `internal/api/story_messages_test.go`
   - `internal/api/now_test.go`
   - `internal/runtime/story_messages_test.go`
-- **从早安卡的事件发出的消息进这件事的对话**：`POST /v1/news/stories/{story_id}:discuss` 与 `:follow` 在同一事务里找这件事最新的对话（没有就新建）、写 owner 消息「展开讲讲：<标题>」或「持续跟进：<标题>」，标题与新对话的标题取最近一份挑中它的早安卡写的标题，没进过早安卡时取事件标题；并登记消息、对话、事件、意图与发消息时的事件快照（板块、标题、摘要、最新进展与至多 10 条最新条目的来源、标题、链接和时间）；之后按 owner 发消息的规则起 run。事件不存在时 404，对话最新 run 仍在运行或等待审批时 409 且不写消息。模型在这条消息旁看到意图与快照，快照标为外部数据；跟进时要求建一个没有 outcome、以这条消息为来源的关切，复查时间设在第二天开始。事件清理后快照保留；删除对话一并删除这些登记，之后再从事件发消息会新建对话。`/v1/now` 的早安卡事件带上这件事的对话与 `following`：那个对话里有可见的 active 或 waiting 关切。
+- **从早安卡的事件发出的消息进这件事的对话**：`POST /v1/news/stories/{story_id}:discuss` 与 `:follow` 在同一事务里找这件事最新的对话（没有就新建）、写 owner 消息「展开讲讲：<标题>」或「持续跟进：<标题>」，标题与新对话的标题取最近一份挑中它的早安卡写的标题，没进过早安卡时取事件标题；并登记消息、对话、事件、意图与发消息时的事件快照（板块、标题、摘要、最新进展与至多 10 条最新条目的来源、标题、链接和时间）；之后按 owner 发消息的规则起 run。事件不存在时 404，对话里有 run 在运行或等待审批时（与 owner 发消息时排队的判断相同）409 且不写消息。请求带客户端给的 `client_id`，与消息一同记下；以同一 `client_id` 再问时不写消息，先于忙碌判断回答这条消息：已有 run 时返回它（200），run 没能起来时在它上面起 run（201）。模型在这条消息旁看到意图与快照，快照标为外部数据；跟进时要求建一个没有 outcome、以这条消息为来源的关切，复查时间设在第二天开始。事件清理后快照保留；删除对话一并删除这些登记，之后再从事件发消息会新建对话。`/v1/now` 的早安卡事件带上这件事的对话与 `following`：那个对话里有可见的 active 或 waiting 关切。
   - `internal/store/store_news_story_messages_test.go`
   - `internal/api/story_messages_test.go`
   - `internal/runtime/story_messages_test.go`
@@ -418,14 +419,14 @@
 - **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思在 Thoughts 线程运行。
   - `internal/wake/thinking_test.go`
   - `internal/store/store_routine_test.go`
-- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件（留意的问题除外），所在对话最新 run 仍在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录；没有 outcome、所在对话里 owner 要求过跟进早安卡事件的关切，另给出最近一次跟进时存下的事件快照，要求用 `news_search` 与 `web_search` 找最新理由之后的进展，有进展时回复并推送一次，没有时只回一句不推送，复查时间设到下一天开始。
+- **游思在关切所在的对话里推进**：关切记下建立它的 run 所在的对话，之后的 revision 不改变它。每个游思时段从到期的 active/waiting 关切里取最久没有修订的一件（留意的问题除外），所在对话里有 run 在运行或等待审批时跳过它；游思 run 在该对话里运行，带着对话历史与摘要，对话已删除时起 run 失败并释放认领。没有可推进的关切时保留认领。游思输入列出关切的 outcome、最新理由与复查时间，有 outcome 的关切另给出工作机上的 `~/work/<id>/` 目录；没有 outcome、所在对话里 owner 要求过跟进早安卡事件的关切，另给出最近一次跟进时存下的事件快照，要求用 `news_search` 与 `web_search` 找最新理由之后的进展，有进展时回复并推送一次，没有时只回一句不推送，复查时间设到下一天开始。
   - `internal/wake/thinking_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
   - `internal/wire/story_follow_acceptance_e2e_test.go`
 - **有 outcome 的关切只由 owner 的确认解决**：outcome 随关切的每个 revision 保存，修订不传 outcome、标题或关联记录时沿用当前的，新关切必须有标题。解决关切要以 owner 的消息或成功的工具结果为来源，有 outcome 时只认 owner 的消息，在 `SaveConcern` 读取当前 revision 的同一事务里判断。游思在工作机上推进这类关切，中途需要审批的调用照常停下推送、批准后续跑；交付发在关切所在的对话里，关切转为 waiting，复查时间之前不再被游思选中。
   - `internal/store/memory_state_test.go`
   - `internal/wire/concern_acceptance_e2e_test.go`
-- **留意的问题合成一次检查，新答案在提问的对话里告知**：带 `question` 标记的关切是 owner 问过、答案会变的问题，标题即问题。它只能以 owner 自己的消息为来源开出，不能同时有 outcome，同时至多 5 条 active，标记建立后不变，这些在 `SaveConcern` 的事务里判断；owner 没有设置游思时间时 `concern` 工具拒绝开出。每个游思时段先以 `questions` 认领一次：提问满 14 天仍 active 的先直接 released、不起 run；到期的问题合进一个自主 run，在它自己的对话里只看这份输入，输入列出每个问题、提问日期与目前的答案；没有到期的问题时保留认领、不起 run。不在提问对话里的 run 把问题记为 resolved 时，同一事务里建一条立即到期、落在提问对话里的约定；它的唤醒输入带着检查记下的新答案，要求在对话里写出、推送一次并了结约定。提问对话里的 run 把它 resolved 时不建约定。夜思的输入不列留意的问题，也不列所在对话里 owner 要求过跟进早安卡事件的关切。
+- **留意的问题合成一次检查，新答案在提问的对话里告知**：带 `question` 标记的关切是 owner 问过、答案会变的问题，标题即问题。它只能以 owner 自己的消息为来源开出，不能同时有 outcome，同时至多 5 条 active，标记建立后不变，这些在 `SaveConcern` 的事务里判断；owner 没有设置游思时间时 `concern` 工具拒绝开出。每个游思时段先以 `questions` 认领一次：提问满 14 天仍 active 的先直接 released、不起 run，理由里的提问日期按 owner 的时区，一个问题放不下不影响其余的，失败照常报出；到期的问题合进一个自主 run，在它自己的对话里只看这份输入，输入列出每个问题、提问日期与目前的答案；没有到期的问题时保留认领、不起 run。不在提问对话里的 run 把问题记为 resolved 时，同一事务里建一条立即到期、落在提问对话里的约定；它的唤醒输入带着检查记下的新答案，要求在对话里写出、推送一次并了结约定。提问对话里的 run 把它 resolved 时不建约定。夜思的输入不列留意的问题，也不列所在对话里 owner 要求过跟进早安卡事件的关切。
   - `internal/store/memory_questions_test.go`
   - `internal/wake/questions_test.go`
   - `internal/tools/presence_tools_test.go`
@@ -453,10 +454,11 @@
   - `internal/workstation/workstation_test.go`
   - `internal/review/review_test.go`
 - **工作机里的进程用不了工作机 API**：监听非 loopback 地址时，serve 拒绝来自自己地址（loopback 与本机网卡地址）的请求；启动时把 token 从进程环境里移除，它运行的命令、技能包 MCP 服务器与触发器都继承不到。
-- **后端的 stdio MCP 服务器只继承少数环境变量**：Acorn 进程的环境里只有 `PATH`、`HOME`、`USER`、语言与时区、临时目录、证书与代理变量到服务器，API key 与工作机 token 在内的其余变量只有写进 provider 的 `env` 才到；`env` 的值展开环境变量。
   - `internal/workstation/token_test.go`
   - `internal/tools/workstation_tools_test.go`
   - `internal/config/config_workstation_test.go`
+- **后端的 stdio MCP 服务器只继承少数环境变量**：Acorn 进程的环境里只有 `PATH`、`HOME`、`USER`、语言与时区、临时目录、证书与代理变量到服务器，API key 与工作机 token 在内的其余变量只有写进 provider 的 `env` 才到；`env` 的值展开环境变量。
+  - `internal/mcp/manager_connection_test.go`
 - **文件经工作机往返**：每次 run 前，对话里已发送的 owner 文件按 id 复制到工作机 `~/uploads/<file_id>/<文件名>`（写在旁边再整体换入），不再属于任何对话的副本被删除；复制失败时 run 继续，模型从消息附注里得知原因。模型看到每条 owner 消息附带的文件名、类型、大小与工作机路径，≤10 MiB 的 JPEG/PNG/WebP/GIF 作为图片输入随消息交给模型并按 `core.ImageInputTokens` 计入输入预算。`send_file` 是 eager 工具，经工作机 `/v1/files/raw` 读取文件，超过 `files.max_send_mib` 时失败，存为本 run 的 agent 文件。对话的消息把 agent 文件列在本 run 的回复下；run 没有回复时，列在它的输入之后一条以 run id 为 id 的无文本 assistant 消息里。
   - `internal/workstation/files_test.go`
   - `internal/tools/workstation_tools_test.go`
@@ -466,7 +468,7 @@
   - `internal/workstation/supervisor_test.go`
 - **包的 MCP 服务器由工作机守护**：`PUT /v1/mcp` 给出应运行的包（名字、包哈希、密钥环境变量），工作机停止其余服务器，包哈希或环境变了的重启，新的启动，最多等 90 秒报告每个服务器能否服务。服务器与伴随进程用同一个 supervisor：以包目录为工作目录、独立进程组、退避重启，stderr 以 `mcp:<name>` 为前缀写入日志；包目录的哈希必须与请求一致。工作机以 MCP 客户端经 stdio 连接服务器，把它的工具挂在 `/v1/mcp/<name>` 的 streamable HTTP 上，经 bearer token 鉴权，会话跨重启保留；服务器 stdout 里不是 JSON-RPC 消息的行以 `stray stdout:` 记进 `mcp:<name>` 日志并跳过，会话照常；进程退出或 stdio 会话仍然断开（管道关闭、客户端解不开的消息、超长的行）都算一次失败，停掉进程后退避重启，重启进行中的请求等它结束再报告；不再运行的服务器的地址返回 404。serve 停止时这些服务器一起结束。
   - `internal/workstation/mcp_test.go`
-- **页面渲染隔离**：`web_rendered` 追踪经工作机 `/v1/render` 渲染，每次用临时配置目录启动一次性浏览器，只接受 http(s)；backend 先按共享 URL policy 校验目标。
+- **页面渲染隔离**：`web_rendered` 追踪经工作机 `/v1/render` 渲染，每次用临时配置目录启动一次性浏览器，只接受 http(s)；backend 先按共享 URL policy 校验目标。浏览器只经工作机为这次渲染起的代理上网，loopback 也走代理，WebRTC 不发代理之外的 UDP；代理在每次连接时按同一 policy（带上 backend 的 `allow_private_networks`）检查页面、重定向与页面加载的一切，页面碰过被拒的主机时这次渲染失败并列出这些主机。
   - `internal/workstation/render_test.go`
 - **浏览器画面只给已认证的 owner**：工作机的 DevTools 只在容器内开放；`/v1/browser/*` 经设备认证转发到工作机，未配置工作机时返回 `browser_unavailable`，未知标签页返回 `browser_tab_not_found`；导航只接受 http(s)。画面流可按 owner 的手机尺寸排版，宽高要么都给、要么都不给。
   - `internal/workstation/view_test.go`

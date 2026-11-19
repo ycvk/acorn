@@ -99,6 +99,10 @@ type Scheduler struct {
 
 	mu     sync.Mutex
 	warned map[string]string // wake subject -> local day already warned about the limit
+	// budget is held from the check that one more autonomous wake fits today
+	// until that wake is recorded, so the trigger loop and the main loop
+	// cannot both take the day's last one.
+	budget sync.Mutex
 }
 
 func NewScheduler(cfg Config) (*Scheduler, error) {
@@ -268,10 +272,11 @@ func (s *Scheduler) tickMain(ctx context.Context) error {
 }
 
 func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Time, settings core.Settings) error {
-	allowed, err := s.withinBudget(ctx, fmt.Sprintf("commitment #%d", item.ID), now, settings)
+	allowed, done, err := s.withinBudget(ctx, fmt.Sprintf("commitment #%d", item.ID), now, settings)
 	if err != nil || !allowed {
 		return err
 	}
+	defer done()
 	var next time.Time
 	if strings.TrimSpace(item.Recurrence) != "" {
 		schedule, err := presence.ParseCron(item.Recurrence)
@@ -333,7 +338,20 @@ func (s *Scheduler) linkedConcern(ctx context.Context, id string) (*core.MemoryC
 
 // withinBudget reports whether another wake fits today's limit and warns
 // once a day per subject when it does not.
-func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.Time, settings core.Settings) (bool, error) {
+// withinBudget reports whether one more autonomous wake fits today's budget.
+// When it does, the budget stays held until the caller calls done, once it
+// recorded the wake's wake.fired event or gave up starting it.
+func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.Time, settings core.Settings) (allowed bool, done func(), err error) {
+	s.budget.Lock()
+	allowed, err = s.budgetLeft(ctx, subject, now, settings)
+	if err != nil || !allowed {
+		s.budget.Unlock()
+		return false, nil, err
+	}
+	return true, s.budget.Unlock, nil
+}
+
+func (s *Scheduler) budgetLeft(ctx context.Context, subject string, now time.Time, settings core.Settings) (bool, error) {
 	local := now.In(settings.Location)
 	midnight := core.Midnight(local, settings.Location)
 	count, err := s.cfg.Store.CountWakesSince(ctx, midnight)

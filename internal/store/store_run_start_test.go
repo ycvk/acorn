@@ -53,13 +53,13 @@ func TestStartedRunsAreStoredAlike(t *testing.T) {
 	}
 	stored("run_created", "created", 1, "建一个", time.Time{})
 
-	sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "sent", Content: "查一下天气", RunID: "run_sent"})
+	sent, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "sent", Content: "查一下天气", RunID: "run_sent", ClientID: core.NewActionID()})
 	if err != nil || sent.Started == nil {
 		t.Fatalf("owner message in an idle conversation = %+v, %v, want a started run", sent, err)
 	}
 	stored("run_sent", "sent", 1, "查一下天气", time.Time{})
 
-	if waiting, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "sent", Content: "再查一下明天", RunID: "run_unused"}); err != nil || waiting.Queued == nil {
+	if waiting, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "sent", Content: "再查一下明天", RunID: "run_unused", ClientID: core.NewActionID()}); err != nil || waiting.Queued == nil {
 		t.Fatalf("owner message while a run is going = %+v, %v, want it queued", waiting, err)
 	}
 	if _, next, err := s.FinishRun(ctx, core.RunEnd{RunID: "run_sent", Status: core.RunStatusSucceeded, Output: "晴", Event: "run.completed", Next: "run_next"}); err != nil || next == nil {
@@ -77,7 +77,7 @@ func TestOwnerMessagesAndGoalsNeedTheirConversation(t *testing.T) {
 	ctx := context.Background()
 	s := openTestStore(t)
 
-	_, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "gone", Content: "在吗", RunID: "run_1"})
+	_, err := s.SendOwnerMessage(ctx, core.OwnerMessage{SessionID: "gone", Content: "在吗", RunID: "run_1", ClientID: core.NewActionID()})
 	if !errors.Is(err, core.ErrSessionNotFound) || err.Error() != "send owner message to gone: session not found: gone" {
 		t.Errorf("owner message to a missing conversation = %v", err)
 	}

@@ -28,7 +28,7 @@ func TestProviderToolsTakeTheProvidersReadiness(t *testing.T) {
 			if got := items[0]; got.HealthState != string(tc.wantHealth) || got.Enabled != tc.wantEnabled {
 				t.Fatalf("tool = %+v, want health %s enabled %t", got, tc.wantHealth, tc.wantEnabled)
 			}
-			passed := providerReadinessFromCapability(tc.provider).Status == ProviderReadinessPassed
+			passed := ProviderReadinessOf(tc.provider).Status == ProviderReadinessPassed
 			if passed != tc.wantPassed || (healthyCapabilityProviderCount([]SystemMCPProviderCapability{tc.provider}) == 1) != tc.wantPassed {
 				t.Fatalf("readiness passed = %t, want %t", passed, tc.wantPassed)
 			}

@@ -174,6 +174,14 @@ func TestFilesRoundTripAndReportFailures(t *testing.T) {
 	if _, err := client.ReadFile(t.Context(), ReadRequest{Path: "blob", MaxBytes: 1000}); !errors.As(err, &refused) || refused.Status != http.StatusUnprocessableEntity || !strings.Contains(err.Error(), ErrNotText.Error()) {
 		t.Fatalf("binary err = %v", err)
 	}
+	// A cut read drops a character the cut splits, and nothing else: a byte
+	// that is no UTF-8 at all just before the cut still makes it no text.
+	if err := os.WriteFile(filepath.Join(home, "cut"), []byte("abc\xffdef"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := client.ReadFile(t.Context(), ReadRequest{Path: "cut", MaxBytes: 4}); !errors.As(err, &refused) || refused.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("a cut at an invalid byte = %+v, %v", got, err)
+	}
 	if _, err := client.ReadFile(t.Context(), ReadRequest{Path: "nope.txt", MaxBytes: 1000}); !errors.As(err, &refused) || refused.Status != http.StatusNotFound || !strings.Contains(err.Error(), "no such file") {
 		t.Fatalf("missing err = %v", err)
 	}

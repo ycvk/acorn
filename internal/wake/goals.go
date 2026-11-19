@@ -58,10 +58,11 @@ func (s *Scheduler) continueGoal(ctx context.Context, g core.Goal, now time.Time
 	if g.Runs >= g.MaxRuns {
 		return s.endGoal(ctx, g, core.GoalBlocked, fmt.Sprintf("used all %d runs without reaching it", g.MaxRuns), now)
 	}
-	allowed, err := s.withinBudget(ctx, fmt.Sprintf("goal #%d", g.ID), now, settings)
+	allowed, done, err := s.withinBudget(ctx, fmt.Sprintf("goal #%d", g.ID), now, settings)
 	if err != nil || !allowed {
 		return err
 	}
+	defer done()
 	if err := s.cfg.Goals.CountGoalRun(ctx, g.ID, g.Runs, now); errors.Is(err, core.ErrGoalChanged) {
 		return nil
 	} else if err != nil {
@@ -100,12 +101,17 @@ func (s *Scheduler) announceGoals(ctx context.Context, now time.Time) error {
 	}
 	var errs []error
 	for _, g := range goals {
-		latest, err := s.cfg.RunRecords.LoadLatestRunForSession(ctx, g.SessionID)
+		active, err := s.cfg.RunRecords.ActiveRunInSession(ctx, g.SessionID)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		if runGoing(latest) {
+		if active != "" {
+			continue
+		}
+		latest, err := s.cfg.RunRecords.LoadLatestRunForSession(ctx, g.SessionID)
+		if err != nil {
+			errs = append(errs, err)
 			continue
 		}
 		notified := false

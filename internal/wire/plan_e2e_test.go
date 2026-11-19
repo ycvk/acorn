@@ -46,7 +46,7 @@ func TestThePlanOfARunReachesTheApp(t *testing.T) {
 		t.Fatal(err)
 	}
 	var started api.CreateRunResponse
-	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "读一下 A 和 B 再汇总"}, http.StatusCreated, &started)
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"client_id": core.NewActionID(), "input": "读一下 A 和 B 再汇总"}, http.StatusCreated, &started)
 	waitRunStatusWithin(t, c, started.Run.ID, "completed", 30*time.Second)
 
 	for _, request := range provider.recorded() {

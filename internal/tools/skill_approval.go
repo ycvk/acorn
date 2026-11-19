@@ -3,16 +3,20 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-// SkillChanges previews what a skill write would do to the stored skills.
+// SkillChanges previews what a skill write would do to the stored skills,
+// and reads the skill a retirement takes out of use.
 type SkillChanges interface {
 	WriteChange(ctx context.Context, req skills.WriteRequest) (skills.Change, error)
 	ImportChange(ctx context.Context, name, sha256 string, baseRevision int64) (skills.Change, error)
+	Skill(ctx context.Context, name string) (core.Skill, error)
 }
 
 // SkillApproval says what a skill_write or skill_import call does to the
@@ -24,6 +28,45 @@ func SkillApproval(ctx context.Context, changes SkillChanges, toolName, argument
 		return "", err
 	}
 	return SkillChangeStatement(toolName, change), nil
+}
+
+// SkillRetireApproval says which skill a skill_retire call takes out of use:
+// whether a release ships it, its revision and who wrote it, or why the call
+// would fail.
+func SkillRetireApproval(ctx context.Context, changes SkillChanges, arguments string) (string, error) {
+	var in SkillRetireInput
+	if err := json.Unmarshal([]byte(arguments), &in); err != nil {
+		return "", fmt.Errorf("skill_retire arguments: %w", err)
+	}
+	name := strings.TrimSpace(in.Name)
+	skill, err := changes.Skill(ctx, name)
+	switch {
+	case errors.Is(err, core.ErrSkillNotFound):
+		return fmt.Sprintf("技能 %s 不存在，这次停用会失败。", name), nil
+	case err != nil:
+		return "", err
+	case skill.Retired:
+		return fmt.Sprintf("技能 %s 已经停用，这次停用会失败。", name), nil
+	case skill.Revision != in.BaseRevision:
+		return fmt.Sprintf("技能 %s 现在是第 %d 版，这次停用基于第 %d 版，会失败。", name, skill.Revision, in.BaseRevision), nil
+	}
+	kind := "技能"
+	if skill.SeedSHA256 != "" {
+		kind = "内置技能"
+	}
+	return fmt.Sprintf("停用%s %s（现为第 %d 版，%s写的）：之后的 run 不再用它，在技能页可以恢复。", kind, name, skill.Revision, skillAuthorName(skill.Author)), nil
+}
+
+// skillAuthorName is who wrote a revision, as the owner reads it.
+func skillAuthorName(author core.SkillAuthor) string {
+	switch author {
+	case core.SkillAuthorOwner:
+		return "你"
+	case core.SkillAuthorAgent:
+		return "Acorn"
+	default:
+		return "发布版本"
+	}
 }
 
 // SkillChange is the change a skill_write or skill_import call would make.

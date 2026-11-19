@@ -88,6 +88,7 @@ type JobView struct {
 	EndedAt     *time.Time `json:"ended_at,omitempty"`
 	OutputBytes int64      `json:"output_bytes"`
 	OutputPath  string     `json:"output_path"`
+	OutputGone  bool       `json:"output_gone,omitempty"`
 }
 
 type JobToolOutput struct {
@@ -301,7 +302,7 @@ func buildJobTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
 }
 
 func jobView(job workstation.Job) JobView {
-	return JobView{ID: job.ID, Command: job.Command, State: job.State, ExitCode: job.ExitCode, Note: job.Note, StartedAt: job.StartedAt, EndedAt: job.EndedAt, OutputBytes: job.OutputBytes, OutputPath: job.OutputPath}
+	return JobView{ID: job.ID, Command: job.Command, State: job.State, ExitCode: job.ExitCode, Note: job.Note, StartedAt: job.StartedAt, EndedAt: job.EndedAt, OutputBytes: job.OutputBytes, OutputPath: job.OutputPath, OutputGone: job.OutputGone}
 }
 
 func buildFilesTool(cfg WorkstationToolsConfig) (einotool.BaseTool, error) {
